@@ -1,15 +1,20 @@
+var rp = require('request-promise');
 
-var titleContent = {title: "HEY THERE",
-                    subtitle: "welcome to your premade app!"};
+var sendRequest = function (call, data) {
+  var form = data || {};
+  form.call = call;
 
-module.exports.getData = function(encodedParamsObject, callback){
+  return rp({
+            uri: "http://devlabs.aiddata.wm.edu/DET/search.php",
+            method: 'POST',
+            json: true,
+            form: form
+          });
+};
 
-    var paramsObject = decodeURI(encodedParamsObject);
 
-    if(paramsObject == "title"){
-        callback(titleContent);
-    }
-    else{
-        callback(null);
-    }
+module.exports.boundaries = function(req, res) {
+  return sendRequest('get_boundaries')
+    .then(function(response) { res.send(response.data); })
+    .catch(function(err) { res.send(err); })
 };
