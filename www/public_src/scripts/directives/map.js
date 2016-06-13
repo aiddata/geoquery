@@ -6,7 +6,6 @@ angular.module('aiddataDET')
     scope: { },
     link:  {
       post : function(scope){
-
         // Handle All resize events, and adjust the map size as necessary
         scope.getWindowDimensions = function() {
           // Be sure this runs here, otherwise Leaflet won't handle the initial resize well
@@ -15,8 +14,9 @@ angular.module('aiddataDET')
         };
 
         scope.$watch(scope.getWindowDimensions, function(newValue) {
+          var headerHeight = 90;
           scope.mapStyle = {
-            'height': newValue.h + 'px',
+            'height': newValue.h - headerHeight + 'px',
             'width': newValue.w + 'px'
           };
         }, true);
