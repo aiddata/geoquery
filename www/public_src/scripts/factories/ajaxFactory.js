@@ -1,20 +1,14 @@
-angular.module('wwwApp')
+angular.module('aiddataDET')
   .factory('ajaxFactory', function($http) {
 
     return {
-      getAppTitle : function() {
-        return $http.get('/api/getData/title')
-          .then(function(result){
-              return result.data;
-          });
-      },
 
-      foo: function () {
-        return $http.get('/api/test')
+      boundaries: function () {
+        return $http.get('/api/boundaries')
           .then(function(result){
-            console.debug(result)
-              return result.data;
+            console.debug(result);
+            return result.data;
           });
       }
-    }
+    };
   });
