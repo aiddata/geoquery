@@ -1,8 +1,9 @@
 {
-  "name": "wwwapp",
+  "name": "aiddataDET",
   "version": "0.0.1",
   "authors": [
-    "nathanmarq"
+    "eslivinski <lizzi.slivinski@nbtsolutions.com>",
+    "nathanmarq <nate.marquardt@nbtsolutions.com>"
   ],
   "license": "MIT",
   "private": true,
@@ -15,6 +16,9 @@
   "dependencies": {
     "angular": "~1.2.24",
     "angular-route": "~1.2.24",
-    "bootstrap": "~3.3.1"
+    "bootstrap": "~3.3.1",
+    "lodash": "^4.13.1",
+    "leaflet": "^0.7.7",
+    "font-awesome": "fontawesome#^4.6.3"
   }
 }
