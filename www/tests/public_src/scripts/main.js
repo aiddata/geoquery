@@ -10,7 +10,7 @@ we want to include these files for use:
 *
 *******************************************************************************/
 
-var app = angular.module('wwwApp');
+var app = angular.module('aiddataDET');
 
 /*******************************************************************************
 *
