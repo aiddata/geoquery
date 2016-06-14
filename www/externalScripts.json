@@ -5,5 +5,6 @@
     "public_src/libs/bower_components/jquery/dist/jquery.min.js",
     "public_src/libs/bower_components/bootstrap/dist/js/bootstrap.min.js",
     "public_src/libs/bower_components/lodash/lodash.js",
-    "public_src/libs/bower_components/leaflet/dist/leaflet-src.js"
+    "public_src/libs/bower_components/leaflet/dist/leaflet-src.js",
+    "public_src/libs/bower_components/angular-bootstrap/ui-bootstrap-tpls.js"
 ]

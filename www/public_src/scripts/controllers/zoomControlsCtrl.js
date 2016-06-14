@@ -1,6 +1,10 @@
 angular.module('aiddataDET')
 .controller('ZoomControlsCtrl', function($scope, mapFactory) {
-  $scope.zoomIn = mapFactory.zoomIn;
-  $scope.zoomOut = mapFactory.zoomOut;
-  $scope.resetView = mapFactory.resetView;
+
+  $scope.options = [
+    { icon: 'globe', action: mapFactory.resetView, text: 'reset map view' },
+    { icon: 'plus', action: mapFactory.zoomIn, text: 'zoom in' },
+    { icon: 'minus', action: mapFactory.zoomOut, text: 'zoom out' }
+  ];
+
 });
