@@ -1,34 +1,41 @@
 angular.module('aiddataDET')
-.controller('GeographySearchCtrl', function($scope, ajaxFactory) {
-  $scope.boundaries = { };
-  $scope.boundaryOptions = [ ];
-  $scope.selectedBoundary = { };
+.controller('GeographySearchCtrl', function($scope, ajaxFactory, mapFactory) {
+  $scope.boundaries = [];
   $scope.subBoundaries = [ ];
-  $scope.selectedSubBoundary = { };
+  $scope.formData = {};
 
-  $scope.$watch('selectedBoundary', function (newValue) {
+  $scope.$watch('formData.boundary', function (newValue) {
     if (!newValue) {
       $scope.subBoundaries.splice(0);
+      $scope.formData.boundary = undefined;
+      $scope.formData.subboundary = undefined;
       return;
     }
+
     var selection = newValue.title || newValue.originalObject;
-    $scope.subBoundaries = _.cloneDeep($scope.boundaries[selection]);
-    $scope.selectedSubBoundary = 0;
+    $scope.subBoundaries = _.chain($scope.boundaries)
+      .find({ name: selection })
+      .get('data')
+      .cloneDeep()
+      .value();
   });
 
-  $scope.getBoundary = function () {
-    console.log('fooo');
-  };
+  $scope.$watch('formData.subboundary', function (newValue) {
+    if (!newValue) {
+      mapFactory.resetView();
+      mapFactory.clearBoundaries();
+      return;
+    }
+    mapFactory.mapBoundary(newValue);
+  });
 
   function init () {
     ajaxFactory.boundaries()
-    .then(function(result) {
-      $scope.boundaries = result.data;
-      $scope.boundaryOptions = _.chain($scope.boundaries)
-          .keys()
-          .map(function(d) { return { name: d }; })
-          .value();
-    });
+      .then(function(result) {
+        $scope.boundaries = _.map(result.data, function(value, key) {
+          return { name: key, data: value };
+        });
+      });
   }
 
   init();
