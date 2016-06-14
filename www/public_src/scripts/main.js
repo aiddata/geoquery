@@ -1,4 +1,4 @@
-angular.module('aiddataDET', ['ngRoute', 'ui.bootstrap'])
+angular.module('aiddataDET', ['ngRoute', 'ui.bootstrap', 'angucomplete-alt'])
 .config(function($routeProvider) {
   $routeProvider
     .when('/', {

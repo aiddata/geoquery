@@ -2,8 +2,33 @@
   <form>
   <div class="form-group">
     <label>Search Boundaries</label>
-    <input type="search" class="form-control" placeholder="boundaries">
+    <angucomplete-alt id="ex1"
+        placeholder="Search boundaries"
+        pause="100"
+        selected-object="selectedBoundary"
+        local-data="boundaryOptions"
+        search-fields="name"
+        override-suggestions="true"
+        title-field="name"
+        minlength="1"
+        input-class="form-control"/>
+
     <small><em> Ex: Example 1, Example 2 </em></small>
+  </div>
+
+  <div class="form-group"
+      uib-collapse="!subBoundaries.length">
+    <label>Select a SubBoundary</label>
+
+    <div ng-repeat="sub in subBoundaries">
+      <input type="radio"
+          ng-model="selectedSubBoundary"
+          ng-click="getBoundary()"
+          ng-value="$index">
+        {{ sub.title }}
+    </div>
+    {{selectedSubBoundary}}
+
   </div>
   <form>
 </div>
