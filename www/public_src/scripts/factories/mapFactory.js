@@ -6,7 +6,7 @@ angular.module('aiddataDET')
 
   return {
     provision: function() {
-      map = L.map('map', {
+      MAP = map = L.map('map', {
         zoomControl: false
       }).setView([0, 0], 2);
 
@@ -17,6 +17,18 @@ angular.module('aiddataDET')
 
     refreshSize: function () {
       map.invalidateSize();
+    },
+
+    zoomIn: function() {
+      map.zoomIn();
+    },
+
+    zoomOut: function() {
+      map.zoomOut();
+    },
+
+    resetView: function() {
+      map.setView([0, 0], 2);
     }
   };
 });
