@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.factory('mapFactory', function($q, ajaxFactory) {
+.factory('mapFactory', function($q, $timeout, ajaxFactory) {
 
   var map = {};
   var mapboxToken = 'pk.eyJ1IjoiZXNsaXZpbnNraWNhcnRvIiwiYSI6IjRWenpDcmMifQ.IU9qcKhUf_w-lTQQ-I7DIg';
@@ -20,20 +20,32 @@ angular.module('aiddataDET')
 
   return {
     provision: function() {
-      /* Map */
-      map = L.map('map', {
-        zoomControl: false
-      }).setView([0, 0], 2);
-
       /* Basemap */
-      L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/emerald-v8/tiles/{z}/{x}/{y}?access_token=' + mapboxToken, {
+      var basemap = L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/emerald-v8/tiles/{z}/{x}/{y}?access_token=' + mapboxToken, {
         attribution: '© <a href="https://www.mapbox.com/map-feedback/">Mapbox</a> © <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-      }).addTo(map);
+      });
 
       /* Boundary Group */
-      boundaryGroup = L.featureGroup();
-      boundaryGroup.on('layeradd', function(e) { map.fitBounds(this); });
-      boundaryGroup.addTo(map);
+      boundaryGroup = L.featureGroup()
+        .on('layeradd', function(e) {
+          this.setStyle({ opacity: 0, fillOpacity: 0 });
+          map.fitBounds(this);
+          // Delaying restyle allows for 'animate inå'
+          $timeout(function() {
+            boundaryGroup.setStyle({ opacity: 0.5, fillOpacity: 0.2 });
+          }, 600);
+        });
+
+      /* Map */
+      map = L.map('map', {
+        zoomControl: false,
+        layers: [basemap, boundaryGroup],
+        zoom: 2,
+        center: [0, 0],
+        doubleClickZoom: false,
+        zoomAnimation: true,
+        zoomAnimationThreshold: 20
+      });
     },
 
     refreshSize: function () {
@@ -52,12 +64,25 @@ angular.module('aiddataDET')
       map.setView([0, 0], 2);
     },
 
+    startSpin: function() {
+      map.spin(true, { color: '#fff' });
+    },
+
+    stopSpin: function() {
+      map.spin(false);
+    },
+
     mapBoundary: function (boundary) {
       var factory = this;
+      factory.startSpin();
+
       retrieveBoundary(boundary)
         .then(function(layer) {
           factory.clearBoundaries();
           boundaryGroup.addLayer(layer);
+        })
+        .finally(function() {
+          factory.stopSpin();
         });
     },
 
