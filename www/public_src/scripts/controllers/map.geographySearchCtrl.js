@@ -35,6 +35,8 @@ angular.module('aiddataDET')
         $scope.boundaries = _.map(result.data, function(value, key) {
           return { name: key, data: value };
         });
+      }, function(err) {
+        console.error(err);
       });
   }
 

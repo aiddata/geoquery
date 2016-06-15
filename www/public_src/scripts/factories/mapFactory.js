@@ -9,12 +9,16 @@ angular.module('aiddataDET')
 
   function retrieveBoundary(boundary) {
     if (boundaries[boundary]) {
-      $q.when(function() { return boundaries[boundary]; });
+      return boundaries[boundary];
     }
     return ajaxFactory.geometry(boundary)
       .then(function(result) {
         boundaries[boundary] = L.geoJson(result.data);
         return boundaries[boundary];
+      }, function(err) {
+        /* @TODO: Create error messaging */
+        console.error(err);
+        return $q.reject(err);
       });
   }
 
@@ -74,9 +78,13 @@ angular.module('aiddataDET')
 
     mapBoundary: function (boundary) {
       var factory = this;
+<<<<<<< HEAD
       factory.startSpin();
 
       retrieveBoundary(boundary)
+=======
+      $q.when(retrieveBoundary(boundary))
+>>>>>>> b2180296ccd02d5127d69487493330193b1fd604
         .then(function(layer) {
           factory.clearBoundaries();
           boundaryGroup.addLayer(layer);
