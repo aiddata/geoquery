@@ -26,3 +26,11 @@ module.exports.geometry = function (req, res) {
     .then(function(response) { res.send(response.data); })
     .catch(function(err) { res.send(err); });
 };
+
+module.exports.datasets = function (req, res) {
+  var boundaryId = req.params.boundaryId;
+
+  return sendRequest('get_relevant_datasets', { group: boundaryId })
+    .then(function(response) { res.send(response.data); })
+    .catch(function(err) { res.send(err); });
+};
