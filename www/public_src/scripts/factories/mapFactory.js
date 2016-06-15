@@ -9,7 +9,7 @@ angular.module('aiddataDET')
 
   function retrieveBoundary(boundary) {
     if (boundaries[boundary]) {
-      $q.when(function() { return boundaries[boundary]; });
+      return $q.when(function() { return boundaries[boundary]; });
     }
     return ajaxFactory.geometry(boundary)
       .then(function(result) {
