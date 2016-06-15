@@ -5,6 +5,6 @@ angular.module('aiddataDET')
     controller: 'ZoomControlsCtrl',
     scope: { },
     link:  { },
-    templateUrl: "views/components/zoomControls.html"
+    templateUrl: "views/components/map-zoomControls.html"
   };
 });

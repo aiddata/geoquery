@@ -5,6 +5,6 @@ angular.module('aiddataDET')
     controller: 'GeographySearchCtrl',
     scope: { },
     link:  { },
-    templateUrl: "views/components/geographySearch.html"
+    templateUrl: "views/components/map-geographySearch.html"
   };
 });
