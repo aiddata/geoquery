@@ -78,13 +78,10 @@ angular.module('aiddataDET')
 
     mapBoundary: function (boundary) {
       var factory = this;
-<<<<<<< HEAD
+
       factory.startSpin();
 
-      retrieveBoundary(boundary)
-=======
       $q.when(retrieveBoundary(boundary))
->>>>>>> b2180296ccd02d5127d69487493330193b1fd604
         .then(function(layer) {
           factory.clearBoundaries();
           boundaryGroup.addLayer(layer);
