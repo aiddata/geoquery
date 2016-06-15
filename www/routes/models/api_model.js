@@ -16,5 +16,13 @@ var sendRequest = function (call, data) {
 module.exports.boundaries = function(req, res) {
   return sendRequest('get_boundaries')
     .then(function(response) { res.send(response.data); })
-    .catch(function(err) { res.send(err); });
+    .catch(function(err) { res.status(500).send(err); });
+};
+
+module.exports.geometry = function (req, res) {
+  var geomId = req.params.geomId;
+
+  return sendRequest('get_boundary_geojson', { name: geomId })
+    .then(function(response) { res.send(response.data); })
+    .catch(function(err) { res.status(500).send(err); });
 };

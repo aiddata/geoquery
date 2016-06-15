@@ -14,7 +14,8 @@ angular.module('aiddataDET')
         };
 
         scope.$watch(scope.getWindowDimensions, function(newValue) {
-          var headerHeight = 90;
+          /* @TODO: Remove hardcoded headerHeight value */
+          var headerHeight = 80;
           scope.mapStyle = {
             'height': newValue.h - headerHeight + 'px',
             'width': newValue.w + 'px'

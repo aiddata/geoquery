@@ -4,11 +4,11 @@ angular.module('aiddataDET')
     return {
 
       boundaries: function () {
-        return $http.get('/api/boundaries')
-          .then(function(result){
-            console.debug(result);
-            return result.data;
-          });
+        return $http.get('/api/boundaries');
+      },
+
+      geometry: function (geomId) {
+        return $http.get('/api/geometry/' + geomId );
       }
     };
   });
