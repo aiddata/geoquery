@@ -1,4 +1,5 @@
 var rp = require('request-promise');
+var _ = require('lodash');
 
 var sendRequest = function (call, data) {
   var form = data || {};
@@ -32,5 +33,23 @@ module.exports.datasets = function (req, res) {
 
   return sendRequest('get_relevant_datasets', { group: boundaryId })
     .then(function(response) { res.send(response.data); })
-    .catch(function(err) { res.send(err); });
+    .catch(function(err) { res.status(500).send(err); });
+};
+
+module.exports.filters = function (req, res) {
+  if (!req.body.dataset) {
+    return res.status(400).send({ message: 'Must provide a dataset' });
+  }
+
+  var filterData = {};
+
+  filterData.dataset = req.body.dataset;
+  filterData.filters = _.chain(['ad_sector_names', 'donors', 'years'])
+    .mapKeys()
+    .mapValues(function(key) { return req.body[key] || ['All']; })
+    .value();
+
+  return sendRequest('get_filter_count', { filter: filterData })
+    .then(function(response) { res.send(response.data); })
+    .catch(function(err) { res.status(500).send(err); });
 };
