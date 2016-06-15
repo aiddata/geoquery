@@ -25,3 +25,13 @@ zoom-controls {
   margin-right: 15px;
   margin-top: 15px;
 }
+
+svg.leaflet-zoom-animated {
+  path {
+    transition: fill-opacity 1s ease-in-out,
+      stroke-opacity 1s ease-in-out;
+    stroke: @brick;
+    fill: @brick;
+    stroke-width: 3px;
+  }
+}
