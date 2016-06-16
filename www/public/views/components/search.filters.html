@@ -1,0 +1,32 @@
+<div class="row">
+  <div class="col-md-4" ng-repeat="filter in searchData.filterTypes | orderBy: filter">
+    <div class="container-fluid filter-module"
+        ng-if="filterInfo[filter]"
+        ng-switch="filterInfo[filter].type">
+
+      <h4>{{filterInfo[filter].text}} Filter module</h4>
+      <hr>
+      <div class="row"
+          ng-switch-when="options">
+
+        <div class="container-fluid list-container">
+          <div class="checkbox"
+              ng-repeat="option in searchData.distinct[filter]">
+
+            <label>
+              <input type="checkbox"/>
+              {{ option}}
+            </label>
+
+          </div>
+        </div> <!-- /.list-container -->
+
+      </div> <!-- /type='options' -->
+
+
+      <div ng-switch-when="range">range</div>
+
+
+    </div> <!-- /.filter-module -->
+  </div>
+</div>

@@ -37,6 +37,7 @@ module.exports.datasets = function (req, res) {
 };
 
 module.exports.filters = function (req, res) {
+  console.log(req.body);
   if (!req.body.dataset) {
     return res.status(400).send({ message: 'Must provide a dataset' });
   }

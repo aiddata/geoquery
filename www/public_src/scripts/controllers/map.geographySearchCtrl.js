@@ -29,6 +29,10 @@ angular.module('aiddataDET')
     mapFactory.mapBoundary(newValue);
   });
 
+  $scope.test = function () {
+    console.log($scope.formData);
+  };
+
   function init () {
     ajaxFactory.boundaries()
       .then(function(result) {

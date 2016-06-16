@@ -10,10 +10,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt'])
       })
       .state('search', {
         url: '/search/:geomId',
-        templateUrl: 'views/pages/search.html',
-        controller: function ($scope, $stateParams) {
-          $scope.geomId = $stateParams.geomId;
-        }
+        templateUrl: 'views/pages/search.html'
       })
       .state('submit', {
         url: '/submit',

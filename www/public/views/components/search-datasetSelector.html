@@ -1,1 +1,50 @@
-fooooooo
+<div ng-style="dataStyle">
+  <div class="row">
+    <div class="col-md-4"
+        ng-repeat="type in dataTypes">
+      <button class="btn btn-block"
+          ng-class="{'btn-primary': dataFilters.type==type.value, 'btn-info': dataFilters.type!=type.value}"
+          ng-click="dataFilters.type=type.value">
+        {{ type.text }}
+      </button>
+    </div>
+  </div>
+
+  <hr>
+
+  <div class="row">
+    <div class="col-md-6">
+
+      <div class="row">
+        <div class="col-md-2">
+          <button class="btn btn-sm btn-primary"
+              ng-click="fields.descending = !fields.descending"
+              ng-switch="fields.descending">
+            <i ng-switch-when="false" class="fa fa-sort-asc"></i>
+            <i ng-switch-when="true" class="fa fa-sort-desc"></i>
+          </button>
+        </div>
+        <div class="col-md-10">
+          <select class="form-control input-sm"
+            ng-model= "fields.selected"
+            ng-options="f as f for f in fields.options"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <input class="form-control input-sm"
+          placeholder="search datasets"
+          ng-model="dataFilters.title">
+    </div>
+  </div>
+
+  <hr>
+
+  <ul>
+    <li ng-repeat="set in filteredSets = (datasets | filter: dataFilters) | orderBy: fields.selected : fields.descending">
+      {{ set.title }} - {{ set.type }}
+    </li>
+  </ul>
+  <p uib-collapse="filteredSets.length"> No Datasets Found </p>
+</div>
