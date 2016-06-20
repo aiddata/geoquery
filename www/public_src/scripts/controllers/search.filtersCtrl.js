@@ -4,8 +4,8 @@ angular.module('aiddataDET')
   $scope.searchData = { };
 
   $scope.filterInfo = {
-    'ad_sector_names': { text: 'Sectors', type: 'options' },
-    'donors': { text: 'Donors', type: 'options' },
+    'ad_sector_names': { text: 'Sectors', type: 'options', searchFilter: '' },
+    'donors': { text: 'Donors', type: 'options', searchFilter: '' },
     'years': { text: 'Years', type: 'range' }
   };
 
@@ -21,17 +21,41 @@ angular.module('aiddataDET')
       });
   };
 
-  $scope.toggleFilter = function (filter, value, dir) {
+  $scope.toggleFilter = function (filter, option) {
+    var dir = !$scope.isChecked(filter, option);
+
     if (dir === true) {
       if (!$scope.filters[filter]) {
         $scope.filters[filter] = [];
       }
-      $scope.filters[filter].push(value);
+      $scope.filters[filter].push(option);
+    } else {
+      _.pull($scope.filters[filter], option);
+      if (!$scope.filters[filter].length) {
+        delete $scope.filters[filter];
+      }
     }
+
+    $scope.updateFilters();
+  };
+
+  $scope.toggleAll = function (filter) {
+    delete $scope.filters[filter];
+    $scope.updateFilters();
+  };
+
+  $scope.allChecked = function(filter) {
+    return !$scope.filters[filter];
+  };
+
+  $scope.isChecked = function(filter, option) {
+    return $scope.filters[filter] &&
+      $scope.filters[filter].indexOf(option) >= 0;
   };
 
   $rootScope.$on('dataset:selected', function(e, data) {
     _.extend($scope.filters, data);
+    console.log('FILTERS', $scope.filters);
     $scope.updateFilters();
   });
 
