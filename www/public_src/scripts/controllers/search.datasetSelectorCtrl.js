@@ -1,6 +1,9 @@
 angular.module('aiddataDET')
 .controller('DatasetSelectorCtrl', function($scope, $rootScope, $stateParams, $q, ajaxFactory) {
-  $scope.datasets = [];
+  $scope.datasets = {
+    options: [],
+    selected: ''
+  };
   $scope.fields = {
     options: ['date_added', 'date_updated', 'title', 'publishers', 'version'],
     selected: 'title',
@@ -17,12 +20,16 @@ angular.module('aiddataDET')
 
   ajaxFactory.datasets($stateParams.geomId)
     .then(function(results) {
-      $scope.datasets = results.data;
-      console.log(results.data);
-      $scope.selectDataset();
+      $scope.datasets.options = results.data;
+      $scope.selectDataset($scope.datasets.options[0]);
     });
 
-  $scope.selectDataset = function() {
-    $rootScope.$broadcast('dataset:selected', { dataset: "drc-aims_geocodedresearchrelease_level1_v1_3" });
+  $scope.selectDataset = function(dataset) {
+    $scope.datasets.selected = dataset.name;
+    $rootScope.$broadcast('dataset:selected', _.pick(dataset, ['name', 'title']));
+  };
+
+  $scope.filterType = function (type) {
+    $scope.dataFilters.type = type.value;
   };
 });

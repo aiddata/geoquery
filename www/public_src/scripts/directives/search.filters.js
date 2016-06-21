@@ -3,7 +3,8 @@ angular.module('aiddataDET')
   return {
     restrict: "E",
     controller: "FiltersCtrl",
-    link: function(scope, element, attrs) {},
+    scope: {},
+    link: function(scope, element, attrs) { },
     templateUrl: "views/components/search.filters.html"
   };
 });

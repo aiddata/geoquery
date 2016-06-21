@@ -10,9 +10,10 @@ angular.module('aiddataDET')
   };
 
   $scope.updateFilters = function () {
+    $rootScope.$broadcast('filters:update', $scope.filters);
     ajaxFactory.filters($scope.filters)
       .then(function(results) {
-        console.log(results.data);
+        $rootScope.$broadcast('filters:updated', results.data);
         $scope.searchData = results.data;
         $scope.searchData.filterTypes = _.keys($scope.searchData.distinct);
 
@@ -54,8 +55,7 @@ angular.module('aiddataDET')
   };
 
   $rootScope.$on('dataset:selected', function(e, data) {
-    _.extend($scope.filters, data);
-    console.log('FILTERS', $scope.filters);
+    _.extend($scope.filters, { dataset : data.name });
     $scope.updateFilters();
   });
 
