@@ -1,0 +1,56 @@
+<div class="row">
+  <div class="col-md-4" ng-repeat="filter in searchData.filterTypes | orderBy: filter">
+    <div class="container-fluid filter-module"
+        ng-if="filterInfo[filter]"
+        ng-switch="filterInfo[filter].type">
+
+      <div class="module-title">
+        <h4>{{filterInfo[filter].text}} Filter module</h4>
+      </div>
+
+      <div class="module-content"
+          ng-switch-when="options">
+
+          <div class='row'>
+            <div class="col-xs-10" style="margin-bottom: 5px">
+              <input class="form-control input-sm"
+                  placeholder="Search {{ filterInfo[filter].text }}"
+                  ng-model="filterInfo[filter].searchFilter"/>
+            </div>
+
+            <div class="col-xs-1">
+              <span class="label label-primary"> {{ filterMatches.length }} </span>
+            </div>
+          </div>
+
+        <div class="row list-container">
+          <div class="col-md-12">
+            <div class="checkbox">
+              <label>
+                <input type="checkbox"
+                    ng-checked="allChecked(filter)"
+                    ng-click="toggleAll(filter)"
+                    ng-disabled="!filters[filter]"/> All  {{ filterInfo[filter].text }}</label>
+            </div>
+
+            <div class="checkbox"
+                ng-repeat="option in filterMatches = (searchData.distinct[filter] | filter: filterInfo[filter].searchFilter)">
+
+              <label>
+                <input type="checkbox"
+                    ng-click="toggleFilter(filter, option)"
+                    ng-checked="isChecked(filter, option)"/> {{ option}} </label>
+
+            </div>
+          </div>
+        </div> <!-- /.list-container -->
+
+      </div> <!-- /.module-content -->
+
+
+      <div class="module-content" ng-switch-when="range">range</div>
+
+
+    </div> <!-- /.filter-module -->
+  </div>
+</div>

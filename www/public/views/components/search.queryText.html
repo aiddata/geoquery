@@ -1,0 +1,73 @@
+<div class="container-fluid" style="height: 100%">
+  <div class="row query-title" style="padding-top: 5px; padding-bottom: 5px; border-bottom: 1px solid;">
+    <div class="col-md-6"
+        ng-init="editing = false; request = { name: 'New Request' }">
+
+      <div class="input-group input-group-sm"
+          ng-hide="!editing">
+
+        <input class="form-control"
+            type="text"
+            placeholder="Name Request"
+            ng-model="request.name"/>
+
+         <span class="input-group-btn">
+            <div class="btn btn-primary"
+                ng-click="editing = !editing">
+              <i class="fa fa-floppy-o" aria-hidden="true"></i>
+            </div>
+
+            <div class="btn btn-default"
+                ng-click="editing = !editing">
+              <i class="fa fa-trash" aria-hidden="true"></i>
+            </div>
+        </span>
+
+      </div>
+
+      <h5 ng-hide="editing">
+        {{ request.name }}
+        <a href=""
+            style="margin-left: 15px;"
+            ng-click="editing = !editing">
+          <i class="fa fa-lg fa-pencil-square-o" aria-hidden="true"></i>
+        </a>
+      </h5>
+    </div>
+  </div>
+
+  <div class="row query-body" style="height: 50%; max-height: 50%; overflow-y: auto; margin-bottom: 15px;">
+    <div class="col-md-12">
+      <span style="line-height: 3;"
+        ng-repeat="item in queryStructure"
+        ng-if="item.value && item.value.length">
+        {{ item.pre }}
+
+        <span ng-repeat="option in item.value">
+          <span ng-show="item.value.length > 1 && $last"> and </span>
+          <span ng-show="item.value.length > 1 && !$last">, </span>
+          <div class="btn btn-sm"
+              ng-class="{ 'btn-primary': item.optional, 'btn-info': !item.optional }"
+              ng-click="item.optional ? removeFilter(item.key, option) : null">
+            {{ option }}
+            <i class="fa fa-times" aria-hidden="true" ng-show="item.optional"></i>
+          </div>
+
+        </span>
+      </span>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-12 text-right">
+      <h4 class="pull-left">
+        <i class="fa fa-arrow-right" aria-hidden="true"></i>
+        {{ filters.locations }} locations / {{ filters.projects }} projects
+      </h4>
+
+      <button class="btn btn-success"> Add to My Request </button>
+      <button class="btn btn-danger"> Clear </button>
+    </div>
+  </div>
+
+</div>

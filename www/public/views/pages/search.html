@@ -1,6 +1,25 @@
 <det-header></det-header>
-<div class="container-fluid">
-  <h1> This is where the user will search for data </h1>
-  <hr>
-  <h3> Geometry Id = {{ geomId }} </h3>
+<div class="container-fluid search-container">
+  <div class="row">
+    <div class="col-md-4 left-panel">
+      <br>
+      <button class="btn btn-default"
+          style="margin-bottom: 15px;"
+          ui-sref="map">
+        <i class="fa fa-angle-double-left" aria-hidden="true"></i>
+        Return to Map
+      </button>
+      <dataset-selector></dataset-selector>
+    </div>
+    <div class="col-md-8">
+      <br>
+      <div class="row">
+        <div class="col-md-12">
+          <query-text></query-text>
+        </div>
+      </div>
+      <br>
+      <det-filters></det-filters>
+    </div>
+  </div>
 </div>

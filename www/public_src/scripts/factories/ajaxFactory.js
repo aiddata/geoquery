@@ -9,6 +9,14 @@ angular.module('aiddataDET')
 
       geometry: function (geomId) {
         return $http.get('/api/geometry/' + geomId );
+      },
+
+      datasets: function (boundaryId) {
+        return $http.get('/api/datasets/' + boundaryId );
+      },
+
+      filters: function (filterData) {
+        return $http.post('/api/filters', filterData);
       }
     };
   });
