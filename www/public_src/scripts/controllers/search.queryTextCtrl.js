@@ -1,9 +1,9 @@
 angular.module('aiddataDET')
-.controller('QueryTextCtrl', function($scope, $rootScope, $stateParams, $q, ajaxFactory) {
+.controller('QueryTextCtrl', function($scope, $rootScope, $stateParams) {
   $scope.filters = {};
   $scope.dataset = {};
   $scope.searchData = {};
-  $scope.geography = $stateParams.geomId;
+  $scope.geography = $stateParams.boundary;
 
   $rootScope.$on('filters:update', function(e, data) {
     console.log('FILTER', data);

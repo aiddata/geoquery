@@ -16,7 +16,28 @@ var sendRequest = function (call, data) {
 
 module.exports.boundaries = function(req, res) {
   return sendRequest('get_boundaries')
-    .then(function(response) { res.send(response.data); })
+    .then(function(response) {
+      if (!_.size(response.data)) {
+        return res.status(500).send({ message: 'no boundaries found' });
+      }
+
+      var boundaries = _.map(response.data, function(value, key) {
+
+        var groupTitle = _.chain(value)
+          .find(function(d) { return _.has(d, 'options.group_title'); })
+          .get('options.group_title')
+          .value();
+
+        return {
+          name: groupTitle || key,
+          boundaryId: key,
+          subBoundaries: _.sortBy(value, 'name')
+        };
+
+      });
+
+      res.send({ boundaries: boundaries });
+    })
     .catch(function(err) { res.status(500).send(err); });
 };
 

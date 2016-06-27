@@ -1,6 +1,8 @@
 angular.module('aiddataDET')
 .controller('DatasetSelectorCtrl', function($scope, $rootScope, $stateParams, $q, ajaxFactory) {
+
   $scope.datasets = {
+    filtered: [],
     options: [],
     selected: ''
   };
@@ -17,21 +19,31 @@ angular.module('aiddataDET')
     { text: 'All', value: '' }
   ];
 
-  $scope.dataFilters = { type: '', title: '' };
-
-  ajaxFactory.datasets($stateParams.geomId)
-    .then(function(results) {
-      console.log(results);
-      $scope.datasets.options = results.data;
-      $scope.selectDataset($scope.datasets.options[0]);
-    });
+  $scope.dataFilters = { type: 'release', title: '' };
 
   $scope.selectDataset = function(dataset) {
     $scope.datasets.selected = dataset.name;
     $rootScope.$broadcast('dataset:selected', _.pick(dataset, ['name', 'title']));
   };
 
-  $scope.filterType = function (type) {
-    $scope.dataFilters.type = type.value;
-  };
+  $scope.$watch(function() {
+    return $scope.datasets.filtered.length;
+  }, function (newValue) {
+    if (!newValue ||
+      _.find($scope.datasets.filtered, { name: $scope.datasets.selected })) {
+      return;
+    }
+    $scope.selectDataset(_.head($scope.datasets.filtered));
+  }, true);
+
+  function init () {
+    ajaxFactory.datasets($stateParams.boundary)
+      .then(function(results) {
+        $scope.datasets.options = results.data;
+      }, function(err) {
+        $log.error(err);
+      });
+  }
+
+  init();
 });

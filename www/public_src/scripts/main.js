@@ -9,7 +9,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt'])
         templateUrl: 'views/pages/map.html'
       })
       .state('search', {
-        url: '/search/:geomId',
+        url: '/search/:boundary/:subboundary',
         templateUrl: 'views/pages/search.html'
       })
       .state('submit', {
