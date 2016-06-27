@@ -38,6 +38,17 @@ module.exports = function(grunt) {
         }
       }
     },
+    copy: {
+      fontawesome: {
+        files: [
+              { expand: true,
+                cwd: "public_src/libs/bower_components/font-awesome/",
+                src: "fonts/*",
+                dest: "public/"
+              }
+        ]
+      }
+    },
     concat: {
       libs: {
         src: externalScriptFiles,
@@ -125,10 +136,11 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-less');
   grunt.loadNpmTasks('grunt-contrib-concat');
   grunt.loadNpmTasks('grunt-contrib-clean');
+  grunt.loadNpmTasks('grunt-contrib-copy');
   grunt.loadNpmTasks('grunt-tape');
   grunt.loadNpmTasks('grunt-testling');
 
   grunt.registerTask('default', ['watch']);
-  grunt.registerTask('build', ['clean', 'less', 'concat:libs', 'ngAnnotate', 'concat:app', 'uglify']);
+  grunt.registerTask('build', ['clean', 'less', 'copy:fontawesome', 'concat:libs', 'ngAnnotate', 'concat:app', 'uglify']);
 
 };

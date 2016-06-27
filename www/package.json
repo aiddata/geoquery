@@ -1,18 +1,13 @@
 {
-  "name": "new-www-app",
-  "version": "0.2.0",
+  "name": "aidDataDET",
+  "version": "0.0.1",
   "private": true,
-  "description": "sample node server with angular and a grunt build process",
   "main": "server.js",
   "dependencies": {
     "angular": "^1.3.4",
     "body-parser": "^1.10.1",
     "compression": "^1.5.0",
     "cookie-parser": "^1.3.3",
-    "eslint": "^2.12.0",
-    "eslint-plugin-angular": "^1.1.1",
-    "eslint-plugin-html": "^1.5.1",
-    "eslint-plugin-json": "^1.2.0",
     "express": "~4.10.8",
     "express-session": "^1.10.1",
     "lodash": "^4.13.1",
@@ -21,16 +16,20 @@
   },
   "devDependencies": {
     "angular-mocks": "~1.3.5",
+    "eslint": "^2.12.0",
+    "eslint-plugin-angular": "^1.1.1",
+    "eslint-plugin-html": "^1.5.1",
+    "eslint-plugin-json": "^1.2.0",
     "grunt": "~0.4.1",
     "grunt-contrib-clean": "~0.5.0",
     "grunt-contrib-concat": "~0.3.0",
+    "grunt-contrib-copy": "^1.0.0",
     "grunt-contrib-less": "~0.9.0",
     "grunt-contrib-uglify": "~0.3.2",
     "grunt-contrib-watch": "~0.5.3",
     "grunt-ng-annotate": "~0.3.2",
     "grunt-tape": "0.0.2",
     "grunt-testling": "^1.0.0",
-    "phantomjs": "^1.9.12",
     "tape": "^3.0.3",
     "testling": "^1.7.1",
     "time-grunt": "~0.2.9",
@@ -47,7 +46,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/"
+    "url": "https://github.com/NBTSolutions/aidData-DET"
   },
-  "author": "Nate Marquardt"
+  "author": "NBTSolutions"
 }

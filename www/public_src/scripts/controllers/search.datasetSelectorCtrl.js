@@ -4,6 +4,7 @@ angular.module('aiddataDET')
     options: [],
     selected: ''
   };
+
   $scope.fields = {
     options: ['date_added', 'date_updated', 'title', 'publishers', 'version'],
     selected: 'title',
@@ -20,6 +21,7 @@ angular.module('aiddataDET')
 
   ajaxFactory.datasets($stateParams.geomId)
     .then(function(results) {
+      console.log(results);
       $scope.datasets.options = results.data;
       $scope.selectDataset($scope.datasets.options[0]);
     });
