@@ -12,6 +12,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt'])
         url: '/search/:boundary/:subboundary?datatype',
         templateUrl: 'views/pages/search.html',
         controller: function($rootScope, $scope, $state, $stateParams) {
+          // This isn't as elegant as I was hoping :(
           $rootScope.$on('dataset:selected', function(e, data) {
             $scope.datatype = $state.params.datatype;
           });

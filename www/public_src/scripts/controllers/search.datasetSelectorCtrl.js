@@ -22,12 +22,11 @@ angular.module('aiddataDET')
   $scope.dataFilters = { type: 'release', title: '' };
 
   $scope.selectDataset = function(dataset) {
-    console.log(dataset);
     $scope.datasets.selected = dataset.name;
     $stateParams.datatype = dataset.type;
     $state.go('search', $stateParams, { reload: false, notify: false })
       .then(function() {
-        $rootScope.$broadcast('dataset:selected', _.pick(dataset, ['name', 'title']));
+        $rootScope.$broadcast('dataset:selected', dataset);
       });
   };
 

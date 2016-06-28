@@ -28,7 +28,9 @@ angular.module('aiddataDET')
   };
 
   $rootScope.$on('dataset:selected', function(e, data) {
-    filterFactory.setDataset(data.name);
+    if (data.type === 'release') {
+      filterFactory.setDataset(data.name);
+    }
   });
 
   $scope.$watch('filters', function(newValue, oldValue) {
