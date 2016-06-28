@@ -1,5 +1,5 @@
 <div class="row">
-  <div class="col-md-4" ng-repeat="filter in searchData.filterTypes | orderBy: filter">
+  <div class="col-md-4" ng-repeat="filter in filterOptions.filterTypes | orderBy: filter">
     <div class="container-fluid filter-module"
         ng-if="filterInfo[filter]"
         ng-switch="filterInfo[filter].type">
@@ -28,18 +28,19 @@
             <div class="checkbox">
               <label>
                 <input type="checkbox"
-                    ng-checked="allChecked(filter)"
+                    ng-checked="!filters[filter]"
                     ng-click="toggleAll(filter)"
                     ng-disabled="!filters[filter]"/> All  {{ filterInfo[filter].text }}</label>
             </div>
 
             <div class="checkbox"
-                ng-repeat="option in filterMatches = (searchData.distinct[filter] | filter: filterInfo[filter].searchFilter)">
+                ng-repeat="option in filterMatches = (filterOptions.distinct[filter] | filter: filterInfo[filter].searchFilter)">
 
               <label>
                 <input type="checkbox"
-                    ng-click="toggleFilter(filter, option)"
-                    ng-checked="isChecked(filter, option)"/> {{ option}} </label>
+                    ng-model="bool"
+                    ng-change="toggleFilter(bool, filter, option)"
+                    ng-checked="filters[filter] && filters[filter].indexOf(option) >= 0;"/> {{ option}} </label>
 
             </div>
           </div>

@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-  .factory('filterFactory', function(ajaxFactory) {
+  .factory('filterFactory', function(ajaxFactory, $log) {
 
 
     return {
@@ -17,7 +17,7 @@ angular.module('aiddataDET')
 
             return filterOptions;
           }, function(err) {
-            console.log(err);
+            $log.error(err);
           });
       },
 
@@ -25,34 +25,23 @@ angular.module('aiddataDET')
         this.filters.dataset = datasetName;
       },
 
-      isChecked: function (filter, option) {
-        return this.filters[filter] &&
-          this.filters[filter].indexOf(option) >= 0;
-      },
-
-      allChecked: function () {
-
-      },
-
-      toggleFilter: function (filter, option) {
-        var dir = !this.isChecked(filter, option);
-
-        if (dir === true) {
-        // Toggle On
-          if (!this.filters[filter]) {
-            this.filters[filter] = [];
-          }
-          this.filters[filter].push(option);
-        } else {
-        // Toggle Off
-          _.pull(this.filters[filter], option);
-          if (!this.filters[filter].length) {
-            delete this.filters[filter];
-          }
+      toggleFilterOn: function(filter, option) {
+        if (!this.filters[filter]) {
+          this.filters[filter] = [];
         }
+        this.filters[filter].push(option);
+      },
+
+      toggleFilterOff: function (filter, option) {
+        _.pull(this.filters[filter], option);
+        if (!this.filters[filter].length) {
+          delete this.filters[filter];
+        }
+      },
+
+      toggleAll: function (filter) {
+        delete this.filters[filter];
         return this.filters;
       }
-
-
     };
   });

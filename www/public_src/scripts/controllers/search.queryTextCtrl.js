@@ -1,6 +1,6 @@
 angular.module('aiddataDET')
-.controller('QueryTextCtrl', function($scope, $rootScope, $stateParams) {
-  $scope.filters = {};
+.controller('QueryTextCtrl', function($scope, $rootScope, $stateParams, filterFactory) {
+  $scope.filters = filterFactory.filters;
   $scope.dataset = {};
   $scope.searchData = {};
   $scope.geography = $stateParams.boundary;
@@ -10,7 +10,8 @@ angular.module('aiddataDET')
   });
 
   $rootScope.$on('filters:updated', function(e, data) {
-
+    // Being Redefined with each filters:updated event because it directly
+    // references $scope vars which will need to be update
     $scope.queryStructure = [
       { value: [ $scope.dataset.title ], pre: 'Extract data from ', optional: false },
       { value: [ $scope.geography ], pre: 'within ', optional: false },
@@ -18,15 +19,13 @@ angular.module('aiddataDET')
       { value: $scope.searchData.ad_sector_names, pre: 'to promote ', optional: true, key: 'ad_sector_names' }
     ];
 
-    $scope.filters = data;
   });
 
   $rootScope.$on('dataset:selected', function(e, data) {
     $scope.dataset = data;
   });
 
-  $scope.removeFilter = function (filter, option) {
-    console.log(filter, option);
-    console.log($scope.filters);
+  $scope.removeFilter = function(filter, option) {
+    filterFactory.toggleFilterOff(filter, option);
   };
 });

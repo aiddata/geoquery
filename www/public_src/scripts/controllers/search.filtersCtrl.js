@@ -1,7 +1,7 @@
 angular.module('aiddataDET')
-.controller('FiltersCtrl', function($scope, $rootScope, $stateParams, $q, filterFactory, $state) {
+.controller('FiltersCtrl', function($scope, $rootScope, $stateParams, $q, $log, filterFactory, $state) {
+  $scope.filterOptions = { };
   $scope.filters = filterFactory.filters;
-  $scope.searchData = filterFactory.filterOptions;
 
   $scope.filterInfo = {
     'ad_sector_names': { text: 'Sectors', type: 'options', searchFilter: '' },
@@ -13,36 +13,29 @@ angular.module('aiddataDET')
     $rootScope.$broadcast('filters:update', $scope.filters);
     filterFactory.updateFilters()
       .then(function(filterOptions) {
+        $scope.filterOptions = filterOptions;
         $rootScope.$broadcast('filters:updated', filterOptions);
       });
   };
 
-  $scope.toggleFilter = function (filter, option) {
-    $q.when(filterFactory.toggleFilter(filter, option))
-      .then(function(filters) {
-        console.log(filters);
-        $scope.updateFilters();
-      });
+  $scope.toggleFilter = function (bool, filter, option) {
+    return bool ? filterFactory.toggleFilterOn(filter, option) :
+      filterFactory.toggleFilterOff(filter, option);
   };
 
   $scope.toggleAll = function (filter) {
-    delete $scope.filters[filter];
-    $scope.updateFilters();
-  };
-
-  $scope.allChecked = function(filter) {
-    return !$scope.filters[filter];
-  };
-
-  $scope.isChecked = function(filter, option) {
-    return $scope.filters[filter] &&
-      $scope.filters[filter].indexOf(option) >= 0;
+    filterFactory.toggleAll(filter);
   };
 
   $rootScope.$on('dataset:selected', function(e, data) {
     filterFactory.setDataset(data.name);
-    $scope.updateFilters();
   });
+
+  $scope.$watch('filters', function(newValue, oldValue) {
+    if (!_.isEqual(newValue, oldValue)) {
+      $scope.updateFilters();
+    }
+  }, true);
 
 
 });
