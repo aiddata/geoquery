@@ -1,7 +1,8 @@
 angular.module('aiddataDET')
-.controller('FiltersCtrl', function($scope, $rootScope, $stateParams, $q, $log, filterFactory, $state) {
-  $scope.filterOptions = { };
-  $scope.filters = filterFactory.filters;
+.controller('FiltersCtrl', function($scope, $rootScope, $stateParams, $q, $log, queryFactory, $state) {
+  $scope.dataset = {};
+  $scope.filterOptions = {};
+  $scope.filters = queryFactory.filters;
 
   $scope.filterInfo = {
     'ad_sector_names': { text: 'Sectors', type: 'options', searchFilter: '' },
@@ -11,7 +12,7 @@ angular.module('aiddataDET')
 
   $scope.updateFilters = function () {
     $rootScope.$broadcast('filters:update', $scope.filters);
-    filterFactory.updateFilters()
+    queryFactory.updateFilters()
       .then(function(filterOptions) {
         $scope.filterOptions = filterOptions;
         $rootScope.$broadcast('filters:updated', filterOptions);
@@ -19,18 +20,22 @@ angular.module('aiddataDET')
   };
 
   $scope.toggleFilter = function (bool, filter, option) {
-    return bool ? filterFactory.toggleFilterOn(filter, option) :
-      filterFactory.toggleFilterOff(filter, option);
+    return bool ? queryFactory.toggleFilterOn(filter, option) :
+      queryFactory.toggleFilterOff(filter, option);
   };
 
   $scope.toggleAll = function (filter) {
-    filterFactory.toggleAll(filter);
+    queryFactory.toggleAll(filter);
   };
 
   $rootScope.$on('dataset:selected', function(e, data) {
-    if (data.type === 'release') {
-      filterFactory.setDataset(data.name);
-    }
+    $scope.dataset = data;
+
+    _.each($scope.filters, function(options, filter) {
+      $scope.toggleAll(filter);
+    });
+
+    queryFactory.setDataset(data.name);
   });
 
   $scope.$watch('filters', function(newValue, oldValue) {

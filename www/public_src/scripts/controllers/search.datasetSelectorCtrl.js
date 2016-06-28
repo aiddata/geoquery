@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('DatasetSelectorCtrl', function($scope, $rootScope, $stateParams, $state, $q, $log, ajaxFactory) {
+.controller('DatasetSelectorCtrl', function($scope, $rootScope, $stateParams, $state, $q, $log, ajaxFactory, queryFactory) {
 
   $scope.datasets = {
     filtered: [],
@@ -23,17 +23,11 @@ angular.module('aiddataDET')
 
   $scope.selectDataset = function(dataset) {
     $scope.datasets.selected = dataset.name;
-    $stateParams.datatype = dataset.type;
-    $state.go('search', $stateParams, { reload: false, notify: false })
-      .then(function() {
-        $rootScope.$broadcast('dataset:selected', dataset);
-      });
+    $rootScope.$broadcast('dataset:selected', dataset);
   };
 
-  $scope.$watch(function() {
-    return $scope.datasets.filtered.length;
-  }, function (newValue) {
-    if (!newValue ||
+  $scope.$watch('datasets.filtered', function (newValue) {
+    if (!newValue.length ||
       _.find($scope.datasets.filtered, { name: $scope.datasets.selected })) {
       return;
     }
@@ -41,11 +35,14 @@ angular.module('aiddataDET')
   }, true);
 
   function init () {
-    ajaxFactory.datasets($stateParams.boundary)
-      .then(function(results) {
-        $scope.datasets.options = results.data;
-      }, function(err) {
-        $log.error(err);
+    ajaxFactory.boundaries()
+      .then(function(b) {
+        console.log(b);
+      });
+
+    queryFactory.getDatasets($stateParams.boundary)
+      .then(function(datasets) {
+        $scope.datasets.options = datasets;
       });
   }
 

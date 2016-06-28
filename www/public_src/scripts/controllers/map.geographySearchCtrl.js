@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('GeographySearchCtrl', function($log, $scope, $state, ajaxFactory, mapFactory) {
+.controller('GeographySearchCtrl', function($log, $scope, $state, ajaxFactory, mapFactory, queryFactory) {
   $scope.boundaries = [];
   $scope.subBoundaries = [];
   $scope.formData = {};
@@ -39,9 +39,9 @@ angular.module('aiddataDET')
   }
 
   function init () {
-    ajaxFactory.boundaries()
-      .then(function(result) {
-        $scope.boundaries = result.data.boundaries;
+    queryFactory.getBoundaries()
+      .then(function(boundaries) {
+        $scope.boundaries = boundaries;
       }, function (err){
         $log.error(err);
       });

@@ -1,8 +1,8 @@
 angular.module('aiddataDET')
-.controller('OptionsCtrl', function($scope, $rootScope, $stateParams, $q, ajaxFactory, $state, $stateParams) {
+.controller('OptionsCtrl', function($scope, $rootScope, $log) {
   $scope.dataset = {};
 
-  OPTIONS = $scope.options = [
+  $scope.options = [
     {
       name: "Extract Options",
       type: "checkbox",
@@ -22,10 +22,8 @@ angular.module('aiddataDET')
   ];
 
   $rootScope.$on('dataset:selected', function(e, data) {
-
     $scope.dataset = data;
-    DATA = data;
-    console.log(data);
+
     if (data.type !== 'raster') { return; }
     _.each($scope.options, function(option) {
       if (option.loc) {
