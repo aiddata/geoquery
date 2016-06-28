@@ -26,5 +26,7 @@ angular.module('aiddataDET')
   });
 
   $scope.removeFilter = function (filter, option) {
+    console.log(filter, option);
+    console.log($scope.filters);
   };
 });

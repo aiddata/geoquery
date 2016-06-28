@@ -1,7 +1,7 @@
 angular.module('aiddataDET')
-.controller('FiltersCtrl', function($scope, $rootScope, $stateParams, $q, ajaxFactory, $state, $stateParams) {
-  $scope.filters = { };
-  $scope.searchData = { };
+.controller('FiltersCtrl', function($scope, $rootScope, $stateParams, $q, filterFactory, $state) {
+  $scope.filters = filterFactory.filters;
+  $scope.searchData = filterFactory.filterOptions;
 
   $scope.filterInfo = {
     'ad_sector_names': { text: 'Sectors', type: 'options', searchFilter: '' },
@@ -11,33 +11,18 @@ angular.module('aiddataDET')
 
   $scope.updateFilters = function () {
     $rootScope.$broadcast('filters:update', $scope.filters);
-    ajaxFactory.filters($scope.filters)
-      .then(function(results) {
-        $rootScope.$broadcast('filters:updated', results.data);
-        $scope.searchData = results.data;
-        $scope.searchData.filterTypes = _.keys($scope.searchData.distinct);
-
-      }, function(err) {
-        console.log(err);
+    filterFactory.updateFilters()
+      .then(function(filterOptions) {
+        $rootScope.$broadcast('filters:updated', filterOptions);
       });
   };
 
   $scope.toggleFilter = function (filter, option) {
-    var dir = !$scope.isChecked(filter, option);
-
-    if (dir === true) {
-      if (!$scope.filters[filter]) {
-        $scope.filters[filter] = [];
-      }
-      $scope.filters[filter].push(option);
-    } else {
-      _.pull($scope.filters[filter], option);
-      if (!$scope.filters[filter].length) {
-        delete $scope.filters[filter];
-      }
-    }
-
-    $scope.updateFilters();
+    $q.when(filterFactory.toggleFilter(filter, option))
+      .then(function(filters) {
+        console.log(filters);
+        $scope.updateFilters();
+      });
   };
 
   $scope.toggleAll = function (filter) {
@@ -55,7 +40,7 @@ angular.module('aiddataDET')
   };
 
   $rootScope.$on('dataset:selected', function(e, data) {
-    _.extend($scope.filters, { dataset : data.name });
+    filterFactory.setDataset(data.name);
     $scope.updateFilters();
   });
 
