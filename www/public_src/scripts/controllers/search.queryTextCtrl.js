@@ -6,12 +6,10 @@ angular.module('aiddataDET')
   $scope.geography = $stateParams.boundary;
 
   $rootScope.$on('filters:update', function(e, data) {
-    console.log('FILTER', data);
     $scope.searchData = data;
   });
 
   $rootScope.$on('filters:updated', function(e, data) {
-    console.log('FILTERS', data);
 
     $scope.queryStructure = [
       { value: [ $scope.dataset.title ], pre: 'Extract data from ', optional: false },
@@ -24,11 +22,9 @@ angular.module('aiddataDET')
   });
 
   $rootScope.$on('dataset:selected', function(e, data) {
-    console.log('DATASET', data);
     $scope.dataset = data;
   });
 
   $scope.removeFilter = function (filter, option) {
-    console.log(filter, option);
   };
 });

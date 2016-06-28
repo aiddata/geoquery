@@ -19,7 +19,10 @@
         </div>
       </div>
       <br>
-      <det-filters></det-filters>
+      <div>
+        <det-filters uib-collapse="datatype !== 'release'"></det-filters>
+        <det-options uib-collapse="datatype !== 'raster'"></det-options>
+      </div>
     </div>
   </div>
 </div>

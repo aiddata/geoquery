@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('FiltersCtrl', function($scope, $rootScope, $stateParams, $q, ajaxFactory) {
+.controller('FiltersCtrl', function($scope, $rootScope, $stateParams, $q, ajaxFactory, $state, $stateParams) {
   $scope.filters = { };
   $scope.searchData = { };
 
