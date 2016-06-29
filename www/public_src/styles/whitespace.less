@@ -1,0 +1,31 @@
+.padding (@breaksize) {
+  padding-top: @breaksize;
+  padding-bottom: @breaksize;
+}
+
+.row.padding-xs,
+.row-fluid.padding-xs { .padding(@break-xs;); }
+
+.row.padding-sm,
+.row-fluid.padding-sm  { .padding(@break-sm;); }
+
+.row.padding-md,
+.row-fluid.padding-md  { .padding(@break-md;); }
+
+.row.padding-lg,
+.row-fluid.padding-lg  { .padding(@break-lg;); }
+
+.row.padding-xl,
+.row-fluid.padding-xl  { .padding(@break-xl;); }
+
+.breakAfter (@breaksize) {
+  margin-bottom: @breaksize;
+}
+
+.break-after {
+  &.break-xs { .breakAfter(@break-xs;); }
+  &.break-sm { .breakAfter(@break-sm;); }
+  &.break-md { .breakAfter(@break-md;); }
+  &.break-lg { .breakAfter(@break-lg;); }
+  &.break-xl { .breakAfter(@break-xl;); }
+}

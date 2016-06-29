@@ -13,6 +13,9 @@ angular.module('aiddataDET')
     }
     return ajaxFactory.geometry(boundary)
       .then(function(result) {
+        if (!result.data) {
+          return $q.reject({ message: 'No data returned' });
+        }
         boundaries[boundary] = L.geoJson(result.data);
         return boundaries[boundary];
       }, function(err) {

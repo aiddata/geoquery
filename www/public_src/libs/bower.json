@@ -1,10 +1,7 @@
 {
   "name": "aiddataDET",
   "version": "0.0.1",
-  "authors": [
-    "eslivinski <lizzi.slivinski@nbtsolutions.com>",
-    "nathanmarq <nate.marquardt@nbtsolutions.com>"
-  ],
+  "author": "NBTSolutions",
   "license": "MIT",
   "private": true,
   "ignore": [
@@ -25,6 +22,7 @@
     "leaflet-spin": "^0.1.1"
   },
   "resolutions": {
-    "angular": ">=1.4.0"
+    "angular": ">=1.4.0",
+    "angular-ui-router": "^0.3.1"
   }
 }

@@ -24,12 +24,12 @@ httpApp.use(express.static(__dirname + '/public'));
 
 // include all controllers
 fs.readdirSync(__dirname + '/routes/controllers').forEach(function (file) {
-  if(file.substr(-3) == '.js') {
-      route = require(__dirname + '/routes/controllers/' + file);
-      route.controller(httpApp);
+  if (file.substr(-3) === '.js') {
+    var route = require(__dirname + '/routes/controllers/' + file);
+    route.controller(httpApp);
   }
 });
 
 httpApp.listen(httpApp.get('port'), function(){
-    console.log('Express server listening on port ' + httpApp.get('port'));
+  console.log('Express server listening on port ' + httpApp.get('port'));
 });

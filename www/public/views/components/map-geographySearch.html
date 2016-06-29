@@ -20,23 +20,28 @@
 
     <div class="form-group"
         ng-if="subBoundaries.length"
-        ng-init="formData.subboundary = subBoundaries[0].name">
+        ng-show="subBoundaries.length > 1">
 
       <label>Select a SubBoundary</label>
 
-      <div ng-repeat="sub in subBoundaries">
+      <div class="radio" ng-repeat="sub in subBoundaries">
 
-        <input type="radio" name="subboundary"
-            ng-model="formData.subboundary"
-            ng-value="sub.name">
+        <label>
+          <input type="radio" name="subboundary"
+              ng-model="formData.subboundary"
+              ng-value="sub.name">
 
-        {{ sub.title }}
+          {{ sub.title }}
+        </label>
 
       </div>
     </div>
 
-    <div class="form-group text-right" uib-collapse="!formData.boundary">
-      <button class="btn btn-success" ui-sref="search({ geomId: formData.boundary.title })">
+    <div class="form-group text-right"
+        uib-collapse="!formData.boundary || !formData.subboundary">
+
+      <button class="btn btn-success"
+          ng-click="defineBoundary()">
         Search Datasets
         <i class="fa fa-arrow-circle-o-right fa-lg" aria-hidden="true"></i>
       </button>

@@ -2,7 +2,7 @@
   background-color: #eee;
 }
 
-select {
+select.form-control {
   -webkit-appearance: none;
   -moz-appearance: none;
   background-position: right 50%;
@@ -20,15 +20,14 @@ query-text {
   border-radius: @border-radius-small;
 }
 
-det-filters {
-  .filter-module {
-    border: 1px solid @lightGray;
-    border-radius: @border-radius-small;
-    height: 400px;
-    max-height: 400px;
-  }
-  .list-container {
-    max-height: 320px;
-    overflow-y: auto;
-  }
+.filter-module,
+.options-module {
+  border: 1px solid @lightGray;
+  border-radius: @border-radius-small;
+  height: 400px;
+  max-height: 400px;
+}
+.list-container {
+  max-height: 320px;
+  overflow-y: auto;
 }

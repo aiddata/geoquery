@@ -1,9 +1,12 @@
 angular.module('aiddataDET')
-.controller('DatasetSelectorCtrl', function($scope, $rootScope, $stateParams, $q, ajaxFactory) {
+.controller('DatasetSelectorCtrl', function($scope, $rootScope, $stateParams, $state, $q, $log, ajaxFactory, queryFactory) {
+
   $scope.datasets = {
+    filtered: [],
     options: [],
     selected: ''
   };
+
   $scope.fields = {
     options: ['date_added', 'date_updated', 'title', 'publishers', 'version'],
     selected: 'title',
@@ -16,20 +19,27 @@ angular.module('aiddataDET')
     { text: 'All', value: '' }
   ];
 
-  $scope.dataFilters = { type: '', title: '' };
-
-  ajaxFactory.datasets($stateParams.geomId)
-    .then(function(results) {
-      $scope.datasets.options = results.data;
-      $scope.selectDataset($scope.datasets.options[0]);
-    });
+  $scope.dataFilters = { type: 'release', title: '' };
 
   $scope.selectDataset = function(dataset) {
     $scope.datasets.selected = dataset.name;
-    $rootScope.$broadcast('dataset:selected', _.pick(dataset, ['name', 'title']));
+    $rootScope.$broadcast('dataset:selected', dataset);
   };
 
-  $scope.filterType = function (type) {
-    $scope.dataFilters.type = type.value;
-  };
+  $scope.$watch('datasets.filtered', function (newValue) {
+    if (!newValue.length ||
+      _.find($scope.datasets.filtered, { name: $scope.datasets.selected })) {
+      return;
+    }
+    $scope.selectDataset(_.head($scope.datasets.filtered));
+  }, true);
+
+  function init () {
+    queryFactory.getDatasets($stateParams.boundary)
+      .then(function(datasets) {
+        $scope.datasets.options = datasets;
+      });
+  }
+
+  init();
 });

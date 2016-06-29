@@ -1,0 +1,24 @@
+<div class="row"
+    ng-show="dataset.type === 'raster'">
+  <div class="col-md-4"
+      ng-repeat="option in options"
+      uib-collapse="!option.data || option.data.length <= 1">
+
+    <div class="container-fluid options-module">
+      <div class="module-title">
+        <h4>{{ option.name }}</h4>
+      </div>
+      <div ng-if="option.type === 'checkbox'" >
+
+        <div class="checkbox"
+            ng-repeat="choice in option.data">
+          <label>
+            <input type="checkbox">
+            {{ choice.name }}
+          </label>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,19 +1,17 @@
 <div ng-style="dataStyle">
-  <div class="row"
-      style="padding-bottom: 10px; padding-top: 10px;">
+  <div class="row padding-sm">
     <div class="col-md-4"
         ng-repeat="type in dataTypes">
       <button class="btn btn-block"
           ng-class="{'btn-primary': dataFilters.type === type.value, 'btn-info': dataFilters.type !== type.value}"
-          ng-click="filterType(type)">
+          ng-click="dataFilters.type = type.value;">
         {{ type.text }}
-        <span class="badge pull-right" ng-show="dataFilters.type === type.value">{{ filteredSets.length }}</span>
+        <span class="badge pull-right" ng-show="dataFilters.type === type.value">{{ datasets.filtered.length }}</span>
       </button>
     </div> <!-- /.col-md-4 -->
   </div> <!-- /.row -->
 
-  <div class="row"
-      style="padding-bottom: 10px; padding-top: 10px;">
+  <div class="row padding-sm">
     <div class="col-md-6">
 
       <div class="input-group input-group-sm">
@@ -48,11 +46,11 @@
   <div class="list-group">
     <a href=""
         class="list-group-item"
-        ng-repeat="set in filteredSets = (datasets.options | filter: dataFilters) | orderBy: fields.selected : fields.descending"
+        ng-repeat="set in datasets.filtered = (datasets.options | filter: dataFilters) | orderBy: fields.selected : fields.descending"
         ng-class="{ 'active' : datasets.selected === set.name }"
         ng-click="selectDataset(set)">
       {{ set.title }} - {{ set.type }}
     </a>
   </div>
-  <p uib-collapse="filteredSets.length"> No Datasets Found </p>
+  <p uib-collapse="datasets.filtered.length"> No Datasets Found </p>
 </div>

@@ -60,9 +60,14 @@
 
   <div class="row">
     <div class="col-md-12 text-right">
-      <h4 class="pull-left">
+      <h4 class="pull-left" ng-show="dataset.type === 'release'">
         <i class="fa fa-arrow-right" aria-hidden="true"></i>
-        {{ filters.locations }} locations / {{ filters.projects }} projects
+
+
+          <strong>{{ totals.projects }}</strong> projects /
+          <strong>{{ totals.locations }}</strong> locations
+
+        </span>
       </h4>
 
       <button class="btn btn-success"> Add to My Request </button>
