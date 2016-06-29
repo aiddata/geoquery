@@ -35,11 +35,6 @@ angular.module('aiddataDET')
   }, true);
 
   function init () {
-    ajaxFactory.boundaries()
-      .then(function(b) {
-        console.log(b);
-      });
-
     queryFactory.getDatasets($stateParams.boundary)
       .then(function(datasets) {
         $scope.datasets.options = datasets;

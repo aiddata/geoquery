@@ -34,9 +34,6 @@ angular.module('aiddataDET')
     queryFactory.getBoundaries()
       .then(function (boundaries) {
         return queryFactory.setBoundary($stateParams.boundary, $stateParams.subboundary);
-      })
-      .then(function(boundaries) {
-        console.log('fooo', boundaries);
       });
   }
   init();

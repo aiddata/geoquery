@@ -4,10 +4,7 @@ angular.module('aiddataDET')
     var datasets = {},
         boundaries = {};
 
-    var query = {
-
-    };
-
+    var query = {};
 
     function retrieveBoundaries () {
       if (!boundaries.options) {
@@ -32,7 +29,6 @@ angular.module('aiddataDET')
         description: sb.description,
         path: sb.base + _.head(sb.resources).path
       };
-      console.log(query);
     }
 
     return {
