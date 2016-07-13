@@ -13,7 +13,9 @@
         <div class="checkbox"
             ng-repeat="choice in option.data">
           <label>
-            <input type="checkbox">
+            <input type="checkbox"
+                ng-model="checked"
+                ng-click="toggleOption(checked, choice)">
             {{ choice.name }}
           </label>
         </div>
