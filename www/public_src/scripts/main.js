@@ -1,4 +1,4 @@
-angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt'])
+angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', 'ngMaterial'])
 .config(function($stateProvider, $urlRouterProvider) {
 
   $urlRouterProvider.otherwise("/");

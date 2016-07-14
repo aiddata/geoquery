@@ -1,4 +1,46 @@
-<div class="row" ng-show="dataset && dataset.type === 'release'">
+<div layout="row" class="layout-row"
+    ng-show="dataset && dataset.type === 'release'">
+  <div flex="33" class="flex-33"
+      ng-repeat="filter in filterOptions.filterTypes | orderBy: filter">
+
+    <md-card style="height: 370px;"
+        ng-if="filterInfo[filter]"
+        ng-switch="filterInfo[filter].type">
+
+      <md-card-content
+          ng-switch-when="options">
+        <h4>{{filterInfo[filter].text}}</h4>
+
+        <div layout="row" class="layout-row">
+          <md-input-container>
+            <input aria-label="Search {{ filterInfo[filter].text }}"
+            ng-placeholder="filterInfo[filter].text"
+            ng-model="filterInfo[filter].searchFilter">
+          </md-input-container>
+        </div>
+
+        <md-list>
+          <md-list-item
+              ng-repeat="option in filterMatches = (filterOptions.distinct[filter] | filter: filterInfo[filter].searchFilter)">
+            <div class="_md-label">
+              <input type="checkbox"
+                  ng-model="bool"
+                  ng-change="toggleFilter(bool, filter, option)"
+                  ng-checked="filters[filter] && filters[filter].indexOf(option) >= 0;"/> {{ option}}
+            </div>
+          </md-list-item>
+        </md-list>
+      </md-card-content>
+
+      <md-car-content
+          ng-switch-when="range">
+          range
+      </md-card-content>
+    </md-card>
+  <div>
+</div>
+
+<!-- <div class="row" ng-show="dataset && dataset.type === 'release'">
   <div class="col-md-4" ng-repeat="filter in filterOptions.filterTypes | orderBy: filter">
     <div class="container-fluid filter-module"
         ng-if="filterInfo[filter]"
@@ -44,14 +86,6 @@
 
             </div>
           </div>
-        </div> <!-- /.list-container -->
+        </div>
 
-      </div> <!-- /.module-content -->
-
-
-      <div class="module-content" ng-switch-when="range">range</div>
-
-
-    </div> <!-- /.filter-module -->
-  </div>
-</div>
+      </div> -->
