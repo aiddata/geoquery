@@ -22,12 +22,12 @@ angular.module('aiddataDET')
   ];
 
   $scope.toggleOption = function (isChecked, option) {
-    console.log(isChecked, option);
+    $log.debug(isChecked, option);
   };
 
   $rootScope.$on('dataset:selected', function(e, data) {
     $scope.dataset = data;
-    console.log(data);
+    $log.debug(data);
 
     if (data.type !== 'raster') { return; }
     _.each($scope.options, function(option) {
@@ -40,16 +40,16 @@ angular.module('aiddataDET')
           .value();
       }
     });
+
+    console.log($scope.options);
   });
 
-  {
-
-  $scope.data = {};
-  $scope.data.cb1 = true;
-  $scope.data.cb2 = false;
-  $scope.data.cb3 = false;
-  $scope.data.cb4 = false;
-  $scope.data.cb5 = false;
-
+  $scope.getTimeStamp = function (date, format) {
+    var timeFormatter = d3.timeFormat("%b %d, %Y");
+    var timeParser = d3.timeParse(format),
+        formDate = timeFormatter(timeParser(date));
+    $log.debug(formDate);
+    return formDate;
+  };
 
 });

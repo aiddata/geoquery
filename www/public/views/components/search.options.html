@@ -6,16 +6,32 @@
     <md-card style="height: 370px;">
       <md-card-content>
         <h4>{{ option.name }}</h4>
+
         <md-list>
           <md-list-item ng-repeat="choice in option.data" ng-init="isChecked=true">
-            <div class="_md-label">
-              <input type="checkbox"
-                  ng-model="checked"
-                  ng-click="toggleOption(checked, choice)">
-              {{ choice.name }}
+            <!-- -->
+
+            <!-- -->
+            <div class="md-list-item-text col-xs-12">
+              <div class="checkbox">
+                <input type="checkbox"
+                    ng-model="checked"
+                    ng-click="toggleOption(checked, choice)">
+                {{ choice.name }}
+
+              <p class="md-caption text-right"
+                  ng-if="(choice.start || choice.end) && dataset.temporal.format">
+                <em ng-if="choice.start"> {{ getTimeStamp(choice.start, dataset.temporal.format) }} </em>
+                <span ng-if="choice.start && choice.end">&dash;</span>
+                <em ng-if="choice.end"> {{ getTimeStamp(choice.end, dataset.temporal.format) }} </em>
+                <br>
+              </p>
             </div>
+          </div>
+
           </md-list-item>
         </md-list>
+
       </md-card-content>
     </md-card>
   <div>

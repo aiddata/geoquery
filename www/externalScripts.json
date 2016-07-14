@@ -12,6 +12,6 @@
     "public_src/libs/bower_components/angular-bootstrap/ui-bootstrap-tpls.js",
     "public_src/libs/bower_components/angucomplete-alt/angucomplete-alt.js",
     "public_src/libs/bower_components/leaflet-spin/leaflet.spin.js",
-    "public_src/libs/bower_components/spin.js/spin.min.js"
-
+    "public_src/libs/bower_components/spin.js/spin.min.js",
+    "public_src/libs/bower_components/d3/d3.min.js"
 ]

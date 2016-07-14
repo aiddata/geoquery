@@ -39,6 +39,7 @@ angular.module('aiddataDET')
   });
 
   $scope.$watch('filters', function(newValue, oldValue) {
+    console.log('filter change');
     if (!_.isEqual(newValue, oldValue)) {
       $scope.updateFilters();
     }

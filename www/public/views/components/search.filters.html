@@ -3,89 +3,68 @@
   <div flex="33" class="flex-33"
       ng-repeat="filter in filterOptions.filterTypes | orderBy: filter">
 
-    <md-card style="height: 370px;"
-        ng-if="filterInfo[filter]"
-        ng-switch="filterInfo[filter].type">
+    <md-card style="height: 370px; max-height-370; overflow-y: auto;"
+        ng-if="filterInfo[filter]">
 
       <md-card-content
-          ng-switch-when="options">
-        <h4>{{filterInfo[filter].text}}</h4>
+          ng-switch="filterInfo[filter].type">
+        <h4>
+          {{filterInfo[filter].text}}
+            <a href="" class="pull-right"
+                ng-hide="!filters[filter]"
+                ng-click="toggleAll(filter)">
+              <i class="fa fa-refresh"></i>
+            </a>
+        </h4>
 
-        <div layout="row" class="layout-row">
-          <md-input-container>
-            <input aria-label="Search {{ filterInfo[filter].text }}"
-            ng-placeholder="filterInfo[filter].text"
-            ng-model="filterInfo[filter].searchFilter">
-          </md-input-container>
+        <div ng-switch-when="options">
+          <div layout="row" class="layout-row">
+            <md-input-container style="margin-bottom: 0px">
+              <input aria-label="Search {{ filterInfo[filter].text }}"
+                  placeholder="Search"
+                  ng-model="filterInfo[filter].searchFilter">
+            </md-input-container>
+
+            <span class="label label-primary label-circle"> {{ filterMatches.length }} </span>
+          </div>
+
+          <md-list style="margin-top: -30px;">
+            <md-list-item>
+              <md-divider></md-divider>
+
+              <div class="md-list-item-text col-xs-12">
+                <div class="checkbox">
+                  <input type="checkbox"
+                      ng-checked="!filters[filter]"
+                      ng-click="toggleAll(filter)"
+                      ng-disabled="!filters[filter]"/> All  {{ filterInfo[filter].text }}
+                </div>
+              </div>
+
+              <md-divider></md-divider>
+            </md-list-item>
+
+            <md-list-item
+                ng-repeat="option in filterMatches = (filterOptions.distinct[filter] | filter: filterInfo[filter].searchFilter)">
+
+              <div class="md-list-item-text col-xs-12">
+                <div class="checkbox">
+                  <input type="checkbox"
+                      ng-model="bool"
+                      ng-change="toggleFilter(bool, filter, option)"
+                      ng-checked="filters[filter] && filters[filter].indexOf(option) >= 0;"/>
+                  {{ option }}
+                </div>
+              </div>
+            </md-list-item>
+          </md-list>
         </div>
 
-        <md-list>
-          <md-list-item
-              ng-repeat="option in filterMatches = (filterOptions.distinct[filter] | filter: filterInfo[filter].searchFilter)">
-            <div class="_md-label">
-              <input type="checkbox"
-                  ng-model="bool"
-                  ng-change="toggleFilter(bool, filter, option)"
-                  ng-checked="filters[filter] && filters[filter].indexOf(option) >= 0;"/> {{ option}}
-            </div>
-          </md-list-item>
-        </md-list>
+        <div ng-switch-when="range">
+          RANGE
+        </div>
       </md-card-content>
 
-      <md-car-content
-          ng-switch-when="range">
-          range
-      </md-card-content>
     </md-card>
   <div>
 </div>
-
-<!-- <div class="row" ng-show="dataset && dataset.type === 'release'">
-  <div class="col-md-4" ng-repeat="filter in filterOptions.filterTypes | orderBy: filter">
-    <div class="container-fluid filter-module"
-        ng-if="filterInfo[filter]"
-        ng-switch="filterInfo[filter].type">
-
-      <div class="module-title">
-        <h4>{{filterInfo[filter].text}} Filter module</h4>
-      </div>
-
-      <div class="module-content"
-          ng-switch-when="options">
-
-          <div class='row'>
-            <div class="col-xs-10" style="margin-bottom: 5px">
-              <input class="form-control input-sm"
-                  placeholder="Search {{ filterInfo[filter].text }}"
-                  ng-model="filterInfo[filter].searchFilter"/>
-            </div>
-
-            <div class="col-xs-1">
-              <span class="label label-primary"> {{ filterMatches.length }} </span>
-            </div>
-          </div>
-
-        <div class="row list-container">
-          <div class="col-md-12">
-            <div class="checkbox">
-              <label>
-                <input type="checkbox"
-                    ng-checked="!filters[filter]"
-                    ng-click="toggleAll(filter)"
-                    ng-disabled="!filters[filter]"/> All  {{ filterInfo[filter].text }}</label>
-            </div>
-
-            <div class="checkbox"
-                ng-repeat="option in filterMatches = (filterOptions.distinct[filter] | filter: filterInfo[filter].searchFilter)">
-
-              <label>
-                <input type="checkbox"
-                    ng-model="bool"
-                    ng-change="toggleFilter(bool, filter, option)"
-                    ng-checked="filters[filter] && filters[filter].indexOf(option) >= 0;"/> {{ option}} </label>
-
-            </div>
-          </div>
-        </div>
-
-      </div> -->
