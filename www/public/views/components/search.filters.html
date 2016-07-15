@@ -7,19 +7,20 @@
         ng-if="filterInfo[filter]">
 
       <md-card-content
-          ng-switch="filterInfo[filter].type">
-        <h4>
-          {{filterInfo[filter].text}}
-            <a href="" class="pull-right"
-                ng-hide="!filters[filter]"
-                ng-click="toggleAll(filter)">
-              <i class="fa fa-refresh"></i>
-            </a>
-        </h4>
+         ng-switch="filterInfo[filter].type">
+
+         <div class="layout-row">
+           <h4 class="flex"> {{filterInfo[filter].text}} </h4>
+           <a href=""
+               ng-hide="!filters[filter]"
+               ng-click="toggleAll(filter)">
+             <i class="fa fa-refresh"></i>
+           </a>
+         </div>
 
         <div ng-switch-when="options">
-          <div layout="row" class="layout-row">
-            <md-input-container style="margin-bottom: 0px">
+          <div class="layout-row">
+            <md-input-container md-no-float class="md-block" style="margin: 0px;">
               <input aria-label="Search {{ filterInfo[filter].text }}"
                   placeholder="Search"
                   ng-model="filterInfo[filter].searchFilter">
@@ -28,7 +29,7 @@
             <span class="label label-primary label-circle"> {{ filterMatches.length }} </span>
           </div>
 
-          <md-list style="margin-top: -30px;">
+          <md-list>
             <md-list-item>
               <md-divider></md-divider>
 
@@ -42,6 +43,7 @@
               </div>
 
               <md-divider></md-divider>
+
             </md-list-item>
 
             <md-list-item

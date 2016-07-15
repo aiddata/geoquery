@@ -1,7 +1,7 @@
 
 <md-card style="height: 100%">
-  <md-card-title>
-    <div class="col-md-6"
+  <md-card-header>
+    <div class="flex-50"
         ng-init="editing = false; request = { name: 'New Request' }">
 
       <div class="input-group input-group-sm"
@@ -26,55 +26,55 @@
 
       </div>
 
-      <md-card-title-text>
-        <h4 ng-hide="editing">
-          {{ request.name }}
-          <a href="" style="margin-left: 15px; font-size: small"
-              ng-click="editing = !editing">
-            <i class="fa fa-lg fa-pencil-square-o" aria-hidden="true"></i>
-          </a>
-        </h4>
-      </md-card-title-text>
+      <h4 ng-hide="editing" style="margin: 0px;">
+        {{ request.name }}
+        <a href="" style="margin-left: 15px; font-size: small"
+            ng-click="editing = !editing">
+          <i class="fa fa-lg fa-pencil-square-o" aria-hidden="true"></i>
+        </a>
+      </h4>
 
     </div>
-  </md-card-title>
+  </md-card-header>
 
   <md-card-content
     style="overflow-y: auto;">
-    <span style="line-height: 3;"
-      ng-repeat="item in queryStructure"
-      ng-if="item.value && item.value.length">
-      {{ item.pre }}
+    <!-- <div class="col-md-12"> -->
+      <span style="line-height: 3;"
+        ng-repeat="item in queryStructure"
+        ng-if="item.value && item.value.length">
+        {{ item.pre }}
 
-      <span ng-repeat="option in item.value">
-        <span ng-show="item.value.length > 1 && $last"> and </span>
-        <span ng-show="item.value.length > 1 && !$last">, </span>
-        <div class="btn btn-sm"
-            ng-class="{ 'btn-primary': item.optional, 'btn-info': !item.optional }"
-            ng-click="item.optional ? removeFilter(item.key, option) : null">
-          {{ option }}
-          <i class="fa fa-times" aria-hidden="true" ng-show="item.optional"></i>
-        </div>
+        <span ng-repeat="option in item.value">
+          <span ng-show="item.value.length > 1 && $last"> and </span>
+          <span ng-show="item.value.length > 1 && !$last">, </span>
+          <div class="btn btn-sm"
+              ng-class="{ 'btn-primary': item.optional, 'btn-info': !item.optional }"
+              ng-click="item.optional ? removeFilter(item.key, option) : null">
+            {{ option }}
+            <i class="fa fa-times" aria-hidden="true" ng-show="item.optional"></i>
+          </div>
 
-      </span>
+        </span>
+      <!-- </div> -->
   </md-card-content>
 
-  <md-card-actions >
-    <div class="col-xs-6">
+  <md-card-footer >
+    <div class="layout-row">
+    <div flex='50' class="flex-50">
       <h5 ng-show="dataset.type === 'release'">
         <i class="fa fa-arrow-right" aria-hidden="true"></i>
-
-
           <strong>{{ totals.projects }}</strong> projects /
           <strong>{{ totals.locations }}</strong> locations
-
         </span>
       </h5>
     </div>
-    <div class="col-xs-6 text-right">
-      <button class="btn btn-success"> Add to My Request </button>
+    <!-- <span flex="50" class="flex-50"></span> -->
+    <div flex='50' class="text-right">
+      <button class="btn btn-success"> Add to Cart </button>
       <button class="btn btn-danger"> Clear </button>
 
     </div>
-  </md-card-actions>
+  </div>
+  </md-card-footer>
 </md-card>

@@ -1,9 +1,29 @@
-<nav id='det-header' class="navbar navbar-default">
-  <div class="container-fluid">
-    <div class="navbar-header">
-       <a class="navbar-brand" href="http://www.aiddata.org/">
-          <div class="logo"></div>
-       </a>
+<div ng-init="viewCart=false">
+  <md-toolbar id='det-header'>
+    <div class="md-toolbar-tools">
+
+      <h2>
+        <a href="http://www.aiddata.org/">
+           <div class="logo"></div>
+        </a>
+      </h2>
+      <span flex></span>
+
+      <md-button class="md-icon-button header-button"
+        ng-click="viewCart = !viewCart">
+        <i class='fa fa-shopping-cart'></i>
+      </md-button>
     </div>
-  </div>
-</nav>
+  </md-toolbar>
+
+  <md-content class="cart"
+      ng-class="{ 'open': viewCart }">
+
+      <button class="btn btn-block btn-primary btn-lg">
+        Checkout
+      </button>
+
+      <h3 class="md-headline text-center">
+        Your Cart is Empty
+      </h3>
+  </md-content>

@@ -4,12 +4,22 @@ det-header {
   #det-header {
     margin-bottom: 0px;
     height: 80px;
+    z-index: 100;
+    background-color: #f8f8f8;
+
+    .header-button {
+      margin-top: 10px;
+      color: @brand-primary;
+      font-size: larger;
+      &:hover {
+        color: white;
+        background-color: @brand-primary;
+      }
+    };
   }
 
-  .navbar-brand {
-    padding: 10px;
-  }
   .logo{
+      margin-top: 15px;
       position: relative;
       float: left;
       width: 275.3px;
@@ -17,5 +27,21 @@ det-header {
       background-image: url('../media/images/aid_data.png');
       background-size: cover;
       background-repeat:no-repeat;
+  }
+}
+
+.cart {
+  width: 0%;
+  height: 100vh;
+  position: absolute;
+  background-color: @inverseBackground;
+  z-index: 10;
+  transition: width 300ms linear;
+  right: 0;
+  color: white;
+
+  &.open {
+    width: 30%;
+    padding: 8px;
   }
 }
