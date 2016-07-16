@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('QueryTextCtrl', function($scope, $rootScope, $stateParams, queryFactory) {
+.controller('QueryTextCtrl', function($scope, $rootScope, $log, $stateParams, queryFactory) {
   $scope.filters = queryFactory.filters;
   $scope.dataset = {};
   $scope.totals = {};

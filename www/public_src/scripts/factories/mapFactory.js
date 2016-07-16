@@ -34,7 +34,7 @@ angular.module('aiddataDET')
 
       /* Boundary Group */
       boundaryGroup = L.featureGroup()
-        .on('layeradd', function(e) {
+        .on('layeradd', function() {
           this.setStyle({ opacity: 0, fillOpacity: 0 });
           map.fitBounds(this);
           // Delaying restyle allows for 'animate inå'

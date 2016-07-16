@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('DatasetSelectorCtrl', function($scope, $timeout, $rootScope, $stateParams, $state, $q, $log, ajaxFactory, queryFactory, datasets) {
+.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, datasets) {
 
   $scope.datasets = {
     filtered: [],

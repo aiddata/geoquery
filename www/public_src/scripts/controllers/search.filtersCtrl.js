@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('FiltersCtrl', function($scope, $rootScope, $stateParams, $q, $log, queryFactory) {
+.controller('FiltersCtrl', function($scope, $rootScope, $log, queryFactory) {
   $scope.dataset = {};
   $scope.filterOptions = {};
   $scope.filters = queryFactory.filters;

@@ -1,6 +1,5 @@
-angular.module('aiddataDET', ['ui.router', 'ui.router.stateHelper', 'ui.bootstrap', 'angucomplete-alt', 'ngMaterial'])
-.config(function($stateProvider, stateHelperProvider, $urlRouterProvider, $locationProvider, $mdThemingProvider) {
-
+angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', 'ngMaterial'])
+.config(function($stateProvider, $urlRouterProvider, $mdThemingProvider) {
 
   $mdThemingProvider.theme('default')
     .primaryPalette('teal')
@@ -9,8 +8,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.router.stateHelper', 'ui.bootstra
 
   $urlRouterProvider.otherwise('/');
 
-  $stateProvider
-  .state('map', {
+  $stateProvider.state('map', {
     url: '/',
     resolve: {
       boundaries: function(queryFactory) {

@@ -4,7 +4,6 @@
     "public_src/libs/bower_components/angular-animate/angular-animate.js",
     "public_src/libs/bower_components/angular-material/angular-material.js",
     "public_src/libs/bower_components/angular-ui-router/release/angular-ui-router.min.js",
-    "public_src/libs/bower_components/angular-ui-router.stateHelper/statehelper.min.js",
     "node_modules/angular-mocks/angular-mocks.js",
     "public_src/libs/bower_components/jquery/dist/jquery.min.js",
     "public_src/libs/bower_components/bootstrap/dist/js/bootstrap.min.js",
