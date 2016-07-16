@@ -1,4 +1,4 @@
-geography-search {
+#geographySearch {
   z-index: 1000;
   display: inline-block;
   position: absolute;
@@ -16,7 +16,7 @@ geography-search {
   }
 }
 
-zoom-controls {
+#zoomControls {
   z-index: 1000;
   display: block;
   position: absolute;
@@ -26,12 +26,17 @@ zoom-controls {
   margin-top: 15px;
 }
 
-svg.leaflet-zoom-animated {
-  path {
-    transition: fill-opacity 1s ease-in-out,
-      stroke-opacity 1s ease-in-out;
-    stroke: @brick;
-    fill: @brick;
-    stroke-width: 3px;
+#map {
+  width: 100vw;
+  height: 100vh;
+
+  svg.leaflet-zoom-animated {
+    path {
+      transition: fill-opacity 1s ease-in-out,
+        stroke-opacity 1s ease-in-out;
+      stroke: @brick;
+      fill: @brick;
+      stroke-width: 3px;
+    }
   }
 }

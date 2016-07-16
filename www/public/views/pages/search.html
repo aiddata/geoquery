@@ -2,20 +2,20 @@
 <div class="container-fluid search-container">
   <div class="row">
     <div class="col-md-4 left-panel">
-      <dataset-selector></dataset-selector>
+      <div ui-view="datasetSelector" id="datasetSelector"></div>
     </div>
 
     <div class="col-md-8">
       <br>
       <div class="row">
         <div class="col-md-12">
-          <query-text></query-text>
+          <div ui-view="queryText" id="queryText"></div>
         </div>
       </div>
       <br>
       <div>
-        <det-filters></det-filters>
-        <det-options></det-options>
+        <div ui-view="filters" id="filters"></div>
+        <div ui-view="options" id="options"></div>
       </div>
     </div>
   </div>

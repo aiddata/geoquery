@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('FiltersCtrl', function($scope, $rootScope, $stateParams, $q, $log, queryFactory, $state) {
+.controller('FiltersCtrl', function($scope, $rootScope, $stateParams, $q, $log, queryFactory) {
   $scope.dataset = {};
   $scope.filterOptions = {};
   $scope.filters = queryFactory.filters;
@@ -30,7 +30,6 @@ angular.module('aiddataDET')
 
   $rootScope.$on('dataset:selected', function(e, data) {
     $scope.dataset = data;
-
     _.each($scope.filters, function(options, filter) {
       $scope.toggleAll(filter);
     });
@@ -39,11 +38,9 @@ angular.module('aiddataDET')
   });
 
   $scope.$watch('filters', function(newValue, oldValue) {
-    console.log('filter change');
     if (!_.isEqual(newValue, oldValue)) {
       $scope.updateFilters();
     }
   }, true);
-
 
 });

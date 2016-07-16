@@ -27,7 +27,6 @@ angular.module('aiddataDET')
 
   $rootScope.$on('dataset:selected', function(e, data) {
     $scope.dataset = data;
-    $log.debug(data);
 
     if (data.type !== 'raster') { return; }
     _.each($scope.options, function(option) {
@@ -40,15 +39,12 @@ angular.module('aiddataDET')
           .value();
       }
     });
-
-    console.log($scope.options);
   });
 
   $scope.getTimeStamp = function (date, format) {
     var timeFormatter = d3.timeFormat("%b %d, %Y");
     var timeParser = d3.timeParse(format),
         formDate = timeFormatter(timeParser(date));
-    $log.debug(formDate);
     return formDate;
   };
 

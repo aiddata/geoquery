@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('DatasetSelectorCtrl', function($scope, $rootScope, $stateParams, $state, $q, $log, ajaxFactory, queryFactory) {
+.controller('DatasetSelectorCtrl', function($scope, $timeout, $rootScope, $stateParams, $state, $q, $log, ajaxFactory, queryFactory, datasets) {
 
   $scope.datasets = {
     filtered: [],
@@ -35,11 +35,7 @@ angular.module('aiddataDET')
   }, true);
 
   function init () {
-    queryFactory.getDatasets($stateParams.boundary)
-      .then(function(datasets) {
-        $scope.datasets.options = datasets;
-      });
+    $scope.datasets.options = datasets;
   }
-
   init();
 });

@@ -1,10 +1,15 @@
 angular.module('aiddataDET')
   .factory('queryFactory', function(ajaxFactory, $log, $q) {
 
-    var datasets = {},
-        boundaries = {};
+    var datasets = [],            // All Datasets
+        boundaries = {};          // All Boundaries
 
-    var query = {};
+    var _boundary = {},            // Selected Boundary
+        _subBoundary = {};         // Selected Enumeration Units
+
+    var query = {},               // Current Query Object
+        cart = [];                // Array of all queries
+
 
     function retrieveBoundaries () {
       if (!boundaries.options) {
@@ -14,20 +19,44 @@ angular.module('aiddataDET')
             return boundaries.options;
           });
       }
-      $log.debug('Already Defined');
+      $log.debug('Boundaries Already Defined');
       return boundaries.options;
     }
 
-    function defineBoundary (boundary, subboundary) {
-      var b = _.find(boundaries.options, { boundaryId: boundary }),
-          sb = _.find(b.subBoundaries, { name: subboundary });
+    function retrieveDatasets (boundaryId) {
+      if (!datasets.length) {
+        return ajaxFactory.datasets(boundaryId)
+          .then(function(results) {
+            if (!results.data.length) {
+              return $q.reject('No Datasets Found');
+            }
+
+            datasets = results.data;
+            return datasets;
+          });
+      }
+      $log.debug('Datasets Already Defined');
+      return datasets;
+    }
+
+    function findBoundary (boundaryId) {
+      return _.find(boundaries.options, { boundaryId: boundaryId });
+    }
+
+    function findSubBoundary(boundary, subboundaryId) {
+      return _.find(boundary.subBoundaries, { name: subboundaryId });
+    }
+
+    function defineBoundary (boundaryId, subboundaryId) {
+      _boundary = findBoundary(boundaryId);
+      _subBoundary = findSubBoundary(_boundary, subboundaryId);
 
       query.boundary = {
-        title: sb.title,
-        group: sb.options.group,
-        name: sb.name,
-        description: sb.description,
-        path: sb.base + _.head(sb.resources).path
+        title: _subBoundary.title,
+        group: _subBoundary.options.group,
+        name: _subBoundary.name,
+        description: _subBoundary.description,
+        path: _subBoundary.base + _.head(_subBoundary.resources).path
       };
     }
 
@@ -47,14 +76,11 @@ angular.module('aiddataDET')
         return $q.when(defineBoundary(boundary, subboundary));
       },
 
-      getDatasets: function (boundary) {
-        return ajaxFactory.datasets(boundary)
-          .then(function(results) {
-            datasets = results.data;
-            return datasets;
-          }, function(err) {
-            $log.error(err);
-          });
+      getDatasets: function (boundaryId) {
+        return $q.when(retrieveDatasets(boundaryId))
+        .then(function(datasets) {
+          return datasets;
+        });
       },
 
       updateFilters: function () {

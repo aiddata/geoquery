@@ -31,10 +31,7 @@ angular.module('aiddataDET')
   };
 
   function init () {
-    queryFactory.getBoundaries()
-      .then(function (boundaries) {
-        return queryFactory.setBoundary($stateParams.boundary, $stateParams.subboundary);
-      });
+    queryFactory.setBoundary($stateParams.boundary, $stateParams.subboundary);
   }
   init();
 });

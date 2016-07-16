@@ -12,11 +12,7 @@ angular.module('aiddataDET')
       },
 
       datasets: function (boundaryId) {
-        return $http.get('/api/datasets/' + boundaryId )
-          .then(function(results) {
-            console.log(results);
-            return results;
-          });
+        return $http.get('/api/datasets/' + boundaryId );
       },
 
       filters: function (filterData) {
