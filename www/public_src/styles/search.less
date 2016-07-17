@@ -34,11 +34,28 @@ select.form-control {
   display: block;
 }
 
-span.label.label-circle {
-  height: 30px;
-  width: 30px;
-  border-radius: 50%;
-  line-height: 25px;
-  box-shadow: 0 1px 3px 0 rgba(0,0,0,.2),0 1px 1px 0 rgba(0,0,0,.14),0 2px 1px -1px rgba(0,0,0,.12);
+md-card.filter-card {
+  height: 330px;
+  max-height: 330px;
+  overflow-y: hidden;
 
+  md-list {
+    overflow-y: scroll;
+  }
+
+  md-toolbar {
+    a {
+      margin-left: 10px;
+    }
+  }
+}
+
+span.label.label-circle {
+  height: 2.5em;
+  width: 2.5em;
+  border-radius: 50%;
+  line-height: 2em;
+  box-shadow: 0 1px 3px 0 rgba(0,0,0,.2),0 1px 1px 0 rgba(0,0,0,.14),0 2px 1px -1px rgba(0,0,0,.12);
+  text-align: center!important;
+  margin-left: 10px;
 }

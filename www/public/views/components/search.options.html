@@ -1,38 +1,47 @@
-<div layout="row" class="layout-row"
+<div layout="row"
     ng-show="dataset.type === 'raster'">
-  <div flex="33" class="flex-33"
+
+  <md-card
+      class="filter-card"
+      flex="33"
       ng-repeat="option in options"
-      uib-collapse="!option.data || option.data.length <= 1">
-    <md-card style="height: 370px;">
-      <md-card-content>
-        <h4>{{ option.name }}</h4>
+      ng-hide="!option.data || option.data.length <= 1">
 
-        <md-list>
-          <md-list-item ng-repeat="choice in option.data" ng-init="isChecked=true">
-            <!-- -->
+    <md-toolbar>
+      <div class="md-toolbar-tools">
+        {{ option.name }}
+      </div>
+    </md-toolbar>
 
-            <!-- -->
-            <div class="md-list-item-text col-xs-12">
-              <div class="checkbox">
-                <input type="checkbox"
-                    ng-model="checked"
-                    ng-click="toggleOption(checked, choice)">
-                {{ choice.name }}
+    <md-content
+        layout="column"
+        flex>
 
-              <p class="md-caption text-right"
-                  ng-if="(choice.start || choice.end) && dataset.temporal.format">
-                <em ng-if="choice.start"> {{ getTimeStamp(choice.start, dataset.temporal.format) }} </em>
-                <span ng-if="choice.start && choice.end">&dash;</span>
-                <em ng-if="choice.end"> {{ getTimeStamp(choice.end, dataset.temporal.format) }} </em>
-                <br>
-              </p>
-            </div>
+      <md-list>
+        <md-list-item class="md-2-line"
+            ng-repeat="choice in option.data">
+
+          <md-checkbox
+              ng-model="checked"
+              ng-click="toggleOption(checked, choice)"></md-checkbox>
+
+          <div class="md-list-item-text">
+            <h4>{{ choice.name }}</h4>
+
+            <p ng-if="(choice.start || choice.end) && dataset.temporal.format">
+              <em ng-if="choice.start"> {{ getTimeStamp(choice.start, dataset.temporal.format) }} </em>
+              <span ng-if="choice.start && choice.end">&dash;</span>
+              <em ng-if="choice.end"> {{ getTimeStamp(choice.end, dataset.temporal.format) }} </em>
+            </p>
           </div>
 
-          </md-list-item>
-        </md-list>
+          <md-divider></md-divider>
 
-      </md-card-content>
-    </md-card>
-  <div>
+        </md-list-item>
+      </md-list>
+
+      <md-divider></md-divider>
+
+    </md-content>
+  </md-card>
 </div>

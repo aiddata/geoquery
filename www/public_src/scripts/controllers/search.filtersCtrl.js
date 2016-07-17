@@ -29,6 +29,11 @@ angular.module('aiddataDET')
     queryFactory.toggleAll(filter);
   };
 
+  $scope.max = function (o) {
+    console.log(o);
+    return 10;
+  };
+
   $rootScope.$on('dataset:selected', function(e, data) {
     $scope.dataset = data;
     _.each($scope.filters, function(options, filter) {

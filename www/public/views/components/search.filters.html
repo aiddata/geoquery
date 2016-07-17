@@ -1,66 +1,104 @@
-<div layout="row" class="layout-row"
+<div layout="row"
     ng-show="dataset && dataset.type === 'release'">
-  <div flex="33" class="flex-33"
-      ng-repeat="filter in filterOptions.filterTypes | orderBy: filter">
 
-    <md-card style="height: 370px; max-height-370; overflow-y: auto;"
-        ng-if="filterInfo[filter]">
+  <md-card
+      flex="33"
+      ng-repeat="filter in filterOptions.filterTypes | orderBy: filter"
+      class="filter-card"
+      ng-init="hideSubHeader = true"
+      ng-if="filterInfo[filter]">
 
-      <div ng-switch="filterInfo[filter].type">
+    <md-toolbar>
+      <div class="md-toolbar-tools">
 
-         <md-card-content class="layout-row">
-           <h4 class="flex"> {{filterInfo[filter].text}} </h4>
-           <a href=""
-               ng-hide="!filters[filter]"
-               ng-click="toggleAll(filter)">
-             <i class="fa fa-refresh"></i>
-           </a>
-         </md-card-content>
+        {{filterInfo[filter].text}}
 
-        <div ng-switch-when="options">
-          <md-card-content class="layout-row" style="padding-top: 0px; padding-bottom: 0px;">
-            <md-input-container md-no-float class="md-block" style="margin: 0px;">
-              <input aria-label="Search {{ filterInfo[filter].text }}"
-                  placeholder="Search"
-                  ng-model="filterInfo[filter].searchFilter">
-            </md-input-container>
+        <span flex></span>
 
-            <span class="label label-primary label-circle"> {{ filterMatches.length }} </span>
-          </md-card-content>
+        <a href=""
+            ng-hide="!filters[filter]"
+            ng-click="toggleAll(filter)">
+          <i class="fa fa-refresh"></i>
+        </a>
 
-          <md-list>
-            <md-list-item>
-                  <md-checkbox md-no-ink aria-label="All  {{ filterInfo[filter].text }}"
-                      ng-checked="!filters[filter]"
-                      ng-click="toggleAll(filter)"
-                      ng-disabled="!filters[filter]"/>
-                  </md-checkbox>
-                  <p>All  {{ filterInfo[filter].text }} </p>
-              <!-- </div> -->
+        <a href=""
+            ng-hide="filterInfo[filter].type !== 'options'"
+            ng-click="hideSubHeader = !hideSubHeader">
+          <i class="fa fa-search"></i>
+        </a>
 
-              <md-divider></md-divider>
+        <span class="label label-primary label-circle">
+          {{ filterInfo[filter].filtered.length || 0 }}
+        </span>
 
-            </md-list-item>
-
-            <md-list-item
-                ng-repeat="option in filterMatches = (filterOptions.distinct[filter] | filter: filterInfo[filter].searchFilter)">
-              <md-checkbox md-no-ink aria-label="{{ option }}"
-                    ng-click="toggleFilter(filter, option)"
-                    ng-checked="filters[filter] && filters[filter].indexOf(option) >= 0;">
-              </md-checkbox>
-              <p> {{ option }}</p>
-            </md-list-item>
-          </md-list>
-        </div>
-
-        <md-card-content ng-switch-when="range">
-          RANGE
-
-          <md-slider md-invert ng-model="myValue" step="10" min="10" max="130">
-          </md-slider>
-        </md-card-content>
       </div>
+    </md-toolbar>
+
+    <div uib-collapse="hideSubHeader">
+      <md-subheader>
+
+        <md-input-container
+            class="condensed no-label"
+            md-no-float>
+
+          <input
+              aria-label="Search {{ filterInfo[filter].text }}"
+              placeholder="Search {{ filterInfo[filter].text }}"
+              ng-model="filterInfo[filter].searchFilter">
+
+        </md-input-container>
+      </md-subheader>
+    </div>
+
+    <md-content
+        ng-switch="filterInfo[filter].type"
+        layout="column"
+        flex>
+
+
+      <md-list
+          ng-switch-when="options">
+
+        <md-list-item>
+
+          <md-checkbox
+              aria-label="All  {{ filterInfo[filter].text }}"
+              ng-checked="!filters[filter]"
+              ng-click="toggleAll(filter)"
+              ng-disabled="!filters[filter]"
+              md-no-ink/></md-checkbox>
+
+          <p> All  {{ filterInfo[filter].text }} </p>
+          <md-divider></md-divider>
+
+        </md-list-item>
+
+        <md-list-item
+            ng-repeat="option in filterInfo[filter].filtered = (filterOptions.distinct[filter] | filter: filterInfo[filter].searchFilter)">
+
+          <md-checkbox
+              aria-label="{{ option }}"
+              ng-click="toggleFilter(filter, option)"
+              ng-checked="filters[filter] && filters[filter].indexOf(option) >= 0;"
+              md-no-ink></md-checkbox>
+
+          <p> {{ option }} </p>
+          <md-divider></md-divider>
+        </md-list-item>
+      </md-list>
+
+
+      <md-card-content ng-switch-when="range">
+        {{ myValue }}
+        <md-slider md-invert
+            aria-label="{{ filter }}"
+            ng-model="myValue"
+            step="1"
+            min="{{ dataset.years[0] }}"
+            max="{{ dataset.years[dataset.years.length - 1] }}">
+        </md-slider>
+      </md-card-content>
 
     </md-card>
-  <div>
+  <md-content>
 </div>
