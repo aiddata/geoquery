@@ -36,6 +36,7 @@ angular.module('aiddataDET')
 
   function init () {
     $scope.datasets.options = datasets;
+    $log.debug(datasets);
   }
   init();
 });

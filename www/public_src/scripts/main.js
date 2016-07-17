@@ -2,9 +2,10 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
 .config(function($stateProvider, $urlRouterProvider, $mdThemingProvider) {
 
   $mdThemingProvider.theme('default')
-    .primaryPalette('teal')
-    .accentPalette('orange');
+    .primaryPalette('blue-grey')
+    .accentPalette('indigo', { 'default': '900' });
 
+  $mdThemingProvider.alwaysWatchTheme(true);
 
   $urlRouterProvider.otherwise('/');
 

@@ -1,64 +1,83 @@
-<div ng-style="dataStyle">
+<md-content>
   <br>
 
-  <button class="btn btn-default break-after break-md"
-      ui-sref="map">
-    <i class="fa fa-angle-double-left" aria-hidden="true"></i>
-    Return to Map
-  </button>
+  <md-button class="md-primary" ui-sref="map">
+      <i class="fa fa-angle-double-left" aria-hidden="true"></i>
+      Return to Map
+  </md-button>
 
-  <div class="row padding-sm">
-    <div class="col-md-4"
-        ng-repeat="type in dataTypes">
-      <button class="btn btn-block"
-          ng-class="{'btn-primary': dataFilters.type === type.value, 'btn-info': dataFilters.type !== type.value}"
-          ng-click="dataFilters.type = type.value;">
-        {{ type.text }}
-        <span class="badge pull-right" ng-show="dataFilters.type === type.value">{{ datasets.filtered.length }}</span>
-      </button>
-    </div> <!-- /.col-md-4 -->
-  </div> <!-- /.row -->
+  <md-nav-bar md-selected-nav-item="dataFilters.type" nav-bar-aria-label="Data Type">
+    <md-nav-item
+        ng-repeat="type in dataTypes"
+        ng-click="dataFilters.type = type.value;"
+        md-nav-click=""
+        name="{{ type.value }}">
+      {{ type.text }}
+    </md-nav-item>
+  </md-nav-bar>
 
-  <div class="row padding-sm">
-    <div class="col-md-6">
+  <md-list flex ng-init="showSearchTools = true">
 
-      <div class="input-group input-group-sm">
-        <span class="input-group-btn">
-            <button class="btn btn-sm btn-primary"
-                ng-click="fields.descending = !fields.descending"
-                ng-switch="fields.descending">
-              <i ng-switch-when="false" class="fa fa-sort-asc"></i>
-              <i ng-switch-when="true" class="fa fa-sort-desc"></i>
-            </button>
-        </span>
+    <md-subheader class="md-no-sticky">
+      <a href="" ng-click="showSearchTools = !showSearchTools">
+        <i class="fa fa-search" aria-hidden="true"></i>
+        Search Tools
+      </a>
 
-        <select class="form-control"
-          ng-model= "fields.selected"
-          ng-options="f as f for f in fields.options"></select>
+      <span class="label label-primary label-circle pull-right"
+        style="margin-top: -5px;">
+        {{ datasets.filtered.length }}
+      </span>
+    </md-subheader>
+
+    <md-divider></md-divider>
+
+    <div uib-collapse="showSearchTools">
+      <div layout="row" layout-padding>
+        <md-input-container md-no-float class="flex-50 condensed">
+          <label> Search Datasets </label>
+          <input ng-model="dataFilters.title" placeholder="">
+        </md-input-container>
+
+        <md-input-container class="flex-30 condensed">
+          <label>Sort by</label>
+          <md-select ng-model="fields.selected">
+            <md-option ng-repeat="field in fields.options" value="{{ field }}">
+              {{ field }}
+            </md-option>
+          </md-select>
+        </md-input-container>
+
+        <md-input-container class="flex-20 condensed">
+          <md-button class="md-icon-button md-primary"
+              aria-label="Sort Datasets"
+              ng-click="fields.descending = !fields.descending"
+              ng-switch="fields.descending">
+            <i ng-switch-when="false" class="fa fa-lg fa-sort-asc"></i>
+            <i ng-switch-when="true" class="fa fa-lg fa-sort-desc"></i>
+          </md-button>
+        </md-input-container>
       </div>
 
-    </div> <!-- /.col-md-6 -->
+      <md-divider></md-divider>
+    </div>
 
-    <div class="col-md-6">
-      <div class="input-group input-group-sm">
-        <span class="input-group-addon">
-          <i class="fa fa-search" aria-hidden="true"></i>
-        </span>
-        <input class="form-control"
-            placeholder="search datasets"
-            ng-model="dataFilters.title">
-      </div> <!-- /.input-group -->
-    </div><!-- /.col-md-6 -->
-  </div> <!-- /.row -->
-
-  <div class="list-group">
-    <a href=""
-        class="list-group-item"
-        ng-repeat="set in datasets.filtered = (datasets.options | filter: dataFilters) | orderBy: fields.selected : fields.descending"
+    <md-list-item class="md-3-line"
         ng-class="{ 'active' : datasets.selected === set.name }"
+        ng-repeat="set in datasets.filtered = (datasets.options | filter: dataFilters) | orderBy: fields.selected : fields.descending"
         ng-click="selectDataset(set)">
-      {{ set.title }} - {{ set.type }}
-    </a>
-  </div>
-  <p ng-hide="datasets.filtered.length"> No Datasets Found </p>
-</div>
+
+      <div class="md-list-item-text" layout="column">
+        <h5>{{ set.title }} </h5>
+        <p>{{ set.type }}</p>
+        <p> <span ng-repeat="tag in set.extras.tags">{{ tag }} </span> </p>
+      </div>
+      <md-divider></md-divider>
+    </md-list-item>
+
+    <md-list-item ng-hide="datasets.filtered.length">
+      <p> No Datasets Found </p>
+    </md-list-item>
+    
+  </md-list>
+</md-content>

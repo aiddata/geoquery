@@ -1,7 +1,21 @@
 .left-panel {
-  background-color: #eee;
   box-shadow: 1px 0px 4px #bbb;
   height: 100vh;
+  background-color: #fff;
+
+  md-content{
+    height: 100%;
+  }
+
+  .active {
+    background-color: @steelBlue;
+    h1,h2,h3,h4,h5 {
+      color: #fff;
+    }
+    p {
+      color: #ddd !important;
+    }
+  }
 }
 
 select.form-control {
@@ -20,24 +34,11 @@ select.form-control {
   display: block;
 }
 
-.filter-module,
-.options-module {
-  border: 1px solid @lightGray;
-  border-radius: @border-radius-small;
-  height: 400px;
-  max-height: 400px;
-}
-.list-container {
-  max-height: 320px;
-  overflow-y: auto;
-}
-
 span.label.label-circle {
   height: 30px;
   width: 30px;
   border-radius: 50%;
   line-height: 25px;
   box-shadow: 0 1px 3px 0 rgba(0,0,0,.2),0 1px 1px 0 rgba(0,0,0,.14),0 2px 1px -1px rgba(0,0,0,.12);
-  margin-top: 15px;
-  margin-left: 15px;
+
 }

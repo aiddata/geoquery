@@ -19,8 +19,9 @@ angular.module('aiddataDET')
       });
   };
 
-  $scope.toggleFilter = function (bool, filter, option) {
-    return bool ? queryFactory.toggleFilterOn(filter, option) :
+  $scope.toggleFilter = function (filter, option) {
+    var checked = $scope.filters[filter] && $scope.filters[filter].indexOf(option) >= 0;
+    return !checked ? queryFactory.toggleFilterOn(filter, option) :
       queryFactory.toggleFilterOff(filter, option);
   };
 
