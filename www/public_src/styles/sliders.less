@@ -1,0 +1,46 @@
+.rzslider {
+  /* Handles */
+  .rz-pointer {
+    background-color: @brand-primary;
+    transition: width 200ms cubic-bezier(0.68, -0.55, 0.27, 1.55),
+      height 200ms cubic-bezier(0.68, -0.55, 0.27, 1.55);
+    top: -6px;
+    width: 16px;
+    height: 16px;
+
+    &::after {
+      transition: background-color 200ms linear,
+        width 200ms cubic-bezier(0.68, -0.55, 0.27, 1.55),
+        height 200ms cubic-bezier(0.68, -0.55, 0.27, 1.55);
+      top: 3px;
+      left: 3px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    &:hover {
+      width: 20px;
+      height: 20px;
+      top: -8px;
+      &::after {
+        width: 14px;
+        height: 14px;
+      }
+    }
+
+    &.rz-active {
+      &::after {
+        background-color: white;
+      }
+    }
+  }
+
+  /* Track */
+  .rz-bar {
+    background: @brand-info;
+    &.rz-selection {
+      background: @aidDataNavy;
+    }
+  }
+}

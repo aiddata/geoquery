@@ -1,4 +1,4 @@
-angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', 'ngMaterial'])
+angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', 'ngMaterial', 'rzModule'])
 .config(function($stateProvider, $urlRouterProvider, $mdThemingProvider) {
 
   $mdThemingProvider.theme('default')

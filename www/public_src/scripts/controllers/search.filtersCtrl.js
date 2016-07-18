@@ -15,6 +15,9 @@ angular.module('aiddataDET')
     queryFactory.updateFilters()
       .then(function(filterOptions) {
         $scope.filterOptions = filterOptions;
+        if ($scope.dataset.years) {
+          $scope.filterOptions.distinct.years = $scope.dataset.years;
+        }
         $rootScope.$broadcast('filters:updated', filterOptions);
       });
   };
@@ -29,16 +32,13 @@ angular.module('aiddataDET')
     queryFactory.toggleAll(filter);
   };
 
-  $scope.max = function (o) {
-    console.log(o);
-    return 10;
-  };
-
   $rootScope.$on('dataset:selected', function(e, data) {
     $scope.dataset = data;
     _.each($scope.filters, function(options, filter) {
       $scope.toggleAll(filter);
     });
+
+    console.log(data);
 
     queryFactory.setDataset(data.name);
   });

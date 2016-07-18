@@ -88,17 +88,14 @@
       </md-list>
 
 
-      <md-card-content ng-switch-when="range">
-        {{ myValue }}
-        <md-slider md-invert
-            aria-label="{{ filter }}"
-            ng-model="myValue"
-            step="1"
-            min="{{ dataset.years[0] }}"
-            max="{{ dataset.years[dataset.years.length - 1] }}">
-        </md-slider>
-      </md-card-content>
+      <md-card-content
+          ng-switch-when="range">
 
+          <search-filters-range
+              filterdata="filterInfo[filter]"
+              filteroptions="filterOptions.distinct[filter]"
+              activefilters="filters[filter]"></search-filters-range>
+      </md-card-content>
     </md-card>
   <md-content>
 </div>
