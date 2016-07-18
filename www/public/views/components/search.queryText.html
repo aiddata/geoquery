@@ -6,11 +6,11 @@
         ng-init="showEdit=false;"
         ng-mouseover="showEdit=true;"
         ng-mouseleave="showEdit=false;">
-        {{ request.name }}
+        {{ requestData.name }}
 
         <a href=""
             ng-show="showEdit"
-            ng-click="editing = !editing">
+            ng-click="requestData.editing = !requestData.editing">
           <i class="fa fa-pencil-square-o" aria-hidden="true"></i>
         </a>
 
@@ -18,7 +18,8 @@
 
       <span flex></span>
 
-      <md-button class="md-fab md-mini md-warn md-hue-4" aria-label="Reset Search">
+      <md-button class="md-fab md-mini md-warn md-hue-4" aria-label="Reset Search"
+          ng-click="clearFilters()">
         <i class="fa fa-lg fa-refresh" aria-hidden="true"></i>
       </md-button>
 

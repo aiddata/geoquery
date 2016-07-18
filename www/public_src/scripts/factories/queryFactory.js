@@ -115,9 +115,18 @@ angular.module('aiddataDET')
         }
       },
 
-      toggleAll: function (filter) {
+      resetFilter: function (filter) {
         delete this.filters[filter];
         return this.filters;
+      },
+
+      toggleOptionOn: function (option, val) {
+        console.log(option);
+        val.checked = true;
+      },
+
+      toggleOptionOff: function (option, val) {
+        val.checked = false;
       }
     };
   });

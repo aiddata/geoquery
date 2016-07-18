@@ -29,7 +29,7 @@ angular.module('aiddataDET')
   };
 
   $scope.toggleAll = function (filter) {
-    queryFactory.toggleAll(filter);
+    queryFactory.resetFilter(filter);
   };
 
   $rootScope.$on('dataset:selected', function(e, data) {

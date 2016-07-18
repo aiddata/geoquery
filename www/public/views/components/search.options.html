@@ -22,8 +22,9 @@
             ng-repeat="choice in option.data">
 
           <md-checkbox
-              ng-model="checked"
-              ng-click="toggleOption(checked, choice)"></md-checkbox>
+              ng-init="choice.checked = false"
+              ng-checked="choice.checked"
+              ng-click="toggleOption(!choice.checked, choice, option)"></md-checkbox>
 
           <div class="md-list-item-text">
             <h4>{{ choice.name }}</h4>
