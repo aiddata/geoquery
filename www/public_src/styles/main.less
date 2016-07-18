@@ -12,34 +12,12 @@
 @import "search.less";
 @import "whitespace.less";
 @import "sliders.less";
+@import "forms.less";
+@import "buttons.less";
+
 
 body {
   overflow-y: hidden;
   overflow-x: hidden;
   background-color: lighten(@steelBlue, 60%);
-}
-
-.md-select-menu-container {
-  z-index: 99999;
-}
-
-md-input-container.condensed {
-  margin-bottom: 0px;
-  &.no-label {
-    margin-top: 0px;
-  }
-
-  .md-errors-spacer {
-    height: 0px;
-    min-height: 0px;
-  }
-}
-
-button.md-button.md-default-theme.md-fab, .md-button.md-fab {
-   &.success-btn {
-    background-color: @limeGreen;
-    &:hover {
-      background-color: darken(@limeGreen, 10%);;
-    }
-  }
 }

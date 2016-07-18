@@ -4,7 +4,7 @@
       <label>Search Boundaries</label>
 
       <angucomplete-alt id="ex1"
-          placeholder="Search boundaries"
+          placeholder="Select boundaries"
           pause="100"
           selected-object="formData.boundary"
           local-data="boundaries"
@@ -13,7 +13,7 @@
           title-field="name"
           minlength="0"
           input-class="form-control"/>
-      </angucomplete-alt
+      </angucomplete-alt>
 
       <em class="text-muted"> Ex: Example 1, Example 2 </em>
     </div>
@@ -35,6 +35,9 @@
         </label>
 
       </div>
+      <a href="" ng-click="formData.boundary.splice(0)">
+        Back
+      </a>
     </div>
 
     <div class="form-group text-right"

@@ -65,6 +65,11 @@ angular.module('aiddataDET')
 
       filterOptions: { },
 
+      options: {
+        options: { extract_types: [] },
+        files: []
+      },
+
       getBoundaries: function () {
         return $q.when(retrieveBoundaries())
           .then(function(boundaries) {
@@ -120,13 +125,23 @@ angular.module('aiddataDET')
         return this.filters;
       },
 
-      toggleOptionOn: function (option, val) {
-        console.log(option);
+      toggleOptionOn: function (key, val) {
         val.checked = true;
+        _.get(this.options, key).push(val);
       },
 
-      toggleOptionOff: function (option, val) {
+      toggleOptionOff: function (key, val) {
         val.checked = false;
+        _.pull(_.get(this.options, key), val);
+      },
+
+      resetOption: function (key) {
+        console.log(key);
+        _.chain(this.options)
+          .get(key)
+          .each(function(val) { val.checked = false; })
+          .value()
+          .splice(0);
       }
     };
   });

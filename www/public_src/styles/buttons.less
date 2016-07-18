@@ -1,0 +1,20 @@
+button.md-button.md-default-theme.md-fab, .md-button.md-fab {
+   &.success-btn {
+    background-color: @limeGreen;
+    &:hover {
+      background-color: darken(@limeGreen, 10%);;
+    }
+  }
+}
+.btn-chip,
+.btn-chip:hover {
+  border-radius: 25px;
+  background-color: grey;
+  cursor: default;
+  color: white;
+
+  &.btn-chip-dismissable {
+    background-color: @brand-primary;
+    cursor: pointer;
+  }
+}

@@ -2,7 +2,7 @@
   <md-toolbar class="md-hue-2" md-scroll-shrink>
     <div class="md-toolbar-tools">
 
-      <span
+      <div
         ng-init="showEdit=false;"
         ng-mouseover="showEdit=true;"
         ng-mouseleave="showEdit=false;">
@@ -13,8 +13,12 @@
             ng-click="requestData.editing = !requestData.editing">
           <i class="fa fa-pencil-square-o" aria-hidden="true"></i>
         </a>
-
-      </span>
+        <small ng-if="dataset && dataset.type == 'release'">
+          <br>
+          <strong>{{ totals.projects }}</strong> projects /
+          <strong>{{ totals.locations }}</strong> locations
+        </small>
+      </div>
 
       <span flex></span>
 
@@ -40,10 +44,10 @@
         <span ng-repeat="option in item.value">
           <span ng-show="item.value.length > 1 && $last"> and </span>
           <span ng-show="item.value.length > 1 && !$last">, </span>
-          <div class="btn btn-sm"
-              ng-class="{ 'btn-primary': item.optional, 'btn-info': !item.optional }"
+          <div class="btn btn-sm btn-chip"
+              ng-class="{ 'btn-chip-dismissable': item.optional }"
               ng-click="item.optional ? removeFilter(item.key, option) : null">
-            {{ option }}
+            {{ option.name || option }}
             <i class="fa fa-times" aria-hidden="true" ng-show="item.optional"></i>
           </div>
 
@@ -51,6 +55,7 @@
 
   </md-card-content>
 </md-card>
+
   <!-- <md-card-footer layout="row">
     <div flex='50' class="flex-50">
       <h5 ng-show="dataset.type === 'release'">

@@ -7,6 +7,7 @@ angular.module('aiddataDET')
       name: 'Extract Options',
       type: 'checkbox',
       loc: 'options.extract_types',
+      dest: 'options.extract_types',
       pick: 'name',
       data: []
     },
@@ -14,20 +15,17 @@ angular.module('aiddataDET')
       name: 'Resources',
       type: 'checkbox',
       loc: 'resources',
+      dest: 'files',
       pick: ['name', 'path'],
       data: []
-    },
-    {
-      name: 'Metadata',
-      type: 'paragraph'
     }
   ];
 
   $scope.toggleOption = function (isChecked, val, option) {
     $log.debug(isChecked, val, option);
 
-    return isChecked ? queryFactory.toggleOptionOn(option, val) :
-      queryFactory.toggleOptionOff(option, val);
+    return isChecked ? queryFactory.toggleOptionOn(option.dest, val) :
+      queryFactory.toggleOptionOff(option.dest, val);
   };
 
   $scope.getTimeStamp = function (date, format) {
@@ -40,22 +38,19 @@ angular.module('aiddataDET')
   $rootScope.$on('dataset:selected', function(e, data) {
     $scope.dataset = data;
 
-    if (data.type === 'raster') {
-      _.each($scope.options, resetOption);
-    }
+    _.each($scope.options, function(opt) {
+      queryFactory.resetOption(opt.dest);
+      if (data.type === 'raster') { mapOption(opt); }
+    });
   });
 
-  function resetOption (option) {
-    if (option.type === 'checkbox') {
-      option.data = _.chain($scope.dataset)
+  function mapOption (option) {
+    option.data = _.chain($scope.dataset)
         .get(option.loc)
         .map(function(choice) {
           return _.isString(choice) ? { name: choice } : choice;
         })
         .value();
-    } else {
-      /* Format Metadata Here */
-    }
   }
 
 });

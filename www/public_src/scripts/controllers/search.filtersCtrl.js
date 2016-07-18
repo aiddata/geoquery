@@ -49,4 +49,6 @@ angular.module('aiddataDET')
     }
   }, true);
 
+  window.FACTORY = queryFactory;
+
 });
