@@ -6,7 +6,10 @@
       Return to Map
   </md-button>
 
-  <md-nav-bar md-selected-nav-item="dataFilters.type" nav-bar-aria-label="Data Type">
+  <md-nav-bar
+      md-selected-nav-item="dataFilters.type"
+      nav-bar-aria-label="Data Type"
+      class="md-hue-5">
     <md-nav-item
         ng-repeat="type in dataTypes"
         ng-click="dataFilters.type = type.value;"
@@ -36,7 +39,7 @@
       <div layout="row" layout-padding>
         <md-input-container md-no-float class="flex-50 condensed">
           <label> Search Datasets </label>
-          <input ng-model="dataFilters.title" placeholder="">
+          <input ng-model="dataFilters.searchText" placeholder="">
         </md-input-container>
 
         <md-input-container class="flex-30 condensed">
@@ -64,7 +67,7 @@
 
     <md-list-item class="md-3-line"
         ng-class="{ 'active' : datasets.selected === set.name }"
-        ng-repeat="set in datasets.filtered = (datasets.options | filter: dataFilters) | orderBy: fields.selected : fields.descending"
+        ng-repeat="set in datasets.filtered = (datasets.options | filter: search) | orderBy: fields.selected : fields.descending"
         ng-click="selectDataset(set)">
 
       <div class="md-list-item-text" layout="column">
@@ -78,6 +81,6 @@
     <md-list-item ng-hide="datasets.filtered.length">
       <p> No Datasets Found </p>
     </md-list-item>
-    
+
   </md-list>
 </md-content>

@@ -4,6 +4,8 @@ angular.module('aiddataDET')
   $scope.dataset = {};
   $scope.totals = {};
   $scope.geography = $stateParams.boundary;
+  $scope.editing = false;
+  $scope.request = { name: 'New Request' };
 
   $rootScope.$on('filters:update', function(e, data) {
     $scope.searchData = data;

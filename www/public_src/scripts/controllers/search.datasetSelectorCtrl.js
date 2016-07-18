@@ -16,10 +16,23 @@ angular.module('aiddataDET')
   $scope.dataTypes = [
     { text: 'AidData', value: 'release' },
     { text: 'External', value: 'raster' },
-    { text: 'All', value: '' }
+    { text: 'All', value: 'all' }
   ];
 
-  $scope.dataFilters = { type: 'release', title: '' };
+  $scope.dataFilters = { type: 'release', searchText: '' };
+
+  $scope.search = function (item) {
+    if ($scope.dataFilters.type !== 'all' &&
+      item.type !== $scope.dataFilters.type) {
+      return false;
+    }
+
+    return _.chain(item.extras.tags)
+      .concat(item.title)
+      .join(', ')
+      .includes($scope.dataFilters.searchText)
+      .value();
+  };
 
   $scope.selectDataset = function(dataset) {
     $scope.datasets.selected = dataset.name;

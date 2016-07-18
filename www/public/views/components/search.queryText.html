@@ -1,6 +1,72 @@
+<md-card class="search-card">
+  <md-toolbar class="md-hue-2" md-scroll-shrink>
+    <div class="md-toolbar-tools">
 
-<md-card style="height: 100%">
-  <md-card-header>
+      <span
+        ng-init="showEdit=false;"
+        ng-mouseover="showEdit=true;"
+        ng-mouseleave="showEdit=false;">
+        {{ request.name }}
+
+        <a href=""
+            ng-show="showEdit"
+            ng-click="editing = !editing">
+          <i class="fa fa-pencil-square-o" aria-hidden="true"></i>
+        </a>
+
+      </span>
+
+      <span flex></span>
+
+      <md-button class="md-fab md-mini md-warn md-hue-4" aria-label="Reset Search">
+        <i class="fa fa-lg fa-refresh" aria-hidden="true"></i>
+      </md-button>
+
+      <md-button class="md-fab md-mini success-btn" aria-label="Add to Cart">
+        <i class="fa fa-lg fa-cart-plus" aria-hidden="true"></i>
+      </md-button>
+
+    </div>
+  </md-toolbar>
+
+  <md-card-content
+      flex>
+      <span style="line-height: 3;"
+        ng-repeat="item in queryStructure"
+        ng-if="item.value && item.value.length">
+        {{ item.pre }}
+
+        <span ng-repeat="option in item.value">
+          <span ng-show="item.value.length > 1 && $last"> and </span>
+          <span ng-show="item.value.length > 1 && !$last">, </span>
+          <div class="btn btn-sm"
+              ng-class="{ 'btn-primary': item.optional, 'btn-info': !item.optional }"
+              ng-click="item.optional ? removeFilter(item.key, option) : null">
+            {{ option }}
+            <i class="fa fa-times" aria-hidden="true" ng-show="item.optional"></i>
+          </div>
+
+        </span>
+
+  </md-card-content>
+</md-card>
+  <!-- <md-card-footer layout="row">
+    <div flex='50' class="flex-50">
+      <h5 ng-show="dataset.type === 'release'">
+        <i class="fa fa-arrow-right" aria-hidden="true"></i>
+        <strong>{{ totals.projects }}</strong> projects /
+        <strong>{{ totals.locations }}</strong> locations
+      </h5>
+    </div>
+    <div flex='50' class="text-right">
+      <md-button class="md-raised md-primary">
+        <i class="fa fa-lg fa-cart-plus" aria-hidden="true"></i>
+        Add to Cart
+      </md-button>
+    </div>
+  </md-card-footer>
+ -->
+  <!-- <md-card-header>
     <div class="flex-50"
         ng-init="editing = false; request = { name: 'New Request' }">
 
@@ -37,28 +103,6 @@
     </div>
   </md-card-header>
 
-  <md-card-content
-    style="overflow-y: auto;">
-    <!-- <div class="col-md-12"> -->
-      <span style="line-height: 3;"
-        ng-repeat="item in queryStructure"
-        ng-if="item.value && item.value.length">
-        {{ item.pre }}
-
-        <span ng-repeat="option in item.value">
-          <span ng-show="item.value.length > 1 && $last"> and </span>
-          <span ng-show="item.value.length > 1 && !$last">, </span>
-          <div class="btn btn-sm"
-              ng-class="{ 'btn-primary': item.optional, 'btn-info': !item.optional }"
-              ng-click="item.optional ? removeFilter(item.key, option) : null">
-            {{ option }}
-            <i class="fa fa-times" aria-hidden="true" ng-show="item.optional"></i>
-          </div>
-
-        </span>
-      <!-- </div> -->
-  </md-card-content>
-
   <md-card-footer >
     <div class="layout-row">
     <div flex='50' class="flex-50">
@@ -69,7 +113,6 @@
         </span>
       </h5>
     </div>
-    <!-- <span flex="50" class="flex-50"></span> -->
     <div flex='50' class="text-right">
       <button class="btn btn-success"> Add to Cart </button>
       <button class="btn btn-danger"> Clear </button>
@@ -77,4 +120,4 @@
     </div>
   </div>
   </md-card-footer>
-</md-card>
+</md-card> -->
