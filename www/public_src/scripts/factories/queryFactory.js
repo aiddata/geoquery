@@ -136,7 +136,6 @@ angular.module('aiddataDET')
       },
 
       resetOption: function (key) {
-        console.log(key);
         _.chain(this.options)
           .get(key)
           .each(function(val) { val.checked = false; })

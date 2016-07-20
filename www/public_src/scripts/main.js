@@ -72,16 +72,18 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
       'datasetSelector@search': {
         templateUrl: 'views/components/search.datasetSelector.html',
         controller: 'DatasetSelectorCtrl'
-      },
-      'filters@search': {
-        templateUrl: 'views/components/search.filters.html',
-        controller: 'FiltersCtrl'
-      },
-      'options@search': {
-        templateUrl: 'views/components/search.options.html',
-        controller: 'OptionsCtrl'
       }
     }
+  })
+  .state('search.filters', {
+    url: '/release/:dataset',
+    templateUrl: 'views/components/search.filters.html',
+    controller: 'FiltersCtrl'
+  })
+  .state('search.options', {
+    url: '/external/:dataset',
+    templateUrl: 'views/components/search.options.html',
+    controller: 'OptionsCtrl'
   })
   .state('checkout', {
     url: '/checkout',

@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('FiltersCtrl', function($scope, $rootScope, $log, queryFactory) {
+.controller('FiltersCtrl', function($scope, $rootScope, $log, queryFactory, $stateParams, $state) {
   $scope.dataset = {};
   $scope.filterOptions = {};
   $scope.filters = queryFactory.filters;
@@ -38,8 +38,6 @@ angular.module('aiddataDET')
       $scope.toggleAll(filter);
     });
 
-    console.log(data);
-
     queryFactory.setDataset(data.name);
   });
 
@@ -49,6 +47,5 @@ angular.module('aiddataDET')
     }
   }, true);
 
-  window.FACTORY = queryFactory;
 
 });

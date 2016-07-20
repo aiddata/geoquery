@@ -51,11 +51,13 @@ angular.module('aiddataDET')
         center: [0, 0],
         doubleClickZoom: false,
         zoomAnimation: true,
-        zoomAnimationThreshold: 20
+        zoomAnimationThreshold: 20,
+        trackResize: true
       });
-      $timeout(function() {
-        map.invalidateSize();
-      }, 100);
+    },
+
+    refreshSize: function () {
+      map.invalidateSize();
     },
 
     zoomIn: function() {

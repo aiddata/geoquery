@@ -1,11 +1,11 @@
 angular.module('aiddataDET')
-.controller('QueryTextCtrl', function($scope, $rootScope, $log, $stateParams, queryFactory) {
+.controller('QueryTextCtrl', function($scope, $rootScope, $log, $state, $stateParams, queryFactory) {
   $scope.filters = queryFactory.filters;
   $scope.options = queryFactory.options;
-  $scope.searchData = {};
+  $scope.searchData = $state.params.dataset ? { dataset: $state.params.dataset } : {};
   $scope.dataset = {};
   $scope.totals = {};
-  $scope.queryStructure = setQueryStructure();
+  $scope.queryStructure = {};
   $scope.geography = $stateParams.boundary;
   $scope.requestData = { name: 'New Request', editing: false };
 
@@ -40,6 +40,7 @@ angular.module('aiddataDET')
 
   $rootScope.$on('dataset:selected', function(e, data) {
     $scope.dataset = data;
+    $scope.queryStructure = setQueryStructure();
   });
 
   function setQueryStructure () {

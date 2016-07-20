@@ -1,39 +1,37 @@
-<md-content>
-  <br>
+  <div layout="row" layout-padding layout-align="space-between">
+    <div>
+      <span class="label label-primary label-circle pull-left"
+        style="margin-top: -5px; margin-left: -5px; margin-right: 5px;">
+        {{ datasets.filtered.length }}
+      </span>
+      Dataset<span ng-if="datasets.filtered.length > 1">s</span> Found
+    </div>
 
-  <md-button class="md-primary" ui-sref="map">
-      <i class="fa fa-angle-double-left" aria-hidden="true"></i>
-      Return to Map
-  </md-button>
+
+    <a href="" ng-click="showSearchTools = !showSearchTools">
+      Search Tools
+      <i class="fa fa-briefcase" aria-hidden="true"></i>
+    </a>
+  </div>
 
   <md-nav-bar
       md-selected-nav-item="dataFilters.type"
       nav-bar-aria-label="Data Type"
-      class="md-hue-5">
+      class="md-hue-2"
+      layout-align="">
+
     <md-nav-item
         ng-repeat="type in dataTypes"
         ng-click="dataFilters.type = type.value;"
         md-nav-click=""
-        name="{{ type.value }}">
-      {{ type.text }}
+        name="{{ type.value }}"
+        md-no-ink>
+      <h5>{{ type.text }}</h5>
     </md-nav-item>
+
   </md-nav-bar>
 
   <md-list flex ng-init="showSearchTools = true">
-
-    <md-subheader class="md-no-sticky">
-      <a href="" ng-click="showSearchTools = !showSearchTools">
-        <i class="fa fa-search" aria-hidden="true"></i>
-        Search Tools
-      </a>
-
-      <span class="label label-primary label-circle pull-right"
-        style="margin-top: -5px;">
-        {{ datasets.filtered.length }}
-      </span>
-    </md-subheader>
-
-    <md-divider></md-divider>
 
     <div uib-collapse="showSearchTools">
       <div layout="row" layout-padding>
@@ -84,4 +82,3 @@
     </md-list-item>
 
   </md-list>
-</md-content>
