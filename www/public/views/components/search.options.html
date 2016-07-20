@@ -1,11 +1,12 @@
-<div layout="row"
+<div layout="column"
+    flex="33"
     ng-show="dataset.type === 'raster'"
-    style="margin-top: -16px;">
+    ng-repeat="option in options">
 
   <md-card
       class="filter-card"
-      flex="33"
-      ng-repeat="option in options"
+      flex="100"
+
       ng-hide="!option.data || option.data.length <= 1">
 
     <md-toolbar>

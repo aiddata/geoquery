@@ -1,13 +1,11 @@
-<div layout="row"
-    ng-show="dataset && dataset.type === 'release'">
+<div layout="column"
+    ng-repeat="filter in filterOptions.filterTypes | orderBy: filter"
+    ng-show="dataset && dataset.type === 'release'"
+    flex="33">
 
-  <md-card
-      flex="33"
-      ng-repeat="filter in filterOptions.filterTypes | orderBy: filter"
-      class="filter-card"
-      ng-init="hideSubHeader = true"
-      ng-if="filterInfo[filter]">
+  <md-card flex="100">
 
+    <!-- Toolbar -->
     <md-toolbar>
       <div class="md-toolbar-tools">
 
@@ -34,12 +32,13 @@
       </div>
     </md-toolbar>
 
+    <!-- SubHeader -->
     <div uib-collapse="hideSubHeader">
       <md-subheader>
 
-        <md-input-container
-            class="condensed no-label"
-            md-no-float>
+      <md-input-container
+          class="condensed no-label md-primary"
+          md-no-float>
 
           <input
               aria-label="Search {{ filterInfo[filter].text }}"
@@ -50,14 +49,13 @@
       </md-subheader>
     </div>
 
+    <!-- Content -->
     <md-content
         ng-switch="filterInfo[filter].type"
         layout="column"
         flex>
 
-
-      <md-list
-          ng-switch-when="options">
+      <md-list ng-switch-when="options">
 
         <md-list-item>
 
@@ -96,6 +94,7 @@
               filteroptions="filterOptions.distinct[filter]"
               activefilters="filters[filter]"></search-filters-range>
       </md-card-content>
-    </md-card>
-  <md-content>
+
+  </md-card>
+
 </div>

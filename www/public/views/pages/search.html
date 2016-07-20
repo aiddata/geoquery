@@ -1,9 +1,17 @@
-<det-header></det-header>
-<div layout="row">
-  <div ui-view="datasetSelector" id="datasetSelector" class="flex-25"></div>
-  <div class="flex-75" layout-padding>
-    <div ui-view="queryText" id="queryText"></div>
-    <div ui-view="filters" id="filters"></div>
-    <div ui-view="options" id="options"></div>
+<div layout="column" class="full-height" flex>
+  <div layout="row" flex="100">
+    <div layout="column" flex="25">
+      <md-content flex="100" ui-view="datasetSelector" id="datasetSelector"></md-content>
+    </div>
+    <div layout="column" flex="75" layout-padding>
+      <div layout="row" flex="33">
+        <md-card flex="100" ui-view="queryText" id="queryText" ></md-card>
+      </div>
+      <div layout="row" flex="66">
+        <div layout="column" flex="100" >
+          <div layout="row" flex="100" ui-view></div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>

@@ -10,7 +10,7 @@
         md-match-case-insensitive="true"
         md-item-text="item.name"
         md-min-length="0"
-        placeholder="Ex: Example 1, Example 2">
+        placeholder="Select boundaries">
 
       <md-item-template>
         <span md-highlight-text="formData.searchText" md-highlight-flags="^i">{{item.name}}</span>
@@ -23,9 +23,18 @@
     </md-autocomplete>
 
     <br>
+
     <div uib-collapse="formData.boundary">
+      <p class="text-muted">
+      Top Searches:
+      <em ng-repeat="item in [boundaries[0], boundaries[3], boundaries[6], boundaries[8]]">
+        <a class="md-primary" href=""
+            ng-click="selectFromFeatured(item.name)">{{item.name}}</a>
+        <span ng-if="!$last">,</span>
+      </em>
+    </p>
       <md-button class="md-primary" ng-click="showFeaturedSearches = true;">
-        <span>View Other Popular Searches</span>
+        <span>View Other Popular Searches...</span>
       </md-button>
     </div>
 
@@ -76,9 +85,7 @@
         ng-repeat="item in boundaries"
         ng-click="selectFromFeatured(item.name)">
 
-      <div class="md-list-item-text" layout="column">
-        <p>{{ item.name }}</p>
-      </div>
+      <a href="">{{ item.name }}</a>
     </md-list-item>
   </md-list>
 </div>
