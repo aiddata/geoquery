@@ -53,10 +53,9 @@ angular.module('aiddataDET')
         zoomAnimation: true,
         zoomAnimationThreshold: 20
       });
-    },
-
-    refreshSize: function () {
-      map.invalidateSize();
+      $timeout(function() {
+        map.invalidateSize();
+      }, 100);
     },
 
     zoomIn: function() {

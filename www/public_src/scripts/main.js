@@ -1,11 +1,27 @@
 angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', 'ngMaterial', 'rzModule'])
 .config(function($stateProvider, $urlRouterProvider, $mdThemingProvider) {
 
-  $mdThemingProvider.theme('default')
-    .primaryPalette('blue-grey')
-    .accentPalette('indigo', { 'default': '900' });
+  // $mdThemingProvider.theme('default')
+  //   .primaryPalette('blue-grey')
+  //   .accentPalette('indigo', { 'default': '900' });
+  //
+  // $mdThemingProvider.alwaysWatchTheme(true);
 
-  $mdThemingProvider.alwaysWatchTheme(true);
+  $mdThemingProvider.theme('default')
+      .primaryPalette('blue-grey', {
+        'default': '400', // by default use shade 400 from the pink palette for primary intentions
+        'hue-1': '100', // use shade 100 for the <code>md-hue-1</code> class
+        'hue-2': '600', // use shade 600 for the <code>md-hue-2</code> class
+        'hue-3': 'A100' // use shade A100 for the <code>md-hue-3</code> class
+      })
+      .accentPalette('green', {
+        'default': '500',
+        'hue-1': '100', // use shade 100 for the <code>md-hue-1</code> class
+        'hue-2': '600', // use shade 600 for the <code>md-hue-2</code> class
+        'hue-3': 'A100' // use shade A100 for the <code>md-hue-3</code> class
+      })
+      .warnPalette('deep-orange')
+      .backgroundPalette('grey');
 
   $urlRouterProvider.otherwise('/');
 
@@ -67,8 +83,8 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
       }
     }
   })
-  .state('submit', {
-    url: '/submit',
+  .state('checkout', {
+    url: '/checkout',
     templateUrl: 'views/pages/submit.html'
   })
   .state('status', {

@@ -65,10 +65,11 @@
       <md-divider></md-divider>
     </div>
 
-    <md-list-item class="md-3-line"
+    <md-list-item class="md-3-line md-primary"
         ng-class="{ 'active' : datasets.selected === set.name }"
         ng-repeat="set in datasets.filtered = (datasets.options | filter: search) | orderBy: fields.selected : fields.descending"
-        ng-click="selectDataset(set)">
+        ng-click="selectDataset(set)"
+        md-no-ink>
 
       <div class="md-list-item-text" layout="column">
         <h5>{{ set.title }} </h5>

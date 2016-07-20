@@ -1,53 +1,84 @@
-<div class="container-fluid">
-  <form>
-    <div class="form-group">
-      <label>Search Boundaries</label>
+<md-content class="md-padding">
+  <form ng-submit="$event.preventDefault()">
+    <md-autocomplete
+        md-no-cache="false"
+        md-selected-item="formData.boundary"
+        md-search-text="formData.searchText"
+        md-items="item in boundaries | filter: { name: formData.searchText }"
+        md-selected-item-change="selectedItemChange(item)"
+        md-select-on-match="true"
+        md-match-case-insensitive="true"
+        md-item-text="item.name"
+        md-min-length="0"
+        placeholder="Ex: Example 1, Example 2">
 
-      <angucomplete-alt id="ex1"
-          placeholder="Select boundaries"
-          pause="100"
-          selected-object="formData.boundary"
-          local-data="boundaries"
-          search-fields="name"
-          override-suggestions="true"
-          title-field="name"
-          minlength="0"
-          input-class="form-control"/>
-      </angucomplete-alt>
+      <md-item-template>
+        <span md-highlight-text="formData.searchText" md-highlight-flags="^i">{{item.name}}</span>
+      </md-item-template>
 
-      <em class="text-muted"> Ex: Example 1, Example 2 </em>
+      <md-not-found>
+        No boundaries matching "{{formData.searchText}}" were found.
+      </md-not-found>
+
+    </md-autocomplete>
+
+    <br>
+    <div uib-collapse="formData.boundary">
+      <md-button class="md-primary" ng-click="showFeaturedSearches = true;">
+        <span>View Other Popular Searches</span>
+      </md-button>
     </div>
 
-    <div class="form-group"
-        ng-if="subBoundaries.length"
-        ng-show="subBoundaries.length > 1">
+    <div uib-collapse="!formData.subboundary">
+      <md-divider></md-divider>
+      <br>
 
-      <label>Select a SubBoundary</label>
+      <md-radio-group
+          ng-model="formData.subboundary">
 
-      <div class="radio" ng-repeat="sub in subBoundaries">
+        <label>Select a Subboundary</label>
 
-        <label>
-          <input type="radio" name="subboundary"
-              ng-model="formData.subboundary"
-              ng-value="sub.name">
-
+        <md-radio-button
+            ng-repeat="sub in subBoundaries"
+            ng-value="sub.name"
+            aria-label="{{ sub.title }}">
           {{ sub.title }}
-        </label>
+        </md-radio-button>
 
+      </md-radio-group>
+
+      <md-divider></md-divider>
+      <br>
+
+      <div layout="row" layout-align="space-between">
+
+        <md-button class="md-raised"
+            ng-click="formData.searchText = ''">
+          <i class="fa fa-angle-double-left" aria-hidden="true"></i>
+          Back
+        </md-button>
+
+        <md-button class="md-raised md-accent md-hue-5"
+            ng-click="defineBoundary()">
+          Search Datasets
+          <i class="fa fa-angle-double-right" aria-hidden="true"></i>
+        </md-button>
       </div>
-      <a href="" ng-click="formData.boundary.splice(0)">
-        Back
-      </a>
+
     </div>
 
-    <div class="form-group text-right"
-        uib-collapse="!formData.boundary || !formData.subboundary">
+  </form>
 
-      <button class="btn btn-success"
-          ng-click="defineBoundary()">
-        Search Datasets
-        <i class="fa fa-arrow-circle-o-right fa-lg" aria-hidden="true"></i>
-      </button>
-    </div>
-  <form>
+</md-content>
+<div ng-show="showFeaturedSearches === true;">
+  <md-list class="md-dense" flex>
+    <md-list-item
+        ng-repeat="item in boundaries"
+        ng-click="selectFromFeatured(item.name)">
+
+      <div class="md-list-item-text" layout="column">
+        <p>{{ item.name }}</p>
+      </div>
+    </md-list-item>
+  </md-list>
 </div>

@@ -1,12 +1,31 @@
-@import "variables.less";
+md-toolbar.process-header {
+  height: @processHeaderHeight;
+  min-height: @processHeaderHeight;
+  z-index: 10;
+  border: 1px solid #607D8B;
+
+  .md-toolbar-tools {
+    color: rgba(0,0,0,0.38);
+    font-size: 12px;
+
+
+    .md-button.process-button {
+      color: rgba(0,0,0,0.38);
+      font-size: 12px;
+
+      &.current {
+          color: #fff;
+          text-shadow: 1px 2px 1px rgba(0, 0, 0, 0.41);
+          letter-spacing: .1em;
+        }
+    }
+  }
+}
 
 det-header {
   #det-header {
-    margin-bottom: 0px;
-    height: 80px;
-    z-index: 100;
+    height: @headerHeight;
     background-color: @defaultBackground;
-    border-bottom: 1.5px solid darken(@defaultBackground, 7%);
 
     .header-button {
       margin-top: 10px;
