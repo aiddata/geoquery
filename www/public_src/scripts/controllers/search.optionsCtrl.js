@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('OptionsCtrl', function($scope, $rootScope, $log, queryFactory) {
+.controller('OptionsCtrl', function($scope, $rootScope, $log, $stateParams, queryFactory) {
   $scope.dataset = {};
 
   $scope.options = [
@@ -39,10 +39,7 @@ angular.module('aiddataDET')
     $scope.dataset = data;
 
     queryFactory.setDataset(data.name);
-    _.each($scope.options, function(opt) {
-      queryFactory.resetOption(opt.dest);
-      if (data.type === 'raster') { mapOption(opt); }
-    });
+
   });
 
   function mapOption (option) {
@@ -53,5 +50,15 @@ angular.module('aiddataDET')
         })
         .value();
   }
+
+  function init () {
+    $scope.dataset = queryFactory.getDataset($stateParams.dataset);
+
+    _.each($scope.options, function(opt) {
+      mapOption(opt);
+    });
+  }
+
+  init();
 
 });

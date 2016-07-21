@@ -7,8 +7,13 @@ angular.module('aiddataDET')
     var _boundary = {},            // Selected Boundary
         _subBoundary = {};         // Selected Enumeration Units
 
-    var query = {},               // Current Query Object
-        cart = [];                // Array of all queries
+    // Current Query Object
+    var _query = {
+      boundary: null,
+      release_data: [],
+      rasterData: [],
+      email: null
+    };
 
 
     function retrieveBoundaries () {
@@ -51,13 +56,30 @@ angular.module('aiddataDET')
       _boundary = findBoundary(boundaryId);
       _subBoundary = findSubBoundary(_boundary, subboundaryId);
 
-      query.boundary = {
+      _query.boundary = {
         title: _subBoundary.title,
         group: _subBoundary.options.group,
         name: _subBoundary.name,
         description: _subBoundary.description,
         path: _subBoundary.base + _.head(_subBoundary.resources).path
       };
+    }
+
+    function defineReleaseData (filters, filterOptions) {
+      var filterData = _.chain(filterOptions)
+        .get('filterTypes')
+        .mapKeys()
+        .mapValues(function (d) { return filters[d] || ['All']; })
+        .value();
+
+      var dataset = _.chain(filters)
+        .pick('dataset')
+        .cloneDeep()
+        .extend(filterData)
+        .value();
+
+      _query.release_data.push(dataset);
+      return _.cloneDeep(_query);
     }
 
     return {
@@ -68,6 +90,16 @@ angular.module('aiddataDET')
       options: {
         options: { extract_types: [] },
         files: []
+      },
+
+      generateQuery: function () {
+        // Test that there are projects/locations
+
+        return $q.when(defineReleaseData(this.filters, this.filterOptions))
+          .then(function(query) {
+            console.log(query);
+            return query;
+          });
       },
 
       getBoundaries: function () {
@@ -95,7 +127,6 @@ angular.module('aiddataDET')
           .then(function(results) {
             var filterOptions = self.filterOptions = results.data;
             filterOptions.filterTypes = _.keys(filterOptions.distinct);
-
             return filterOptions;
           }, function(err) {
             $log.error(err);
@@ -104,6 +135,15 @@ angular.module('aiddataDET')
 
       setDataset: function(datasetName) {
         this.filters.dataset = datasetName;
+        return this.updateFilters();
+      },
+
+      getDataset: function(datasetName) {
+        var dataset = _.find(datasets, { name: datasetName });
+        if (!dataset) {
+          $log.error('Dataset not found', datasetName, datasets);
+        }
+        return _.cloneDeep(dataset);
       },
 
       toggleFilterOn: function(filter, option) {
@@ -125,6 +165,14 @@ angular.module('aiddataDET')
         return this.filters;
       },
 
+      clearFilters: function () {
+        var self = this;
+        _.each(self.filters, function(d, i) {
+          self.resetFilter(i);
+        });
+        return this.filters;
+      },
+
       toggleOptionOn: function (key, val) {
         val.checked = true;
         _.get(this.options, key).push(val);
@@ -136,11 +184,19 @@ angular.module('aiddataDET')
       },
 
       resetOption: function (key) {
-        _.chain(this.options)
+        var options = _.chain(this.options)
           .get(key)
           .each(function(val) { val.checked = false; })
-          .value()
-          .splice(0);
+          .value();
+
+        if (options.length) {
+          options.splice(0);
+        }
+      },
+      clearOptions: function() {
+        this.options.options = { extract_types: [] };
+        this.options.files = [];
+        return this.options;
       }
     };
   });

@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, datasets, $state, $stateParams, $timeout, queryFactory) {
+.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, datasets, $state) {
 
   $scope.datasets = {
     filtered: [],
@@ -19,9 +19,6 @@ angular.module('aiddataDET')
     { text: 'All', value: 'all' }
   ];
 
-  $scope.dataFilters = { searchText: '' };
-  $scope.dataFilters.type = _.get(_.find(datasets, { name: $state.params.dataset }), 'type');
-
 
   $scope.search = function (item) {
     if ($scope.dataFilters.type !== 'all' &&
@@ -37,28 +34,29 @@ angular.module('aiddataDET')
   };
 
   $scope.selectDataset = function(dataset) {
+    var targetState = dataset.type === 'release' ? 'search.filters' :
+        'search.options';
+
+    $log.debug('Navigating to: ', targetState);
+
     $scope.datasets.selected = dataset.name;
-    //
-    // queryFactory.setDataset(data.name);
-    var targetState = dataset.type === 'release' ? 'search.filters' : 'search.options';
-    $state.go(targetState, { dataset: dataset.name })
-      .then(function() {
-        $timeout(function() {
-          $rootScope.$broadcast('dataset:selected', dataset);
-        });
-      });
+    $state.go(targetState, { dataset: dataset.name });
+
   };
 
   $scope.$watch('datasets.filtered', function (newValue) {
     if (!newValue.length ||
-      _.find($scope.datasets.filtered, { name: $scope.datasets.selected })) {
+      _.find($scope.datasets.filtered, { name: $scope.datasets.selected })
+    ) {
       return;
     }
     $scope.selectDataset(_.head($scope.datasets.filtered));
   }, true);
 
-  function init () {
+
+  $scope.$on('$viewContentLoaded', function(event) {
+    $scope.dataFilters = { searchText: '' };
+    $scope.dataFilters.type = _.get(_.find(datasets, { name: $state.params.dataset }), 'type') || 'release';
     $scope.datasets.options = datasets;
-  }
-  init();
+  });
 });

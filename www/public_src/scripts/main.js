@@ -1,24 +1,18 @@
 angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', 'ngMaterial', 'rzModule'])
 .config(function($stateProvider, $urlRouterProvider, $mdThemingProvider) {
 
-  // $mdThemingProvider.theme('default')
-  //   .primaryPalette('blue-grey')
-  //   .accentPalette('indigo', { 'default': '900' });
-  //
-  // $mdThemingProvider.alwaysWatchTheme(true);
-
   $mdThemingProvider.theme('default')
       .primaryPalette('blue-grey', {
-        'default': '400', // by default use shade 400 from the pink palette for primary intentions
-        'hue-1': '100', // use shade 100 for the <code>md-hue-1</code> class
-        'hue-2': '600', // use shade 600 for the <code>md-hue-2</code> class
-        'hue-3': 'A100' // use shade A100 for the <code>md-hue-3</code> class
+        'default': '400',
+        'hue-1': '100',
+        'hue-2': '600',
+        'hue-3': 'A100'
       })
       .accentPalette('green', {
         'default': '500',
-        'hue-1': '100', // use shade 100 for the <code>md-hue-1</code> class
-        'hue-2': '600', // use shade 600 for the <code>md-hue-2</code> class
-        'hue-3': 'A100' // use shade A100 for the <code>md-hue-3</code> class
+        'hue-1': '100',
+        'hue-2': '600',
+        'hue-3': 'A100'
       })
       .warnPalette('deep-orange')
       .backgroundPalette('grey');
@@ -52,10 +46,12 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
   .state('search', {
     url: '/search/:boundary/:subboundary',
     resolve: {
-      boundaries: function($state, queryFactory) {
+      boundaries: function($log, $state, queryFactory) {
+        $log.warn('resolve boundaries');
         return queryFactory.getBoundaries();
       },
       datasets: function($log, $q, $state, $stateParams, queryFactory) {
+        $log.warn('resolve datasets');
         return queryFactory.getDatasets($stateParams.boundary)
           .then(function(data) { return data; })
           .catch(function() { $state.go('map'); });
@@ -78,12 +74,48 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
   .state('search.filters', {
     url: '/release/:dataset',
     templateUrl: 'views/components/search.filters.html',
-    controller: 'FiltersCtrl'
+    controller: 'FiltersCtrl',
+    resolve: {
+      filters: function(queryFactory, $log) {
+        $log.warn('resolve filters');
+        queryFactory.clearOptions();
+        queryFactory.clearFilters();
+        return queryFactory.filters;
+      },
+      filterOptions: function($log, $stateParams, queryFactory) {
+        $log.warn('resolve filterOptions');
+        return queryFactory.setDataset($stateParams.dataset);
+      }
+    },
+    onEnter: function($log) {
+      $log.debug('Entering search.filters');
+    },
+    onExit: function($log) {
+      $log.debug('Exiting search.filters');
+    }
   })
   .state('search.options', {
     url: '/external/:dataset',
     templateUrl: 'views/components/search.options.html',
-    controller: 'OptionsCtrl'
+    controller: 'OptionsCtrl',
+    resolve: {
+      options: function(queryFactory, $log) {
+        $log.warn('resolve options');
+        queryFactory.clearOptions();
+        queryFactory.clearFilters();
+        return queryFactory.filters;
+      },
+      filterOptions: function($log, $state, $stateParams, queryFactory) {
+        $log.warn('resolve filterOptions');
+        return queryFactory.setDataset($stateParams.dataset);
+      }
+    },
+    onEnter: function($log) {
+      $log.debug('Entering search.options');
+    },
+    onExit: function($log) {
+      $log.debug('Exiting search.options');
+    }
   })
   .state('checkout', {
     url: '/checkout',
@@ -93,4 +125,5 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     url: '/status',
     templateUrl: 'views/pages/status.html'
   });
+
 });

@@ -1,9 +1,10 @@
 <div layout="column"
     ng-repeat="filter in filterOptions.filterTypes | orderBy: filter"
     ng-show="dataset && dataset.type === 'release'"
+    ng-init="hideSubHeader = true;"
     flex="33">
 
-  <md-card flex="100">
+  <md-card flex="100" class="filter-card">
 
     <!-- Toolbar -->
     <md-toolbar>
@@ -14,12 +15,14 @@
         <span flex></span>
 
         <a href=""
+            class="toolbar-link"
             ng-hide="!filters[filter]"
             ng-click="toggleAll(filter)">
           <i class="fa fa-refresh"></i>
         </a>
 
         <a href=""
+            class="toolbar-link"
             ng-hide="filterInfo[filter].type !== 'options'"
             ng-click="hideSubHeader = !hideSubHeader">
           <i class="fa fa-search"></i>

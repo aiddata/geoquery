@@ -26,9 +26,10 @@ angular.module('aiddataDET')
       .value();
   };
 
-  $rootScope.$on('filters:update', function(e, data) {
-    $scope.searchData = data;
-  });
+  // $rootScope.$on('filters:update', function(e, data) {
+  //   console.log('filterupdate data', data);
+  //   $scope.searchData = data;
+  // });
 
   $rootScope.$on('filters:updated', function(e, data) {
     $scope.totals = _.pick(data, ['projects', 'locations']);
@@ -37,7 +38,7 @@ angular.module('aiddataDET')
     // references $scope vars which will need to be update
     $scope.queryStructure = setQueryStructure();
   });
-
+  //
   $rootScope.$on('dataset:selected', function(e, data) {
     $scope.dataset = data;
     $scope.queryStructure = setQueryStructure();
@@ -47,16 +48,35 @@ angular.module('aiddataDET')
     return [
       { value: [ $scope.dataset.title ], pre: 'Extract data from ', optional: false },
       { value: [ $scope.geography ], pre: 'within ', optional: false },
-      { value: $scope.searchData.donors, pre: 'given by ', optional: true, key: 'donors' },
-      { value: $scope.searchData.ad_sector_names, pre: 'to promote ', optional: true, key: 'ad_sector_names' },
+      { value: $scope.filters.donors, pre: 'given by ', optional: true, key: 'donors' },
+      { value: $scope.filters.ad_sector_names, pre: 'to promote ', optional: true, key: 'ad_sector_names' },
       { value: $scope.options.options.extract_types, pre: 'calculating', optional: true, key: 'options.extract_types' },
       { value: $scope.options.files, pre: 'using', optional: true, key: 'files' }
     ];
   }
 
+  $scope.addToCart = function() {
+    queryFactory.generateQuery()
+      .then(function(query) {
+        $rootScope.$broadcast('query:updated', query);
+      });
+  };
 
-  function init () {
+
+  $scope.$on('$viewContentLoaded', function(event) {
+    $log.info('QueryTextCtrl', event);
     queryFactory.setBoundary($stateParams.boundary, $stateParams.subboundary);
-  }
-  init();
+    if ($state.params.dataset) {
+      $scope.dataset = queryFactory.getDataset($state.params.dataset);
+      // $scope.queryStructure = setQueryStructure();
+    }
+  });
+
+  $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
+    if (toParams.dataset) {
+      $scope.dataset = queryFactory.getDataset(toParams.dataset);
+      $scope.queryStructure = setQueryStructure();
+    }
+  });
+
 });
