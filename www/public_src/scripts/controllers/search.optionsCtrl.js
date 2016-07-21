@@ -39,7 +39,6 @@ angular.module('aiddataDET')
     $scope.dataset = data;
 
     queryFactory.setDataset(data.name);
-
   });
 
   function mapOption (option) {

@@ -19,7 +19,6 @@ angular.module('aiddataDET')
     { text: 'All', value: 'all' }
   ];
 
-
   $scope.search = function (item) {
     if ($scope.dataFilters.type !== 'all' &&
       item.type !== $scope.dataFilters.type) {

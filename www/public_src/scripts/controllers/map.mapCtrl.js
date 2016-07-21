@@ -7,5 +7,4 @@ angular.module('aiddataDET')
     $timeout(function() { mapFactory.refreshSize(); });
   });
 
-
 });
