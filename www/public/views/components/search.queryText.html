@@ -1,55 +1,51 @@
 <!-- <md-card class="search-card" > -->
-  <md-toolbar md-scroll-shrink>
-    <div class="md-toolbar-tools">
+<md-toolbar md-scroll-shrink>
+  <div class="md-toolbar-tools">
 
-      <div>
+    <div>
+      <md-input-container class="condensed no-label md-light"
+        md-no-float>
+        <input ng-model="requestData.name" placeholder="Request Name">
+      </md-input-container>
 
-        <md-input-container class="condensed no-label md-light"
-          md-no-float>
-          <input ng-model="requestData.name" placeholder="Request Name">
-        </md-input-container>
-
-        <small ng-if="dataset && dataset.type == 'release'">
-          <br>
-          <strong>{{ totals.projects }}</strong> projects /
-          <strong>{{ totals.locations }}</strong> locations
-        </small>
-
-      </div>
-
-      <span flex></span>
-
-      <md-button class="md-fab md-mini md-warn md-hue-4" aria-label="Reset Search"
-          ng-click="clearFilters()">
-        <i class="fa fa-lg fa-refresh" aria-hidden="true"></i>
-      </md-button>
-
-      <md-button class="md-fab md-mini success-btn" aria-label="Add to Cart"
-          ng-click="addToCart()">
-        <i class="fa fa-lg fa-cart-plus" aria-hidden="true"></i>
-      </md-button>
-
+      <small ng-if="dataset && dataset.type == 'release'">
+        <br>
+        <strong>{{ totals.projects }}</strong> projects /
+        <strong>{{ totals.locations }}</strong> locations
+      </small>
     </div>
-  </md-toolbar>
 
-  <md-card-content
-      flex>
-      <span style="line-height: 3;"
-        ng-repeat="item in queryStructure"
-        ng-if="item.value && item.value.length">
-        {{ item.pre }}
+    <span flex></span>
 
-        <span ng-repeat="option in item.value">
-          <span ng-show="item.value.length > 1 && $last"> and </span>
-          <span ng-show="item.value.length > 1 && !$last">, </span>
-          <div class="btn btn-sm btn-chip"
-              ng-class="{ 'btn-chip-dismissable': item.optional }"
-              ng-click="item.optional ? removeFilter(item.key, option) : null">
-            {{ option.name || option }}
-            <i class="fa fa-times" aria-hidden="true" ng-show="item.optional"></i>
-          </div>
+    <md-button class="md-fab md-mini md-warn md-hue-4" aria-label="Reset Search"
+        ng-click="clearFilters()">
+      <i class="fa fa-lg fa-refresh" aria-hidden="true"></i>
+    </md-button>
 
-        </span>
+    <md-button class="md-fab md-mini success-btn" aria-label="Add to Cart"
+        ng-click="addToCart()">
+      <i class="fa fa-lg fa-cart-plus" aria-hidden="true"></i>
+    </md-button>
 
-  </md-card-content>
-<!-- </md-card> -->
+  </div>
+</md-toolbar>
+
+<md-card-content flex>
+  <span style="line-height: 3;"
+    ng-repeat="item in queryStructure"
+    ng-if="item.value && item.value.length">
+    {{ item.pre }}
+
+    <span ng-repeat="option in item.value">
+      <span ng-show="item.value.length > 1 && $last"> and </span>
+      <span ng-show="item.value.length > 1 && !$last">, </span>
+      <div class="btn btn-sm btn-chip"
+          ng-class="{ 'btn-chip-dismissable': item.optional }"
+          ng-click="item.optional ? removeFilter(item.key, option) : null">
+        {{ option.name || option }}
+        <i class="fa fa-times" aria-hidden="true" ng-show="item.optional"></i>
+      </div>
+    </span>
+  </span>
+
+</md-card-content>

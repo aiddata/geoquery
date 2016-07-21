@@ -2,7 +2,6 @@ angular.module('aiddataDET')
 .controller('QueryTextCtrl', function($scope, $rootScope, $log, $state, $stateParams, queryFactory) {
   $scope.filters = queryFactory.filters;
   $scope.options = queryFactory.options;
-  $scope.searchData = $state.params.dataset ? { dataset: $state.params.dataset } : {};
   $scope.dataset = {};
   $scope.totals = {};
   $scope.queryStructure = {};
@@ -26,11 +25,6 @@ angular.module('aiddataDET')
       .value();
   };
 
-  // $rootScope.$on('filters:update', function(e, data) {
-  //   console.log('filterupdate data', data);
-  //   $scope.searchData = data;
-  // });
-
   $rootScope.$on('filters:updated', function(e, data) {
     $scope.totals = _.pick(data, ['projects', 'locations']);
 
@@ -38,7 +32,7 @@ angular.module('aiddataDET')
     // references $scope vars which will need to be update
     $scope.queryStructure = setQueryStructure();
   });
-  //
+
   $rootScope.$on('dataset:selected', function(e, data) {
     $scope.dataset = data;
     $scope.queryStructure = setQueryStructure();
@@ -62,16 +56,11 @@ angular.module('aiddataDET')
       });
   };
 
-
   $scope.$on('$viewContentLoaded', function(event) {
-    $log.info('QueryTextCtrl', event);
     queryFactory.setBoundary($stateParams.boundary, $stateParams.subboundary);
     if ($state.params.dataset) {
       $scope.dataset = queryFactory.getDataset($state.params.dataset);
-      console.log('here');
       $scope.queryStructure = setQueryStructure();
-    } else {
-      console.log('no data');
     }
   });
 
