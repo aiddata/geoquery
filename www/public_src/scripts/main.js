@@ -54,7 +54,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
         $log.warn('resolve datasets');
         return queryFactory.getDatasets($stateParams.boundary)
           .then(function(data) { return data; })
-          .catch(function() { $state.go('map'); });
+          .catch(function() { return $state.go('map'); });
       }
     },
     views: {
@@ -116,16 +116,6 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     onExit: function($log) {
       $log.debug('Exiting search.options');
     }
-  })
-  .state('search.filters', {
-    url: '/release/:dataset',
-    templateUrl: 'views/components/search.filters.html',
-    controller: 'FiltersCtrl'
-  })
-  .state('search.options', {
-    url: '/external/:dataset',
-    templateUrl: 'views/components/search.options.html',
-    controller: 'OptionsCtrl'
   })
   .state('checkout', {
     url: '/checkout',

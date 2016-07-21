@@ -1,4 +1,4 @@
-<div ng-init="viewCart=false">
+<div ng-init="viewCart=false" flex="100">
   <md-toolbar id='det-header'>
     <div class="md-toolbar-tools">
 
@@ -22,7 +22,7 @@
 
         <md-button class="md-button-pimary process-button"
             ng-disabled="false"
-            ng-class="{ 'current': currentStep === 'map' }"
+            ng-class="{ 'current': currentStep.name === 'map' }"
             ui-sref="map"
             md-no-ink>
 
@@ -34,7 +34,7 @@
 
         <md-button class="md-button-pimary process-button"
             ng-disabled="false"
-            ng-class="{ 'current': currentStep === 'search' }"
+            ng-class="{ 'current': currentStep.name.indexOf('search') >= 0 }"
             ui-sref="search"
             md-no-ink>
 
@@ -46,12 +46,12 @@
 
         <md-button class="md-button-pimary process-button"
             ng-disabled="false"
-            ng-class="{ 'current': currentStep === 'checkout' }"
+            ng-class="{ 'current': currentStep.name === 'checkout' }"
             ui-sref="checkout"
             md-no-ink>
 
           <i class="fa fa-shopping-cart" aria-hidden="true"></i>
-          2. Checkout
+          3. Checkout
         </md-button>
     </div>
   </md-toolbar>

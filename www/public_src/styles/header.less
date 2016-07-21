@@ -3,21 +3,27 @@ md-toolbar.process-header {
   min-height: @processHeaderHeight;
   z-index: 10;
   border: 1px solid #607D8B;
+  background-color: #405469;
 
   .md-toolbar-tools {
-    color: rgba(0,0,0,0.38);
+    color: rgba(255,255,255,0.38);
     font-size: 12px;
 
 
     .md-button.process-button {
-      color: rgba(0,0,0,0.38);
+      color: rgba(255,255,255,0.38);
       font-size: 12px;
 
-      &.current {
+      &:hover {
+        background-color: transparent;
+        color: rgba(255,255,255,0.5);
+      }
+
+      &.current, .current:hover {
           color: #fff;
           text-shadow: 1px 2px 1px rgba(0, 0, 0, 0.41);
           letter-spacing: .1em;
-        }
+      }
     }
   }
 }

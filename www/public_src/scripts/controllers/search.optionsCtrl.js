@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('OptionsCtrl', function($scope, $rootScope, $log, $stateParams, queryFactory) {
+.controller('OptionsCtrl', function ($scope, $rootScope, $log, $stateParams, queryFactory) {
   $scope.dataset = {};
 
   $scope.options = [
@@ -35,7 +35,16 @@ angular.module('aiddataDET')
     return formDate;
   };
 
-  $rootScope.$on('dataset:selected', function(e, data) {
+  $scope.$on('$viewContentLoaded', function (event) {
+    $scope.dataset = queryFactory.getDataset($stateParams.dataset);
+
+    _.each($scope.options, function (opt) {
+      mapOption(opt);
+    });
+  });
+
+
+  $rootScope.$on('dataset:selected', function (e, data) {
     $scope.dataset = data;
 
     queryFactory.setDataset(data.name);
@@ -43,21 +52,10 @@ angular.module('aiddataDET')
 
   function mapOption (option) {
     option.data = _.chain($scope.dataset)
-        .get(option.loc)
-        .map(function(choice) {
-          return _.isString(choice) ? { name: choice } : choice;
-        })
-        .value();
+      .get(option.loc)
+      .map(function (choice) {
+        return _.isString(choice) ? { name: choice } : choice;
+      })
+      .value();
   }
-
-  function init () {
-    $scope.dataset = queryFactory.getDataset($stateParams.dataset);
-
-    _.each($scope.options, function(opt) {
-      mapOption(opt);
-    });
-  }
-
-  init();
-
 });

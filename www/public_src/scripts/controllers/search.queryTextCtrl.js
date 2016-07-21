@@ -68,7 +68,10 @@ angular.module('aiddataDET')
     queryFactory.setBoundary($stateParams.boundary, $stateParams.subboundary);
     if ($state.params.dataset) {
       $scope.dataset = queryFactory.getDataset($state.params.dataset);
-      // $scope.queryStructure = setQueryStructure();
+      console.log('here');
+      $scope.queryStructure = setQueryStructure();
+    } else {
+      console.log('no data');
     }
   });
 

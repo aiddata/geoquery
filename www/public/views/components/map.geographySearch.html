@@ -1,5 +1,8 @@
-<md-content class="md-padding">
-  <form ng-submit="$event.preventDefault()">
+<md-content class="md-padding" flex="100">
+
+  <form uib-collapse="showFeaturedSearches"
+      ng-submit="$event.preventDefault()">
+
     <md-autocomplete
         md-no-cache="false"
         md-selected-item="formData.boundary"
@@ -19,73 +22,70 @@
       <md-not-found>
         No boundaries matching "{{formData.searchText}}" were found.
       </md-not-found>
-
     </md-autocomplete>
 
-    <br>
 
-    <div uib-collapse="formData.boundary">
+    <div ng-hide="formData.boundary">
+      <br>
       <p class="text-muted">
-      Top Searches:
-      <em ng-repeat="item in [boundaries[0], boundaries[3], boundaries[6], boundaries[8]]">
-        <a class="md-primary" href=""
-            ng-click="selectFromFeatured(item.name)">{{item.name}}</a>
-        <span ng-if="!$last">,</span>
-      </em>
-    </p>
+        Top Searches:
+        <em ng-repeat="item in [boundaries[0], boundaries[3], boundaries[6], boundaries[8]]">
+          <a class="md-primary" href="" ng-click="selectFromFeatured(item.name)">{{item.name}}</a>
+          <span ng-if="!$last">,</span>
+        </em>
+      </p>
+
       <md-button class="md-primary" ng-click="showFeaturedSearches = true;">
         <span>View Other Popular Searches...</span>
       </md-button>
     </div>
 
-    <div uib-collapse="!formData.subboundary">
+
+    <div ng-hide="!formData.subboundary">
       <md-divider></md-divider>
       <br>
 
-      <md-radio-group
-          ng-model="formData.subboundary">
-
+      <md-radio-group ng-model="formData.subboundary">
         <label>Select a Subboundary</label>
-
         <md-radio-button
             ng-repeat="sub in subBoundaries"
             ng-value="sub.name"
             aria-label="{{ sub.title }}">
           {{ sub.title }}
         </md-radio-button>
-
       </md-radio-group>
+
 
       <md-divider></md-divider>
       <br>
 
       <div layout="row" layout-align="space-between">
-
-        <md-button class="md-raised"
-            ng-click="formData.searchText = ''">
+        <md-button class="md-raised" ng-click="formData.searchText = ''">
           <i class="fa fa-angle-double-left" aria-hidden="true"></i>
           Back
         </md-button>
 
-        <md-button class="md-raised md-accent md-hue-5"
-            ng-click="defineBoundary()">
+        <md-button class="md-raised md-accent md-hue-5" ng-click="defineBoundary()">
           Search Datasets
           <i class="fa fa-angle-double-right" aria-hidden="true"></i>
         </md-button>
       </div>
-
     </div>
-
+    
   </form>
 
-</md-content>
-<div ng-show="showFeaturedSearches === true;">
-  <md-list class="md-dense" flex>
-    <md-list-item
-        ng-repeat="item in boundaries"
-        ng-click="selectFromFeatured(item.name)">
+  <div uib-collapse="!showFeaturedSearches;">
+    <a class="md-primary" href=""
+        ng-click="selectFromFeatured(item.name)"><i class="fa fa-times" aria-hidden="true"></i></a>
 
-      <a href="">{{ item.name }}</a>
-    </md-list-item>
-  </md-list>
-</div>
+    <md-list class="md-dense" flex>
+      <md-list-item
+          ng-repeat="item in boundaries"
+          ng-click="selectFromFeatured(item.name)">
+
+        <a href="">{{ item.name }}</a>
+      </md-list-item>
+    </md-list>
+  </div>
+
+</md-content>
