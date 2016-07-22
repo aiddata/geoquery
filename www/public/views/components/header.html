@@ -1,9 +1,96 @@
-<nav id='det-header' class="navbar navbar-default">
-  <div class="container-fluid">
-    <div class="navbar-header">
-       <a class="navbar-brand" href="http://www.aiddata.org/">
-          <div class="logo"></div>
-       </a>
+<div ng-init="viewCart=false" flex="100">
+  <md-toolbar id='det-header'>
+    <div class="md-toolbar-tools">
+
+      <h2>
+        <a href="http://www.aiddata.org/">
+           <div class="logo"></div>
+        </a>
+      </h2>
+      <span flex></span>
+
+      <md-button class="md-icon-button header-button"
+        aria-label="Cart"
+        ng-click="viewCart = !viewCart">
+        <i class='fa fa-shopping-cart'></i>
+      </md-button>
     </div>
-  </div>
-</nav>
+  </md-toolbar>
+
+  <md-toolbar class="process-header md-hue-6">
+    <div class="md-toolbar-tools process">
+
+        <md-button class="md-button-pimary process-button"
+            ng-disabled="false"
+            ng-class="{ 'current': currentStep.name === 'map' }"
+            ui-sref="map"
+            md-no-ink>
+
+          <i class="fa fa-map-pin" aria-hidden="true"></i>
+          1. Select Boundary
+        </md-button>
+
+        <span> / </span>
+
+        <md-button class="md-button-pimary process-button"
+            ng-disabled="false"
+            ng-class="{ 'current': currentStep.name.indexOf('search') >= 0 }"
+            ui-sref="search"
+            md-no-ink>
+
+          <i class="fa fa-search" aria-hidden="true"></i>
+          2. Select Datasets
+        </md-button>
+
+        <span> / </span>
+
+        <md-button class="md-button-pimary process-button"
+            ng-disabled="false"
+            ng-class="{ 'current': currentStep.name === 'checkout' }"
+            ui-sref="checkout"
+            md-no-ink>
+
+          <i class="fa fa-shopping-cart" aria-hidden="true"></i>
+          3. Checkout
+        </md-button>
+    </div>
+  </md-toolbar>
+
+<!-- Cart Rough Draft -->
+<md-sidenav
+    md-component-id="right"
+    md-is-open="viewCart"
+    md-disable-backdrop="false"
+    class="md-sidenav-right">
+
+  <md-toolbar>
+    <div class="md-toolbar-tools">
+      <a href="" class="toolbar-link" ng-click="viewCart=false">
+        <i class="fa fa-times" aria-hidden="true"></i>
+      </a>
+    </div>
+  </md-toolbar>
+
+  <md-content flex layout-padding>
+    <div layout="column" layout-fill layout-align="top center">
+        <md-button class="md-raised md-accent"
+            style="width: 100%"
+            ng-disabled="query === '{}'">Checkout</md-button>
+
+        <h3 class="md-headline text-center"
+            ng-show="query === '{}'">
+          Your Cart is Empty
+        </h3>
+
+        <div ng-show="query !== '{}'">
+          <br>
+          <md-divider></md-divider>
+          <h5 class="md-headline text-center">
+            Request Preview
+          </h5>
+
+          <pre>{{ query }}</pre>
+        </div>
+    </div>
+  </md-content>
+</md-sidenav>

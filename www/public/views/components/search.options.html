@@ -1,24 +1,46 @@
-<div class="row"
-    ng-show="dataset.type === 'raster'">
-  <div class="col-md-4"
-      ng-repeat="option in options"
-      uib-collapse="!option.data || option.data.length <= 1">
+<div layout="column"
+    flex="33"
+    ng-show="dataset.type === 'raster'"
+    ng-repeat="option in options">
 
-    <div class="container-fluid options-module">
-      <div class="module-title">
-        <h4>{{ option.name }}</h4>
-      </div>
-      <div ng-if="option.type === 'checkbox'" >
+  <md-card
+      class="filter-card"
+      flex="100"
 
-        <div class="checkbox"
+      ng-hide="!option.data || option.data.length <= 1">
+
+    <md-card-header>
+        {{ option.name }}
+    </md-card-header>
+
+    <div
+        layout="column"
+        flex>
+
+      <md-list class="md-dense">
+        <md-list-item
+            class="md-2-line"
             ng-repeat="choice in option.data">
-          <label>
-            <input type="checkbox">
-            {{ choice.name }}
-          </label>
-        </div>
 
-      </div>
-    </div>
+          <md-checkbox style="md-primary"
+              ng-init="choice.checked = false"
+              ng-checked="choice.checked"
+              ng-click="toggleOption(!choice.checked, choice, option)"></md-checkbox>
+
+          <div class="md-list-item-text">
+            <p>{{ choice.name }}</p>
+
+            <small ng-if="(choice.start || choice.end) && dataset.temporal.format">
+              <em ng-if="choice.start"> {{ getTimeStamp(choice.start, dataset.temporal.format) }} </em>
+              <span ng-if="choice.start && choice.end">&dash;</span>
+              <em ng-if="choice.end"> {{ getTimeStamp(choice.end, dataset.temporal.format) }} </em>
+            </small>
+          </div>
+
+          <md-divider></md-divider>
+
+        </md-list-item>
+      </md-list>
+
   </div>
 </div>

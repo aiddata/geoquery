@@ -1,27 +1,16 @@
-<det-header></det-header>
-<div class="container-fluid search-container">
-  <div class="row">
-    <div class="col-md-4 left-panel">
-      <br>
-      <button class="btn btn-default break-after break-md"
-          ui-sref="map">
-        <i class="fa fa-angle-double-left" aria-hidden="true"></i>
-        Return to Map
-      </button>
-      <dataset-selector></dataset-selector>
+<div layout="column" class="full-height" flex>
+  <div layout="row" flex="100">
+    <div layout="column" flex="30">
+      <md-content flex="100" ui-view="datasetSelector" id="datasetSelector"></md-content>
     </div>
-
-    <div class="col-md-8">
-      <br>
-      <div class="row">
-        <div class="col-md-12">
-          <query-text></query-text>
-        </div>
+    <div layout="column" flex="70" layout-padding>
+      <div layout="row" flex="40">
+        <md-card flex="100" ui-view="queryText" id="queryText" ></md-card>
       </div>
-      <br>
-      <div>
-        <det-filters></det-filters>
-        <det-options></det-options>
+      <div layout="row" flex="60">
+        <div layout="column" flex="100">
+          <div layout="row" flex="100" ui-view style="max-width:100%; overflow-x: scroll; flex: 1 1 auto;"></div>
+        </div>
       </div>
     </div>
   </div>

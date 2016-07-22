@@ -9,7 +9,8 @@ module.exports = {
   "globals": {
     "L": true,
     "angular": true,
-    "_": true
+    "_": true,
+    "d3": true
   },
   "plugins": [
     "html",

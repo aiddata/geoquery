@@ -1,27 +1,33 @@
 angular.module('aiddataDET')
-.controller('GeographySearchCtrl', function($log, $scope, $state, ajaxFactory, mapFactory, queryFactory) {
-  $scope.boundaries = [];
+.controller('GeographySearchCtrl', function($scope, $rootScope, $log, $state, mapFactory, boundaries) {
+  $scope.boundaries = boundaries;
   $scope.subBoundaries = [];
   $scope.formData = {};
+  $scope.showFeaturedSearches = false;
 
   $scope.defineBoundary = function() {
     $state.go('search', {
-      boundary: getSelectedBoundary().boundaryId,
+      boundary: $scope.formData.boundary.boundaryId,
       subboundary: $scope.formData.subboundary
     });
   };
 
-  $scope.$watch('formData.boundary', function (newValue) {
-    if (!newValue) {
+  $scope.selectedItemChange = function (item) {
+    if (!item) {
       $scope.subBoundaries.splice(0);
       $scope.formData.boundary = undefined;
       $scope.formData.subboundary = undefined;
       return;
     }
 
-    $scope.subBoundaries = _.get(getSelectedBoundary(), 'subBoundaries');
+    $scope.subBoundaries = _.cloneDeep(item.subBoundaries);
     $scope.formData.subboundary = $scope.subBoundaries[0].name;
-  });
+  };
+
+  $scope.selectFromFeatured = function(boundaryName) {
+    $scope.formData.searchText = boundaryName;
+    $scope.showFeaturedSearches = false;
+  };
 
   $scope.$watch('formData.subboundary', function (newValue) {
     if (!newValue) {
@@ -31,22 +37,5 @@ angular.module('aiddataDET')
     }
     mapFactory.mapBoundary(newValue);
   });
-
-  function getSelectedBoundary () {
-    var selected = _.get($scope.formData, 'boundary.title') ||
-                   _.get($scope.formData, 'boundary.originalObject');
-    return _.find($scope.boundaries, { name: selected });
-  }
-
-  function init () {
-    queryFactory.getBoundaries()
-      .then(function(boundaries) {
-        $scope.boundaries = boundaries;
-      }, function (err){
-        $log.error(err);
-      });
-  }
-
-  init();
 
 });

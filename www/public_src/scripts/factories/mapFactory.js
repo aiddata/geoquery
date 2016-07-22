@@ -34,10 +34,10 @@ angular.module('aiddataDET')
 
       /* Boundary Group */
       boundaryGroup = L.featureGroup()
-        .on('layeradd', function(e) {
+        .on('layeradd', function() {
           this.setStyle({ opacity: 0, fillOpacity: 0 });
           map.fitBounds(this);
-          // Delaying restyle allows for 'animate inå'
+          // Delaying restyle allows for animations
           $timeout(function() {
             boundaryGroup.setStyle({ opacity: 0.5, fillOpacity: 0.2 });
           }, 600);
@@ -51,7 +51,8 @@ angular.module('aiddataDET')
         center: [0, 0],
         doubleClickZoom: false,
         zoomAnimation: true,
-        zoomAnimationThreshold: 20
+        zoomAnimationThreshold: 20,
+        trackResize: true
       });
     },
 

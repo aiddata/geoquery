@@ -1,5 +1,6 @@
 angular.module('aiddataDET')
-.controller('DatasetSelectorCtrl', function($scope, $rootScope, $stateParams, $state, $q, $log, ajaxFactory, queryFactory) {
+.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, datasets, $state) {
+  $scope.showSearchTools = false;
 
   $scope.datasets = {
     filtered: [],
@@ -16,30 +17,55 @@ angular.module('aiddataDET')
   $scope.dataTypes = [
     { text: 'AidData', value: 'release' },
     { text: 'External', value: 'raster' },
-    { text: 'All', value: '' }
+    { text: 'All', value: 'all' }
   ];
 
-  $scope.dataFilters = { type: 'release', title: '' };
+  $scope.search = function (item) {
+    if ($scope.dataFilters.type !== 'all' &&
+      item.type !== $scope.dataFilters.type) {
+      return false;
+    }
+
+    return _.chain(item.extras.tags)
+      .concat(item.title)
+      .join(', ')
+      .includes($scope.dataFilters.searchText)
+      .value();
+  };
 
   $scope.selectDataset = function(dataset) {
+    var targetState = dataset.type === 'release' ? 'search.filters' :
+        'search.options';
+
+    $log.debug('Navigating to: ', targetState);
+
     $scope.datasets.selected = dataset.name;
-    $rootScope.$broadcast('dataset:selected', dataset);
+
+    if (dataset.type === 'release') {
+      console.log(dataset);
+    }
+
+    $state.go(targetState, { dataset: dataset.name });
+
   };
 
   $scope.$watch('datasets.filtered', function (newValue) {
     if (!newValue.length ||
-      _.find($scope.datasets.filtered, { name: $scope.datasets.selected })) {
+      _.find($scope.datasets.filtered, { name: $scope.datasets.selected })
+    ) {
       return;
     }
     $scope.selectDataset(_.head($scope.datasets.filtered));
   }, true);
 
-  function init () {
-    queryFactory.getDatasets($stateParams.boundary)
-      .then(function(datasets) {
-        $scope.datasets.options = datasets;
-      });
-  }
 
-  init();
+  $scope.$on('$viewContentLoaded', function(event) {
+    $scope.dataFilters = { searchText: '' };
+    $scope.dataFilters.type = _.get(_.find(datasets, { name: $state.params.dataset }), 'type') || 'release';
+    $scope.datasets.options = datasets;
+  });
+
+  $scope.toggleToolBox = function() {
+    $scope.showSearchTools = !$scope.showSearchTools;
+  };
 });

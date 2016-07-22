@@ -1,48 +1,40 @@
 angular.module('aiddataDET')
-.controller('FiltersCtrl', function($scope, $rootScope, $stateParams, $q, $log, queryFactory, $state) {
-  $scope.dataset = {};
-  $scope.filterOptions = {};
-  $scope.filters = queryFactory.filters;
+.controller('FiltersCtrl', function ($scope, $rootScope, $log, queryFactory, $stateParams, $state, filters, filterOptions) {
 
-  $scope.filterInfo = {
-    'ad_sector_names': { text: 'Sectors', type: 'options', searchFilter: '' },
-    'donors': { text: 'Donors', type: 'options', searchFilter: '' },
-    'years': { text: 'Years', type: 'range' }
-  };
+  // $scope.filterOptions = { Options for a particular filter field }
+  // $scope.filters = { Active Filters }
+  // $scope.dataset = { Current Dataset Information }
 
   $scope.updateFilters = function () {
-    $rootScope.$broadcast('filters:update', $scope.filters);
     queryFactory.updateFilters()
-      .then(function(filterOptions) {
+      .then(function (filterOptions) {
         $scope.filterOptions = filterOptions;
-        $rootScope.$broadcast('filters:updated', filterOptions);
+        broadcastUpdates();
       });
   };
 
-  $scope.toggleFilter = function (bool, filter, option) {
-    return bool ? queryFactory.toggleFilterOn(filter, option) :
-      queryFactory.toggleFilterOff(filter, option);
-  };
-
   $scope.toggleAll = function (filter) {
-    queryFactory.toggleAll(filter);
+    queryFactory.resetFilter(filter);
   };
 
-  $rootScope.$on('dataset:selected', function(e, data) {
-    $scope.dataset = data;
+  $scope.removeFilter = function(field) {
+    delete $scope.filters[field];
+  };
 
-    _.each($scope.filters, function(options, filter) {
-      $scope.toggleAll(filter);
-    });
-
-    queryFactory.setDataset(data.name);
-  });
-
-  $scope.$watch('filters', function(newValue, oldValue) {
+  $scope.$watch('filters', function (newValue, oldValue) {
     if (!_.isEqual(newValue, oldValue)) {
       $scope.updateFilters();
     }
   }, true);
 
+  $scope.$on('$viewContentLoaded', function (event) {
+    $scope.filterOptions = filterOptions;
+    $scope.filters = queryFactory.filters;
+    $scope.dataset = queryFactory.getDataset();
+    broadcastUpdates();
+  });
 
+  function broadcastUpdates () {
+    $rootScope.$broadcast('filters:updated', filterOptions);
+  }
 });

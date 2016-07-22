@@ -1,0 +1,77 @@
+  <div layout="row" layout-padding layout-align="space-between">
+    <div>
+      <span class="label label-primary label-circle pull-left"
+        style="margin-top: -5px; margin-left: -5px; margin-right: 5px;">
+        {{ datasets.filtered.length }}
+      </span>
+      Dataset<span ng-if="datasets.filtered.length > 1">s</span> Found
+    </div>
+  </div>
+
+  <md-tabs md-selected="1" md-border-bottom tab-watch>
+    <md-tab aria-controls="">
+      <i class="fa fa-briefcase" aria-hidden="true"></i>
+      <i class="fa" aria-hidden="true"
+          ng-class="{'fa-caret-down': showSearchTools, 'fa-caret-up': !showSearchTools }"></i>
+    </md-tab>
+
+    <md-tab ng-repeat="type in dataTypes"
+        ng-click="dataFilters.type = type.value;"
+        aria-controls="">
+        {{ type.text }}
+    </md-tab>
+  </md-tabs>
+
+  </md-nav-bar>
+
+  <md-list flex ng-init="showSearchTools = true">
+
+    <div uib-collapse="showSearchTools">
+      <div layout="row" layout-padding>
+        <md-input-container md-no-float class="flex-50 condensed">
+          <label> Search Datasets </label>
+          <input ng-model="dataFilters.searchText" placeholder="">
+        </md-input-container>
+
+        <md-input-container class="flex-30 condensed">
+          <label>Sort by</label>
+          <md-select ng-model="fields.selected">
+            <md-option ng-repeat="field in fields.options" value="{{ field }}">
+              {{ field }}
+            </md-option>
+          </md-select>
+        </md-input-container>
+
+        <md-input-container class="flex-20 condensed">
+          <md-button class="md-icon-button md-primary"
+              aria-label="Sort Datasets"
+              ng-click="fields.descending = !fields.descending"
+              ng-switch="fields.descending">
+            <i ng-switch-when="false" class="fa fa-lg fa-sort-asc"></i>
+            <i ng-switch-when="true" class="fa fa-lg fa-sort-desc"></i>
+          </md-button>
+        </md-input-container>
+      </div>
+
+      <md-divider></md-divider>
+    </div>
+
+    <md-list-item class="md-3-line md-primary"
+        ng-class="{ 'active' : datasets.selected === set.name }"
+        ng-repeat="set in datasets.filtered = (datasets.options | filter: search) | orderBy: fields.selected : fields.descending"
+        ng-click="selectDataset(set)"
+        md-no-ink>
+
+      <div class="md-list-item-text" layout="column">
+        <h5>{{ set.title }} </h5>
+        <p>{{ set.type }}</p>
+        <p> <span ng-repeat="tag in set.extras.tags">{{ tag }} </span> </p>
+      </div>
+      <md-divider></md-divider>
+    </md-list-item>
+
+    <md-list-item ng-hide="datasets.filtered.length">
+      <p> No Datasets Found </p>
+    </md-list-item>
+
+  </md-list>
