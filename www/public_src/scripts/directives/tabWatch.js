@@ -6,14 +6,13 @@ angular.module('aiddataDET')
     link: function(scope, l, attrs, controllers) {
       var mdTabsCtrl = controllers[0];
       var origSelectFn = mdTabsCtrl.select;
-      console.log(scope);
 
-        // overwrite original function with our own
+      // Used to overwrite md-tabs directive function calls
+      // In order to place a button in the tab bar
       mdTabsCtrl.select = function(index) {
         if (index) {
           origSelectFn(index);
         } else {
-          console.log('foo');
           scope.toggleToolBox();
         }
       };

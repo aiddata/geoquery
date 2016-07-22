@@ -46,8 +46,6 @@ angular.module('aiddataDET')
 
   $rootScope.$on('dataset:selected', function (e, data) {
     $scope.dataset = data;
-
-    // queryFactory.setDataset(data.name, 'OptionsCtrl');
   });
 
   function mapOption (option) {

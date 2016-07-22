@@ -1,6 +1,7 @@
 angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', 'ngMaterial', 'rzModule'])
 .config(function($stateProvider, $urlRouterProvider, $mdThemingProvider) {
 
+  /* Material Design Theme Configuration */
   $mdThemingProvider.theme('default')
       .primaryPalette('blue-grey', {
         'default': '400',
@@ -16,6 +17,8 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
       })
       .warnPalette('deep-orange')
       .backgroundPalette('grey');
+
+  /* Routing and State Management */
 
   $urlRouterProvider.otherwise('/');
 
@@ -46,18 +49,16 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
   .state('search', {
     url: '/search/:boundary/:subboundary',
     resolve: {
+      /* @TODO: Clean up Sychronous Resolutions */
       boundaries: function($log, $state, queryFactory) {
-        $log.warn('resolve boundaries');
         return queryFactory.getBoundaries();
       },
       boundary: function($log, $stateParams, queryFactory, boundaries) {
         $log.info('boundaries:', boundaries);
-        $log.warn('resolve boundary');
         return queryFactory.setBoundary($stateParams.boundary, $stateParams.subboundary);
       },
       datasets: function($log, $state, $stateParams, queryFactory, boundary) {
         $log.info('boundary:', boundary);
-        $log.warn('resolve datasets');
         return queryFactory.getDatasets($stateParams.boundary)
           .then(function(data) { return data; })
           .catch(function() { return $state.go('map'); });
@@ -84,26 +85,22 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     resolve: {
       filters: function(queryFactory, $log, datasets) {
         $log.info('datasets:', datasets);
-        $log.warn('resolve filters');
         queryFactory.clearOptions();
         queryFactory.clearFilters();
         return queryFactory.filters;
       },
       dataset: function($log, $stateParams, filters, queryFactory) {
         $log.info('filters:', filters);
-        $log.warn('resolve dataset');
         return queryFactory.setDataset($stateParams.dataset);
       },
       fields: function($log, $stateParams, filters, dataset, queryFactory) {
         $log.info('dataset:', dataset);
-        $log.warn('resolve fields');
         var fields = _.chain(dataset)
           .cloneDeep()
           .get('fields')
           .value();
 
         queryFactory.filters = _.chain(fields)
-          // .filter(function(d) { return d.filter_type === 'list'; })
           .filter('is_default')
           .mapKeys('field')
           .mapValues(function() { return [ 'All' ]; })
@@ -114,7 +111,6 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
       },
       filterOptions: function($log, $stateParams, queryFactory, fields) {
         $log.info('fields:', fields);
-        $log.warn('resolve filterOptions');
         return queryFactory.updateFilters();
       },
       finally: function ($log, filterOptions) {
@@ -129,19 +125,16 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     resolve: {
       options: function(queryFactory, $log, datasets) {
         $log.info('datasets:', datasets);
-        $log.warn('resolve options');
         queryFactory.clearOptions();
         queryFactory.clearFilters();
         return queryFactory.options;
       },
       dataset: function($log, $stateParams, options, queryFactory) {
         $log.info('options:', options);
-        $log.warn('resolve dataset');
         return queryFactory.setDataset($stateParams.dataset);
       },
       filterOptions: function ($log, dataset) {
         $log.info('dataset:', dataset);
-        $log.warn('resolve filterOptions');
         return {};
       },
       finally: function ($log, filterOptions) {

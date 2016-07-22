@@ -37,7 +37,7 @@ angular.module('aiddataDET')
         .on('layeradd', function() {
           this.setStyle({ opacity: 0, fillOpacity: 0 });
           map.fitBounds(this);
-          // Delaying restyle allows for 'animate inå'
+          // Delaying restyle allows for animations
           $timeout(function() {
             boundaryGroup.setStyle({ opacity: 0.5, fillOpacity: 0.2 });
           }, 600);
