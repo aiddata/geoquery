@@ -15,8 +15,9 @@ angular.module('aiddataDET')
         return $http.get('/api/datasets/' + boundaryId );
       },
 
-      filters: function (filterData) {
-        return $http.post('/api/filters', filterData);
+      filters: function (filterData, boundaryId) {
+        var data = _.extend(_.cloneDeep(filterData), { boundaryId: boundaryId });
+        return $http.post('/api/filters', data);
       }
     };
   });

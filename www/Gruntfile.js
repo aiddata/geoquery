@@ -1,6 +1,7 @@
 module.exports = function(grunt) {
 
-  var externalScriptFiles = grunt.file.readJSON('externalScripts.json');
+  var externalScriptFiles = grunt.file.readJSON('externalScripts.json'),
+      externalStyleFiles = grunt.file.readJSON('externalStyles.json');
 
   require('time-grunt')(grunt);
 
@@ -11,7 +12,7 @@ module.exports = function(grunt) {
         options: {
           cleancss: true
         },
-        files: { "public/styles/app.css" : 'public_src/styles/main.less' }
+        files: { "public/styles/app.css" : externalStyleFiles.concat('public_src/styles/main.less') }
       }
     },
     ngAnnotate: {

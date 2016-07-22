@@ -1,40 +1,108 @@
 angular.module('aiddataDET')
   .factory('queryFactory', function(ajaxFactory, $log, $q) {
 
-    var datasets = {},
-        boundaries = {};
+    var _datasets = [],            // All Datasets
+        _boundaries = {};          // All Boundaries
 
-    var query = {};
+    var _boundary = {},            // Selected Boundary
+        _subBoundary = {};         // Selected Enumeration Units
+
+    // Current Query Object
+    var _query = {
+      boundary: null,
+      release_data: [],
+      rasterData: [],
+      email: null
+    };
+
+    var _fields = { };
 
     function retrieveBoundaries () {
-      if (!boundaries.options) {
+      if (!_boundaries.options) {
         return ajaxFactory.boundaries()
           .then(function(results) {
-            boundaries.options = results.data.boundaries;
-            return boundaries.options;
+            _boundaries.options = results.data.boundaries;
+            return _boundaries.options;
           });
       }
-      $log.debug('Already Defined');
-      return boundaries.options;
+      $log.debug('Boundaries Already Defined');
+      return _boundaries.options;
     }
 
-    function defineBoundary (boundary, subboundary) {
-      var b = _.find(boundaries.options, { boundaryId: boundary }),
-          sb = _.find(b.subBoundaries, { name: subboundary });
+    function retrieveDatasets (boundaryId) {
+      if (!_datasets.length) {
+        return ajaxFactory.datasets(boundaryId)
+          .then(function(results) {
+            if (!results.data.length) {
+              return $q.reject('No Datasets Found');
+            }
 
-      query.boundary = {
-        title: sb.title,
-        group: sb.options.group,
-        name: sb.name,
-        description: sb.description,
-        path: sb.base + _.head(sb.resources).path
+            _datasets = results.data;
+            return _datasets;
+          });
+      }
+      $log.debug('Datasets Already Defined');
+      return _datasets;
+    }
+
+    function findBoundary (boundaryId) {
+      return _.find(_boundaries.options, { boundaryId: boundaryId });
+    }
+
+    function findSubBoundary(boundary, subboundaryId) {
+      return _.find(boundary.subBoundaries, { name: subboundaryId });
+    }
+
+    function defineBoundary (boundaryId, subboundaryId) {
+      _boundary = findBoundary(boundaryId);
+      _subBoundary = findSubBoundary(_boundary, subboundaryId);
+
+      _query.boundary = {
+        title: _subBoundary.title,
+        group: _subBoundary.options.group,
+        name: _subBoundary.name,
+        description: _subBoundary.description,
+        path: _subBoundary.base + _.head(_subBoundary.resources).path
       };
+      return true;
+    }
+
+    function defineReleaseData (filters, filterOptions) {
+      var filterData = _.chain(filterOptions)
+        .get('filterTypes')
+        .mapKeys()
+        .mapValues(function (d) { return filters[d] || ['All']; })
+        .value();
+
+      var dataset = _.chain(filters)
+        .pick('dataset')
+        .cloneDeep()
+        .extend(filterData)
+        .value();
+
+      _query.release_data.push(dataset);
+      return _.cloneDeep(_query);
     }
 
     return {
       filters: { },
 
       filterOptions: { },
+
+      options: {
+        options: { extract_types: [] },
+        files: []
+      },
+
+      generateQuery: function () {
+        // Test that there are projects/locations
+
+        return $q.when(defineReleaseData(this.filters, this.filterOptions))
+          .then(function(query) {
+            console.log(query);
+            return query;
+          });
+      },
 
       getBoundaries: function () {
         return $q.when(retrieveBoundaries())
@@ -47,14 +115,11 @@ angular.module('aiddataDET')
         return $q.when(defineBoundary(boundary, subboundary));
       },
 
-      getDatasets: function (boundary) {
-        return ajaxFactory.datasets(boundary)
-          .then(function(results) {
-            datasets = results.data;
-            return datasets;
-          }, function(err) {
-            $log.error(err);
-          });
+      getDatasets: function (boundaryId) {
+        return $q.when(retrieveDatasets(boundaryId))
+        .then(function(datasets) {
+          return datasets;
+        });
       },
 
       updateFilters: function () {
@@ -64,7 +129,6 @@ angular.module('aiddataDET')
           .then(function(results) {
             var filterOptions = self.filterOptions = results.data;
             filterOptions.filterTypes = _.keys(filterOptions.distinct);
-
             return filterOptions;
           }, function(err) {
             $log.error(err);
@@ -73,11 +137,25 @@ angular.module('aiddataDET')
 
       setDataset: function(datasetName) {
         this.filters.dataset = datasetName;
+        return this.getDataset(datasetName);
+      },
+
+      getDataset: function(datasetName) {
+        datasetName = datasetName || this.filters.dataset;
+
+        var dataset = _.find(_datasets, { name: datasetName });
+        if (!dataset) {
+          $log.error('Dataset not found', datasetName, _datasets);
+        }
+        return _.cloneDeep(dataset);
       },
 
       toggleFilterOn: function(filter, option) {
         if (!this.filters[filter]) {
           this.filters[filter] = [];
+        }
+        if (_.includes(this.filters[filter], 'All')) {
+          _.pull(this.filters[filter], 'All');
         }
         this.filters[filter].push(option);
       },
@@ -85,13 +163,47 @@ angular.module('aiddataDET')
       toggleFilterOff: function (filter, option) {
         _.pull(this.filters[filter], option);
         if (!this.filters[filter].length) {
-          delete this.filters[filter];
+          this.filters[filter].push('All');
         }
       },
 
-      toggleAll: function (filter) {
-        delete this.filters[filter];
+      resetFilter: function (filter) {
+        this.filters[filter] = ['All'];
         return this.filters;
+      },
+
+      clearFilters: function () {
+        var self = this;
+        _.each(self.filters, function(d, i) {
+          self.resetFilter(i);
+        });
+        return this.filters;
+      },
+
+      toggleOptionOn: function (key, val) {
+        val.checked = true;
+        _.get(this.options, key).push(val);
+      },
+
+      toggleOptionOff: function (key, val) {
+        val.checked = false;
+        _.pull(_.get(this.options, key), val);
+      },
+
+      resetOption: function (key) {
+        var options = _.chain(this.options)
+          .get(key)
+          .each(function(val) { val.checked = false; })
+          .value();
+
+        if (options.length) {
+          options.splice(0);
+        }
+      },
+      clearOptions: function() {
+        this.options.options = { extract_types: [] };
+        this.options.files = [];
+        return this.options;
       }
     };
   });

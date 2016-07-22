@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('ZoomControlsCtrl', function($scope, mapFactory) {
+.controller('ZoomControlsCtrl', function($scope, $rootScope, $log, mapFactory) {
 
   $scope.options = [
     { icon: 'globe', action: mapFactory.resetView, text: 'reset map view' },

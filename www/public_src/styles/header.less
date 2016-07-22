@@ -1,15 +1,51 @@
-@import "variables.less";
+md-toolbar.process-header {
+  height: @processHeaderHeight;
+  min-height: @processHeaderHeight;
+  z-index: 10;
+  border: 1px solid #607D8B;
+  background-color: #405469;
+
+  .md-toolbar-tools {
+    color: rgba(255,255,255,0.38);
+    font-size: 12px;
+
+
+    .md-button.process-button {
+      color: rgba(255,255,255,0.38);
+      font-size: 12px;
+
+      &:hover {
+        background-color: transparent;
+        color: rgba(255,255,255,0.5);
+      }
+
+      &.current, .current:hover {
+          color: #fff;
+          text-shadow: 1px 2px 1px rgba(0, 0, 0, 0.41);
+          letter-spacing: .1em;
+      }
+    }
+  }
+}
 
 det-header {
   #det-header {
-    margin-bottom: 0px;
-    height: 80px;
+    height: @headerHeight;
+    background-color: @defaultBackground;
+
+    .header-button {
+      margin-top: 10px;
+      color: @brand-primary;
+      font-size: larger;
+      &:hover {
+        color: white;
+        background-color: @brand-primary;
+      }
+    };
   }
 
-  .navbar-brand {
-    padding: 10px;
-  }
-  .logo{
+  .logo {
+      margin-top: 15px;
       position: relative;
       float: left;
       width: 275.3px;
@@ -17,5 +53,21 @@ det-header {
       background-image: url('../media/images/aid_data.png');
       background-size: cover;
       background-repeat:no-repeat;
+  }
+}
+
+.cart {
+  width: 0%;
+  height: 100vh;
+  position: absolute;
+  background-color: @greyBackground;
+  z-index: 10;
+  transition: width 300ms linear;
+  right: 0;
+  box-shadow: -1px 0 4px #bbb;
+
+  &.open {
+    width: 30%;
+    padding: 8px;
   }
 }

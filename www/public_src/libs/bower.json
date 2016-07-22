@@ -19,7 +19,10 @@
     "angular-bootstrap": "^1.3.3",
     "angucomplete-alt": "^2.4.1",
     "angular-ui-router": "^0.3.1",
-    "leaflet-spin": "^0.1.1"
+    "leaflet-spin": "^0.1.1",
+    "d3": "^4.1.1",
+    "angular-material": "master",
+    "angularjs-slider": "^5.4.1"
   },
   "resolutions": {
     "angular": ">=1.4.0",

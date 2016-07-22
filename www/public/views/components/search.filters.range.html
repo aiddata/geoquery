@@ -1,0 +1,19 @@
+<md-card-content>
+
+  <div layout="row">
+    <md-input-container ng-repeat="field in fields">
+      <input
+          aria-label="{{ field.text }} {{ filterData.text }}"
+          placeholder="{{ field.text }} {{ filterData.text }}"
+          type="number"
+          ng-model="range[field.text]"
+          ng-blur="field.validate(range[field.text])">
+    </md-input-container>
+  </div>
+
+  <rzslider
+    rz-slider-model="range.min"
+    rz-slider-high="range.max"
+    rz-slider-options="sliderOptions"></rzslider>
+
+</md-card-content>

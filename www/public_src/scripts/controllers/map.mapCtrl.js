@@ -1,6 +1,10 @@
 angular.module('aiddataDET')
-.controller('MapCtrl', function($scope, mapFactory) {
-  mapFactory.provision();
+.controller('MapCtrl', function($scope, $rootScope, $log, $timeout, mapFactory) {
 
-  $scope.refreshMapSize = mapFactory.refreshSize;
+  $scope.$on('$viewContentLoaded', function(event) {
+    mapFactory.provision();
+
+    $timeout(function() { mapFactory.refreshSize(); });
+  });
+
 });

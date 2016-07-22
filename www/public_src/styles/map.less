@@ -1,23 +1,5 @@
-geography-search {
-  z-index: 1000;
-  display: inline-block;
-  position: absolute;
-  width: 300px;
-  background-color: @defaultBackground;
-  border: 1px solid darken(@defaultBackground, 2%);
-
-  form {
-    padding-top: 10px;
-  }
-
-  .angucomplete-dropdown {
-    width: 270px;
-    margin-top: 0px;
-  }
-}
-
-zoom-controls {
-  z-index: 1000;
+#zoomControls {
+  z-index: 9;
   display: block;
   position: absolute;
   right: 0;
@@ -26,12 +8,36 @@ zoom-controls {
   margin-top: 15px;
 }
 
-svg.leaflet-zoom-animated {
-  path {
-    transition: fill-opacity 1s ease-in-out,
-      stroke-opacity 1s ease-in-out;
-    stroke: @brick;
-    fill: @brick;
-    stroke-width: 3px;
+#map {
+  width: 100%;
+  height: calc(100vh ~"-" @headerHeight ~"-" @processHeaderHeight);
+
+  svg.leaflet-zoom-animated {
+    path {
+      transition: fill-opacity 1s ease-in-out,
+        stroke-opacity 1s ease-in-out;
+      stroke: @brick;
+      fill: @brick;
+      stroke-width: 3px;
+    }
+  }
+
+  &.overlay {
+    &::before {
+      content: 'Lorem Ipsum';
+      display: block;
+      width: 100%;
+      height: 100%;
+      position: relative;
+      background-color: rgba(0,0,0,.5);
+      z-index: 9;
+      color: white;
+      padding: 25px;
+      font-size: 5em;
+      text-transform: uppercase;
+      -webkit-font-smoothing: subpixel-antialiased;
+      letter-spacing: .3em;
+      font-weight: 300;
+    }
   }
 }
