@@ -8,7 +8,7 @@ angular.module('aiddataDET')
   $scope.filterInfo = {
     'ad_sector_names': { text: 'Sectors', type: 'options', searchFilter: '' },
     'donors': { text: 'Donors', type: 'options', searchFilter: '' },
-    'years': { text: 'Years', type: 'range' }
+    'transaction_year': { text: 'Years', type: 'range' }
   };
 
   $scope.updateFilters = function () {
@@ -37,7 +37,7 @@ angular.module('aiddataDET')
 
   $scope.$on('$viewContentLoaded', function (event) {
     $scope.filterOptions = filterOptions;
-    $scope.filters = filters;
+    $scope.filters = queryFactory.filters;
     $scope.dataset = queryFactory.getDataset($stateParams.dataset);
     broadcastUpdates();
   });

@@ -15,7 +15,6 @@ angular.module('aiddataDET')
       email: null
     };
 
-
     function retrieveBoundaries () {
       if (!boundaries.options) {
         return ajaxFactory.boundaries()
@@ -63,6 +62,7 @@ angular.module('aiddataDET')
         description: _subBoundary.description,
         path: _subBoundary.base + _.head(_subBoundary.resources).path
       };
+      return true;
     }
 
     function defineReleaseData (filters, filterOptions) {
@@ -135,7 +135,7 @@ angular.module('aiddataDET')
 
       setDataset: function(datasetName) {
         this.filters.dataset = datasetName;
-        return this.updateFilters();
+        return this.getDataset(datasetName);
       },
 
       getDataset: function(datasetName) {
@@ -150,6 +150,9 @@ angular.module('aiddataDET')
         if (!this.filters[filter]) {
           this.filters[filter] = [];
         }
+        if (this.filters[filter].length === 1 && this.filters[filter][0] === 'All') {
+          this.filters[filter].splice(1);
+        }
         this.filters[filter].push(option);
       },
 
@@ -161,7 +164,7 @@ angular.module('aiddataDET')
       },
 
       resetFilter: function (filter) {
-        delete this.filters[filter];
+        this.filters[filter] = ['All'];
         return this.filters;
       },
 

@@ -39,6 +39,11 @@ angular.module('aiddataDET')
     $log.debug('Navigating to: ', targetState);
 
     $scope.datasets.selected = dataset.name;
+
+    if (dataset.type === 'release') {
+      console.log(dataset);
+    }
+
     $state.go(targetState, { dataset: dataset.name });
 
   };

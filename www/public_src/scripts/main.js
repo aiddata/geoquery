@@ -50,7 +50,13 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
         $log.warn('resolve boundaries');
         return queryFactory.getBoundaries();
       },
-      datasets: function($log, $q, $state, $stateParams, queryFactory) {
+      boundary: function($log, $stateParams, queryFactory, boundaries) {
+        $log.info('boundaries:', boundaries);
+        $log.warn('resolve boundary');
+        return queryFactory.setBoundary($stateParams.boundary, $stateParams.subboundary);
+      },
+      datasets: function($log, $state, $stateParams, queryFactory, boundary) {
+        $log.info('boundary:', boundary);
         $log.warn('resolve datasets');
         return queryFactory.getDatasets($stateParams.boundary)
           .then(function(data) { return data; })
@@ -76,22 +82,43 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     templateUrl: 'views/components/search.filters.html',
     controller: 'FiltersCtrl',
     resolve: {
-      filters: function(queryFactory, $log) {
+      filters: function(queryFactory, $log, datasets) {
+        $log.info('datasets:', datasets);
         $log.warn('resolve filters');
         queryFactory.clearOptions();
         queryFactory.clearFilters();
         return queryFactory.filters;
       },
-      filterOptions: function($log, $stateParams, queryFactory) {
-        $log.warn('resolve filterOptions');
+      dataset: function($log, $stateParams, filters, queryFactory) {
+        $log.info('filters:', filters);
+        $log.warn('resolve dataset');
         return queryFactory.setDataset($stateParams.dataset);
+      },
+      fields: function($log, $stateParams, filters, dataset, queryFactory) {
+        $log.info('dataset:', dataset);
+        $log.warn('resolve fields');
+        var fields = _.chain(dataset)
+          .cloneDeep()
+          .get('fields')
+          .value();
+
+        queryFactory.filters = _.chain(fields)
+          .filter('is_default')
+          .mapKeys('field')
+          .mapValues(function() { return [ 'All' ]; })
+          .extend(queryFactory.filters)
+          .value();
+
+        return fields;
+      },
+      filterOptions: function($log, $stateParams, queryFactory, fields) {
+        $log.info('fields:', fields);
+        $log.warn('resolve filterOptions');
+        return queryFactory.updateFilters();
+      },
+      finally: function ($log, filterOptions) {
+        $log.info('filterOptions:', filterOptions);
       }
-    },
-    onEnter: function($log) {
-      $log.debug('Entering search.filters');
-    },
-    onExit: function($log) {
-      $log.debug('Exiting search.filters');
     }
   })
   .state('search.options', {
@@ -99,22 +126,26 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     templateUrl: 'views/components/search.options.html',
     controller: 'OptionsCtrl',
     resolve: {
-      options: function(queryFactory, $log) {
+      options: function(queryFactory, $log, datasets) {
+        $log.info('datasets:', datasets);
         $log.warn('resolve options');
         queryFactory.clearOptions();
         queryFactory.clearFilters();
-        return queryFactory.filters;
+        return queryFactory.options;
       },
-      filterOptions: function($log, $state, $stateParams, queryFactory) {
-        $log.warn('resolve filterOptions');
+      dataset: function($log, $stateParams, options, queryFactory) {
+        $log.info('options:', options);
+        $log.warn('resolve dataset');
         return queryFactory.setDataset($stateParams.dataset);
+      },
+      filterOptions: function ($log, dataset) {
+        $log.info('dataset:', dataset);
+        $log.warn('resolve filterOptions');
+        return {};
+      },
+      finally: function ($log, filterOptions) {
+        $log.info('filterOptions:', filterOptions);
       }
-    },
-    onEnter: function($log) {
-      $log.debug('Entering search.options');
-    },
-    onExit: function($log) {
-      $log.debug('Exiting search.options');
     }
   })
   .state('checkout', {

@@ -11,4 +11,8 @@ angular.module('aiddataDET')
     $scope.currentStep = toState;
   });
 
+  $rootScope.$on('$stateChangeError', function(event, toState, toParams, fromState, fromParams, error){
+    $log.error(event, toState, toParams, fromState, fromParams, error);
+  });
+
 });

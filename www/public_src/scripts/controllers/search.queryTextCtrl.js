@@ -57,7 +57,7 @@ angular.module('aiddataDET')
   };
 
   $scope.$on('$viewContentLoaded', function(event) {
-    queryFactory.setBoundary($stateParams.boundary, $stateParams.subboundary);
+    // queryFactory.setBoundary($stateParams.boundary, $stateParams.subboundary);
     if ($state.params.dataset) {
       $scope.dataset = queryFactory.getDataset($state.params.dataset);
       $scope.queryStructure = setQueryStructure();

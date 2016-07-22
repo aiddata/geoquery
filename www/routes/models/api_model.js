@@ -6,6 +6,7 @@ var sendRequest = function (call, data) {
   form.call = call;
 
   return rp({
+    // uri: "http://devlabs.aiddata.wm.edu/DET/search.php",
     uri: "http://labs.aiddata.wm.edu/DET/search.php",
     method: 'POST',
     json: true,
@@ -58,7 +59,6 @@ module.exports.datasets = function (req, res) {
 };
 
 module.exports.filters = function (req, res) {
-  console.log(req.body);
   if (!req.body.dataset) {
     return res.status(400).send({ message: 'Must provide a dataset' });
   }
@@ -66,10 +66,8 @@ module.exports.filters = function (req, res) {
   var filterData = {};
 
   filterData.dataset = req.body.dataset;
-  filterData.filters = _.chain(['ad_sector_names', 'donors', 'years'])
-    .mapKeys()
-    .mapValues(function(key) { return req.body[key] || ['All']; })
-    .value();
+  filterData.group = req.body.boundaryId;
+  filterData.filters = _.omit(req.body, ['boundaryId', 'dataset']);
 
   return sendRequest('get_filter_count', { filter: filterData })
     .then(function(response) { res.send(response.data); })
