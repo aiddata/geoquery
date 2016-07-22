@@ -1,11 +1,11 @@
 angular.module('aiddataDET')
 .controller('QueryTextCtrl', function($scope, $rootScope, $log, $state, $stateParams, queryFactory) {
-  $scope.filters = queryFactory.filters;
-  $scope.options = queryFactory.options;
+  $scope.filters = {};
+  $scope.options = {};
   $scope.dataset = {};
   $scope.totals = {};
   $scope.queryStructure = {};
-  $scope.geography = $stateParams.boundary;
+  $scope.geography = '';
   $scope.requestData = { name: 'New Request', editing: false, canReset: false };
 
   $scope.removeFilter = function(filter, option) {
@@ -26,25 +26,37 @@ angular.module('aiddataDET')
   };
 
   $rootScope.$on('filters:updated', function(e, data) {
+    $scope.filters = queryFactory.filters;
     updateCounts();
     $scope.queryStructure = setQueryStructure();
   });
 
   $rootScope.$on('dataset:selected', function(e, data) {
-    $scope.dataset = data;
+    $scope.dataset = queryFactory.getDataset();
     $scope.queryStructure = setQueryStructure();
+    updateCounts();
   });
 
   function setQueryStructure () {
     return [
       { value: [ $scope.dataset.title ], pre: 'Extract data from ', optional: false },
       { value: [ $scope.geography ], pre: 'within ', optional: false },
-      { value: $scope.filters.donors, pre: 'given by ', optional: true, key: 'donors' },
-      { value: $scope.filters.ad_sector_names, pre: 'to promote ', optional: true, key: 'ad_sector_names' },
-      { value: $scope.options.options.extract_types, pre: 'calculating', optional: true, key: 'options.extract_types' },
-      { value: $scope.options.files, pre: 'using', optional: true, key: 'files' }
+      { value: queryFactory.filters.donors || [], pre: 'given by ', optional: true, key: 'donors' },
+      { value: queryFactory.filters.ad_sector_names || [], pre: 'to promote ', optional: true, key: 'ad_sector_names' },
+      { value: queryFactory.filters.transaction_year || [], pre: 'during the years of ', optional: true, key: 'transaction_year' },
+      { value: $scope.options.options.extract_types || [], pre: 'calculating', optional: true, key: 'options.extract_types' },
+      { value: $scope.options.files || [], pre: 'using', optional: true, key: 'files' }
     ];
   }
+
+  $scope.ignoreAll = function (param) {
+    if (!param.value || !param.value.length ||
+      param.value.length === 1 && param.value[0] === 'All') {
+      return false;
+    }
+
+    return true;
+  };
 
   $scope.addToCart = function() {
     queryFactory.generateQuery()
@@ -54,6 +66,10 @@ angular.module('aiddataDET')
   };
 
   $scope.$on('$viewContentLoaded', function(event) {
+    $scope.filters = queryFactory.filters;
+    $scope.options = queryFactory.options;
+    $scope.geography = $stateParams.boundary;
+
     if ($state.params.dataset) {
       $scope.dataset = queryFactory.getDataset();
       $scope.queryStructure = setQueryStructure();

@@ -41,6 +41,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
         controller: 'ZoomControlsCtrl'
       },
       'map@map': {
+        template: '<div id="map" ng-class="{\'overlay\': showOverlay }"></div>',
         controller: 'MapCtrl'
       }
     }
