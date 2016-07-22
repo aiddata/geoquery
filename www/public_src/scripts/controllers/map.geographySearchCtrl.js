@@ -17,10 +17,9 @@ angular.module('aiddataDET')
       $scope.subBoundaries.splice(0);
       $scope.formData.boundary = undefined;
       $scope.formData.subboundary = undefined;
-      d3.select('#map').classed('overlay', true);
       return;
     }
-    d3.select('#map').classed('overlay', false);
+
     $scope.subBoundaries = _.cloneDeep(item.subBoundaries);
     $scope.formData.subboundary = $scope.subBoundaries[0].name;
   };

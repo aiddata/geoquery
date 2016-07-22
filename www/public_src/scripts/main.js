@@ -19,7 +19,6 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
       .backgroundPalette('grey');
 
   /* Routing and State Management */
-
   $urlRouterProvider.otherwise('/');
 
   $stateProvider.state('map', {
