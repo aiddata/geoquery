@@ -21,13 +21,8 @@ angular.module('aiddataDET')
     }
   ];
 
-  $scope.toggleOption = function (isChecked, option) {
-    console.log(isChecked, option);
-  };
-
   $rootScope.$on('dataset:selected', function(e, data) {
     $scope.dataset = data;
-    console.log(data);
 
     if (data.type !== 'raster') { return; }
     _.each($scope.options, function(option) {
