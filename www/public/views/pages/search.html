@@ -1,15 +1,15 @@
 <div layout="column" class="full-height" flex>
   <div layout="row" flex="100">
-    <div layout="column" flex="25">
+    <div layout="column" flex="30">
       <md-content flex="100" ui-view="datasetSelector" id="datasetSelector"></md-content>
     </div>
-    <div layout="column" flex="75" layout-padding>
-      <div layout="row" flex="33">
+    <div layout="column" flex="70" layout-padding>
+      <div layout="row" flex="40">
         <md-card flex="100" ui-view="queryText" id="queryText" ></md-card>
       </div>
-      <div layout="row" flex="66">
-        <div layout="column" flex="100" >
-          <div layout="row" flex="100" ui-view></div>
+      <div layout="row" flex="60">
+        <div layout="column" flex="100">
+          <div layout="row" flex="100" ui-view style="max-width:100%; overflow-x: scroll; flex: 1 1 auto;"></div>
         </div>
       </div>
     </div>

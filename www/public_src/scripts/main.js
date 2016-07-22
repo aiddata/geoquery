@@ -103,6 +103,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
           .value();
 
         queryFactory.filters = _.chain(fields)
+          // .filter(function(d) { return d.filter_type === 'list'; })
           .filter('is_default')
           .mapKeys('field')
           .mapValues(function() { return [ 'All' ]; })

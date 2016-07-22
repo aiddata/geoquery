@@ -6,7 +6,7 @@ angular.module('aiddataDET')
   $scope.totals = {};
   $scope.queryStructure = {};
   $scope.geography = $stateParams.boundary;
-  $scope.requestData = { name: 'New Request', editing: false };
+  $scope.requestData = { name: 'New Request', editing: false, canReset: false };
 
   $scope.removeFilter = function(filter, option) {
     return $scope.dataset.type === 'release' ? queryFactory.toggleFilterOff(filter, option) :
@@ -26,10 +26,7 @@ angular.module('aiddataDET')
   };
 
   $rootScope.$on('filters:updated', function(e, data) {
-    $scope.totals = _.pick(data, ['projects', 'locations']);
-
-    // Being Redefined with each filters:updated event because it directly
-    // references $scope vars which will need to be update
+    updateCounts();
     $scope.queryStructure = setQueryStructure();
   });
 
@@ -57,10 +54,10 @@ angular.module('aiddataDET')
   };
 
   $scope.$on('$viewContentLoaded', function(event) {
-    // queryFactory.setBoundary($stateParams.boundary, $stateParams.subboundary);
     if ($state.params.dataset) {
-      $scope.dataset = queryFactory.getDataset($state.params.dataset);
+      $scope.dataset = queryFactory.getDataset();
       $scope.queryStructure = setQueryStructure();
+      updateCounts();
     }
   });
 
@@ -70,5 +67,13 @@ angular.module('aiddataDET')
       $scope.queryStructure = setQueryStructure();
     }
   });
+
+  function updateCounts() {
+    $scope.totals = _.pick(queryFactory.filterOptions, ['projects', 'locations']);
+
+    $scope.requestData.canReset = _.some($scope.filters, function(d, i) {
+      return $scope.dataset.fields[i] && !_.isEqual(d, ['All']);
+    });
+  }
 
 });

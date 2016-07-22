@@ -56,16 +56,41 @@
     </div>
   </md-toolbar>
 
-  <md-content class="cart"
-      ng-class="{ 'open': viewCart }">
+<!-- Cart Rough Draft -->
+<md-sidenav
+    md-component-id="right"
+    md-is-open="viewCart"
+    md-disable-backdrop="false"
+    class="md-sidenav-right">
 
-      <button class="btn btn-block btn-primary btn-lg"
-        aria-label="Checkout">
-        Checkout
-      </button>
+  <md-toolbar>
+    <div class="md-toolbar-tools">
+      <a href="" class="toolbar-link" ng-click="viewCart=false">
+        <i class="fa fa-times" aria-hidden="true"></i>
+      </a>
+    </div>
+  </md-toolbar>
 
-      <h3 class="md-headline text-center">
-        Your Cart is Empty
-      </h3>
-      <pre>{{ query }}</pre>
+  <md-content flex layout-padding>
+    <div layout="column" layout-fill layout-align="top center">
+        <md-button class="md-raised md-accent"
+            style="width: 100%"
+            ng-disabled="query === '{}'">Checkout</md-button>
+
+        <h3 class="md-headline text-center"
+            ng-show="query === '{}'">
+          Your Cart is Empty
+        </h3>
+
+        <div ng-show="query !== '{}'">
+          <br>
+          <md-divider></md-divider>
+          <h5 class="md-headline text-center">
+            Request Preview
+          </h5>
+
+          <pre>{{ query }}</pre>
+        </div>
+    </div>
   </md-content>
+</md-sidenav>

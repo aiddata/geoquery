@@ -1,10 +1,16 @@
-<!-- <md-card class="search-card" > -->
 <md-toolbar md-scroll-shrink>
   <div class="md-toolbar-tools">
+
+    <md-button class="md-fab md-mini success-btn" aria-label="Add to Cart"
+        ng-click="addToCart()">
+      <md-tooltip md-delay="500" md-direction="top"> Add Request To Cart </md-tooltip>
+      <i class="fa fa-lg fa-cart-plus" aria-hidden="true"></i>
+    </md-button>
 
     <div>
       <md-input-container class="condensed no-label md-light"
         md-no-float>
+        <md-tooltip md-delay="500" md-direction="top"> Name this Request </md-tooltip>
         <input ng-model="requestData.name" placeholder="Request Name">
       </md-input-container>
 
@@ -17,15 +23,13 @@
 
     <span flex></span>
 
-    <md-button class="md-fab md-mini md-warn md-hue-4" aria-label="Reset Search"
-        ng-click="clearFilters()">
+    <a href class="toolbar-link"
+        aria-label="Reset Search"
+        ng-click="clearFilters()"
+        ng-show="requestData.canReset">
+      <md-tooltip md-delay="500" md-direction="top"> Reset Request </md-tooltip>
       <i class="fa fa-lg fa-refresh" aria-hidden="true"></i>
-    </md-button>
-
-    <md-button class="md-fab md-mini success-btn" aria-label="Add to Cart"
-        ng-click="addToCart()">
-      <i class="fa fa-lg fa-cart-plus" aria-hidden="true"></i>
-    </md-button>
+    </a>
 
   </div>
 </md-toolbar>

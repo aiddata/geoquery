@@ -5,12 +5,6 @@ angular.module('aiddataDET')
   // $scope.filters = { Active Filters }
   // $scope.dataset = { Current Dataset Information }
 
-  $scope.filterInfo = {
-    'ad_sector_names': { text: 'Sectors', type: 'options', searchFilter: '' },
-    'donors': { text: 'Donors', type: 'options', searchFilter: '' },
-    'transaction_year': { text: 'Years', type: 'range' }
-  };
-
   $scope.updateFilters = function () {
     queryFactory.updateFilters()
       .then(function (filterOptions) {
@@ -19,14 +13,12 @@ angular.module('aiddataDET')
       });
   };
 
-  $scope.toggleFilter = function (filter, option) {
-    var checked = $scope.filters[filter] && $scope.filters[filter].indexOf(option) >= 0;
-    return !checked ? queryFactory.toggleFilterOn(filter, option) :
-      queryFactory.toggleFilterOff(filter, option);
-  };
-
   $scope.toggleAll = function (filter) {
     queryFactory.resetFilter(filter);
+  };
+
+  $scope.removeFilter = function(field) {
+    delete $scope.filters[field];
   };
 
   $scope.$watch('filters', function (newValue, oldValue) {
@@ -38,15 +30,11 @@ angular.module('aiddataDET')
   $scope.$on('$viewContentLoaded', function (event) {
     $scope.filterOptions = filterOptions;
     $scope.filters = queryFactory.filters;
-    $scope.dataset = queryFactory.getDataset($stateParams.dataset);
+    $scope.dataset = queryFactory.getDataset();
     broadcastUpdates();
   });
 
   function broadcastUpdates () {
-    if ($scope.filterOptions.filterTypes.indexOf('years')) {
-      $scope.filterOptions.distinct.years = _.cloneDeep($scope.dataset.years);
-    }
-
     $rootScope.$broadcast('filters:updated', filterOptions);
   }
 });

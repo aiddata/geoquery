@@ -1,8 +1,8 @@
 angular.module('aiddataDET')
   .factory('queryFactory', function(ajaxFactory, $log, $q) {
 
-    var datasets = [],            // All Datasets
-        boundaries = {};          // All Boundaries
+    var _datasets = [],            // All Datasets
+        _boundaries = {};          // All Boundaries
 
     var _boundary = {},            // Selected Boundary
         _subBoundary = {};         // Selected Enumeration Units
@@ -15,36 +15,38 @@ angular.module('aiddataDET')
       email: null
     };
 
+    var _fields = { };
+
     function retrieveBoundaries () {
-      if (!boundaries.options) {
+      if (!_boundaries.options) {
         return ajaxFactory.boundaries()
           .then(function(results) {
-            boundaries.options = results.data.boundaries;
-            return boundaries.options;
+            _boundaries.options = results.data.boundaries;
+            return _boundaries.options;
           });
       }
       $log.debug('Boundaries Already Defined');
-      return boundaries.options;
+      return _boundaries.options;
     }
 
     function retrieveDatasets (boundaryId) {
-      if (!datasets.length) {
+      if (!_datasets.length) {
         return ajaxFactory.datasets(boundaryId)
           .then(function(results) {
             if (!results.data.length) {
               return $q.reject('No Datasets Found');
             }
 
-            datasets = results.data;
-            return datasets;
+            _datasets = results.data;
+            return _datasets;
           });
       }
       $log.debug('Datasets Already Defined');
-      return datasets;
+      return _datasets;
     }
 
     function findBoundary (boundaryId) {
-      return _.find(boundaries.options, { boundaryId: boundaryId });
+      return _.find(_boundaries.options, { boundaryId: boundaryId });
     }
 
     function findSubBoundary(boundary, subboundaryId) {
@@ -139,9 +141,11 @@ angular.module('aiddataDET')
       },
 
       getDataset: function(datasetName) {
-        var dataset = _.find(datasets, { name: datasetName });
+        datasetName = datasetName || this.filters.dataset;
+
+        var dataset = _.find(_datasets, { name: datasetName });
         if (!dataset) {
-          $log.error('Dataset not found', datasetName, datasets);
+          $log.error('Dataset not found', datasetName, _datasets);
         }
         return _.cloneDeep(dataset);
       },
@@ -150,8 +154,8 @@ angular.module('aiddataDET')
         if (!this.filters[filter]) {
           this.filters[filter] = [];
         }
-        if (this.filters[filter].length === 1 && this.filters[filter][0] === 'All') {
-          this.filters[filter].splice(1);
+        if (_.includes(this.filters[filter], 'All')) {
+          _.pull(this.filters[filter], 'All');
         }
         this.filters[filter].push(option);
       },
@@ -159,7 +163,7 @@ angular.module('aiddataDET')
       toggleFilterOff: function (filter, option) {
         _.pull(this.filters[filter], option);
         if (!this.filters[filter].length) {
-          delete this.filters[filter];
+          this.filters[filter].push('All');
         }
       },
 

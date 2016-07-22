@@ -6,28 +6,21 @@
       </span>
       Dataset<span ng-if="datasets.filtered.length > 1">s</span> Found
     </div>
-
-
-    <a href="" ng-click="showSearchTools = !showSearchTools">
-      Search Tools
-      <i class="fa fa-briefcase" aria-hidden="true"></i>
-    </a>
   </div>
 
-  <md-nav-bar
-      md-selected-nav-item="dataFilters.type"
-      nav-bar-aria-label="Data Type"
-      class="md-hue-2"
-      layout-align="">
+  <md-tabs md-selected="1" md-border-bottom tab-watch>
+    <md-tab aria-controls="">
+      <i class="fa fa-briefcase" aria-hidden="true"></i>
+      <i class="fa" aria-hidden="true"
+          ng-class="{'fa-caret-down': showSearchTools, 'fa-caret-up': !showSearchTools }"></i>
+    </md-tab>
 
-    <md-nav-item
-        ng-repeat="type in dataTypes"
+    <md-tab ng-repeat="type in dataTypes"
         ng-click="dataFilters.type = type.value;"
-        md-nav-click=""
-        name="{{ type.value }}"
-        md-no-ink>
-      <h5>{{ type.text }}</h5>
-    </md-nav-item>
+        aria-controls="">
+        {{ type.text }}
+    </md-tab>
+  </md-tabs>
 
   </md-nav-bar>
 

@@ -1,5 +1,6 @@
 angular.module('aiddataDET')
 .controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, datasets, $state) {
+  $scope.showSearchTools = false;
 
   $scope.datasets = {
     filtered: [],
@@ -63,4 +64,8 @@ angular.module('aiddataDET')
     $scope.dataFilters.type = _.get(_.find(datasets, { name: $state.params.dataset }), 'type') || 'release';
     $scope.datasets.options = datasets;
   });
+
+  $scope.toggleToolBox = function() {
+    $scope.showSearchTools = !$scope.showSearchTools;
+  };
 });

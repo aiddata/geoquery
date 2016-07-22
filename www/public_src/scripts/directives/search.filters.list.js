@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.directive('searchFiltersRange', function($window) {
+.directive('searchFiltersList', function($window) {
   return {
     restrict: "E",
     scope: {
@@ -8,7 +8,7 @@ angular.module('aiddataDET')
       activeFilters: '=activeFilters'
     },
     link: function(scope, element, attrs) {},
-    controller: "RangeCtrl",
-    templateUrl: "views/components/search.filters.range.html"
+    controller: "ListCtrl",
+    templateUrl: "views/components/search.filters.list.html"
   };
 });

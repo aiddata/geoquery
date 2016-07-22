@@ -9,33 +9,32 @@
 
       ng-hide="!option.data || option.data.length <= 1">
 
-    <md-toolbar>
-      <div class="md-toolbar-tools">
+    <md-card-header>
         {{ option.name }}
-      </div>
-    </md-toolbar>
+    </md-card-header>
 
-    <md-content
+    <div
         layout="column"
         flex>
 
-      <md-list>
-        <md-list-item class="md-2-line"
+      <md-list class="md-dense">
+        <md-list-item
+            class="md-2-line"
             ng-repeat="choice in option.data">
 
-          <md-checkbox
+          <md-checkbox style="md-primary"
               ng-init="choice.checked = false"
               ng-checked="choice.checked"
               ng-click="toggleOption(!choice.checked, choice, option)"></md-checkbox>
 
           <div class="md-list-item-text">
-            <h4>{{ choice.name }}</h4>
+            <p>{{ choice.name }}</p>
 
-            <p ng-if="(choice.start || choice.end) && dataset.temporal.format">
+            <small ng-if="(choice.start || choice.end) && dataset.temporal.format">
               <em ng-if="choice.start"> {{ getTimeStamp(choice.start, dataset.temporal.format) }} </em>
               <span ng-if="choice.start && choice.end">&dash;</span>
               <em ng-if="choice.end"> {{ getTimeStamp(choice.end, dataset.temporal.format) }} </em>
-            </p>
+            </small>
           </div>
 
           <md-divider></md-divider>
@@ -43,8 +42,6 @@
         </md-list-item>
       </md-list>
 
-      <md-divider></md-divider>
-
-    </md-content>
-  </md-card>
+    </md-card-content>
+  </div>
 </div>
