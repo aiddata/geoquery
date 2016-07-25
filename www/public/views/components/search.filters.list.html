@@ -1,5 +1,5 @@
 <md-list>
-  <md-list-item>
+  <md-list-item md-no-ink>
 
     <md-checkbox
         aria-label="All  {{ filterData.display }}"
@@ -8,17 +8,17 @@
         ng-disabled="activeFilters.length === 1  && activeFilters[0] === 'All'"
         md-no-ink/></md-checkbox>
 
-    <p> All  {{ filterData.display | capitalize }} </p>
+    <p> All  {{ filterData.display }} </p>
     <md-divider></md-divider>
 
   </md-list-item>
 
-  <md-list-item
+  <md-list-item md-no-ink
       ng-repeat="option in filterData.filtered = (filterOptions | filter: filterData.searchText)">
 
     <md-checkbox
         aria-label="{{ option }}"
-        ng-click="toggleFilter(filterData.field, option)"
+        ng-click="toggleFilter(filterData.field, option);"
         ng-checked="activeFilters && activeFilters.indexOf(option) >= 0;"
         md-no-ink></md-checkbox>
 

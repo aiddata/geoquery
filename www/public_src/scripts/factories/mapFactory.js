@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.factory('mapFactory', function($q, $timeout, ajaxFactory) {
+.factory('mapFactory', function($q, $timeout, $rootScope, ajaxFactory) {
 
   var map = {};
   var mapboxToken = 'pk.eyJ1IjoiZXNsaXZpbnNraWNhcnRvIiwiYSI6IjRWenpDcmMifQ.IU9qcKhUf_w-lTQQ-I7DIg';
@@ -69,6 +69,7 @@ angular.module('aiddataDET')
     },
 
     resetView: function() {
+      $rootScope.$broadcast('mapOverlay:add');
       map.setView([0, 0], 2);
     },
 
@@ -91,6 +92,7 @@ angular.module('aiddataDET')
           boundaryGroup.addLayer(layer);
         })
         .finally(function() {
+          $rootScope.$broadcast('mapOverlay:remove');
           factory.stopSpin();
         });
     },

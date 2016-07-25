@@ -25,7 +25,8 @@
           <md-checkbox style="md-primary"
               ng-init="choice.checked = false"
               ng-checked="choice.checked"
-              ng-click="toggleOption(!choice.checked, choice, option)"></md-checkbox>
+              ng-click="toggleOption(!choice.checked, choice, option)"
+              md-no-ink></md-checkbox>
 
           <div class="md-list-item-text">
             <p>{{ choice.name }}</p>
@@ -41,6 +42,7 @@
 
         </md-list-item>
       </md-list>
+    </div>
+ </md-card>
 
-  </div>
 </div>
