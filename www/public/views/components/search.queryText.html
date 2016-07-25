@@ -36,13 +36,12 @@
 
 <md-card-content flex>
   <span style="line-height: 3;"
-    ng-repeat="item in queryStructure | filter: ignoreAll">
+    ng-repeat="item in queryStructure">
     {{ item.pre }}
 
     <span ng-repeat="option in item.value">
       <span ng-show="item.value.length > 1 && $last"> and </span>
-      <span ng-show="item.length > 1 && !$last">, </span>
-      <span ng-show="item.value.length > 1 && !$last">, </span>
+      <span ng-show="item.value.length > 1 && !$last && !$first">, </span>
       <div class="btn btn-sm btn-chip"
           ng-hide='option === "All"'
           ng-class="{ 'btn-chip-dismissable': item.optional }"

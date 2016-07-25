@@ -38,25 +38,33 @@ angular.module('aiddataDET')
   });
 
   function setQueryStructure () {
-    return [
-      { value: [ $scope.dataset.title ], pre: 'Extract data from ', optional: false },
-      { value: [ $scope.geography ], pre: 'within ', optional: false },
-      { value: queryFactory.filters.donors || [], pre: 'given by ', optional: true, key: 'donors' },
-      { value: queryFactory.filters.ad_sector_names || [], pre: 'to promote ', optional: true, key: 'ad_sector_names' },
-      { value: queryFactory.filters.transaction_year || [], pre: 'during the years of ', optional: true, key: 'transaction_year' },
-      { value: $scope.options.options.extract_types || [], pre: 'calculating', optional: true, key: 'options.extract_types' },
-      { value: $scope.options.files || [], pre: 'using', optional: true, key: 'files' }
+    var q = [
+      { value: [ $scope.dataset.title ], pre: 'Extract data from ', optional: false, key: 'dataset' },
+      { value: [ queryFactory.getSubBoundary().title ], pre: 'within ', optional: false },
+      // { value: queryFactory.filters.donors || [], pre: 'given by ', optional: true, key: 'donors' },
+      // { value: queryFactory.filters.ad_sector_names || [], pre: 'to promote ', optional: true, key: 'ad_sector_names' },
+      // { value: queryFactory.filters.transaction_year || [], pre: 'during the years of ', optional: true, key: 'transaction_year' },
+      { value: queryFactory.options.options.extract_types || [], pre: 'calculating', optional: true, key: 'options.extract_types' },
+      { value: queryFactory.options.files || [], pre: 'using', optional: true, key: 'files' }
     ];
+
+    _.each($scope.filters, function(filterValue, filterId) {
+      if (!_.find(q, { key: filterId }) && _.get($scope.dataset.fields, filterId) ) {
+
+        var filterObj = {
+          value: _.filter(queryFactory.filters[filterId], function(d) { return d !== 'All'; }),
+          pre: $scope.dataset.fields[filterId].display + ' = ',
+          optional: true,
+          key: filterId
+        };
+
+        if (filterObj.value.length >= 1) { q.push(filterObj); }
+
+      }
+    });
+
+    return _.filter(q, function(option) { return option.value.length >= 1; });
   }
-
-  $scope.ignoreAll = function (param) {
-    if (!param.value || !param.value.length ||
-      param.value.length === 1 && param.value[0] === 'All') {
-      return false;
-    }
-
-    return true;
-  };
 
   $scope.addToCart = function() {
     queryFactory.generateQuery($scope.dataset.type)
@@ -68,7 +76,6 @@ angular.module('aiddataDET')
   $scope.$on('$viewContentLoaded', function(event) {
     $scope.filters = queryFactory.filters;
     $scope.options = queryFactory.options;
-    $scope.geography = $stateParams.boundary;
 
     if ($state.params.dataset) {
       $scope.dataset = queryFactory.getDataset();

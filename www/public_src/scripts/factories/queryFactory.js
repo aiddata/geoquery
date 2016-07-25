@@ -132,6 +132,14 @@ angular.module('aiddataDET')
           });
       },
 
+      getBoundary: function() {
+        return _boundary;
+      },
+
+      getSubBoundary: function () {
+        return _subBoundary;
+      },
+
       setBoundary: function(boundary, subboundary) {
         return $q.when(defineBoundary(boundary, subboundary));
       },
