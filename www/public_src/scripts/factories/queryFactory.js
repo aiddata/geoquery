@@ -11,7 +11,7 @@ angular.module('aiddataDET')
     var _query = {
       boundary: null,
       release_data: [],
-      rasterData: [],
+      raster_data: [],
       email: null
     };
 
@@ -74,17 +74,29 @@ angular.module('aiddataDET')
         .mapValues(function (d) { return filters[d] || ['All']; })
         .value();
 
-      var dataset = _.chain(filters)
+      var datasetData = _.chain(filters)
         .pick('dataset')
         .cloneDeep()
         .extend(filterData)
         .value();
 
-      _query.release_data.push(dataset);
+      _query.release_data.push(datasetData);
+      return _.cloneDeep(_query);
+    }
+
+    function defineRasterData (options, dataset) {
+      var datasetData = _.chain(dataset)
+        .pick(['name', 'title', 'base', 'type'])
+        .extend({ temportal_type: _.get(dataset, 'temporal.type') })
+        .extend(options)
+        .value();
+
+      _query.raster_data.push(datasetData);
       return _.cloneDeep(_query);
     }
 
     return {
+      /* @TODO: Store Dataset Separately From Filters */
       filters: { },
 
       filterOptions: { },
@@ -94,14 +106,23 @@ angular.module('aiddataDET')
         files: []
       },
 
-      generateQuery: function () {
+      generateQuery: function (datasetType) {
         // Test that there are projects/locations
+        var self = this;
+        var addRelease = function () {
+          return defineReleaseData(self.filters, self.filterOptions);
+        };
+        var addRaster = function () {
+          var dataset = self.getDataset();
+          return defineRasterData(self.options, dataset);
+        };
 
-        return $q.when(defineReleaseData(this.filters, this.filterOptions))
-          .then(function(query) {
-            console.log(query);
-            return query;
-          });
+        var addFunct = datasetType === 'release' ? addRelease : addRaster;
+
+        return $q.when(addFunct())
+        .then(function(query) {
+          return query;
+        });
       },
 
       getBoundaries: function () {
@@ -181,13 +202,21 @@ angular.module('aiddataDET')
       },
 
       toggleOptionOn: function (key, val) {
+        var optionData = _.isArray(key.pick) ? _.pick(val, key.pick) :
+          _.get(val, key.pick);
+
+        _.get(this.options, key.dest).push(optionData);
+
         val.checked = true;
-        _.get(this.options, key).push(val);
       },
 
       toggleOptionOff: function (key, val) {
+        var optionData = _.isArray(key.pick) ? _.pick(val, key.pick) :
+          _.get(val, key.pick);
+
+        _.pull(_.get(this.options, key.dest), optionData);
+
         val.checked = false;
-        _.pull(_.get(this.options, key), val);
       },
 
       resetOption: function (key) {

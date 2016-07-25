@@ -4,7 +4,7 @@ angular.module('aiddataDET')
   $scope.options = {};
   $scope.dataset = {};
   $scope.totals = {};
-  $scope.queryStructure = {};
+  $scope.queryStructure = [];
   $scope.geography = '';
   $scope.requestData = { name: 'New Request', editing: false, canReset: false };
 
@@ -59,7 +59,8 @@ angular.module('aiddataDET')
   };
 
   $scope.addToCart = function() {
-    queryFactory.generateQuery()
+    console.log($scope.dataset.type);
+    queryFactory.generateQuery($scope.dataset.type)
       .then(function(query) {
         $rootScope.$broadcast('query:updated', query);
       });
@@ -87,7 +88,7 @@ angular.module('aiddataDET')
   function updateCounts() {
     $scope.totals = _.pick(queryFactory.filterOptions, ['projects', 'locations']);
 
-    $scope.requestData.canReset = _.some($scope.filters, function(d, i) {
+    $scope.requestData.canReset = _.some(_.omit($scope.filters, 'dataset'), function(d, i) {
       return $scope.dataset.fields[i] && !_.isEqual(d, ['All']);
     });
   }

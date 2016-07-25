@@ -22,10 +22,8 @@ angular.module('aiddataDET')
   ];
 
   $scope.toggleOption = function (isChecked, val, option) {
-    $log.debug(isChecked, val, option);
-
-    return isChecked ? queryFactory.toggleOptionOn(option.dest, val) :
-      queryFactory.toggleOptionOff(option.dest, val);
+    return isChecked ? queryFactory.toggleOptionOn(option, val) :
+      queryFactory.toggleOptionOff(option, val);
   };
 
   $scope.getTimeStamp = function (date, format) {
