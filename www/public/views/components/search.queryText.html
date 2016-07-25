@@ -35,21 +35,11 @@
 </md-toolbar>
 
 <md-card-content flex>
-  <span style="line-height: 3;"
-    ng-repeat="item in queryStructure">
-    {{ item.pre }}
-
-    <span ng-repeat="option in item.value">
-      <span ng-show="item.value.length > 1 && $last"> and </span>
-      <span ng-show="item.value.length > 1 && !$last && !$first">, </span>
-      <div class="btn btn-sm btn-chip"
-          ng-hide='option === "All"'
-          ng-class="{ 'btn-chip-dismissable': item.optional }"
-          ng-click="item.optional ? removeFilter(item.key, option) : null">
-        {{ option.name || option }}
-        <i class="fa fa-times" aria-hidden="true" ng-show="item.optional"></i>
-      </div>
-    </span>
-  </span>
+  <plain-text-query
+    query-dataset="dataset"
+    query-geography="geography.title"
+    query-filters="filters"
+    query-options="options"
+    query-editable="true"></plain-text-query>
 
 </md-card-content>

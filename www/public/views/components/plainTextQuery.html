@@ -1,0 +1,14 @@
+<span style="line-height: 3;"
+  ng-repeat="item in queryStructure">
+  {{ item.pre }}
+  <span ng-repeat="option in item.value">
+    <span ng-show="item.value.length > 1 && $last"> and </span>
+    <span ng-show="item.value.length > 1 && !$last && !$first">, </span>
+    <div class="btn btn-sm btn-chip"
+        ng-class="{ 'btn-chip-dismissable': item.optional }"
+        ng-click="item.optional && editable ? removeFilter(item.key, option) : null">
+      {{ option.name || option }}
+      <i class="fa fa-times" aria-hidden="true" ng-show="item.optional && editable"></i>
+    </div>
+  </span>
+</span>

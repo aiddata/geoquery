@@ -197,13 +197,14 @@ angular.module('aiddataDET')
       },
 
       resetFilter: function (filter) {
-        this.filters[filter] = ['All'];
+        this.filters[filter].splice(0);
+        this.filters[filter].push('All');
         return this.filters;
       },
 
       clearFilters: function () {
         var self = this;
-        _.each(self.filters, function(d, i) {
+        _.each(_.omit(self.filters, 'dataset'), function(d, i) {
           self.resetFilter(i);
         });
         return this.filters;
@@ -219,10 +220,12 @@ angular.module('aiddataDET')
       },
 
       toggleOptionOff: function (key, val) {
-        var optionData = _.isArray(key.pick) ? _.pick(val, key.pick) :
-          _.get(val, key.pick);
+        var optionData = _.isArray(key.pick) ? _.pick(val, key.pick) : _.get(val, key.pick),
+            targetArry = _.get(this.options, key.dest),
+            optionIndex = _.isString(optionData) ? targetArry.indexOf(optionData) :
+               _.findIndex(targetArry, optionData);
 
-        _.pull(_.get(this.options, key.dest), optionData);
+        _.pullAt(targetArry, optionIndex);
 
         val.checked = false;
       },
