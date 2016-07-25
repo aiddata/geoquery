@@ -1,13 +1,8 @@
 <md-toolbar md-scroll-shrink>
   <div class="md-toolbar-tools">
 
-    <md-button class="md-fab md-mini success-btn" aria-label="Add to Cart"
-        ng-click="addToCart()">
-      <md-tooltip md-delay="500" md-direction="top"> Add Request To Cart </md-tooltip>
-      <i class="fa fa-lg fa-cart-plus" aria-hidden="true"></i>
-    </md-button>
-
     <div>
+      <i class="fa fa-pencil-square-o" aria-hidden="true"style="display: block; float: left; padding-right: 5px; padding-top: 8px;"></i>
       <md-input-container class="condensed no-label md-light"
         md-no-float>
         <md-tooltip md-delay="500" md-direction="top"> Name this Request </md-tooltip>
@@ -23,19 +18,28 @@
 
     <span flex></span>
 
-    <a href class="toolbar-link"
-        aria-label="Reset Search"
-        ng-click="clearFilters()"
-        ng-show="requestData.canReset">
-      <md-tooltip md-delay="500" md-direction="top"> Reset Request </md-tooltip>
-      <i class="fa fa-lg fa-refresh" aria-hidden="true"></i>
-    </a>
+    <md-button class="md-raised md-mini success-btn" aria-label="Add to Cart"
+        ng-click="addToCart()" style="height: 30px;">
+      <md-tooltip md-delay="500" md-direction="top"> Send Request To Cart </md-tooltip>
+      <i class="fa fa-lg fa-cart-plus" aria-hidden="true" style="float: left; padding-top: 10px; font-size: 20px;"></i>
+      <p class="button-text" style="display: block; float: right; margin-left: 5px; font-size: 14px;"> Add to Cart </p>
+    </md-button>
 
   </div>
 </md-toolbar>
 
 <md-card-content flex>
-  <span style="line-height: 3;"
+  <span flex style="float: right; padding-top: 10px;">
+    <a href class="toolbar-link"
+        aria-label="Reset Search"
+        ng-click="clearFilters()"
+        ng-show="requestData.canReset">
+      <md-tooltip md-delay="500" md-direction="top"> Reset Request </md-tooltip>
+      <i class="fa fa-lg fa-refresh" aria-hidden="true" style="color: #7E3535;"></i>
+    </a>
+  </span>
+
+  <span style="line-height: 3; width: 94%;"
     ng-repeat="item in queryStructure"
     ng-if="item.value && item.value.length && (item.value.length > 1 || item.value[0] !== 'All')">
     {{ item.pre }}
