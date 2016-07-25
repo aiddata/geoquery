@@ -40,12 +40,11 @@
   </span>
 
   <span style="line-height: 3; width: 94%;"
-    ng-repeat="item in queryStructure"
-    ng-if="item.value && item.value.length && (item.value.length > 1 || item.value[0] !== 'All')">
+    ng-repeat="item in queryStructure | filter: ignoreAll">
     {{ item.pre }}
-
     <span ng-repeat="option in item.value">
       <span ng-show="item.value.length > 1 && $last"> and </span>
+      <span ng-show="item.length > 1 && !$last">, </span>
       <span ng-show="item.value.length > 1 && !$last">, </span>
       <div class="btn btn-sm btn-chip"
           ng-hide='option === "All"'
