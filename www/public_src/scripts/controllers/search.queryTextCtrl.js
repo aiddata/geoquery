@@ -59,7 +59,6 @@ angular.module('aiddataDET')
   };
 
   $scope.addToCart = function() {
-    console.log($scope.dataset.type);
     queryFactory.generateQuery($scope.dataset.type)
       .then(function(query) {
         $rootScope.$broadcast('query:updated', query);
@@ -86,6 +85,7 @@ angular.module('aiddataDET')
   });
 
   function updateCounts() {
+    if ($scope.dataset.type === 'raster') { return; }
     $scope.totals = _.pick(queryFactory.filterOptions, ['projects', 'locations']);
 
     $scope.requestData.canReset = _.some(_.omit($scope.filters, 'dataset'), function(d, i) {
