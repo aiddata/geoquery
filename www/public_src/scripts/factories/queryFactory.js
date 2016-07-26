@@ -95,6 +95,20 @@ angular.module('aiddataDET')
       return _.cloneDeep(_query);
     }
 
+    function _removeRequest (request, type) {
+      var loc = _.chain(_query)
+      .get(type)
+      .findIndex(_.omit(request, '$$hashKey'))
+      .value();
+
+      if (loc >= 0 ) {
+        _.pullAt(_query[type], loc);
+        return _.cloneDeep(_query);
+      } else {
+        return $q.reject('Unable to locate query');
+      }
+    }
+
     return {
       /* @TODO: Store Dataset Separately From Filters */
       filters: { },
@@ -123,6 +137,11 @@ angular.module('aiddataDET')
         .then(function(query) {
           return query;
         });
+      },
+
+      removeRequest: function(request, type) {
+        return $q.when(_removeRequest(request, type))
+        .then(function(c){ return c; });
       },
 
       getBoundaries: function () {

@@ -13,4 +13,12 @@ angular.module('aiddataDET')
     return queryFactory.getDataset(datasetName);
   };
 
+  $scope.removeQuery = function (q, type) {
+    queryFactory.removeRequest(q, type)
+      .then(function(query) {
+        $rootScope.$broadcast('query:updated', query);
+        // $scope.query = query;
+      });
+  };
+
 });
