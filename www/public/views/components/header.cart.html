@@ -1,0 +1,68 @@
+<md-sidenav
+    md-component-id="right"
+    md-is-open="viewCart"
+    md-disable-backdrop="false"
+    class="md-sidenav-right">
+
+  <md-toolbar>
+    <div class="md-toolbar-tools">
+      <a href="" class="toolbar-link" ng-click="viewCart=false">
+        <i class="fa fa-times" aria-hidden="true"></i>
+      </a>
+    </div>
+  </md-toolbar>
+
+  <md-tabs md-dynamic-height md-border-bottom>
+      <md-tab label="Cart">
+        <md-content class="md-padding">
+
+          <h3 class="md-headline text-center"
+              ng-show="query === '{}'">
+            Your Cart is Empty
+          </h3>
+
+          <md-button class="md-raised md-accent"
+              ng-disabled="query === '{}'">Checkout</md-button>
+
+        </md-content>
+
+        <div ng-if="query !== '{}'">
+          <md-divider></md-divider>
+          <md-list ng-repeat="(type, queries) in { release: queryObj.release_data, raster: queryObj.raster_data }">
+            <md-list-item class="md-2-line"
+                ng-repeat="q in queries"
+                ng-init="dataset = datasetDetails(q.dataset); hidden= true;">
+              <div class="md-list-item-text">
+                <h3>
+                  <a href="" class="md-primary" ng-click="hidden=!hidden;">
+                      <i class="fa fa-chevron-right" aria-hidden="true"
+                          style="margin-right: 10px;"
+                          ng-class="{ 'fa-rotate-90': !hidden }"></i>
+                    {{ type }} request
+                  </a>
+                </h3>
+                <p>projects/locations</p>
+                <plain-text-query
+                  ng-if="!hidden"
+                  query-dataset="dataset"
+                  query-geography="queryObj.boundary.title"
+                  query-filters="q.filters"
+                  query-options="q"
+                  query-editable="false"></plain-text-query>
+              </div>
+              <md-divider></md-divider>
+            </md-list-item>
+          </md-list>
+        </div>
+
+      </md-tab>
+      <md-tab label="Request Preview">
+        <md-content class="md-padding">
+          <h5 class="md-headline text-center">
+            Request Preview
+          </h5>
+          <pre>{{ query }}</pre>
+        </md-content>
+      </md-tab>
+    </md-tabs>
+</md-sidenav>

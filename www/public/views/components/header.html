@@ -24,96 +24,40 @@
   <md-toolbar class="process-header md-hue-6">
     <div class="md-toolbar-tools process">
 
-        <md-button class="md-button-pimary process-button"
-            ng-disabled="false"
-            ng-class="{ 'current': currentStep.name === 'map' }"
-            ui-sref="map"
-            md-no-ink>
+      <md-button class="md-button-pimary process-button"
+          ng-disabled="false"
+          ng-class="{ 'current': currentStep.name === 'map' }"
+          ui-sref="map"
+          md-no-ink>
 
-          <i class="fa fa-map-pin" aria-hidden="true"></i>
-          1. Select Boundary
-        </md-button>
+        <i class="fa fa-map-pin" aria-hidden="true"></i>
+        1. Select Boundary
+      </md-button>
 
-        <span> / </span>
+      <span> / </span>
 
-        <md-button class="md-button-pimary process-button"
-            ng-disabled="false"
-            ng-class="{ 'current': currentStep.name.indexOf('search') >= 0 }"
-            ui-sref="search"
-            md-no-ink>
+      <md-button class="md-button-pimary process-button"
+          ng-disabled="false"
+          ng-class="{ 'current': currentStep.name.indexOf('search') >= 0 }"
+          ui-sref="search"
+          md-no-ink>
 
-          <i class="fa fa-search" aria-hidden="true"></i>
-          2. Select Datasets
-        </md-button>
+        <i class="fa fa-search" aria-hidden="true"></i>
+        2. Select Datasets
+      </md-button>
 
-        <span> / </span>
+      <span> / </span>
 
-        <md-button class="md-button-pimary process-button"
-            ng-disabled="false"
-            ng-class="{ 'current': currentStep.name === 'checkout' }"
-            ui-sref="checkout"
-            md-no-ink>
+      <md-button class="md-button-pimary process-button"
+          ng-disabled="false"
+          ng-class="{ 'current': currentStep.name === 'checkout' }"
+          ui-sref="checkout"
+          md-no-ink>
 
-          <i class="fa fa-shopping-cart" aria-hidden="true"></i>
-          3. Checkout
-        </md-button>
+        <i class="fa fa-shopping-cart" aria-hidden="true"></i>
+        3. Checkout
+      </md-button>
     </div>
   </md-toolbar>
 
 <!-- Cart Rough Draft -->
-<md-sidenav
-    md-component-id="right"
-    md-is-open="viewCart"
-    md-disable-backdrop="false"
-    class="md-sidenav-right">
-
-  <md-toolbar>
-    <div class="md-toolbar-tools">
-      <a href="" class="toolbar-link" ng-click="viewCart=false">
-        <i class="fa fa-times" aria-hidden="true"></i>
-      </a>
-    </div>
-  </md-toolbar>
-
-      <md-tabs md-dynamic-height md-border-bottom>
-      <md-tab label="Cart">
-        <md-content class="md-padding">
-
-          <h3 class="md-headline text-center"
-              ng-show="query === '{}'">
-            Your Cart is Empty
-          </h3>
-
-          <md-button class="md-raised md-accent"
-              style="width: 100%"
-              ng-disabled="query === '{}'">Checkout</md-button
-
-        </md-content>
-      </md-tab>
-      <md-tab label="Previous Requests">
-        <md-content>
-          <md-list flex class="md-dense">
-            <md-subheader class="md-no-sticky">3 line item (with hover)</md-subheader>
-            <md-list-item class="md-3-line" ng-repeat="item in ['Request 1', 'Request 2', 'Request 3']" ng-click="null">
-              <div class="md-list-item-text" layout="column">
-                <h3>{{ item }}</h3>
-                <h4>4/15/22</h4>
-                <p>{{ item.notes }}</p>
-              </div>
-                      <md-divider ></md-divider>
-        </md-list-item>
-
-        </md-list>
-
-        </md-content>
-      </md-tab>
-      <md-tab label="Request Previous">
-        <md-content class="md-padding">
-          <h5 class="md-headline text-center">
-            Request Preview
-          </h5>
-          <pre>{{ query }}</pre>
-        </md-content>
-      </md-tab>
-    </md-tabs>
-</md-sidenav>
