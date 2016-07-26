@@ -46,6 +46,9 @@ angular.module('aiddataDET')
   $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
     if (toParams.dataset) {
       $scope.dataset = queryFactory.getDataset(toParams.dataset);
+      /* @TODO: Modify reset so this isn't necessary */
+      $scope.filters = queryFactory.filters;
+      $scope.options = queryFactory.options;
     }
   });
 

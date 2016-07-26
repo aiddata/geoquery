@@ -1,4 +1,4 @@
-<div ng-init="viewCart=false" flex="100">
+<div flex="100">
   <md-toolbar id='det-header'>
     <div class="md-toolbar-tools">
 
@@ -15,7 +15,7 @@
       </div></small>
       <md-button class="md-icon-button header-button"
         aria-label="Cart"
-        ng-click="viewCart = !viewCart">
+        ng-click="showCart = !showCart">
         <i class='fa fa-shopping-cart'></i>
       </md-button>
     </div>
@@ -24,41 +24,40 @@
   <md-toolbar class="process-header md-hue-6">
     <div class="md-toolbar-tools process">
 
-      <md-button class="md-button-pimary process-button"
-          ng-disabled="false"
-          ng-class="{ 'current': currentStep.name === 'map' }"
-          ui-sref="map"
-          md-no-ink>
+        <md-button class="md-button-pimary process-button"
+            ng-disabled="false"
+            ng-class="{ 'current': currentStep.name === 'map' }"
+            ui-sref="map"
+            md-no-ink>
 
-        <i class="fa fa-map-pin" aria-hidden="true"></i>
-        1. Select Boundary
-      </md-button>
+          <i class="fa fa-map-pin" aria-hidden="true"></i>
+          1. Select Boundary
+        </md-button>
 
-      <span> / </span>
+        <span> / </span>
 
-      <md-button class="md-button-pimary process-button"
-          ng-disabled="false"
-          ng-class="{ 'current': currentStep.name.indexOf('search') >= 0 }"
-          ui-sref="search"
-          md-no-ink>
+        <md-button class="md-button-pimary process-button"
+            ng-disabled="false"
+            ng-class="{ 'current': currentStep.name.indexOf('search') >= 0 }"
+            ui-sref="search"
+            md-no-ink>
 
-        <i class="fa fa-search" aria-hidden="true"></i>
-        2. Select Datasets
-      </md-button>
+          <i class="fa fa-search" aria-hidden="true"></i>
+          2. Select Datasets
+        </md-button>
 
-      <span> / </span>
+        <span> / </span>
 
-      <md-button class="md-button-pimary process-button"
-          ng-disabled="false"
-          ng-class="{ 'current': currentStep.name === 'checkout' }"
-          ui-sref="checkout"
-          md-no-ink>
+        <md-button class="md-button-pimary process-button"
+            ng-disabled="false"
+            ng-class="{ 'current': currentStep.name === 'checkout' }"
+            ui-sref="checkout"
+            md-no-ink>
 
-        <i class="fa fa-shopping-cart" aria-hidden="true"></i>
-        3. Checkout
-      </md-button>
+          <i class="fa fa-shopping-cart" aria-hidden="true"></i>
+          3. Checkout
+        </md-button>
     </div>
   </md-toolbar>
+  <header-cart cart-visible="showCart"></header-cart>
 </div>
-<!-- Cart Rough Draft -->
-<header-cart></header-cart>

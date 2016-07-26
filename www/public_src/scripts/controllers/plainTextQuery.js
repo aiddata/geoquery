@@ -6,30 +6,33 @@ angular.module('aiddataDET')
   // $scope.options = [];
   // $scope.editable = bool;
 
-  $scope.queryStructure = updateQueryStructure();
-
   function updateQueryStructure () {
     var q = [
       { value: [$scope.dataset.title] || [], pre: 'Extract data from ', optional: false },
-      { value: [$scope.geography] || [], pre: 'within ', optional: false },
-      { value: $scope.options.options.extract_types || [], pre: 'calculating', optional: true, key: 'options.extract_types' },
-      { value: $scope.options.files || [], pre: 'using', optional: true, key: 'files' }
+      { value: [$scope.geography] || [], pre: 'within ', optional: false }
     ];
 
-    _.each($scope.filters, function(filterValue, filterId) {
-      /* TODO: Stop storing dataset as filter */
-      if (filterId !== 'dataset' && $scope.dataset.type === 'release') {
-        var filterObj = {
-          value: _.filter($scope.filters[filterId], function(d) { return d !== 'All'; }),
-          pre: $scope.dataset.fields[filterId].display + ' = ',
-          optional: true,
-          key: filterId
-        };
+    if ($scope.dataset.type === 'raster') {
+      q.push(
+        { value: _.get($scope.options, 'options.extract_types') || [], pre: 'calculating', optional: true, key: 'options.extract_types' },
+        { value: _.get($scope.options, 'files') || [], pre: 'using', optional: true, key: 'files' }
+      );
 
-        if (filterObj.value.length >= 1) { q.push(filterObj); }
-      }
-    });
+    } else {
+      _.each($scope.filters, function(filterValue, filterId) {
+        /* TODO: Stop storing dataset as filter */
+        if (filterId !== 'dataset') {
+          var filterObj = {
+            value: _.filter($scope.filters[filterId], function(d) { return d !== 'All'; }),
+            pre: $scope.dataset.fields[filterId].display + ' = ',
+            optional: true,
+            key: filterId
+          };
 
+          if (filterObj.value.length >= 1) { q.push(filterObj); }
+        }
+      });
+    }
     return _.filter(q, function(option) { return option.value.length >= 1; });
   }
 
@@ -38,16 +41,23 @@ angular.module('aiddataDET')
       queryFactory.toggleOptionOff(filter, option);
   };
 
-  $scope.$watch('filters', function(newValue) {
+  function init () {
     $scope.queryStructure = updateQueryStructure();
-  }, true);
 
-  $scope.$watch('options', function(newValue) {
-    $scope.queryStructure = updateQueryStructure();
-  }, true);
+    if ($scope.editable) {
+      $scope.$watch('filters', function(newValue) {
+        $scope.queryStructure = updateQueryStructure();
+      }, true);
 
-  $scope.$watch('dataset', function(newValue) {
-    $scope.queryStructure = updateQueryStructure();
-  }, true);
+      $scope.$watch('options', function(newValue) {
+        $scope.queryStructure = updateQueryStructure();
+      }, true);
+
+      $scope.$watch('dataset', function(newValue) {
+        $scope.queryStructure = updateQueryStructure();
+      }, true);
+    }
+  }
+  init();
 
 });

@@ -77,7 +77,7 @@ angular.module('aiddataDET')
       var datasetData = _.chain(filters)
         .pick('dataset')
         .cloneDeep()
-        .extend(filterData)
+        .extend({ filters: filterData })
         .value();
 
       _query.release_data.push(datasetData);
@@ -110,11 +110,11 @@ angular.module('aiddataDET')
         // Test that there are projects/locations
         var self = this;
         var addRelease = function () {
-          return defineReleaseData(self.filters, self.filterOptions);
+          return defineReleaseData(_.cloneDeep(self.filters), _.cloneDeep(self.filterOptions));
         };
         var addRaster = function () {
           var dataset = self.getDataset();
-          return defineRasterData(self.options, dataset);
+          return defineRasterData(_.cloneDeep(self.options), _.cloneDeep(dataset));
         };
 
         var addFunct = datasetType === 'release' ? addRelease : addRaster;

@@ -2,8 +2,11 @@ angular.module('aiddataDET')
 .directive('headerCart', function($window) {
   return {
     restrict: "E",
+    scope: {
+      'cartVisible': '=cartVisible'
+    },
     link: function(scope, element, attrs) {},
     templateUrl: "views/components/header.cart.html",
-    controller: "HeaderCtrl"
+    controller: "CartCtrl"
   };
 });
