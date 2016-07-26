@@ -9,15 +9,33 @@
       </h2>
       <span flex></span>
 
-
-      <small ng-if="queryLen"><div class="label label-primary label-circle" style="margin-top: 10px">
-        {{ queryLen || 0 }}
-      </div></small>
       <md-button class="md-icon-button header-button"
-        aria-label="Cart"
-        ng-click="showCart = !showCart">
-        <i class='fa fa-shopping-cart'></i>
+          aria-label="Help"
+          ng-click="activeTab = 'help'">
+        <md-tooltip> Help </md-tooltip>
+        <i class="fa fa-question-circle" aria-hidden="true"></i>
       </md-button>
+
+      <md-button class="md-icon-button header-button"
+          aria-label="Past Requests"
+          ng-click="activeTab = 'previousRequests'">
+        <md-tooltip> View Past Requests </md-tooltip>
+        <i class="fa fa-history" aria-hidden="true"></i>
+      </md-button>
+
+      <small ng-show="queryLen">
+        <div class="label label-primary label-circle" style="margin-top: 10px">
+          {{ queryLen || 0 }}
+        </div>
+      </small>
+
+      <md-button class="md-icon-button header-button"
+          aria-label="Cart"
+          ng-click="activeTab = 'cart'">
+        <md-tooltip> View Cart </md-tooltip>
+        <i class='fa fa-shopping-cart' aria-hidden="true"></i>
+      </md-button>
+
     </div>
   </md-toolbar>
 
@@ -59,5 +77,7 @@
         </md-button>
     </div>
   </md-toolbar>
-  <header-cart cart-visible="showCart"></header-cart>
+  <header-cart menu-option="'cart'" menu-control="activeTab"></header-cart>
+  <header-help menu-option="'help'" menu-control="activeTab"></header-help>
+  <header-previous-requests menu-option="'previousRequests'" menu-control="activeTab"></header-previous-requests>
 </div>

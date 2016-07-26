@@ -1,7 +1,7 @@
 angular.module('aiddataDET')
 .controller('HeaderCtrl', function($scope, $rootScope, $log, $stateParams, $state, queryFactory) {
   $scope.currentStep = $state;
-  $scope.showCart = false;
+  $scope.activeTab = '';
   $scope.queryLen = 0;
 
   $rootScope.$on('query:updated', function(event, data) {

@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.directive('headerCart', function($window) {
+.directive('headerHelp', function($window) {
   return {
     restrict: "E",
     scope: {
@@ -7,7 +7,7 @@ angular.module('aiddataDET')
       'option': '=menuOption'
     },
     link: function(scope, element, attrs) {},
-    templateUrl: "views/components/header.cart.html",
-    controller: "CartCtrl"
+    templateUrl: "views/components/header.help.html"//,
+    // controller: "HelpCtrl"
   };
 });
