@@ -7,7 +7,7 @@ var sendRequest = function (call, data) {
 
   return rp({
     // uri: "http://devlabs.aiddata.wm.edu/DET/search.php",
-    uri: "http://labs.aiddata.wm.edu/DET/search.php",
+     uri: "http://labs.aiddata.wm.edu/DET/search.php",
     method: 'POST',
     json: true,
     form: form
