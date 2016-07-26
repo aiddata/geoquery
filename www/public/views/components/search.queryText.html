@@ -18,28 +18,26 @@
 
     <span flex></span>
 
-    <md-button class="md-raised md-mini success-btn" aria-label="Add to Cart"
-        ng-click="addToCart()" style="height: 30px;">
+
+    <md-button class="md-raised md-warn md-hue-2" aria-label="Reset Filters" ng-click="clearFilters()"
+      ng-show="requestData.canReset">
+      <md-tooltip md-delay="500" md-direction="top"> Reset Search Filters </md-tooltip>
+      <i class="fa fa-lg fa-refresh" aria-hidden="true"></i>
+      Reset Filters
+    </md-button>
+
+    <md-button class="md-raised md-accent md-hue-5" aria-label="Add to Cart"
+        ng-click="addToCart()">
       <md-tooltip md-delay="500" md-direction="top"> Send Request To Cart </md-tooltip>
-      <i class="fa fa-lg fa-cart-plus" aria-hidden="true" style="float: left; padding-top: 10px; font-size: 20px;"></i>
-      <p class="button-text" style="display: block; float: right; margin-left: 5px; font-size: 14px;"> Add to Cart </p>
+      <i class="fa fa-lg fa-cart-plus" aria-hidden="true"></i>
+      Add to Cart
     </md-button>
 
   </div>
 </md-toolbar>
 
 <md-card-content flex>
-  <span flex style="float: right; padding-top: 10px;">
-    <a href class="toolbar-link"
-        aria-label="Reset Search"
-        ng-click="clearFilters()"
-        ng-show="requestData.canReset">
-      <md-tooltip md-delay="500" md-direction="top"> Reset Request </md-tooltip>
-      <i class="fa fa-lg fa-refresh" aria-hidden="true" style="color: #7E3535;"></i>
-    </a>
-  </span>
-
-  <span style="line-height: 3; width: 94%;"
+  <span style="line-height: 3;"
     ng-repeat="item in queryStructure | filter: ignoreAll">
     {{ item.pre }}
     <span ng-repeat="option in item.value">
