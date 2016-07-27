@@ -11,7 +11,7 @@ angular.module('aiddataDET')
     var _query = {
       boundary: null,
       release_data: [],
-      rasterData: [],
+      raster_data: [],
       email: null
     };
 
@@ -74,17 +74,43 @@ angular.module('aiddataDET')
         .mapValues(function (d) { return filters[d] || ['All']; })
         .value();
 
-      var dataset = _.chain(filters)
+      var datasetData = _.chain(filters)
         .pick('dataset')
         .cloneDeep()
-        .extend(filterData)
+        .extend({ filters: filterData })
         .value();
 
-      _query.release_data.push(dataset);
+      _query.release_data.push(datasetData);
       return _.cloneDeep(_query);
     }
 
+    function defineRasterData (options, dataset) {
+      var datasetData = _.chain(dataset)
+        .pick(['name', 'title', 'base', 'type'])
+        .extend({ temportal_type: _.get(dataset, 'temporal.type') })
+        .extend(options)
+        .value();
+
+      _query.raster_data.push(datasetData);
+      return _.cloneDeep(_query);
+    }
+
+    function _removeRequest (request, type) {
+      var loc = _.chain(_query)
+      .get(type)
+      .findIndex(_.omit(request, '$$hashKey'))
+      .value();
+
+      if (loc >= 0 ) {
+        _.pullAt(_query[type], loc);
+        return _.cloneDeep(_query);
+      } else {
+        return $q.reject('Unable to locate query');
+      }
+    }
+
     return {
+      /* @TODO: Store Dataset Separately From Filters */
       filters: { },
 
       filterOptions: { },
@@ -94,14 +120,28 @@ angular.module('aiddataDET')
         files: []
       },
 
-      generateQuery: function () {
+      generateQuery: function (datasetType) {
         // Test that there are projects/locations
+        var self = this;
+        var addRelease = function () {
+          return defineReleaseData(_.cloneDeep(self.filters), _.cloneDeep(self.filterOptions));
+        };
+        var addRaster = function () {
+          var dataset = self.getDataset();
+          return defineRasterData(_.cloneDeep(self.options), _.cloneDeep(dataset));
+        };
 
-        return $q.when(defineReleaseData(this.filters, this.filterOptions))
-          .then(function(query) {
-            console.log(query);
-            return query;
-          });
+        var addFunct = datasetType === 'release' ? addRelease : addRaster;
+
+        return $q.when(addFunct())
+        .then(function(query) {
+          return query;
+        });
+      },
+
+      removeRequest: function(request, type) {
+        return $q.when(_removeRequest(request, type))
+        .then(function(c){ return c; });
       },
 
       getBoundaries: function () {
@@ -109,6 +149,14 @@ angular.module('aiddataDET')
           .then(function(boundaries) {
             return boundaries;
           });
+      },
+
+      getBoundary: function() {
+        return _boundary;
+      },
+
+      getSubBoundary: function () {
+        return _subBoundary;
       },
 
       setBoundary: function(boundary, subboundary) {
@@ -168,26 +216,37 @@ angular.module('aiddataDET')
       },
 
       resetFilter: function (filter) {
-        this.filters[filter] = ['All'];
+        this.filters[filter].splice(0);
+        this.filters[filter].push('All');
         return this.filters;
       },
 
       clearFilters: function () {
         var self = this;
-        _.each(self.filters, function(d, i) {
+        _.each(_.omit(self.filters, 'dataset'), function(d, i) {
           self.resetFilter(i);
         });
         return this.filters;
       },
 
       toggleOptionOn: function (key, val) {
+        var optionData = _.isArray(key.pick) ? _.pick(val, key.pick) :
+          _.get(val, key.pick);
+
+        _.get(this.options, key.dest).push(optionData);
+
         val.checked = true;
-        _.get(this.options, key).push(val);
       },
 
       toggleOptionOff: function (key, val) {
+        var optionData = _.isArray(key.pick) ? _.pick(val, key.pick) : _.get(val, key.pick),
+            targetArry = _.get(this.options, key.dest),
+            optionIndex = _.isString(optionData) ? targetArry.indexOf(optionData) :
+               _.findIndex(targetArry, optionData);
+
+        _.pullAt(targetArry, optionIndex);
+
         val.checked = false;
-        _.pull(_.get(this.options, key), val);
       },
 
       resetOption: function (key) {
