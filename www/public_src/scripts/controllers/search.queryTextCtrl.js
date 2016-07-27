@@ -20,6 +20,8 @@ angular.module('aiddataDET')
     updateCounts();
   });
 
+  $rootScope.$on('options:updated', updateCounts);
+
   $rootScope.$on('dataset:selected', function(e, data) {
     $scope.dataset = queryFactory.getDataset();
     updateCounts();
@@ -55,6 +57,11 @@ angular.module('aiddataDET')
   function updateCounts() {
     if ($scope.dataset.type === 'raster') {
       $scope.requestData.canReset = false;
+      $scope.requestData.canAdd = (
+        _.size(_.get($scope.options, 'files')) &&
+        _.size(_.get($scope.options, 'options.extract_types'))
+      );
+
     } else {
       $scope.totals = _.pick(queryFactory.filterOptions, ['projects', 'locations']);
 
