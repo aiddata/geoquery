@@ -1,0 +1,30 @@
+<md-sidenav
+    md-component-id="previousRequests"
+    md-is-open="menu"
+    class="md-sidenav-right">
+
+  <md-toolbar>
+    <div class="md-toolbar-tools">
+      <a href="" class="toolbar-link" ng-click="menu=false">
+        <i class="fa fa-times" aria-hidden="true"></i>
+      </a>
+      <span flex></span>
+      <h5 class="md-headline">
+        Previous Requests
+      </h5>
+    </div>
+  </md-toolbar>
+
+
+  <md-content md-padding flex>
+    <div layout="column" layout-padding layout-align="top">
+      <md-input-container>
+        <label>e-mail</label>
+        <input ng-model="user.title">
+      </md-input-container>
+
+      <md-button md-no-ink class="md-primary">Lookup</md-button>
+    </div>
+  </md-content>
+
+</md-sidenav>

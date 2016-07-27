@@ -144,7 +144,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
   })
   .state('checkout', {
     url: '/checkout',
-    templateUrl: 'views/pages/submit.html'
+    templateUrl: 'views/pages/checkout.html'
   })
   .state('status', {
     url: '/status',

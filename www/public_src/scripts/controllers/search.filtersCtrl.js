@@ -1,6 +1,6 @@
 angular.module('aiddataDET')
 .controller('FiltersCtrl', function ($scope, $rootScope, $log, queryFactory, $stateParams, $state, filters, filterOptions) {
-
+  // $scope.filterOrder = [ Array holding the order filters should appear in ]
   // $scope.filterOptions = { Options for a particular filter field }
   // $scope.filters = { Active Filters }
   // $scope.dataset = { Current Dataset Information }
@@ -19,6 +19,7 @@ angular.module('aiddataDET')
 
   $scope.removeFilter = function(field) {
     delete $scope.filters[field];
+    _.pull($scope.filterOrder, field);
   };
 
   $scope.$watch('filters', function (newValue, oldValue) {
@@ -29,6 +30,7 @@ angular.module('aiddataDET')
 
   $scope.$on('$viewContentLoaded', function (event) {
     $scope.filterOptions = filterOptions;
+    $scope.filterOrder = _.cloneDeep(filterOptions.filterTypes);
     $scope.filters = queryFactory.filters;
     $scope.dataset = queryFactory.getDataset();
     broadcastUpdates();
