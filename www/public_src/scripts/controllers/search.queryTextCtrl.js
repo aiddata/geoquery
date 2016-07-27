@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('QueryTextCtrl', function($scope, $rootScope, $log, $state, $stateParams, queryFactory) {
+.controller('QueryTextCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $mdDialog, queryFactory) {
   $scope.filters = {};
   $scope.options = {};
   $scope.dataset = {};
@@ -25,9 +25,22 @@ angular.module('aiddataDET')
   });
 
   $scope.addToCart = function() {
-    queryFactory.generateQuery($scope.dataset.type)
+    $q.when(queryFactory.isUniq($scope.dataset, $scope.filters, $scope.options))
+      .then(function(unique) {
+        if (!unique) {
+          return $q.reject({ message: 'This search is already in your cart'});
+        }
+        return queryFactory.generateQuery($scope.dataset.type);
+      })
       .then(function(query) {
         $rootScope.$broadcast('query:updated', query);
+      })
+      .catch(function(err) {
+        $log.error(err);
+        showDialog(err.message, 'Error Adding To Cart');
+      })
+      .finally(function(){
+        $scope.requestData.canAdd = false;
       });
   };
 
@@ -66,6 +79,16 @@ angular.module('aiddataDET')
         return $scope.dataset.fields[i] && !_.isEqual(d, ['All']);
       });
     }
+  }
+
+  function showDialog(msg, label) {
+    $mdDialog.show(
+      $mdDialog.alert()
+        .clickOutsideToClose(true)
+        .title(msg)
+        .ariaLabel(label)
+        .ok('Got it!')
+    );
   }
 
 });

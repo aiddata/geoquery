@@ -139,6 +139,25 @@ angular.module('aiddataDET')
         });
       },
 
+      isUniq: function(dataset, filters, options) {
+        if (dataset.type === 'raster') {
+          var fileNames = _.map(options.files, 'name').sort();
+          return _.every(_query.raster_data, function(q) {
+            return dataset.title !== q.title ||
+              !_.isEqual(q.options.extract_types.sort(), options.options.extract_types.sort()) ||
+              !_.isEqual(_.map(q.files, 'name').sort(), fileNames);
+          });
+        } else {
+          return _.every(_query.release_data, function(q) {
+            return dataset.name !== q.dataset ||
+              !_.isEqual(_.keys(q.filters).sort(), _.keys(_.omit(filters, 'dataset')).sort()) ||
+              !_.every(q.filters, function(queryFilter, queryFilterId) {
+                return _.isEqual(queryFilter.sort(), filters[queryFilterId].sort());
+              });
+          });
+        }
+      },
+
       removeRequest: function(request, type) {
         return $q.when(_removeRequest(request, type))
         .then(function(c){ return c; });
