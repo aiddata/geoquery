@@ -61,6 +61,7 @@ angular.module('aiddataDET')
       /* @TODO: Modify reset so this isn't necessary */
       $scope.filters = queryFactory.filters;
       $scope.options = queryFactory.options;
+      updateCounts();
     }
   });
 
