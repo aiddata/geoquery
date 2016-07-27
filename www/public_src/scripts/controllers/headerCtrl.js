@@ -1,8 +1,21 @@
 angular.module('aiddataDET')
 .controller('HeaderCtrl', function($scope, $rootScope, $log, $stateParams, $state, queryFactory) {
   $scope.currentStep = $state;
-  $scope.activeTab = '';
   $scope.queryLen = 0;
+
+  $scope.tabs = {
+    options:  {
+      cart: { active: false, text: 'View Cart', icon: 'fa-shopping-cart' },
+      help: { active: false, text: 'Help', icon: 'fa-question-circle' },
+      previousRequests: { active: false, text: 'View Past Requests', icon: 'fa-history' }
+    },
+    order: ['cart', 'previousRequests', 'help']
+  };
+
+  $scope.activate = function (tab) {
+    _.each($scope.tabs, function(t) { t.active = false; });
+    tab.active = true;
+  };
 
   $rootScope.$on('query:updated', function(event, data) {
     $scope.queryLen = querySize(data);
