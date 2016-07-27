@@ -19,7 +19,6 @@ angular.module('aiddataDET')
       .clickOutsideToClose(true)
       .title("Welcome to the Data Extraction Tool by AidData!")
       .textContent('Allowing YOU to extend a helping hand...')
-      .ariaLabel('Hello!')
       .ok('Get Started')
     );
   };
