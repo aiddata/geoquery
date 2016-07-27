@@ -16,10 +16,7 @@ angular.module('aiddataDET')
     }
   };
 
-  $rootScope.$on('filters:updated', function(e, data) {
-    updateCounts();
-  });
-
+  $rootScope.$on('filters:updated', updateCounts);
   $rootScope.$on('options:updated', updateCounts);
 
   $rootScope.$on('dataset:selected', function(e, data) {
@@ -64,7 +61,7 @@ angular.module('aiddataDET')
 
     } else {
       $scope.totals = _.pick(queryFactory.filterOptions, ['projects', 'locations']);
-
+      $scope.requestData.canAdd = _.every(_.values($scope.totals));
       $scope.requestData.canReset = _.some(_.omit($scope.filters, 'dataset'), function(d, i) {
         return $scope.dataset.fields[i] && !_.isEqual(d, ['All']);
       });
