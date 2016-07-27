@@ -266,15 +266,19 @@ angular.module('aiddataDET')
       },
 
       updateFilterRange: function(min, max, filter) {
+        console.log(min, max, filter);
         var self = this;
         this.filters[filter] = this.filters[filter] || [];
 
-        if (this.filters[filter].length) {
-          this.filters[filter].splice(0);
-        }
-        _.each(_.range(min, max + 1), function(n) {
-          self.filters[filter].push(n);
+        // if (this.filters[filter].length) {
+        //   this.filters[filter].splice(0);
+        // }
+        this.filters[filter] = _.filter(self.filterOptions.distinct[filter], function(f) {
+          return f >= min && f <= max;
         });
+        // _.each(_.range(min, max + 1), function(n) {
+        //   self.filters[filter].push(n);
+        // });
       },
 
       resetFilterRange: function(filter) {

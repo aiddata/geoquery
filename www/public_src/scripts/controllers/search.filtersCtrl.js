@@ -8,6 +8,7 @@ angular.module('aiddataDET')
   $scope.updateFilters = function () {
     queryFactory.updateFilters()
       .then(function (filterOptions) {
+        console.log(filterOptions);
         $scope.filterOptions = filterOptions;
         broadcastUpdates();
       });
