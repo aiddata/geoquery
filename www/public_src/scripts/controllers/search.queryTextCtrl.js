@@ -6,7 +6,7 @@ angular.module('aiddataDET')
   $scope.totals = {};
   $scope.queryStructure = [];
   $scope.geography = '';
-  $scope.requestData = { name: 'New Request', editing: false, canReset: false };
+  $scope.requestData = { name: 'New Request', editing: false, canReset: false, canAdd: true };
 
   $scope.clearFilters = function () {
     if ($scope.dataset.type === 'release') {
@@ -18,6 +18,7 @@ angular.module('aiddataDET')
 
   $rootScope.$on('filters:updated', updateCounts);
   $rootScope.$on('options:updated', updateCounts);
+  $rootScope.$on('query:updated', updateCounts);
 
   $rootScope.$on('dataset:selected', function(e, data) {
     $scope.dataset = queryFactory.getDataset();
@@ -30,7 +31,7 @@ angular.module('aiddataDET')
         if (!unique) {
           return $q.reject({ message: 'This search is already in your cart'});
         }
-        return queryFactory.generateQuery($scope.dataset.type);
+        return queryFactory.generateQuery($scope.dataset.type, $scope.requestData.name);
       })
       .then(function(query) {
         $rootScope.$broadcast('query:updated', query);
@@ -41,6 +42,7 @@ angular.module('aiddataDET')
       })
       .finally(function(){
         $scope.requestData.canAdd = false;
+        $scope.requestData.name = 'New Request';
       });
   };
 

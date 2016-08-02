@@ -67,7 +67,7 @@ angular.module('aiddataDET')
       return true;
     }
 
-    function defineReleaseData (filters, filterOptions) {
+    function defineReleaseData (filters, filterOptions, queryName) {
       var filterData = _.chain(filterOptions)
         .get('filterTypes')
         .mapKeys()
@@ -77,17 +77,23 @@ angular.module('aiddataDET')
       var datasetData = _.chain(filters)
         .pick('dataset')
         .cloneDeep()
-        .extend({ filters: filterData })
+        .extend({
+          unique_name: queryName,
+          filters: filterData
+        })
         .value();
 
       _query.release_data.push(datasetData);
       return _.cloneDeep(_query);
     }
 
-    function defineRasterData (options, dataset) {
+    function defineRasterData (options, dataset, queryName) {
       var datasetData = _.chain(dataset)
         .pick(['name', 'title', 'base', 'type'])
-        .extend({ temportal_type: _.get(dataset, 'temporal.type') })
+        .extend({
+          unique_name: queryName,
+          temportal_type: _.get(dataset, 'temporal.type')
+        })
         .extend(options)
         .value();
 
@@ -120,15 +126,15 @@ angular.module('aiddataDET')
         files: []
       },
 
-      generateQuery: function (datasetType) {
+      generateQuery: function (datasetType, queryName) {
         // Test that there are projects/locations
         var self = this;
         var addRelease = function () {
-          return defineReleaseData(_.cloneDeep(self.filters), _.cloneDeep(self.filterOptions));
+          return defineReleaseData(_.cloneDeep(self.filters), _.cloneDeep(self.filterOptions), queryName);
         };
         var addRaster = function () {
           var dataset = self.getDataset();
-          return defineRasterData(_.cloneDeep(self.options), _.cloneDeep(dataset));
+          return defineRasterData(_.cloneDeep(self.options), _.cloneDeep(dataset), queryName);
         };
 
         var addFunct = datasetType === 'release' ? addRelease : addRaster;
@@ -138,6 +144,7 @@ angular.module('aiddataDET')
           return query;
         });
       },
+
 
       isUniq: function(dataset, filters, options) {
         if (dataset.type === 'raster') {
