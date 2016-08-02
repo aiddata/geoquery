@@ -14,7 +14,8 @@ angular.module('aiddataDET')
   };
 
   $scope.toggleAll = function (filter) {
-    queryFactory.resetFilter(filter);
+    return $scope.dataset.fields[filter].type === 'list' ?
+      queryFactory.resetFilter(filter) : queryFactory.resetFilterRange(filter);
   };
 
   $scope.removeFilter = function(field) {

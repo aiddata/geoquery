@@ -4,23 +4,23 @@ angular.module('aiddataDET')
   // $scope.filterOptions
   // $scope.activeFilters
 
-  $scope.range = {
-    min: _.min($scope.filterOptions),
-    max: _.max($scope.filterOptions)
-  };
+  var min = _.floor(_.min($scope.filterOptions)),
+      max = _.ceil(_.max($scope.filterOptions));
 
   $scope.sliderOptions = {
-    floor: _.min($scope.filterOptions),
-    ceil: _.max($scope.filterOptions),
+    floor: min,
+    ceil: max,
     onEnd: function() { $scope.updateRange(); }
   };
+
+  $scope.range = { min: min, max: max };
 
   $scope.fields = [
     {
       text: 'min',
       validate: function (val) {
         $scope.range.min = val >= $scope.range.max ? $scope.range.max - 1 :
-          val < _.min($scope.filterOptions) ? _.min($scope.filterOptions) : val;
+          val < $scope.sliderOptions.floor ? $scope.sliderOptions.floor : val;
         $scope.updateRange();
       }
     },
@@ -28,18 +28,28 @@ angular.module('aiddataDET')
       text: 'max',
       validate: function (val) {
         $scope.range.max = val <= $scope.range.min ? $scope.range.min + 1 :
-          val > _.max($scope.filterOptions) ? _.max($scope.filterOptions) : val;
+          val > $scope.sliderOptions.ceil ? $scope.sliderOptions.ceil : val;
         $scope.updateRange();
       }
     }
   ];
 
   $scope.updateRange = function () {
-    if ($scope.range.min === $scope.sliderOptions.floor &&
-      $scope.range.max === $scope.sliderOptions.ceil) {
-      return queryFactory.resetFilterRange($scope.filterData.field);
+    if (
+      $scope.range.min === $scope.sliderOptions.floor &&
+      $scope.range.max === $scope.sliderOptions.ceil
+    ) {
+      queryFactory.resetFilterRange($scope.filterData.field);
+    } else {
+      queryFactory.updateFilterRange($scope.range.min, $scope.range.max, $scope.filterData.field);
     }
-    queryFactory.updateFilterRange($scope.range.min, $scope.range.max, $scope.filterData.field);
   };
+
+  $rootScope.$on('filters:resetRange', function(event, data) {
+    if (data.filterId === $scope.filterData.field) {
+      $scope.range.min = $scope.sliderOptions.floor;
+      $scope.range.max = $scope.sliderOptions.ceil;
+    }
+  });
 
 });

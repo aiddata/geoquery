@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-  .factory('queryFactory', function(ajaxFactory, $log, $q) {
+  .factory('queryFactory', function(ajaxFactory, $log, $q, $rootScope) {
 
     var _datasets = [],            // All Datasets
         _boundaries = {};          // All Boundaries
@@ -286,13 +286,8 @@ angular.module('aiddataDET')
 
       updateFilterRange: function(min, max, filter) {
         var self = this;
-        this.filters[filter] = this.filters[filter] || [];
-
-        if (this.filters[filter].length) {
-          this.filters[filter].splice(0);
-        }
-        _.each(_.range(min, max + 1), function(n) {
-          self.filters[filter].push(n);
+        this.filters[filter] = _.filter(self.filterOptions.distinct[filter], function(f) {
+          return f >= min && f <= max;
         });
       },
 
@@ -303,6 +298,8 @@ angular.module('aiddataDET')
           this.filters[filter].splice(0);
         }
         this.filters[filter].push('All');
+
+        $rootScope.$broadcast('filters:resetRange', { filterId: filter });
       }
     };
   });
