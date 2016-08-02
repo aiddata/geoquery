@@ -139,6 +139,25 @@ angular.module('aiddataDET')
         });
       },
 
+      isUniq: function(dataset, filters, options) {
+        if (dataset.type === 'raster') {
+          var fileNames = _.map(options.files, 'name').sort();
+          return _.every(_query.raster_data, function(q) {
+            return dataset.title !== q.title ||
+              !_.isEqual(q.options.extract_types.sort(), options.options.extract_types.sort()) ||
+              !_.isEqual(_.map(q.files, 'name').sort(), fileNames);
+          });
+        } else {
+          return _.every(_query.release_data, function(q) {
+            return dataset.name !== q.dataset ||
+              !_.isEqual(_.keys(q.filters).sort(), _.keys(_.omit(filters, 'dataset')).sort()) ||
+              !_.every(q.filters, function(queryFilter, queryFilterId) {
+                return _.isEqual(queryFilter.sort(), filters[queryFilterId].sort());
+              });
+          });
+        }
+      },
+
       removeRequest: function(request, type) {
         return $q.when(_removeRequest(request, type))
         .then(function(c){ return c; });
@@ -266,19 +285,10 @@ angular.module('aiddataDET')
       },
 
       updateFilterRange: function(min, max, filter) {
-        console.log('update filter range');
-        console.log(min, max, filter, this.filters[filter]);
         var self = this;
-        // if (this.filters[filter].length) {
-        //   this.filters[filter].splice(0);
-        // }
         this.filters[filter] = _.filter(self.filterOptions.distinct[filter], function(f) {
           return f >= min && f <= max;
         });
-
-        // _.each(_.range(min, max + 1), function(n) {
-        //   self.filters[filter].push(n);
-        // });
       },
 
       resetFilterRange: function(filter) {
