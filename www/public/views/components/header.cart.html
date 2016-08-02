@@ -17,7 +17,7 @@
       <md-button class="md-raised md-accent"
           style="width: 100%"
           ng-disabled="!(queryObj.release_data && queryObj.release_data.length) && !(queryObj.raster_data && queryObj.raster_data.length)"
-          ui-sref="checkout">
+          ng-click="submitQuery()">
         Checkout
       </md-button>
 
@@ -41,7 +41,7 @@
               <i class="fa fa-chevron-right" aria-hidden="true"
                   style="margin-right: 10px;"
                   ng-class="{ 'fa-rotate-90': !hidden }"></i>
-            {{ q.unique_name }}
+            {{ q.custom_name }}
           </a>
 
           <a href="" class="md-secondary md-warn" ng-click="removeQuery(q, type)">

@@ -20,10 +20,12 @@
     <div layout="column" layout-padding layout-align="top">
       <md-input-container>
         <label>e-mail</label>
-        <input ng-model="user.title">
+        <input ng-model="email">
       </md-input-container>
 
-      <md-button md-no-ink class="md-primary">Lookup</md-button>
+      <md-button md-no-ink
+          class="md-primary"
+          ng-click="lookup()">Lookup</md-button>
     </div>
   </md-content>
 

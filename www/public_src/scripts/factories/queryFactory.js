@@ -78,7 +78,7 @@ angular.module('aiddataDET')
         .pick('dataset')
         .cloneDeep()
         .extend({
-          unique_name: queryName,
+          custom_name: queryName,
           filters: filterData
         })
         .value();
@@ -91,7 +91,7 @@ angular.module('aiddataDET')
       var datasetData = _.chain(dataset)
         .pick(['name', 'title', 'base', 'type'])
         .extend({
-          unique_name: queryName,
+          custom_name: queryName,
           temportal_type: _.get(dataset, 'temporal.type')
         })
         .extend(options)
@@ -141,6 +141,7 @@ angular.module('aiddataDET')
 
         return $q.when(addFunct())
         .then(function(query) {
+          console.log(JSON.stringify(query));
           return query;
         });
       },
@@ -163,6 +164,21 @@ angular.module('aiddataDET')
               });
           });
         }
+      },
+
+      submitRequest: function(email) {
+        var query = _.cloneDeep(_query);
+        query.email = email;
+        query.submitTime = Date.now();
+
+        return ajaxFactory.submitRequest(JSON.stringify(query))
+          .then(function(data) {
+            _query.raster_data.splice(0);
+            _query.release_data.splice(0);
+            return data;
+          }, function(err) {
+            console.error(err);
+          });
       },
 
       removeRequest: function(request, type) {

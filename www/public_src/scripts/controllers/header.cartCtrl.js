@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('CartCtrl', function($scope, $rootScope, $log, $stateParams, $state, queryFactory) {
+.controller('CartCtrl', function($scope, $rootScope, $log, $stateParams, $state, queryFactory, ajaxFactory) {
   $scope.queryObj = {};
   $scope.query = '{}';
 
@@ -17,6 +17,16 @@ angular.module('aiddataDET')
     queryFactory.removeRequest(q, type)
       .then(function(query) {
         $rootScope.$broadcast('query:updated', query);
+      });
+  };
+
+  $scope.submitQuery = function () {
+    var email = 'eslivinski@gmail.com';
+    queryFactory.submitRequest(email)
+      .then(function(data) {
+        console.log('It Worked', data);
+      }, function (err) {
+        console.error('It didnt work', data);
       });
   };
 

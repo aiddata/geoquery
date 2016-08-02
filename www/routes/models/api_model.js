@@ -7,7 +7,7 @@ var sendRequest = function (call, data) {
 
   return rp({
     // uri: "http://devlabs.aiddata.wm.edu/DET/search.php",
-     uri: "http://labs.aiddata.wm.edu/DET/search.php",
+    uri: "http://labs.aiddata.wm.edu/DET/search.php",
     method: 'POST',
     json: true,
     form: form
@@ -72,4 +72,28 @@ module.exports.filters = function (req, res) {
   return sendRequest('get_filter_count', { filter: filterData })
     .then(function(response) { res.send(response.data); })
     .catch(function(err) { res.status(500).send(err); });
+};
+
+module.exports.requestLookup = function (req, res) {
+  var searchType = req.body.search_type;
+  var searchVal = req.body.search_val;
+
+  if (!searchType || !searchVal) {
+    return res.status(400).send({ message: 'Must provide a search value and search type' });
+  }
+
+  return sendRequest('get_requests', {
+    search_type: searchType,
+    search_val: searchVal
+  })
+  .then(function(response) { res.send(response.data); })
+  .catch(function(err) { res.status(500).send(err); });
+};
+
+module.exports.submitRequest = function (req, res) {
+  var query = req.body.query;
+
+  return sendRequest('add_request', { request: query })
+  .then(function(response) { res.send(response); })
+  .catch(function(err) { res.status(500).send(err); });
 };

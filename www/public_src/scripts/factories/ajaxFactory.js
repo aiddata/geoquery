@@ -18,6 +18,14 @@ angular.module('aiddataDET')
       filters: function (filterData, boundaryId) {
         var data = _.extend(_.cloneDeep(filterData), { boundaryId: boundaryId });
         return $http.post('/api/filters', data);
+      },
+
+      requests: function (email) {
+        return $http.post('/api/requests', { search_type: 'email', search_val: email });
+      },
+
+      submitRequest: function (query) {
+        return $http.post('/api/submit', { query: query });
       }
     };
   });
