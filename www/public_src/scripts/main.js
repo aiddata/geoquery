@@ -147,8 +147,31 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     templateUrl: 'views/pages/checkout.html'
   })
   .state('status', {
-    url: '/status',
-    templateUrl: 'views/pages/status.html'
+    url: '/status/:id',
+    templateUrl: 'views/pages/status.html',
+    resolve: {
+      request: function(ajaxFactory, $stateParams) {
+        return ajaxFactory.requests('id', $stateParams.id)
+          .then(function(results) {
+            return results.data[0];
+          });
+      },
+      datasets: function(ajaxFactory, request) {
+        return ajaxFactory.datasets(request.boundary.group)
+          .then(function(results) { return results.data; });
+      }
+    },
+    controller: function($stateParams, $scope, request, datasets) {
+      $scope.id = $stateParams.id;
+      $scope.request = request;
+
+      $scope.getDataset = function (query) {
+        console.log(request);
+        var name = query.dataset || query.name;
+
+        return _.find(datasets, {name : name });
+      };
+    }
   });
 
 });

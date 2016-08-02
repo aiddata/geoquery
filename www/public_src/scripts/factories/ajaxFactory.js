@@ -20,8 +20,8 @@ angular.module('aiddataDET')
         return $http.post('/api/filters', data);
       },
 
-      requests: function (email) {
-        return $http.post('/api/requests', { search_type: 'email', search_val: email });
+      requests: function (searchType, searchVal) {
+        return $http.post('/api/requests', { search_type: searchType, search_val: searchVal });
       },
 
       submitRequest: function (query) {
