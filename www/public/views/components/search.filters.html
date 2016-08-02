@@ -80,6 +80,7 @@
           active-filters="filters[filter]"></search-filters-list>
 
       <search-filters-range
+          ng-if="filterOptions.distinct[filter]"
           ng-switch-when="slider"
           filter-data="dataset.fields[filter]"
           filter-options="filterOptions.distinct[filter]"

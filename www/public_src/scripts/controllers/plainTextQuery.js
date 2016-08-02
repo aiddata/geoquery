@@ -20,12 +20,11 @@ angular.module('aiddataDET')
 
     } else {
       _.each($scope.filters, function(filterValue, filterId) {
-        console.log($scope.filters[filterId]);
         /* TODO: Stop storing dataset as filter */
         if (filterId !== 'dataset') {
           var filterObj = {
-            value: $scope.dataset.fields[filterId].filter_type === 'slider' && !_.isEqual($scope.filters[filterId], ['All']) ?
-              [_.floor(_.min($scope.filters[filterId]).toString()) + ' - ' + _.ceil(_.max($scope.filters[filterId]).toString())] :
+            value: $scope.dataset.fields[filterId].filter_type === 'slider' &&
+              !_.isEqual($scope.filters[filterId], ['All']) ? getRange(filterId) :
               _.filter($scope.filters[filterId], function(d) { return d !== 'All'; }),
             pre: $scope.dataset.fields[filterId].display + ' = ',
             optional: true,
@@ -40,9 +39,18 @@ angular.module('aiddataDET')
   }
 
   $scope.removeFilter = function(filter, option) {
-    return $scope.dataset.type === 'release' ? queryFactory.toggleFilterOff(filter, option) :
-      queryFactory.toggleOptionOff(filter, option);
+    return $scope.dataset.type !== 'release' ? queryFactory.toggleOptionOff(filter, option) :
+      $scope.dataset.fields[filter].type === 'list' ? queryFactory.toggleFilterOff(filter, option) :
+      queryFactory.resetFilterRange(filter);
   };
+
+  function getRange(filterId) {
+    return [
+      _.chain($scope.filters[filterId]).min().floor().value().toString() +
+      ' - ' +
+      _.chain($scope.filters[filterId]).max().ceil().value().toString()
+    ];
+  }
 
   function init () {
     $scope.queryStructure = updateQueryStructure();

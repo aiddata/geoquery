@@ -8,14 +8,14 @@ angular.module('aiddataDET')
   $scope.updateFilters = function () {
     queryFactory.updateFilters()
       .then(function (filterOptions) {
-        console.log(filterOptions);
         $scope.filterOptions = filterOptions;
         broadcastUpdates();
       });
   };
 
   $scope.toggleAll = function (filter) {
-    queryFactory.resetFilter(filter);
+    return $scope.dataset.fields[filter].type === 'list' ?
+      queryFactory.resetFilter(filter) : queryFactory.resetFilterRange(filter);
   };
 
   $scope.removeFilter = function(field) {
