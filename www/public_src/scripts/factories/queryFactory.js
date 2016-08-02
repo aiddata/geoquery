@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-  .factory('queryFactory', function(ajaxFactory, $log, $q, $rootScope) {
+  .factory('queryFactory', function(ajaxFactory, $log, $q) {
 
     var _datasets = [],            // All Datasets
         _boundaries = {};          // All Boundaries
@@ -67,7 +67,7 @@ angular.module('aiddataDET')
       return true;
     }
 
-    function defineReleaseData (filters, filterOptions) {
+    function defineReleaseData (filters, filterOptions, queryName) {
       var filterData = _.chain(filterOptions)
         .get('filterTypes')
         .mapKeys()
@@ -77,17 +77,23 @@ angular.module('aiddataDET')
       var datasetData = _.chain(filters)
         .pick('dataset')
         .cloneDeep()
-        .extend({ filters: filterData })
+        .extend({
+          unique_name: queryName,
+          filters: filterData
+        })
         .value();
 
       _query.release_data.push(datasetData);
       return _.cloneDeep(_query);
     }
 
-    function defineRasterData (options, dataset) {
+    function defineRasterData (options, dataset, queryName) {
       var datasetData = _.chain(dataset)
         .pick(['name', 'title', 'base', 'type'])
-        .extend({ temportal_type: _.get(dataset, 'temporal.type') })
+        .extend({
+          unique_name: queryName,
+          temportal_type: _.get(dataset, 'temporal.type')
+        })
         .extend(options)
         .value();
 
@@ -120,21 +126,22 @@ angular.module('aiddataDET')
         files: []
       },
 
-      generateQuery: function (datasetType) {
+      generateQuery: function (datasetType, queryName) {
         // Test that there are projects/locations
         var self = this;
         var addRelease = function () {
-          return defineReleaseData(_.cloneDeep(self.filters), _.cloneDeep(self.filterOptions));
+          return defineReleaseData(_.cloneDeep(self.filters), _.cloneDeep(self.filterOptions), queryName);
         };
         var addRaster = function () {
           var dataset = self.getDataset();
-          return defineRasterData(_.cloneDeep(self.options), _.cloneDeep(dataset));
+          return defineRasterData(_.cloneDeep(self.options), _.cloneDeep(dataset), queryName);
         };
 
         var addFunct = datasetType === 'release' ? addRelease : addRaster;
 
         return $q.when(addFunct())
         .then(function(query) {
+          console.log(query);
           return query;
         });
       },
@@ -286,8 +293,13 @@ angular.module('aiddataDET')
 
       updateFilterRange: function(min, max, filter) {
         var self = this;
-        this.filters[filter] = _.filter(self.filterOptions.distinct[filter], function(f) {
-          return f >= min && f <= max;
+        this.filters[filter] = this.filters[filter] || [];
+
+        if (this.filters[filter].length) {
+          this.filters[filter].splice(0);
+        }
+        _.each(_.range(min, max + 1), function(n) {
+          self.filters[filter].push(n);
         });
       },
 
@@ -298,8 +310,6 @@ angular.module('aiddataDET')
           this.filters[filter].splice(0);
         }
         this.filters[filter].push('All');
-
-        $rootScope.$broadcast('filters:resetRange', { filterId: filter });
       }
     };
   });
