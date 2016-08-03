@@ -1,0 +1,51 @@
+{{ queryObj }}
+
+<div ng-repeat="(type, queries) in { release_data: queryObj.release_data, raster_data: queryObj.raster_data }">
+  <md-card ng-repeat="q in queries"
+      ng-init="dataset = datasetDetails(q); hidden= true;">
+
+    <md-card-header>
+
+      <md-input-container class="md-icon-float condensed no-label" md-no-float>
+        <md-icon>
+          <md-tooltip md-delay="500" md-direction="top"> Rename this Request </md-tooltip>
+          <i class="fa fa-pencil-square-o " aria-hidden="true"></i>
+        </md-icon>
+
+        <input ng-model="q.custom_name" placeholder="Request Name">
+      </md-input-container>
+
+      <span flex></span>
+
+      <a href="" class="md-primary" ng-click="hidden=!hidden;">
+          <i class="fa fa-chevron-right" aria-hidden="true"
+              ng-class="{ 'fa-rotate-90': !hidden }"></i>
+      </a>
+
+      <a href="" class="md-secondary md-warn" ng-click="removeQuery(q, type)">
+        <i class="fa fa-minus-circle fa-lg" aria-hidden="true"></i>
+      </a>
+
+    </md-card-header>
+
+
+    <md-card-content uib-collapse="hidden" layout-padding>
+
+      <plain-text-query
+          ng-if="!hidden"
+          query-dataset="dataset"
+          query-geography="queryObj.boundary.title"
+          query-filters="q.filters"
+          query-options="q"
+          query-editable="false"></plain-text-query>
+
+    </md-card-content>
+
+  </md-card>
+</div>
+
+<md-card>
+  <md-card-header>
+    <a href="" class="md-title" ng-click="addRequest()">Add Another Request </a>
+  </md-card-header>
+</md-card>

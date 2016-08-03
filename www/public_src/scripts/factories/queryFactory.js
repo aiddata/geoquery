@@ -146,6 +146,9 @@ angular.module('aiddataDET')
         });
       },
 
+      getQuery: function () {
+        return _query;
+      },
 
       isUniq: function(dataset, filters, options) {
         if (dataset.type === 'raster') {

@@ -1,11 +1,9 @@
 angular.module('aiddataDET')
 .controller('CartCtrl', function($scope, $rootScope, $log, $stateParams, $state, queryFactory, ajaxFactory) {
   $scope.queryObj = {};
-  $scope.query = '{}';
 
   $rootScope.$on('query:updated', function(event, data) {
     $scope.queryObj = data;
-    $scope.query = JSON.stringify(data, null, 4);
   });
 
   $scope.datasetDetails = function (q) {
@@ -21,13 +19,14 @@ angular.module('aiddataDET')
   };
 
   $scope.submitQuery = function () {
-    var email = 'eslivinski@gmail.com';
-    queryFactory.submitRequest(email)
-      .then(function(data) {
-        console.log('It Worked', data);
-      }, function (err) {
-        console.error('It didnt work', data);
-      });
+    // var email = 'eslivinski@gmail.com';
+    $state.go('checkout');
+    // queryFactory.submitRequest(email)
+    //   .then(function(data) {
+    //     console.log('It Worked', data);
+    //   }, function (err) {
+    //     console.error('It didnt work', data);
+    //   });
   };
 
 });

@@ -18,8 +18,6 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
       .warnPalette('deep-orange')
       .backgroundPalette('grey');
 
-  var spinner;
-
   /* Routing and State Management */
   $urlRouterProvider.otherwise('/');
 
@@ -146,11 +144,45 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
   })
   .state('checkout', {
     url: '/checkout',
-    templateUrl: 'views/pages/checkout.html'
+    resolve: {
+      query: function($state, $stateParams, $timeout, $q, queryFactory) {
+        var boundary = queryFactory.getBoundary(),
+            subboundary = queryFactory.getSubBoundary();
+
+        if (!boundary.boundaryId || !subboundary.name) {
+          return $timeout(function() {
+            $state.go('search', {
+              boundary: 'cod_gadm28',
+              subboundary: 'cod_adm2_gadm28'
+            });
+          });
+          // return $timeout(function() { $state.go('map'); });
+        }
+
+        if (!queryFactory.querySize()) {
+          return $timeout(function() {
+            $state.go('search', {
+              boundary: boundary.boundaryId,
+              subboundary: subboundary.name
+            });
+          });
+        }
+
+        return true;
+      }
+    },
+    views: {
+      '': {
+        templateUrl: 'views/pages/checkout.html'
+      },
+      'requests@checkout': {
+        templateUrl: 'views/components/checkout.requests.html',
+        controller: 'RequestsCtrl'
+      }
+    }
   })
   .state('status', {
     url: '/status/:id',
-    templateUrl: 'views/pages/status.html',
     resolve: {
       request: function(ajaxFactory, $stateParams) {
         return ajaxFactory.requests('id', $stateParams.id)
@@ -161,6 +193,11 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
       datasets: function(ajaxFactory, request) {
         return ajaxFactory.datasets(request.boundary.group)
           .then(function(results) { return results.data; });
+      }
+    },
+    views: {
+      '': {
+        templateUrl: 'views/pages/status.html'
       }
     },
     controller: function($stateParams, $scope, request, datasets) {

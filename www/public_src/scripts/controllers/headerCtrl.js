@@ -23,17 +23,15 @@ angular.module('aiddataDET')
 
   $rootScope.$on('$stateChangeStart', function(event, toState, toParams, fromState, fromParams, options) {
     spinFactory.start();
-    $log.debug(event, toState, toParams, fromState, fromParams, options);
   });
 
   $rootScope.$on('$stateChangeError', function(event, toState, toParams, fromState, fromParams, error) {
+    console.log(event, toState, toParams, fromState, fromParams, error);
     spinFactory.stop();
-    $log.error(event, toState, toParams, fromState, fromParams, error);
   });
 
   $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
     spinFactory.stop();
-    $scope.currentStep = toState;
   });
 
 });
