@@ -25,7 +25,6 @@ angular.module('aiddataDET')
   };
 
   $scope.addRequest = function () {
-    console.log('queryFactory.getBoundary()');
     $state.go('search', {
       boundary: queryFactory.getBoundary().boundaryId,
       subboundary: queryFactory.getSubBoundary().name

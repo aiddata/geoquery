@@ -23,10 +23,10 @@ angular.module('aiddataDET')
         /* TODO: Stop storing dataset as filter */
         if (filterId !== 'dataset') {
           var filterObj = {
-            value: $scope.dataset.fields[filterId].filter_type === 'slider' &&
+            value: _.get($scope.dataset, ['fields', filterId, 'filter_type']) === 'slider' &&
               !_.isEqual($scope.filters[filterId], ['All']) ? getRange(filterId) :
               _.filter($scope.filters[filterId], function(d) { return d !== 'All'; }),
-            pre: $scope.dataset.fields[filterId].display + ' = ',
+            pre: _.get($scope.dataset, ['fields', filterId, 'display']) + ' = ',
             optional: true,
             key: filterId
           };

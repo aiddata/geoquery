@@ -1,10 +1,9 @@
-{{ queryObj }}
-
 <div ng-repeat="(type, queries) in { release_data: queryObj.release_data, raster_data: queryObj.raster_data }">
   <md-card ng-repeat="q in queries"
-      ng-init="dataset = datasetDetails(q); hidden= true;">
+      class="md-margin"
+      ng-init="dataset = datasetDetails(q); hidden= false;">
 
-    <md-card-header>
+    <md-card-header layout-align="center center">
 
       <md-input-container class="md-icon-float condensed no-label" md-no-float>
         <md-icon>
@@ -17,19 +16,21 @@
 
       <span flex></span>
 
-      <a href="" class="md-primary" ng-click="hidden=!hidden;">
+      <md-button class="md-primary" ng-click="hidden=!hidden;" style="margin: 0 5px;">
+          Details
           <i class="fa fa-chevron-right" aria-hidden="true"
               ng-class="{ 'fa-rotate-90': !hidden }"></i>
-      </a>
+      </md-button>
 
-      <a href="" class="md-secondary md-warn" ng-click="removeQuery(q, type)">
+      <md-button class="md-secondary md-warn" ng-click="removeQuery(q, type)" style="margin: 0 5px;">
         <i class="fa fa-minus-circle fa-lg" aria-hidden="true"></i>
-      </a>
+        Remove
+      </md-button>
 
     </md-card-header>
 
 
-    <md-card-content uib-collapse="hidden" layout-padding>
+    <md-content uib-collapse="hidden" layout-padding style="padding: 16px; border-top: 1px solid #eee;">
 
       <plain-text-query
           ng-if="!hidden"
@@ -39,13 +40,21 @@
           query-options="q"
           query-editable="false"></plain-text-query>
 
-    </md-card-content>
+    </md-content>
 
   </md-card>
 </div>
 
-<md-card>
-  <md-card-header>
-    <a href="" class="md-title" ng-click="addRequest()">Add Another Request </a>
-  </md-card-header>
+<md-card layout-padding>
+  <md-button md-no-ink
+      style="width: auto"
+      class="md-primary"
+      ng-click="addRequest()">
+
+    <md-tooltip md-delay="500" md-direction="top"> Add to Your Cart </md-tooltip>
+
+    Add Another Request
+    <i class="fa fa-plus" aria-hidden="true"></i>
+  </md-button>
+
 </md-card>
