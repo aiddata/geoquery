@@ -1,4 +1,9 @@
 <div layout="row" class="full-height">
-  <div layout="column" flex="100" ui-view="requests" class="md-padding">
-  </div>
+  <md-content layout="column" flex="33" ui-view="details"> </md-content>
+  <div layout="column"
+      flex="66"
+      class="full-height"
+      id="checkoutRequests"
+      ui-view="requests">
+    </div>
 </div>

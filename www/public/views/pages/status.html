@@ -1,6 +1,4 @@
 <md-content class="full-height" flex layout-padding>
-  <h1> This is where the user will check the status of their request </h1>
-
    <div ng-repeat="(type, queries) in { release_data: request.release_data, raster_data: request.raster_data }">
      <div ng-repeat="q in queries"
         ng-init="dataset = getDataset(q)">
