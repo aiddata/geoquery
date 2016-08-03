@@ -1,6 +1,10 @@
 angular.module('aiddataDET')
 .controller('RequestsCtrl', function($scope, $rootScope, $log, $stateParams, $state, queryFactory) {
   $scope.queryObj = queryFactory.getQuery();
+  $scope.queryData = {
+    email: '',
+    custom_name: 'Unamed Request'
+  };
 
   $scope.datasetDetails = function (q) {
     var datasetName = q.dataset || q.name;
@@ -15,8 +19,7 @@ angular.module('aiddataDET')
   };
 
   $scope.submitQuery = function () {
-    var email = 'eslivinski@gmail.com';
-    queryFactory.submitRequest(email)
+    queryFactory.submitRequest($scope.queryData.email)
       .then(function(data) {
         console.log('It Worked', data);
       }, function (err) {
