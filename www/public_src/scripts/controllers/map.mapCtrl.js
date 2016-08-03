@@ -4,11 +4,6 @@ angular.module('aiddataDET')
 
   $scope.$on('$viewContentLoaded', function(event) {
     mapFactory.provision();
-
-    $timeout(function() {
-      mapFactory.refreshSize();
-    });
-
     showAlert();
   });
 
@@ -21,7 +16,7 @@ angular.module('aiddataDET')
       .textContent('Allowing YOU to extend a helping hand...')
       .ok('Get Started')
     );
-  };
+  }
 
   $scope.$on('mapOverlay:remove', function() {
     $scope.showOverlay = false;
