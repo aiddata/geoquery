@@ -14,7 +14,8 @@ angular.module('aiddataDET')
   };
 
   $scope.viewStatus = function (id) {
-    $state.go('status', { 'id': id });
+    var url = $state.href('status', { 'id': id });
+    window.open(url, '_blank');
   };
 
 });

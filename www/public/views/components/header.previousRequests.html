@@ -19,7 +19,8 @@
   <md-content md-padding flex>
     <div ng-if="!requests.length">
       <div layout="column" layout-padding layout-align="top">
-        <md-input-container>
+
+        <md-input-container class="condensed">
           <label>e-mail</label>
           <input ng-model="email">
         </md-input-container>
@@ -38,26 +39,19 @@
       </md-button>
 
       <md-divider></md-divider>
-
-    <div ng-repeat="req in requests"
-        ng-init="showDetails = false; req.raster_data = req.raster_data || []; req.release_data = req.release_data || [];">
-      <a href="" ng-click="viewStatus(req._id.$id)">
-        {{ req._id.$id }} {{ req.raster_data.length + req.release_data.length }}
-      </a>
-      <div uib-collapse="!showDetails">
-        <div ng-repeat="(type, query) in { release_data: req.release_data, raster_data: req.raster_data }">
-          <div ng-repeat="q in query" ng-init="showQueryDetails = false;">
-            <a href="" ng-click="showQueryDetails = !showQueryDetails"> {{ q.custom_name || 'Untitled Request' }} </a>
-            <em><small> {{ q.title || q.dataset}} <small></em>
-            <div uib-collapse="!showQueryDetails"> {{ q }} </div>
-
-          </div>
-        </div>
-      </div>
-
-    </div>
-
     </div>
   </md-content>
+
+  <md-list ng-if="requests.length">
+    <md-list-item 
+        ng-repeat="req in requests"
+        ng-click="viewStatus(req._id.$id)">
+
+      {{ req._id.$id }}
+      <span flex></span>
+      <i class="fa fa-external-link-square" aria-hidden="true"></i>
+
+    </md-list-item>
+  </md-list>
 
 </md-sidenav>

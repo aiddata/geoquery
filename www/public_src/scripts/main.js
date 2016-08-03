@@ -197,19 +197,19 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     },
     views: {
       '': {
-        templateUrl: 'views/pages/status.html'
+        templateUrl: 'views/pages/status.html',
+        controller: function($stateParams, $scope, request, datasets) {
+          $scope.id = $stateParams.id;
+          $scope.request = request;
+
+          $scope.getDataset = function (query) {
+            console.log(request);
+            var name = query.dataset || query.name;
+
+            return _.find(datasets, {name : name });
+          };
+        }
       }
-    },
-    controller: function($stateParams, $scope, request, datasets) {
-      $scope.id = $stateParams.id;
-      $scope.request = request;
-
-      $scope.getDataset = function (query) {
-        console.log(request);
-        var name = query.dataset || query.name;
-
-        return _.find(datasets, {name : name });
-      };
     }
   });
 
