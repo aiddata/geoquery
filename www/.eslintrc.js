@@ -10,7 +10,8 @@ module.exports = {
     "L": true,
     "angular": true,
     "_": true,
-    "d3": true
+    "d3": true,
+    "Spinner": true
   },
   "plugins": [
     "html",

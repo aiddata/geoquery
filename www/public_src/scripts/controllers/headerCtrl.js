@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('HeaderCtrl', function($scope, $rootScope, $log, $stateParams, $state, queryFactory) {
+.controller('HeaderCtrl', function($scope, $rootScope, $log, $stateParams, $state, queryFactory, spinFactory) {
   $scope.currentStep = $state;
   $scope.queryLen = 0;
 
@@ -18,24 +18,22 @@ angular.module('aiddataDET')
   };
 
   $rootScope.$on('query:updated', function(event, data) {
-    $scope.queryLen = querySize(data);
+    $scope.queryLen = queryFactory.querySize();
+  });
+
+  $rootScope.$on('$stateChangeStart', function(event, toState, toParams, fromState, fromParams, options) {
+    spinFactory.start();
+    $log.debug(event, toState, toParams, fromState, fromParams, options);
+  });
+
+  $rootScope.$on('$stateChangeError', function(event, toState, toParams, fromState, fromParams, error) {
+    spinFactory.stop();
+    $log.error(event, toState, toParams, fromState, fromParams, error);
   });
 
   $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
+    spinFactory.stop();
     $scope.currentStep = toState;
   });
-
-  function querySize (query) {
-    return _.chain(query.raster_data)
-      .map(function(d) {
-        var fileSize = _.size(_.get(d, 'files')),
-            extractSize = _.size(_.get(d, 'options.extract_types'));
-
-        return fileSize * extractSize;
-      })
-      .sum()
-      .add(_.size(_.get(query, 'release_data')))
-      .value();
-  }
 
 });

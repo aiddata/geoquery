@@ -18,6 +18,8 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
       .warnPalette('deep-orange')
       .backgroundPalette('grey');
 
+  var spinner;
+
   /* Routing and State Management */
   $urlRouterProvider.otherwise('/');
 

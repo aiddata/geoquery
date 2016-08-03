@@ -186,6 +186,19 @@ angular.module('aiddataDET')
         .then(function(c){ return c; });
       },
 
+      querySize: function () {
+        return _.chain(_query.raster_data)
+          .map(function(d) {
+            var fileSize = _.size(_.get(d, 'files')),
+                extractSize = _.size(_.get(d, 'options.extract_types'));
+
+            return fileSize * extractSize;
+          })
+          .sum()
+          .add(_.size(_.get(_query, 'release_data')))
+          .value();
+      },
+
       getBoundaries: function () {
         return $q.when(retrieveBoundaries())
           .then(function(boundaries) {
