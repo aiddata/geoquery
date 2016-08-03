@@ -13,7 +13,6 @@ angular.module('aiddataDET')
   };
 
   $scope.selectedItemChange = function (item) {
-    console.log(item);
     if (!item) {
       $scope.subBoundaries.splice(0);
       $scope.formData.boundary = undefined;
