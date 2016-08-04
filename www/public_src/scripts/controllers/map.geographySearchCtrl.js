@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('GeographySearchCtrl', function($scope, $rootScope, $log, $state, mapFactory, boundaries) {
+.controller('GeographySearchCtrl', function($scope, $rootScope, $timeout, $log, $state, mapFactory, boundaries) {
   $scope.boundaries = [];
   $scope.subBoundaries = [];
   $scope.formData = {};
@@ -28,9 +28,17 @@ angular.module('aiddataDET')
     $scope.formData.subboundary = $scope.formData.subboundary || $scope.subBoundaries[0].name;
   };
 
-  $scope.selectFromFeatured = function(boundaryName) {
-    $scope.formData.searchText = boundaryName;
+  $scope.selectFromFeatured = function(item) {
     $scope.showFeaturedSearches = false;
+    $scope.subBoundaries.splice(0);
+    $scope.formData.boundary = undefined;
+    $scope.formData.subboundary = undefined;
+
+    $scope.formData.searchText = item.name;
+    $timeout(function () {
+      $scope.selectedItemChange(item);
+    });
+
   };
 
   $scope.$watch('formData.subboundary', function (newValue) {

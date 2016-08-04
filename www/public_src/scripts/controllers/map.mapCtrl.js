@@ -4,11 +4,6 @@ angular.module('aiddataDET')
 
   $scope.$on('$viewContentLoaded', function(event) {
     mapFactory.provision(document.querySelector('.map.searchMap'));
-
-    $timeout(function() {
-      mapFactory.refreshSize();
-    });
-
     showAlert();
   });
 

@@ -4,6 +4,11 @@ angular.module('aiddataDET')
   var map = {};
   var mapboxToken = 'pk.eyJ1IjoiZXNsaXZpbnNraWNhcnRvIiwiYSI6IjRWenpDcmMifQ.IU9qcKhUf_w-lTQQ-I7DIg';
 
+  var defaultView = {
+    zoom: 2,
+    center: [0, 0]
+  };
+
   var boundaries = {};
   var boundaryGroup = {};
 
@@ -31,6 +36,7 @@ angular.module('aiddataDET')
       var basemap = L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/emerald-v8/tiles/{z}/{x}/{y}?access_token=' + mapboxToken, {
         attribution: '© <a href="https://www.mapbox.com/map-feedback/">Mapbox</a> © <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       });
+      basemap.once('load', function() { map.invalidateSize().resetView(); });
 
       /* Boundary Group */
       boundaryGroup = L.featureGroup()
@@ -46,9 +52,7 @@ angular.module('aiddataDET')
       /* Map */
       map = L.map(element, {
         zoomControl: false,
-        layers: [basemap, boundaryGroup],
-        zoom: 2,
-        center: [0, 0],
+        layers: [ basemap, boundaryGroup ],
         doubleClickZoom: false,
         zoomAnimation: true,
         zoomAnimationThreshold: 20,
@@ -56,10 +60,10 @@ angular.module('aiddataDET')
         dragging: !locked,
         boxZoom: !locked
       });
-    },
 
-    refreshSize: function () {
-      map.invalidateSize();
+      map.resetView = function() { this.setView(defaultView.center, defaultView.zoom); };
+      map.resetView();
+
     },
 
     zoomIn: function() {
@@ -72,7 +76,7 @@ angular.module('aiddataDET')
 
     resetView: function() {
       $rootScope.$broadcast('mapOverlay:add');
-      map.setView([0, 0], 2);
+      map.resetView();
     },
 
     startSpin: function() {
