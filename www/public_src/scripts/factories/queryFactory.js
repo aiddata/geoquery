@@ -345,6 +345,13 @@ angular.module('aiddataDET')
         this.filters[filter].push('All');
 
         $rootScope.$broadcast('filters:resetRange', { filterId: filter });
+      },
+
+      getTimeStamp: function (date, format) {
+        var timeFormatter = d3.timeFormat('%b %d, %Y');
+        var timeParser = d3.timeParse(format),
+            formDate = timeFormatter(timeParser(date));
+        return formDate;
       }
     };
   });

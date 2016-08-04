@@ -2,6 +2,9 @@
    <div ng-repeat="(type, queries) in { release_data: request.release_data, raster_data: request.raster_data }">
      <div ng-repeat="q in queries"
         ng-init="dataset = getDataset(q)">
+
+        {{ q.custom_name ? q.custom_name : 'Unamed Request ' + q.name }}
+
        <plain-text-query
          ng-if="!hidden"
          query-dataset="dataset"
