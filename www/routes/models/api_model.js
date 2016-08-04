@@ -94,6 +94,6 @@ module.exports.submitRequest = function (req, res) {
   var query = req.body.query;
 
   return sendRequest('add_request', { request: query })
-  .then(function(response) { res.send(response); })
+  .then(function(response) { res.send(response.data); })
   .catch(function(err) { res.status(500).send(err); });
 };

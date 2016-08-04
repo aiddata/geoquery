@@ -26,7 +26,7 @@ angular.module('aiddataDET')
   }
 
   return {
-    provision: function() {
+    provision: function(element, locked) {
       /* Basemap */
       var basemap = L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/emerald-v8/tiles/{z}/{x}/{y}?access_token=' + mapboxToken, {
         attribution: '© <a href="https://www.mapbox.com/map-feedback/">Mapbox</a> © <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -44,7 +44,7 @@ angular.module('aiddataDET')
         });
 
       /* Map */
-      map = L.map('map', {
+      map = L.map(element, {
         zoomControl: false,
         layers: [basemap, boundaryGroup],
         zoom: 2,
@@ -52,7 +52,9 @@ angular.module('aiddataDET')
         doubleClickZoom: false,
         zoomAnimation: true,
         zoomAnimationThreshold: 20,
-        trackResize: true
+        trackResize: true,
+        dragging: !locked,
+        boxZoom: !locked
       });
     },
 

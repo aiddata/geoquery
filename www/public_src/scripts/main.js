@@ -41,7 +41,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
         controller: 'ZoomControlsCtrl'
       },
       'map@map': {
-        template: '<div id="map" ng-class="{\'overlay\': showOverlay }" class="searchMap"></div>',
+        template: '<div ng-class="{\'overlay\': showOverlay }" class="map searchMap"></div>',
         controller: 'MapCtrl'
       }
     }
@@ -145,48 +145,42 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
   .state('checkout', {
     url: '/checkout',
     resolve: {
-      boundaries: function($log, $state, queryFactory) {
-        return queryFactory.getBoundaries();
-      },
-      boundary: function($log, $stateParams, queryFactory, boundaries) {
-        $log.info('boundaries:', boundaries);
-        return queryFactory.setBoundary('cod_gadm28', 'cod_adm2_gadm28');
-      },
-      datasets: function($log, $state, $stateParams, queryFactory, boundary) {
-        $log.info('boundary:', boundary);
-        return queryFactory.getDatasets('cod_gadm28')
-          .then(function(data) { return data; })
-          .catch(function() { return $state.go('map'); });
-      },
-      dataset: function($log, datasets, queryFactory) {
-        $log.info('options:', datasets);
-        return queryFactory.setDataset('drc-aims_geocodedresearchrelease_level1_v1_3');
-      }
-      // query: function($state, $stateParams, $timeout, $q, queryFactory) {
-        // var boundary = queryFactory.getBoundary(),
-        //     subboundary = queryFactory.getSubBoundary();
-        //
-        // if (!boundary.boundaryId || !subboundary.name) {
-        //   return $timeout(function() {
-        //     $state.go('search', {
-        //       boundary: 'cod_gadm28',
-        //       subboundary: 'cod_adm2_gadm28'
-        //     });
-        //   });
-        //   // return $timeout(function() { $state.go('map'); });
-        // }
-        //
-        // if (!queryFactory.querySize()) {
-        //   return $timeout(function() {
-        //     $state.go('search', {
-        //       boundary: boundary.boundaryId,
-        //       subboundary: subboundary.name
-        //     });
-        //   });
-        // }
-
-      //   return true;
+      // boundaries: function($log, $state, queryFactory) {
+      //   return queryFactory.getBoundaries();
+      // },
+      // boundary: function($log, $stateParams, queryFactory, boundaries) {
+      //   $log.info('boundaries:', boundaries);
+      //   return queryFactory.setBoundary('cod_gadm28', 'cod_adm2_gadm28');
+      // },
+      // datasets: function($log, $state, $stateParams, queryFactory, boundary) {
+      //   $log.info('boundary:', boundary);
+      //   return queryFactory.getDatasets('cod_gadm28')
+      //     .then(function(data) { return data; })
+      //     .catch(function() { return $state.go('map'); });
+      // },
+      // dataset: function($log, datasets, queryFactory) {
+      //   $log.info('options:', datasets);
+      //   return queryFactory.setDataset('drc-aims_geocodedresearchrelease_level1_v1_3');
       // }
+      query: function($state, $stateParams, $timeout, $q, queryFactory) {
+        var boundary = queryFactory.getBoundary(),
+            subboundary = queryFactory.getSubBoundary();
+
+        if (!boundary.boundaryId || !subboundary.name) {
+          return $timeout(function() { $state.go('map'); });
+        }
+
+        if (!queryFactory.querySize()) {
+          return $timeout(function() {
+            $state.go('search', {
+              boundary: boundary.boundaryId,
+              subboundary: subboundary.name
+            });
+          });
+        }
+
+        return true;
+      }
     },
     views: {
       '': {

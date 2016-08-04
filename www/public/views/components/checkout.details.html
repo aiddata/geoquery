@@ -1,46 +1,79 @@
-<!-- <md-toolbar class="md-hue-2" >
-  <div class="md-toolbar-tools">
-    <md-input-container class="md-icon-float condensed no-label md-block md-light" md-no-float>
-      <md-icon>
-        <md-tooltip md-delay="500" md-direction="top"> Rename this Request </md-tooltip>
-        <i class="fa fa-pencil-square-o " aria-hidden="true"></i>
-      </md-icon>
-      <input ng-model="requestData.custom_name" placeholder="Request Name">
+<h5 class="md-title md-padding">Review And Submit</h5>
+
+<md-divider></md-divider>
+
+<div layout="row"
+    layout-align="space-between stretch"
+    flex="40"
+    layout-margin>
+
+  <form name="checkoutForm" layout="column">
+    <md-input-container>
+      <input ng-model="queryData.custom_name"
+          type="text"
+          name="requestName"
+          placeholder="Request Name"
+          required>
+
     </md-input-container>
-  </div>
-</md-toolbar> -->
 
 
-<div id="termsConditions" flex="15" class="md-margin md-padding">
-    <strong> Terms and Conditions </strong>
-    <p>Four dollar toast tattooed 3 wolf moon small batch sriracha biodiesel, tote bag beard gochujang fingerstache yr fashion axe kickstarter lo-fi. Crucifix tote bag four dollar toast, hoodie photo booth williamsburg schlitz selfies chillwave paleo fap cold-pressed authentic PBR&B. Direct trade swag normcore, salvia sartorial biodiesel farm-to-table 90's post-ironic schlitz paleo ramps ugh squid. Fingerstache craft beer dreamcatcher blog you probably haven't heard of them. Narwhal shoreditch stumptown disrupt. Flannel tilde lumbersexual before they sold out, VHS typewriter migas YOLO freegan fixie +1 flexitarian tofu 90's. Tofu celiac craft beer YOLO.</p>
-
-    <p>Marfa slow-carb narwhal, lumbersexual blue bottle pop-up pour-over 90's master cleanse 8-bit organic ugh blog lomo. Sriracha typewriter try-hard intelligentsia, ramps skateboard kickstarter. Tilde kinfolk humblebrag cray crucifix, taxidermy 8-bit vice typewriter blog marfa swag brunch. VHS kale chips crucifix cred williamsburg, ethical fixie try-hard raw denim direct trade. Pitchfork fashion axe vinyl affogato. Offal disrupt man bun small batch. Fingerstache flexitarian DIY mlkshk, wolf meggings meditation.</p>
-  </md-card-content>
+    <md-input-container>
+      <input ng-model="queryData.email"
+          type="email"
+          name="email"
+          placeholder="Email"
+          required>
+    </md-input-container>
+  </form>
 
   <md-divider></md-divider>
+
+  <div class="map" flex></div>
+</div>
+
+<md-divider></md-divider>
+
+<div class="termsConditions md-padding" flex="25" layout="column">
+  <label class=""> Terms and Conditions </label>
+  <md-content class="termsContent" layout="column" flex layout-fill layout-margin layout-align="stretch space-between">
+    <p>
+      Marfa slow-carb narwhal, lumbersexual blue bottle pop-up pour-over 90's
+      master cleanse 8-bit organic ugh blog lomo. Sriracha typewriter try-hard
+      intelligentsia, ramps skateboard kickstarter. Tilde kinfolk humblebrag
+      cray crucifix, taxidermy 8-bit vice typewriter blog marfa swag brunch.
+      VHS kale chips crucifix cred williamsburg, ethical fixie try-hard raw
+      denim direct trade. Pitchfork fashion axe vinyl affogato. Offal disrupt
+      man bun small batch. Fingerstache flexitarian DIY mlkshk, wolf meggings
+      meditation.
+    </p>
+    <md-divider></md-divider>
+    <p>
+      Marfa slow-carb narwhal, lumbersexual blue bottle pop-up pour-over 90's
+      master cleanse 8-bit organic ugh blog lomo. Sriracha typewriter try-hard
+      intelligentsia, ramps skateboard kickstarter. Tilde kinfolk humblebrag
+      cray crucifix, taxidermy 8-bit vice typewriter blog marfa swag brunch.
+      VHS kale chips crucifix cred williamsburg, ethical fixie try-hard raw
+      denim direct trade. Pitchfork fashion axe vinyl affogato. Offal disrupt
+      man bun small batch. Fingerstache flexitarian DIY mlkshk, wolf meggings
+      meditation.
+    </p>
+  </md-content>
 </div>
 
 
-<form name="checkoutForm" layout="row" class="md-margin">
-  <md-input-container class="condensed" flex>
-    <input ng-model="requestData.email"
-        type="email"
-        name="email"
-        placeholder="Email"
-        required>
-  </md-input-container>
+<md-divider></md-divider>
 
-
+<div layout="row" flex layout-align="center end" layout-padding>
+  <!-- <div > -->
   <md-button md-no-ink
       class="md-accent md-raised"
       ng-click="submitQuery()"
-      ng-disabled="!checkoutForm.email.$valid">
+      ng-disabled="!checkoutForm.$valid" flex>
 
     <md-tooltip md-delay="500" md-direction="top"> Submit Requests </md-tooltip>
 
     Submit
   </md-button>
-</form>
-
-<div id="map" flex class="md-margin"></div>
+<!-- </div> -->
+</div>

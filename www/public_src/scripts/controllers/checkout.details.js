@@ -1,10 +1,16 @@
 angular.module('aiddataDET')
-.controller('DetailsCtrl', function($scope, $rootScope, $log, $stateParams, $state, queryFactory, mapFactory) {
+.controller('DetailsCtrl', function($scope, $rootScope, $log, $q, $timeout, $state, $element, $mdDialog, queryFactory, mapFactory, spinFactory) {
   $scope.queryObj = queryFactory.getQuery();
   $scope.queryData = {
     email: '',
     custom_name: 'Unamed Request'
   };
+
+  var submitAlert = $mdDialog.confirm()
+      .clickOutsideToClose(true)
+      .title("Your Request Has been Submitted!")
+      .ok('Review Request Status')
+      .cancel('Start New Search');
 
   $scope.datasetDetails = function (q) {
     var datasetName = q.dataset || q.name;
@@ -19,11 +25,25 @@ angular.module('aiddataDET')
   };
 
   $scope.submitQuery = function () {
-    queryFactory.submitRequest($scope.queryData.email)
+    var id;
+
+    spinFactory.start();
+
+    queryFactory.submitRequest($scope.queryData)
       .then(function(data) {
-        console.log('It Worked', data);
-      }, function (err) {
-        console.error('It didnt work', err);
+        spinFactory.stop();
+        id = data.request._id.$id;
+        return $mdDialog.show(submitAlert);
+      })
+      .then(function() {
+        return $state.go('status', { id: id });
+      })
+      .catch(function (err) {
+        $log.error(err);
+        return $state.go('map');
+      })
+      .finally(function() {
+        queryFactory.resetQuery();
       });
   };
 
@@ -34,9 +54,10 @@ angular.module('aiddataDET')
     });
   };
 
-  $scope.$on('$viewContentLoaded', function(event) {
-    mapFactory.provision();
-
+  $scope.$on('$viewContentLoaded', function() {
+    mapFactory.provision(document.querySelector('.map'), true);
+    var sub = queryFactory.getSubBoundary().name;
+    mapFactory.mapBoundary(sub);
   });
 
 });

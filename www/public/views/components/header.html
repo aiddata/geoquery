@@ -31,7 +31,7 @@
 
         <md-button class="md-button-pimary process-button"
             ng-disabled="false"
-            ng-class="{ 'current': currentStep.name === 'map' }"
+            ng-class="{ 'current': currentStep === 'map' }"
             ui-sref="map"
             md-no-ink>
 
@@ -43,7 +43,7 @@
 
         <md-button class="md-button-pimary process-button"
             ng-disabled="false"
-            ng-class="{ 'current': currentStep.name.indexOf('search') >= 0 }"
+            ng-class="{ 'current': currentStep.indexOf('search') >= 0 }"
             ui-sref="search"
             md-no-ink>
 
@@ -55,7 +55,7 @@
 
         <md-button class="md-button-pimary process-button"
             ng-disabled="false"
-            ng-class="{ 'current': currentStep.name === 'checkout' }"
+            ng-class="{ 'current': currentStep === 'checkout' }"
             ui-sref="checkout"
             md-no-ink>
 

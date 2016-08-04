@@ -1,9 +1,9 @@
 angular.module('aiddataDET')
-.controller('MapCtrl', function($scope, $rootScope, $log, $timeout, mapFactory, $mdDialog) {
+.controller('MapCtrl', function($scope, $rootScope, $log, $timeout, $element, mapFactory, $mdDialog) {
   $scope.showOverlay = false;
 
   $scope.$on('$viewContentLoaded', function(event) {
-    mapFactory.provision();
+    mapFactory.provision(document.querySelector('.map.searchMap'));
 
     $timeout(function() {
       mapFactory.refreshSize();
@@ -21,7 +21,7 @@ angular.module('aiddataDET')
       .textContent('Allowing YOU to extend a helping hand...')
       .ok('Get Started')
     );
-  };
+  }
 
   $scope.$on('mapOverlay:remove', function() {
     $scope.showOverlay = false;

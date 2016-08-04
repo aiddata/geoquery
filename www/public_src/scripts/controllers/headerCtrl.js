@@ -1,6 +1,7 @@
 angular.module('aiddataDET')
 .controller('HeaderCtrl', function($scope, $rootScope, $log, $stateParams, $state, queryFactory, spinFactory) {
   $scope.currentStep = $state;
+  console.log($state);
   $scope.queryLen = 0;
 
   $scope.tabs = {
@@ -32,6 +33,11 @@ angular.module('aiddataDET')
 
   $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
     spinFactory.stop();
+  });
+
+  $scope.$on('$viewContentLoaded', function(event) {
+    $scope.currentStep = $state.current.name;
+    console.log('STATE', $state.current.name);
   });
 
 });
