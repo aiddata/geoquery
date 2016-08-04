@@ -80,14 +80,14 @@
 
   <div uib-collapse="!showFeaturedSearches;">
     <a class="md-primary" href=""
-        ng-click="selectFromFeatured(item)"><i class="fa fa-times" aria-hidden="true"></i></a>
+        ng-click="showFeaturedSearches = false"><i class="fa fa-times" aria-hidden="true"></i></a>
 
     <md-list class="md-dense" flex>
       <md-list-item
           ng-repeat="item in boundaries"
           ng-click="selectFromFeatured(item)">
 
-        <a href="">{{ item.name }}</a>
+        <a href="">{{ item.search }}</a>
       </md-list-item>
     </md-list>
   </div>

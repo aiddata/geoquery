@@ -27,7 +27,6 @@ angular.module('aiddataDET')
             return _boundaries.options;
           });
       }
-      $log.debug('Boundaries Already Defined');
       return _boundaries.options;
     }
 
@@ -212,7 +211,7 @@ angular.module('aiddataDET')
       getBoundaries: function () {
         return $q.when(retrieveBoundaries())
           .then(function(boundaries) {
-            return boundaries;
+            return _.cloneDeep(boundaries);
           });
       },
 

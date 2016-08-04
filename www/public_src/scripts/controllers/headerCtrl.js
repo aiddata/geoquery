@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('HeaderCtrl', function($scope, $rootScope, $log, $stateParams, $state, queryFactory, spinFactory) {
+.controller('HeaderCtrl', function($scope, $rootScope, $log, $stateParams, $state, $mdDialog, queryFactory, spinFactory) {
   $scope.currentStep = $state;
   console.log($state);
   $scope.queryLen = 0;
@@ -12,6 +12,13 @@ angular.module('aiddataDET')
     },
     order: ['cart', 'previousRequests', 'help']
   };
+
+  // @TODO: Should move this to an alert directive or factory
+  var welcomeModal = $mdDialog.alert()
+    .clickOutsideToClose(true)
+    .title("Welcome to the Data Extraction Tool by AidData!")
+    .textContent('Allowing YOU to extend a helping hand...')
+    .ok('Get Started');
 
   $scope.activate = function (tab) {
     _.each($scope.tabs, function(t) { t.active = false; });
@@ -37,7 +44,11 @@ angular.module('aiddataDET')
 
   $scope.$on('$viewContentLoaded', function(event) {
     $scope.currentStep = $state.current.name;
-    console.log('STATE', $state.current.name);
+
+    if ($scope.currentStep === "map" && !welcomeModal.visible) {
+      $mdDialog.show(welcomeModal);
+      welcomeModal.visible = true;
+    }
   });
 
 });
