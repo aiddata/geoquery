@@ -15,8 +15,6 @@ angular.module('aiddataDET')
       email: null
     };
 
-    // var _query = {"boundary":{"title":"Democratic Republic of the Congo ADM2 Boundary - GADM 2.8", "group":"cod_gadm28", "name":"cod_adm2_gadm28", "description":"GADM Boundary File for ADM2 (Sub-region) in Democratic Republic of the Congo.", "path":"/sciclone/aiddata10/REU/data/boundaries/gadm2.8/COD_adm2COD_adm2.geojson"}, "release_data":[{"dataset":"drc-aims_geocodedresearchrelease_level1_v1_3", "custom_name":"New Request 1", "filters":{"donors":["All"], "ad_sector_names":["All"]}}, {"dataset":"drc-aims_geocodedresearchrelease_level1_v1_3", "custom_name":"New Request 2", "filters":{"donors":["All"], "ad_sector_names":["Agriculture"]}}, {"dataset":"drc-aims_geocodedresearchrelease_level1_v1_3", "custom_name":"New Request 3", "filters":{"donors":["Embassy of Belgium"], "ad_sector_names":["Agriculture"]}}, {"dataset":"drc-aims_geocodedresearchrelease_level1_v1_3", "custom_name":"New Request 4", "filters":{"donors":["Embassy of Belgium", "Embassy of Netherlands"], "ad_sector_names":["Agriculture", "Education", "Communications"]}}], "raster_data":[], "email":null};
-
     var _fields = { };
 
     function retrieveBoundaries () {
@@ -125,6 +123,12 @@ angular.module('aiddataDET')
       options: {
         options: { extract_types: [] },
         files: []
+      },
+
+      /* Only Used For Testing */
+      setQuery: function(query) {
+        _query = query;
+        return _query;
       },
 
       generateQuery: function (datasetType, queryName) {

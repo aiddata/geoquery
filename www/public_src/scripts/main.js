@@ -143,26 +143,33 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     }
   })
   .state('checkout', {
-    url: '/checkout',
+    url: '/checkout?mode',
+    // params: {
+    //   mode: { value: 'test' }
+    // },
     resolve: {
-      // boundaries: function($log, $state, queryFactory) {
-      //   return queryFactory.getBoundaries();
-      // },
-      // boundary: function($log, $stateParams, queryFactory, boundaries) {
-      //   $log.info('boundaries:', boundaries);
-      //   return queryFactory.setBoundary('cod_gadm28', 'cod_adm2_gadm28');
-      // },
-      // datasets: function($log, $state, $stateParams, queryFactory, boundary) {
-      //   $log.info('boundary:', boundary);
-      //   return queryFactory.getDatasets('cod_gadm28')
-      //     .then(function(data) { return data; })
-      //     .catch(function() { return $state.go('map'); });
-      // },
-      // dataset: function($log, datasets, queryFactory) {
-      //   $log.info('options:', datasets);
-      //   return queryFactory.setDataset('drc-aims_geocodedresearchrelease_level1_v1_3');
-      // }
-      query: function($state, $stateParams, $timeout, $q, queryFactory) {
+      query: function($state, $stateParams, $timeout, $q, $http, queryFactory) {
+        console.log($stateParams);
+        if ($stateParams.mode === 'test') {
+          return $http.get('./tests/data/query.json')
+          .then(function (results) {
+            return queryFactory.setQuery(results.data);
+          })
+          .then(function() {
+            return queryFactory.getBoundaries();
+          })
+          .then(function () {
+            return queryFactory.setBoundary('cod_gadm28', 'cod_adm2_gadm28');
+          })
+          .then(function() {
+            return queryFactory.getDatasets('cod_gadm28');
+          }).
+          then(function() {
+            return queryFactory.setDataset('drc-aims_geocodedresearchrelease_level1_v1_3');
+          });
+        }
+
+
         var boundary = queryFactory.getBoundary(),
             subboundary = queryFactory.getSubBoundary();
 
