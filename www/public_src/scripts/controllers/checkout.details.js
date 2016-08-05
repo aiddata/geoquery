@@ -56,9 +56,12 @@ angular.module('aiddataDET')
   };
 
   $scope.$on('$viewContentLoaded', function() {
-    mapFactory.provision(document.querySelector('.map'), true);
-    var sub = queryFactory.getSubBoundary().name;
-    mapFactory.mapBoundary(sub);
+    var isLoaded = mapFactory.provision(document.querySelector('.map'), true);
+    isLoaded.promise.then(function(){
+      var sub = queryFactory.getSubBoundary().name;
+      mapFactory.mapBoundary(sub);
+    });
+
   });
 
 });

@@ -31,12 +31,16 @@ angular.module('aiddataDET')
   }
 
   return {
-    provision: function(element, locked) {
+    provision: function(element, locked, callback) {
+      var promise = $q.defer();
       /* Basemap */
       var basemap = L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/emerald-v8/tiles/{z}/{x}/{y}?access_token=' + mapboxToken, {
         attribution: '© <a href="https://www.mapbox.com/map-feedback/">Mapbox</a> © <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       });
-      basemap.once('load', function() { map.invalidateSize().resetView(); });
+      basemap.once('load', function() {
+        map.invalidateSize().resetView();
+        return promise.resolve();
+      });
 
       /* Boundary Group */
       boundaryGroup = L.featureGroup()
@@ -63,7 +67,7 @@ angular.module('aiddataDET')
 
       map.resetView = function() { this.setView(defaultView.center, defaultView.zoom); };
       map.resetView();
-
+      return promise;
     },
 
     zoomIn: function() {
