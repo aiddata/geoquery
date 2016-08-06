@@ -1,13 +1,5 @@
 <md-content class="full-height" flex layout-padding>
-  <ul class="breadcrumb-progress justified" layout="row">
-    <li ng-repeat="step in request.stage">
-      <a href="" class="{{ step.name }} disabled" ng-class="{ 'incomplete': !step.time, 'current': step.name === request.status }">
-        <i class="fa fa-check-circle" aria-hidden="true" ng-if="step.time"></i>
-        {{step.name}}
-      </a>
-    </li>
-  </ul>
-
+  <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
 
   <div ng-switch="request.process_time" class="status-headline">
     <div ng-switch-when="undefined">
