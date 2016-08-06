@@ -144,9 +144,6 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
   })
   .state('checkout', {
     url: '/checkout?mode',
-    // params: {
-    //   mode: { value: 'test' }
-    // },
     resolve: {
       query: function($state, $stateParams, $timeout, $q, $http, queryFactory) {
         console.log($stateParams);
@@ -195,7 +192,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
       },
       'requests@checkout': {
         templateUrl: 'views/components/checkout.requests.html',
-        controller: 'RequestsCtrl'
+        controller: 'RequestCtrl'
       },
       'details@checkout': {
         templateUrl: 'views/components/checkout.details.html',
@@ -203,10 +200,35 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
       }
     }
   })
+  .state('requests', {
+    url: '/requests/:email',
+    templateUrl: 'views/pages/requests.html',
+    resolve: {
+      boundaries: function($log, $state, queryFactory) {
+        return queryFactory.getBoundaries();
+      },
+      requests: function(ajaxFactory, $stateParams) {
+        // var email = decodeURIComponent(atob($stateParams.email));
+        return ajaxFactory.requests('email', $stateParams.email)
+          .then(function(results) { return results.data; });
+      },
+      datasets: function($q, requests, queryFactory) {
+        var datasets = _.map(requests, function(req) {
+          return queryFactory.getDatasets(req.boundary.group);
+        });
+        return $q.all(datasets)
+        .then(function(results) {
+          return _.mapKeys(results, function(d, i) { return i; });
+        });
+      }
+    },
+    controller: 'RequestsCtrl'
+  })
   .state('status', {
     url: '/status/:id',
     resolve: {
       request: function(ajaxFactory, $stateParams) {
+        console.log($stateParams);
         return ajaxFactory.requests('id', $stateParams.id)
           .then(function(results) {
             return results.data[0];

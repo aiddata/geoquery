@@ -21,6 +21,7 @@ angular.module('aiddataDET')
         if (!result.data) {
           return $q.reject({ message: 'No data returned' });
         }
+        console.log(result.data);
         boundaries[boundary] = L.geoJson(result.data);
         return boundaries[boundary];
       }, function(err) {
@@ -39,7 +40,7 @@ angular.module('aiddataDET')
       });
       basemap.once('load', function() {
         map.invalidateSize().resetView();
-        return promise.resolve();
+        return promise.resolve(map);
       });
 
       /* Boundary Group */
@@ -62,7 +63,8 @@ angular.module('aiddataDET')
         zoomAnimationThreshold: 20,
         trackResize: true,
         dragging: !locked,
-        boxZoom: !locked
+        boxZoom: !locked,
+        scrollWheelZoom: !locked
       });
 
       map.resetView = function() { this.setView(defaultView.center, defaultView.zoom); };
@@ -98,7 +100,7 @@ angular.module('aiddataDET')
 
       $q.when(retrieveBoundary(boundary))
         .then(function(layer) {
-          factory.clearBoundaries();
+          // factory.clearBoundaries();
           boundaryGroup.addLayer(layer);
         })
         .finally(function() {

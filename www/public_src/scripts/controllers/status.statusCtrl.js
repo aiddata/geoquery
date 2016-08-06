@@ -9,4 +9,18 @@ angular.module('aiddataDET')
 
     return _.find(datasets, {name : name });
   };
+
+  $scope.$on('$viewContentLoaded', function() {
+    request.status = _.chain(request.stage)
+      .filter('time')
+      .last()
+      .get('name')
+      .value();
+  });
+
+  $scope.pastTense = function(word) {
+    return word === 'submit' ? 'submitted' :
+      word === 'prep' ? 'prepped' :
+      word === 'process' ? 'processed' : '';
+  };
 });

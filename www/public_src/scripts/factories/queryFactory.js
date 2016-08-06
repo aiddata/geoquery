@@ -91,7 +91,7 @@ angular.module('aiddataDET')
         .pick(['name', 'title', 'base', 'type'])
         .extend({
           custom_name: queryName,
-          temportal_type: _.get(dataset, 'temporal.type')
+          temporal_type: _.get(dataset, 'temporal.type')
         })
         .extend(options)
         .value();
@@ -352,10 +352,8 @@ angular.module('aiddataDET')
       },
 
       getTimeStamp: function (date, format) {
-        var timeFormatter = d3.timeFormat('%b %d, %Y');
-        var timeParser = d3.timeParse(format),
-            formDate = timeFormatter(timeParser(date));
-        return formDate;
+        var parsed = format ? d3.timeParse(format)(date) : date;
+        return d3.timeFormat('%b %d, %Y')(parsed);
       }
     };
   });

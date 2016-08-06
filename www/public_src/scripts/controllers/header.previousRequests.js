@@ -21,11 +21,11 @@ angular.module('aiddataDET')
   $scope.getStage = function(req) {
     return _.chain(req)
     .get('stage')
-    .each(function(stage) {
-      stage.timeFormat = Date(req);
-      console.log(stage.timeFormat);
-    })
     .filter('time')
+    .each(function(stage) {
+      var timeUTC = new Date(stage.time * 1000);
+      stage.timeFormat = queryFactory.getTimeStamp(timeUTC);
+    })
     .last()
     .value();
   };

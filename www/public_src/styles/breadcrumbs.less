@@ -1,0 +1,97 @@
+@unknownColor: #9e9e9e;
+@submitColor: #ff9800;
+@prepColor: #cddc39;
+@processColor: #8bc34a;
+@completeColor: #4caf50;
+
+.stepColor (@color) {
+  background-color: @color;
+  &::after {
+    border-left-color: @color;
+  }
+  &::before {
+    border-left-color: @color;
+  }
+}
+
+.step(@color) {
+  .stepColor(@color);
+  &.incomplete {
+    .stepColor(lighten(@color, 15%));
+  }
+  &.current {
+    font-weight: bold;
+    font-size: 1.2em;
+    &::before {
+      border-left-color: darken(@color, 10%);
+    }
+  }
+}
+
+.arrow {
+  border-bottom: 50px solid transparent;
+  border-left: 30px solid transparent;
+  border-top: 50px solid transparent;
+  content: " ";
+  display: block;
+  height: 0;
+  left: 100%;
+  margin-top: -50px;
+  position: absolute;
+  top: 50%;
+  width: 0;
+}
+
+.breadcrumb-progress {
+  list-style: none;
+  overflow: hidden;
+  padding: 0px;
+  li {
+    float: left;
+    a {
+      color: white;
+      display: block;
+      float: left;
+      padding: 10px 0 10px 65px;
+      position: relative;
+      text-decoration: none;
+      text-transform: capitalize;
+      line-height: 20px;
+      &::after {
+        .arrow;
+        z-index: 2;
+      }
+      &::before {
+        .arrow;
+        margin-left: 5px;
+        z-index: 1;
+      }
+      &.unknown {
+        .step(@unknownColor);
+      }
+      &.submit {
+        .step(@submitColor);
+      }
+      &.prep {
+        .step(@prepColor);
+      }
+      &.process {
+        .step(@processColor);
+      }
+      &.complete {
+        .step(@completeColor);
+      }
+    }
+    &:first-child a {
+      padding-left: 20px;
+    }
+  }
+  &.justified {
+    li {
+      width: calc(25% ~"-" 9px);
+    }
+    a {
+      width: 100%;
+    }
+  }
+}
