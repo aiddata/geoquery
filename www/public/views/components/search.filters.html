@@ -4,7 +4,7 @@
     flex="33" style="min-width: 33%;">
 
   <!-- Header -->
-  <md-card flex="100" class="filter-card">
+  <md-card flex="100" class="filter-card rotate-in" ng-show="dataset.fields[filter].isActive">
     <md-card-header layout-align="none center">
 
         <!-- Title -->
@@ -93,7 +93,8 @@
 
 
 <!-- Add Filter Button -->
-<div layout="column"
+<div id="addFilterButton"
+    layout="column"
     ng-init="hideSubHeader = true; dataset.fields[filter].searchText = ''"
     flex="33" style="min-width: 33%;">
 
