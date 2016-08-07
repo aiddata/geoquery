@@ -31,22 +31,13 @@
 
       </div>
     </div>
-    <div ng-if="requests.length" layout="row" layout-padding layout-align="top">
-      <md-button md-no-ink
-          class="md-primary md-raised md-hue-1"
-          ui-sref="requests({ email: email })">
-          Requests Home
-      </md-button>
-
+    <div ng-if="requests.length" layout="column" layout-padding>
+      <h4>
+        {{ requests.length }} Requests Found
+        <a class="md-primary pull-right" ui-sref="requests({ email: email })"> Requests Home </a>
+      </h4>
+      <a href="" class="md-primary" ng-click="requests.splice(0)"> Not {{ email }} ?? </a>
       <md-divider></md-divider>
-
-      <md-button md-no-ink
-          class="md-primary"
-          ng-click="requests.splice(0)">
-        Not {{ email }} ??
-      </md-button>
-
-
     </div>
   </md-content>
 
@@ -64,6 +55,7 @@
       <span class="badge {{ status.name }}">{{ status ? status.name : 'unknown' }}</span>
       <span flex></span>
       <i class="fa fa-external-link-square" aria-hidden="true"></i>
+      <md-divider></md-divider>
     </md-list-item>
   </md-list>
 

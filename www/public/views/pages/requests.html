@@ -1,40 +1,28 @@
 <md-content class="full-height" flex layout="row" layout-padding>
-  <md-content flex style="background-color: yellowgreen" class="md-margin" layout="column">
+  <md-content flex class="md-margin" layout="column">
+    <process-breadcrumbs full-width="true"></process-breadcrumbs>
     <div ng-repeat="request in requests">
-
-    <!-- <a ng-href='http://labs.aiddata.org/DET/results/{{ request._id.$id }}.zip'> <i class="fa fa-file-archive-o" aria-hidden="true"></i></a> -->
-    <md-card>
+    <md-card layout="row">
        <md-card-title>
          <md-card-title-text>
            <span class="md-headline">{{ request.custom_name }} &mdash;
-             <small>Date Requsted</small>
-               <span flex class="badge {{ request.stage[request.status ].name }}" layout-align="center">{{request.stage[request.status + 1].name}}</span>
+             <small>Date Requested</small>
+             <span class="badge {{ request.status }}" layout-align="center">{{ request.status }}</span>
            </span>
-           <span class="md-subhead"></span>
          </md-card-title-text>
        </md-card-title>
-       <!-- <div> -->
-         <md-card-content layout="row" layout-align="center">
-           <div id="map-{{request._id.$id}}" class="md-media-md card-media" flex style="background-color: pink; height:150px"></div>
-           <md-card-actions layout="column" layout-align="end center">
+      <md-divider></md-divider>
+      <md-content  layout="column" layout-align="center" flex="20">
 
-             <md-button>Quick Download Zip</md-button>
-             <md-button>View Details</md-button>
-           </md-card-actions>
-         </md-card-content>
-
-       <!-- <div> -->
-
+                   <!-- <span class="md-subhead"> -->
+         <md-button ng-if="request.process_time"
+              ng-href='http://labs.aiddata.org/DET/results/{{ request._id.$id }}/{{ request._id.$id }}.zip'>
+            Quick Download Zip
+          </md-button>
+         <md-button ui-sref="status({id: request._id.$id })">View Details</md-button>
+                   <!-- </span> -->
+      </md-content>
      </md-card>
-      <!-- <div ng-repeat="(type, queries) in { release_data: request.release_data, raster_data: request.raster_data }"> -->
-        <!-- <div ng-repeat="q in queries"
-           ng-init="dataset = getDataset(q)">
-
-           {{ q.custom_name ? q.custom_name : 'Unamed Request ' + q.name }}
-
-
-        </div> -->
-      <!-- </div> -->
     </div>
   </md-content>
 </md-content>
