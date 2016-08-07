@@ -1,5 +1,6 @@
 <md-content class="md-padding" flex="100">
-  <form uib-collapse="showFeaturedSearches"
+  <form class="full-height slide-right"
+      ng-hide="showFeaturedSearches"
       ng-submit="$event.preventDefault()">
 
     <h4 class="md-primary">Select a Boundary to Begin Data Extraction</h4>
@@ -78,9 +79,11 @@
 
   </form>
 
-  <div uib-collapse="!showFeaturedSearches;">
-    <a class="md-primary" href=""
-        ng-click="showFeaturedSearches = false"><i class="fa fa-times" aria-hidden="true"></i></a>
+  <div ng-hide="!showFeaturedSearches;" class="toggle">
+    <a href="" class="md-primary"
+        ng-click="showFeaturedSearches = !showFeaturedSearches">
+      <i class="fa fa-times" aria-hidden="true"></i>
+    </a>
 
     <md-list class="md-dense" flex>
       <md-list-item

@@ -1,4 +1,4 @@
-angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', 'ngMaterial', 'rzModule'])
+angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', 'ngMaterial', 'rzModule', 'ngAnimate'])
 .config(function($stateProvider, $urlRouterProvider, $mdThemingProvider) {
 
   /* Material Design Theme Configuration */
