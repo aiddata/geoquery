@@ -13,14 +13,11 @@
        </md-card-title>
       <md-divider></md-divider>
       <md-content  layout="column" layout-align="center" flex="20">
-
-                   <!-- <span class="md-subhead"> -->
-         <md-button ng-if="request.process_time"
-              ng-href='http://labs.aiddata.org/DET/results/{{ request._id.$id }}/{{ request._id.$id }}.zip'>
-            Quick Download Zip
-          </md-button>
-         <md-button ui-sref="status({id: request._id.$id })">View Details</md-button>
-                   <!-- </span> -->
+       <md-button ng-if="request.process_time"
+            ng-href='http://labs.aiddata.org/DET/results/{{ request._id.$id }}/{{ request._id.$id }}.zip'>
+          Quick Download Zip
+        </md-button>
+       <md-button ui-sref="status({id: request._id.$id })">View Details</md-button>
       </md-content>
      </md-card>
     </div>

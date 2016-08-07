@@ -19,14 +19,7 @@ angular.module('aiddataDET')
   };
 
   $scope.submitQuery = function () {
-    // var email = 'eslivinski@gmail.com';
     $state.go('checkout');
-    // queryFactory.submitRequest(email)
-    //   .then(function(data) {
-    //     console.log('It Worked', data);
-    //   }, function (err) {
-    //     console.error('It didnt work', data);
-    //   });
   };
 
 });

@@ -34,10 +34,6 @@ angular.module('aiddataDET')
       .catch(function (err) {
         $log.error(err);
         return $state.go('map');
-      })
-      .finally(function() {
-        /* This Reset Call is Not Working */
-        queryFactory.resetQuery();
       });
   };
 
