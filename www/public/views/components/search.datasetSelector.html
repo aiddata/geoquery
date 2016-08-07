@@ -1,3 +1,5 @@
+<div layout="column" class="full-height">
+
   <div layout="row" layout-padding layout-align="space-between">
     <div>
       <span class="label label-primary label-circle pull-left"
@@ -8,7 +10,11 @@
     </div>
   </div>
 
-  <md-tabs md-selected="selectedTabIndex" md-border-bottom tab-watch md-stretch-tabs="always">
+  <md-tabs md-selected="selectedTabIndex"
+      md-border-bottom
+      tab-watch
+      md-stretch-tabs="always">
+
     <md-tab aria-controls="">
         <i class="fa fa-briefcase" aria-hidden="true"></i>
         <i class="fa" aria-hidden="true"
@@ -22,39 +28,40 @@
     </md-tab>
   </md-tabs>
 
-  </md-nav-bar>
+  <div uib-collapse="showSearchTools">
+    <div layout="row" layout-padding>
+      <md-input-container md-no-float class="flex-50 condensed">
+        <label> Search Datasets </label>
+        <input ng-model="dataFilters.searchText" placeholder="">
+      </md-input-container>
 
-  <md-list flex ng-init="showSearchTools = true">
+      <md-input-container class="flex-30 condensed">
+        <label>Sort by</label>
+        <md-select ng-model="fields.selected">
+          <md-option ng-repeat="field in fields.options" value="{{ field }}">
+            {{ field }}
+          </md-option>
+        </md-select>
+      </md-input-container>
 
-    <div uib-collapse="showSearchTools">
-      <div layout="row" layout-padding>
-        <md-input-container md-no-float class="flex-50 condensed">
-          <label> Search Datasets </label>
-          <input ng-model="dataFilters.searchText" placeholder="">
-        </md-input-container>
-
-        <md-input-container class="flex-30 condensed">
-          <label>Sort by</label>
-          <md-select ng-model="fields.selected">
-            <md-option ng-repeat="field in fields.options" value="{{ field }}">
-              {{ field }}
-            </md-option>
-          </md-select>
-        </md-input-container>
-
-        <md-input-container class="flex-20 condensed">
-          <md-button class="md-icon-button md-primary"
-              aria-label="Sort Datasets"
-              ng-click="fields.descending = !fields.descending"
-              ng-switch="fields.descending">
-            <i ng-switch-when="false" class="fa fa-lg fa-sort-asc"></i>
-            <i ng-switch-when="true" class="fa fa-lg fa-sort-desc"></i>
-          </md-button>
-        </md-input-container>
-      </div>
-
-      <md-divider></md-divider>
+      <md-input-container class="flex-20 condensed">
+        <md-button class="md-icon-button md-primary"
+            aria-label="Sort Datasets"
+            ng-click="fields.descending = !fields.descending"
+            ng-switch="fields.descending">
+          <i ng-switch-when="false" class="fa fa-lg fa-sort-asc"></i>
+          <i ng-switch-when="true" class="fa fa-lg fa-sort-desc"></i>
+        </md-button>
+      </md-input-container>
     </div>
+
+    <md-divider></md-divider>
+  </div>
+
+  <md-list flex
+      layout="column"
+      ng-init="showSearchTools = true"
+      class="scroll-container">
 
     <div class="slide-left"
       ng-repeat="set in datasets.filtered = (datasets.options | filter: search) | orderBy: fields.selected : fields.descending"
@@ -69,11 +76,9 @@
 
         <div class="md-list-item-text" layout="column">
           <h5> {{ set.title }} </h5>
-          <p>
-            <span ng-repeat="tag in set.extras.tags">{{ tag }} </span>
-          </p>
-
+          <p> <span ng-repeat="tag in set.extras.tags">{{ tag }} </span> </p>
         </div>
+
          <a href=""
             class="md-secondary"
             aria-label="show metadata"
@@ -87,14 +92,15 @@
 
       </md-list-item>
 
-      <div uib-collapse="!showMetadata" class="metadata">
-        {{ set.extras.citation }}
-      </div>
+      <div uib-collapse="!showMetadata" class="metadata"> {{ set.extras.citation }} </div>
       <md-divider></md-divider>
     </div>
-    <md-list-item class="flip-in"
+
+    <div class="flip-in md-padding"
       ng-hide="datasets.filtered.length">
       <p> No Datasets Found </p>
-    </md-list-item>
+    </div>
 
   </md-list>
+
+</div>
