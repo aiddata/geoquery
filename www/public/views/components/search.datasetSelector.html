@@ -56,7 +56,7 @@
       <md-divider></md-divider>
     </div>
 
-    <div
+    <div class="slide-left"
       ng-repeat="set in datasets.filtered = (datasets.options | filter: search) | orderBy: fields.selected : fields.descending"
       ng-init="showMetadata = false">
 
@@ -92,7 +92,8 @@
       </div>
       <md-divider></md-divider>
     </div>
-    <md-list-item ng-hide="datasets.filtered.length">
+    <md-list-item class="flip-in"
+      ng-hide="datasets.filtered.length">
       <p> No Datasets Found </p>
     </md-list-item>
 
