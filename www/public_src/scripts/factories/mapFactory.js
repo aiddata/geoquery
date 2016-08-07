@@ -21,11 +21,9 @@ angular.module('aiddataDET')
         if (!result.data) {
           return $q.reject({ message: 'No data returned' });
         }
-        console.log(result.data);
-        boundaries[boundary] = L.geoJson(result.data);
+        boundaries[boundary] = result.data;
         return boundaries[boundary];
       }, function(err) {
-        /* @TODO: Create error messaging */
         console.error(err);
         return $q.reject(err);
       });
@@ -99,9 +97,9 @@ angular.module('aiddataDET')
       factory.startSpin();
 
       $q.when(retrieveBoundary(boundary))
-        .then(function(layer) {
+        .then(function(geoJson) {
           factory.clearBoundaries();
-          boundaryGroup.addLayer(layer);
+          boundaryGroup.addLayer(L.geoJson(geoJson));
         })
         .finally(function() {
           $rootScope.$broadcast('mapOverlay:remove');

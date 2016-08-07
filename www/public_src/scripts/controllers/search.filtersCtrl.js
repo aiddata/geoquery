@@ -43,6 +43,8 @@ angular.module('aiddataDET')
   }, true);
 
   $scope.$on('$viewContentLoaded', function (event) {
+    $scope.ctrl = {};
+    $scope.ctrl.items = _.range(0, 1000);
     $scope.filterOptions = filterOptions;
     $scope.filterOrder = _.cloneDeep(filterOptions.filterTypes);
     $scope.filters = queryFactory.filters;

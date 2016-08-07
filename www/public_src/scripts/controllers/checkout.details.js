@@ -42,11 +42,11 @@ angular.module('aiddataDET')
   };
 
   $scope.$on('$viewContentLoaded', function() {
-    var isLoaded = mapFactory.provision(document.querySelector('.map'), true);
-    isLoaded.promise.then(function(){
-      var sub = queryFactory.getSubBoundary().name;
-      mapFactory.mapBoundary(sub);
-    });
+    mapFactory.provision(document.querySelector('.map'), true)
+      .promise.then(function(){
+        var sub = queryFactory.getSubBoundary().name;
+        mapFactory.mapBoundary(sub);
+      });
 
   });
 

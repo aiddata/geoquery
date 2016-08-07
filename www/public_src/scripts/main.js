@@ -112,7 +112,6 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     url: '/checkout?mode',
     resolve: {
       query: function($state, $stateParams, $timeout, $q, $http, queryFactory) {
-        console.log($stateParams);
         if ($stateParams.mode === 'test') {
           return $http.get('./tests/data/query.json')
           .then(function (results) {
@@ -169,9 +168,6 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     url: '/requests/:email',
     templateUrl: 'views/pages/requests.html',
     resolve: {
-      boundaries: function($log, $state, queryFactory) {
-        return queryFactory.getBoundaries();
-      },
       requests: function(ajaxFactory, $stateParams) {
         // var email = decodeURIComponent(atob($stateParams.email));
         return ajaxFactory.requests('email', $stateParams.email)

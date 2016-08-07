@@ -40,7 +40,7 @@ angular.module('aiddataDET')
 
   $scope.removeFilter = function(filter, option) {
     return $scope.dataset.type !== 'release' ? queryFactory.toggleOptionOff(filter, option) :
-      $scope.dataset.fields[filter].type === 'list' ? queryFactory.toggleFilterOff(filter, option) :
+      $scope.dataset.fields[filter].filter_type === 'list' ? queryFactory.toggleFilterOff(filter, option) :
       queryFactory.resetFilterRange(filter);
   };
 
