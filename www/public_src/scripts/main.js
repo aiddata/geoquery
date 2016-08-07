@@ -23,10 +23,14 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
 
   $stateProvider.state('map', {
     url: '/',
+    params: { confirmation: { confirmed: false } },
     resolve: {
       boundaries: function(queryFactory) {
         return queryFactory.getBoundaries();
       }
+    },
+    onEnter: function() {
+      this.params.confirmation.confirmed = false;
     },
     views: {
       '': {
@@ -49,17 +53,14 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
   .state('search', {
     url: '/search/:boundary/:subboundary',
     resolve: {
-      /* @TODO: Clean up Sychronous Resolutions */
-      boundaries: function($log, $state, queryFactory) {
-        return queryFactory.getBoundaries();
-      },
-      boundary: function($log, $stateParams, queryFactory, boundaries) {
-        $log.info('boundaries:', boundaries);
-        return queryFactory.setBoundary($stateParams.boundary, $stateParams.subboundary);
+      boundary: function($log, $stateParams, queryFactory) {
+        return queryFactory.getBoundaries()
+          .then(function() {
+            return queryFactory.setBoundary($stateParams.boundary, $stateParams.subboundary);
+          });
       },
       datasets: function($log, $state, $stateParams, queryFactory, boundary) {
-        $log.info('boundary:', boundary);
-        return queryFactory.getDatasets($stateParams.boundary)
+        return queryFactory.getDatasets(boundary.group)
           .then(function(data) { return data; })
           .catch(function() { return $state.go('map'); });
       }
@@ -83,38 +84,14 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     templateUrl: 'views/components/search.filters.html',
     controller: 'FiltersCtrl',
     resolve: {
-      filters: function(queryFactory, $log, datasets) {
-        $log.info('datasets:', datasets);
-        queryFactory.clearOptions();
-        queryFactory.clearFilters();
+      filters: function(queryFactory, $log) {
         return queryFactory.filters;
       },
-      dataset: function($log, $stateParams, filters, queryFactory) {
-        $log.info('filters:', filters);
-        return queryFactory.setDataset($stateParams.dataset);
+      dataset: function($state, $stateParams, datasets, routingService) {
+        return routingService.verifyDataset($state, $stateParams, datasets);
       },
-      fields: function($log, $stateParams, filters, dataset, queryFactory) {
-        $log.info('dataset:', dataset);
-        var fields = _.chain(dataset)
-          .cloneDeep()
-          .get('fields')
-          .value();
-
-        queryFactory.filters = _.chain(fields)
-          .filter('is_default')
-          .mapKeys('field')
-          .mapValues(function() { return [ 'All' ]; })
-          .extend(queryFactory.filters)
-          .value();
-
-        return fields;
-      },
-      filterOptions: function($log, $stateParams, queryFactory, fields) {
-        $log.info('fields:', fields);
+      filterOptions: function($log, $stateParams, dataset, queryFactory) {
         return queryFactory.updateFilters();
-      },
-      finally: function ($log, filterOptions) {
-        $log.info('filterOptions:', filterOptions);
       }
     }
   })
@@ -124,21 +101,10 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     controller: 'OptionsCtrl',
     resolve: {
       options: function(queryFactory, $log, datasets) {
-        $log.info('datasets:', datasets);
-        queryFactory.clearOptions();
-        queryFactory.clearFilters();
         return queryFactory.options;
       },
-      dataset: function($log, $stateParams, options, queryFactory) {
-        $log.info('options:', options);
-        return queryFactory.setDataset($stateParams.dataset);
-      },
-      filterOptions: function ($log, dataset) {
-        $log.info('dataset:', dataset);
-        return {};
-      },
-      finally: function ($log, filterOptions) {
-        $log.info('filterOptions:', filterOptions);
+      dataset: function($state, $stateParams, datasets, routingService) {
+        return routingService.verifyDataset($state, $stateParams, datasets);
       }
     }
   })
@@ -165,7 +131,6 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
             return queryFactory.setDataset('drc-aims_geocodedresearchrelease_level1_v1_3');
           });
         }
-
 
         var boundary = queryFactory.getBoundary(),
             subboundary = queryFactory.getSubBoundary();
@@ -228,7 +193,6 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     url: '/status/:id',
     resolve: {
       request: function(ajaxFactory, $stateParams) {
-        console.log($stateParams);
         return ajaxFactory.requests('id', $stateParams.id)
           .then(function(results) {
             return results.data[0];

@@ -63,7 +63,7 @@ angular.module('aiddataDET')
         description: _subBoundary.description,
         path: _subBoundary.base + _.head(_subBoundary.resources).path
       };
-      return true;
+      return _query.boundary;
     }
 
     function defineReleaseData (filters, filterOptions, queryName) {
@@ -196,7 +196,7 @@ angular.module('aiddataDET')
 
       removeRequest: function(request, type) {
         return $q.when(_removeRequest(request, type))
-        .then(function(c){ return c; });
+        .then(function(c) { return c; });
       },
 
       querySize: function () {
@@ -252,7 +252,19 @@ angular.module('aiddataDET')
       },
 
       setDataset: function(datasetName) {
+        _fields = _.chain(this.getDataset(datasetName))
+          .cloneDeep()
+          .get('fields')
+          .value();
+
+        this.filters = _.chain(_fields)
+          .filter('is_default')
+          .mapKeys('field')
+          .mapValues(function() { return [ 'All' ]; })
+          .value();
+
         this.filters.dataset = datasetName;
+        this.clearOptions();
         return this.getDataset(datasetName);
       },
 
@@ -294,7 +306,7 @@ angular.module('aiddataDET')
         _.each(_.omit(self.filters, 'dataset'), function(d, i) {
           self.resetFilter(i);
         });
-        return this.filters;
+        return self.filters;
       },
 
       toggleOptionOn: function (key, val) {

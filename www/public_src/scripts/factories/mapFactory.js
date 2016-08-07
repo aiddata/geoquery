@@ -100,7 +100,7 @@ angular.module('aiddataDET')
 
       $q.when(retrieveBoundary(boundary))
         .then(function(layer) {
-          // factory.clearBoundaries();
+          factory.clearBoundaries();
           boundaryGroup.addLayer(layer);
         })
         .finally(function() {
