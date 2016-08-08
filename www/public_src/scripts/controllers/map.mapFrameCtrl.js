@@ -1,9 +1,10 @@
 angular.module('aiddataDET')
-.controller('MapCtrl', function($scope, $rootScope, $log, $timeout, $element, mapFactory, $mdDialog) {
+.controller('MapFrameCtrl', function($scope, $rootScope, $log, $timeout, $element, mapFactory, $mdDialog) {
   $scope.showOverlay = false;
 
   $scope.$on('$viewContentLoaded', function(event) {
-    mapFactory.provision(document.querySelector('.map.searchMap'));
+    console.log(document.querySelector('.map'));
+    mapFactory.provision(document.querySelector('.map'));
   });
 
   $scope.$on('mapOverlay:remove', function() {

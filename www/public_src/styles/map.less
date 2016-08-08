@@ -1,25 +1,18 @@
-#zoomControls {
+[ui-view="zoomControls"] {
   z-index: 9;
   display: block;
   position: absolute;
   right: 0;
-  width: 60px;
   margin-right: 15px;
   margin-top: 15px;
 }
 
+[ui-view="geographySearch"] {
+  z-index: 9;
+}
 
-.map {
-  svg.leaflet-zoom-animated {
-    path {
-      transition: fill-opacity 1s ease-in-out,
-        stroke-opacity 1s ease-in-out;
-      stroke: @brick;
-      fill: @brick;
-      stroke-width: 3px;
-    }
-  }
-  &.searchMap {
+[ui-view="mapFrame"] {
+  .map {
     width: 100%;
     height: calc(100vh ~"-" @headerHeight ~"-" @processHeaderHeight);
 
@@ -31,13 +24,6 @@
       position: relative;
       background-color: rgba(0,0,0,0);
       z-index: 9;
-      color: white;
-      padding: 25px;
-      font-size: 5em;
-      text-transform: uppercase;
-      -webkit-font-smoothing: subpixel-antialiased;
-      letter-spacing: .3em;
-      font-weight: 300;
       transition: background-color 1.2s cubic-bezier(0.42, 0, 0.03, 0.99);
     }
 
@@ -45,6 +31,18 @@
       &::before {
         background-color: rgba(0,0,0,.5);
       }
+    }
+  }
+}
+
+.map {
+  svg.leaflet-zoom-animated {
+    path {
+      transition: fill-opacity 1s ease-in-out,
+        stroke-opacity 1s ease-in-out;
+      stroke: @brick;
+      fill: @brick;
+      stroke-width: 3px;
     }
   }
 }
