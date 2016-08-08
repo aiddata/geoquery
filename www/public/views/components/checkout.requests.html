@@ -1,4 +1,4 @@
-<div flex id="requestList" class="md-padding">
+<div flex id="requestList" class="md-padding" style="overflow-y: auto">
   <div ng-repeat="(type, queries) in { release_data: queryObj.release_data, raster_data: queryObj.raster_data }">
     <md-card ng-repeat="q in queries"
         class="md-margin"
