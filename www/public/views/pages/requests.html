@@ -20,6 +20,7 @@
              <li> <strong>Customization:</strong>
                <span ng-hide="!request.release_data.length">
                  {{ request.release_data.length }} AidData Selection<span ng-hide="request.release_data.length === 1">s</span>
+               </span>
                 <span ng-hide="!request.raster_data.length || !request.release_data.length"> and </span>
                <snan ng-hide="!request.raster_data.length">
                  {{ request.raster_data.length }} External Dataset Selection<span ng-hide="request.raster_data.length === 1">s</span>
