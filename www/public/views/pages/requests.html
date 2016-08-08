@@ -3,21 +3,43 @@
     <process-breadcrumbs full-width="true"></process-breadcrumbs>
     <div ng-repeat="request in requests">
     <md-card layout="row">
-       <md-card-title>
-         <md-card-title-text>
-           <span class="md-headline">{{ request.custom_name }} &mdash;
-             <small>Date Requested</small>
-             <span class="badge {{ request.status }}" layout-align="center">{{ request.status }}</span>
-           </span>
-         </md-card-title-text>
-       </md-card-title>
+      <div layout="column" flex="75" layout-align="start">
+         <md-card-title layout="row" flex="initial">
+           <md-card-title-text>
+             <span class="md-headline">{{ request.custom_name }}
+               <span class="badge {{ request.status }}" layout-align="center">{{ request.status }}</span>
+             </span>
+           </md-card-title-text>
+         </md-card-title>
+         <md-divider></md-divider>
+         <div>
+          <br>
+           <ul>
+             <li> <strong>Submitted:</strong> {{ request.submissionTime }}</li>
+             <li> <strong>Boundary:</strong> {{ request.boundary.title }}</li>
+             <li> <strong>Customization:</strong>
+               <span ng-hide="!request.release_data.length">
+                 {{ request.release_data.length }} AidData Selection<span ng-hide="request.release_data.length === 1">s</span>
+                <span ng-hide="!request.raster_data.length || !request.release_data.length"> and </span>
+               <snan ng-hide="!request.raster_data.length">
+                 {{ request.raster_data.length }} External Dataset Selection<span ng-hide="request.raster_data.length === 1">s</span>
+               </span>
+             </li>
+           </ul>
+         </div>
+       </div>
       <md-divider></md-divider>
-      <md-content  layout="column" layout-align="center" flex="20">
-       <md-button ng-if="request.process_time"
-            ng-href='http://labs.aiddata.org/DET/results/{{ request._id.$id }}/{{ request._id.$id }}.zip'>
-          Quick Download Zip
-        </md-button>
-       <md-button ui-sref="status({id: request._id.$id })">View Details</md-button>
+      <md-content  layout="column" layout-align="center" flex="25">
+
+       <md-button class="md-primary" ui-sref="status({id: request._id.$id })">
+         View Details
+         <i class="fa fa-arrow-right" aria-hidden="true"></i>
+       </md-button>
+       <md-button class="md-primary" ng-if="request.process_time"
+           ng-href="http://labs.aiddata.org/DET/results/{{ request._id.$id }}/{{ request._id.$id }}.zip">
+         Download Zip
+         <i class="fa fa-file-archive-o" aria-hidden="true"></i>
+       </md-button>
       </md-content>
      </md-card>
     </div>
