@@ -3,7 +3,7 @@ angular.module('aiddataDET')
   $scope.queryObj = queryFactory.getQuery();
   $scope.queryData = {
     email: '',
-    custom_name: 'Unamed Request'
+    custom_name: 'Unnamed Request'
   };
 
   var submitAlert = $mdDialog.confirm()

@@ -5,8 +5,8 @@
       <i class="fa fa-pencil-square-o" aria-hidden="true"style="display: block; float: left; padding-right: 5px; padding-top: 8px;"></i>
       <md-input-container class="condensed no-label md-light"
         md-no-float>
-        <md-tooltip md-delay="500" md-direction="top"> Name this Request </md-tooltip>
-        <input ng-model="requestData.name" placeholder="Request Name">
+        <md-tooltip md-delay="500" md-direction="top"> Name this Selection </md-tooltip>
+        <input ng-model="selectionData.name" placeholder="Selection Name">
       </md-input-container>
 
       <small ng-if="dataset && dataset.type == 'release'">
@@ -20,16 +20,16 @@
 
 
     <md-button class="md-raised md-warn md-hue-2" aria-label="Reset Filters" ng-click="clearFilters()"
-      ng-show="requestData.canReset">
+      ng-show="selectionData.canReset">
       <md-tooltip md-delay="500" md-direction="top"> Reset Search Filters </md-tooltip>
       <i class="fa fa-lg fa-refresh" aria-hidden="true"></i>
       Reset Filters
     </md-button>
 
     <md-button class="md-raised md-accent md-hue-5" aria-label="Add to Cart"
-        ng-disabled="!requestData.canAdd"
+        ng-disabled="!selectionData.canAdd"
         ng-click="addToCart()">
-      <md-tooltip md-delay="500" md-direction="top"> Send Request To Cart </md-tooltip>
+      <md-tooltip md-delay="500" md-direction="top"> Add Selection To Cart </md-tooltip>
       <i class="fa fa-lg fa-cart-plus" aria-hidden="true"></i>
       Add to Cart
     </md-button>

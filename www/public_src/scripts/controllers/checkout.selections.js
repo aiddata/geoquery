@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('RequestCtrl', function($scope, $rootScope, $log, $stateParams, $state, $mdDialog, queryFactory) {
+.controller('SelectionsCtrl', function($scope, $rootScope, $log, $stateParams, $state, $mdDialog, queryFactory) {
   $scope.queryObj = queryFactory.getQuery();
 
   $scope.datasetDetails = function (q) {
