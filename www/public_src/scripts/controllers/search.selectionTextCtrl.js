@@ -1,12 +1,12 @@
 angular.module('aiddataDET')
-.controller('QueryTextCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $mdDialog, queryFactory) {
+.controller('SelectionTextCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $mdDialog, queryFactory) {
   $scope.filters = {};
   $scope.options = {};
   $scope.dataset = {};
   $scope.totals = {};
   $scope.queryStructure = [];
   $scope.geography = '';
-  $scope.requestData = { name: 'New Request', editing: false, canReset: false, canAdd: true };
+  $scope.selectionData = { name: 'New Selection', editing: false, canReset: false, canAdd: true };
 
   $scope.clearFilters = function () {
     if ($scope.dataset.type === 'release') {
@@ -31,7 +31,7 @@ angular.module('aiddataDET')
         if (!unique) {
           return $q.reject({ message: 'This search is already in your cart'});
         }
-        return queryFactory.generateQuery($scope.dataset.type, $scope.requestData.name);
+        return queryFactory.generateQuery($scope.dataset.type, $scope.selectionData.name);
       })
       .then(function(query) {
         $rootScope.$broadcast('query:updated', query);
@@ -41,8 +41,8 @@ angular.module('aiddataDET')
         showDialog(err.message, 'Error Adding To Cart');
       })
       .finally(function(){
-        $scope.requestData.canAdd = false;
-        $scope.requestData.name = 'New Request';
+        $scope.selectionData.canAdd = false;
+        $scope.selectionData.name = 'New Selection';
       });
   };
 
@@ -69,16 +69,16 @@ angular.module('aiddataDET')
 
   function updateCounts() {
     if ($scope.dataset.type === 'raster') {
-      $scope.requestData.canReset = false;
-      $scope.requestData.canAdd = (
+      $scope.selectionData.canReset = false;
+      $scope.selectionData.canAdd = (
         _.size(_.get($scope.options, 'files')) &&
         _.size(_.get($scope.options, 'options.extract_types'))
       );
 
     } else {
       $scope.totals = _.pick(queryFactory.filterOptions, ['projects', 'locations']);
-      $scope.requestData.canAdd = _.every(_.values($scope.totals));
-      $scope.requestData.canReset = _.some(_.omit($scope.filters, 'dataset'), function(d, i) {
+      $scope.selectionData.canAdd = _.every(_.values($scope.totals));
+      $scope.selectionData.canReset = _.some(_.omit($scope.filters, 'dataset'), function(d, i) {
         return $scope.dataset.fields[i] && !_.isEqual(d, ['All']);
       });
     }

@@ -22,7 +22,7 @@
 
         <md-input-container class="condensed">
           <label>e-mail</label>
-          <input ng-model="email">
+          <input ng-model="requestForm.email">
         </md-input-container>
 
         <md-button md-no-ink
@@ -34,9 +34,9 @@
     <div ng-if="requests.length" layout="column" layout-padding>
       <h4>
         {{ requests.length }} Requests Found
-        <a class="md-primary pull-right" ui-sref="requests({ email: email })"> Requests Home </a>
+        <a class="md-primary pull-right" ui-sref="requests({ email: requestForm.email })"> Requests Home </a>
       </h4>
-      <a href="" class="md-primary" ng-click="requests.splice(0)"> Not {{ email }} ?? </a>
+      <a href="" class="md-primary" ng-click="logout()"> Not {{ requestForm.email }} ?? </a>
       <md-divider></md-divider>
     </div>
   </md-content>
