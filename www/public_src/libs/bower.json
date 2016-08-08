@@ -22,7 +22,8 @@
     "leaflet-spin": "^0.1.1",
     "d3": "^4.1.1",
     "angular-material": "master",
-    "angularjs-slider": "^5.4.1"
+    "angularjs-slider": "^5.4.1",
+    "ngAnimate": "*"
   },
   "resolutions": {
     "angular": ">=1.4.0",

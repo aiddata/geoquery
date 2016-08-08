@@ -1,0 +1,25 @@
+<md-content class="full-height" flex layout="row" layout-padding>
+  <md-content flex class="md-margin" layout="column">
+    <process-breadcrumbs full-width="true"></process-breadcrumbs>
+    <div ng-repeat="request in requests">
+    <md-card layout="row">
+       <md-card-title>
+         <md-card-title-text>
+           <span class="md-headline">{{ request.custom_name }} &mdash;
+             <small>Date Requested</small>
+             <span class="badge {{ request.status }}" layout-align="center">{{ request.status }}</span>
+           </span>
+         </md-card-title-text>
+       </md-card-title>
+      <md-divider></md-divider>
+      <md-content  layout="column" layout-align="center" flex="20">
+       <md-button ng-if="request.process_time"
+            ng-href='http://labs.aiddata.org/DET/results/{{ request._id.$id }}/{{ request._id.$id }}.zip'>
+          Quick Download Zip
+        </md-button>
+       <md-button ui-sref="status({id: request._id.$id })">View Details</md-button>
+      </md-content>
+     </md-card>
+    </div>
+  </md-content>
+</md-content>

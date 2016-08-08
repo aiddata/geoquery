@@ -25,7 +25,6 @@ angular.module('aiddataDET')
             return _boundaries.options;
           });
       }
-      $log.debug('Boundaries Already Defined');
       return _boundaries.options;
     }
 
@@ -64,7 +63,7 @@ angular.module('aiddataDET')
         description: _subBoundary.description,
         path: _subBoundary.base + _.head(_subBoundary.resources).path
       };
-      return true;
+      return _query.boundary;
     }
 
     function defineReleaseData (filters, filterOptions, queryName) {
@@ -78,7 +77,7 @@ angular.module('aiddataDET')
         .pick('dataset')
         .cloneDeep()
         .extend({
-          unique_name: queryName,
+          custom_name: queryName,
           filters: filterData
         })
         .value();
@@ -91,8 +90,8 @@ angular.module('aiddataDET')
       var datasetData = _.chain(dataset)
         .pick(['name', 'title', 'base', 'type'])
         .extend({
-          unique_name: queryName,
-          temportal_type: _.get(dataset, 'temporal.type')
+          custom_name: queryName,
+          temporal_type: _.get(dataset, 'temporal.type')
         })
         .extend(options)
         .value();
@@ -126,6 +125,12 @@ angular.module('aiddataDET')
         files: []
       },
 
+      /* Only Used For Testing */
+      setQuery: function(query) {
+        _query = query;
+        return _query;
+      },
+
       generateQuery: function (datasetType, queryName) {
         // Test that there are projects/locations
         var self = this;
@@ -145,6 +150,9 @@ angular.module('aiddataDET')
         });
       },
 
+      getQuery: function () {
+        return _query;
+      },
 
       isUniq: function(dataset, filters, options) {
         if (dataset.type === 'raster') {
@@ -165,15 +173,49 @@ angular.module('aiddataDET')
         }
       },
 
+      submitRequest: function(additionalFields) {
+        return $q.when((function() {
+          if (!_.has(additionalFields, 'email', 'custom_name')) {
+            return $q.reject('email and custom name required');
+          }
+
+          var query = _.extend(_.cloneDeep(_query), additionalFields);
+          query.submitTime = Date.now();
+
+          return ajaxFactory.submitRequest(JSON.stringify(query));
+        })())
+        .then(function(results) {
+          return results.data;
+        });
+      },
+
+      resetQuery: function () {
+        _query.raster_data.splice(0);
+        _query.release_data.splice(0);
+      },
+
       removeRequest: function(request, type) {
         return $q.when(_removeRequest(request, type))
-        .then(function(c){ return c; });
+        .then(function(c) { return c; });
+      },
+
+      querySize: function () {
+        return _.chain(_query.raster_data)
+          .map(function(d) {
+            var fileSize = _.size(_.get(d, 'files')),
+                extractSize = _.size(_.get(d, 'options.extract_types'));
+
+            return fileSize * extractSize;
+          })
+          .sum()
+          .add(_.size(_.get(_query, 'release_data')))
+          .value();
       },
 
       getBoundaries: function () {
         return $q.when(retrieveBoundaries())
           .then(function(boundaries) {
-            return boundaries;
+            return _.cloneDeep(boundaries);
           });
       },
 
@@ -210,7 +252,19 @@ angular.module('aiddataDET')
       },
 
       setDataset: function(datasetName) {
+        _fields = _.chain(this.getDataset(datasetName))
+          .cloneDeep()
+          .get('fields')
+          .value();
+
+        this.filters = _.chain(_fields)
+          .filter('is_default')
+          .mapKeys('field')
+          .mapValues(function() { return [ 'All' ]; })
+          .value();
+
         this.filters.dataset = datasetName;
+        this.clearOptions();
         return this.getDataset(datasetName);
       },
 
@@ -252,7 +306,7 @@ angular.module('aiddataDET')
         _.each(_.omit(self.filters, 'dataset'), function(d, i) {
           self.resetFilter(i);
         });
-        return this.filters;
+        return self.filters;
       },
 
       toggleOptionOn: function (key, val) {
@@ -307,6 +361,11 @@ angular.module('aiddataDET')
         this.filters[filter].push('All');
 
         $rootScope.$broadcast('filters:resetRange', { filterId: filter });
+      },
+
+      getTimeStamp: function (date, format) {
+        var parsed = format ? d3.timeParse(format)(date) : date;
+        return d3.timeFormat('%b %d, %Y')(parsed);
       }
     };
   });

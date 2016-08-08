@@ -23,10 +23,10 @@ angular.module('aiddataDET')
         /* TODO: Stop storing dataset as filter */
         if (filterId !== 'dataset') {
           var filterObj = {
-            value: $scope.dataset.fields[filterId].filter_type === 'slider' &&
+            value: _.get($scope.dataset, ['fields', filterId, 'filter_type']) === 'slider' &&
               !_.isEqual($scope.filters[filterId], ['All']) ? getRange(filterId) :
               _.filter($scope.filters[filterId], function(d) { return d !== 'All'; }),
-            pre: $scope.dataset.fields[filterId].display + ' = ',
+            pre: _.get($scope.dataset, ['fields', filterId, 'display']) + ' = ',
             optional: true,
             key: filterId
           };
@@ -40,7 +40,7 @@ angular.module('aiddataDET')
 
   $scope.removeFilter = function(filter, option) {
     return $scope.dataset.type !== 'release' ? queryFactory.toggleOptionOff(filter, option) :
-      $scope.dataset.fields[filter].type === 'list' ? queryFactory.toggleFilterOff(filter, option) :
+      $scope.dataset.fields[filter].filter_type === 'list' ? queryFactory.toggleFilterOff(filter, option) :
       queryFactory.resetFilterRange(filter);
   };
 

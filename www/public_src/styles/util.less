@@ -6,7 +6,11 @@
   height: calc(100vh ~"-" @headerHeight ~"-" @processHeaderHeight);
 }
 
-.boxshadow {
-  z-index: 9;
-  box-shadow: @boxshadow;
+a.disabled {
+  pointer-events: none;
+  cursor: default;
+}
+
+.scroll-container {
+  overflow-y: auto;
 }

@@ -21,22 +21,25 @@ angular.module('aiddataDET')
         if (!result.data) {
           return $q.reject({ message: 'No data returned' });
         }
-        boundaries[boundary] = L.geoJson(result.data);
+        boundaries[boundary] = result.data;
         return boundaries[boundary];
       }, function(err) {
-        /* @TODO: Create error messaging */
         console.error(err);
         return $q.reject(err);
       });
   }
 
   return {
-    provision: function() {
+    provision: function(element, locked, callback) {
+      var promise = $q.defer();
       /* Basemap */
       var basemap = L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/emerald-v8/tiles/{z}/{x}/{y}?access_token=' + mapboxToken, {
         attribution: '© <a href="https://www.mapbox.com/map-feedback/">Mapbox</a> © <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       });
-      basemap.once('load', function() { map.invalidateSize().resetView(); });
+      basemap.once('load', function() {
+        map.invalidateSize().resetView();
+        return promise.resolve(map);
+      });
 
       /* Boundary Group */
       boundaryGroup = L.featureGroup()
@@ -50,18 +53,21 @@ angular.module('aiddataDET')
         });
 
       /* Map */
-      map = L.map('map', {
+      map = L.map(element, {
         zoomControl: false,
         layers: [ basemap, boundaryGroup ],
         doubleClickZoom: false,
         zoomAnimation: true,
         zoomAnimationThreshold: 20,
-        trackResize: true
+        trackResize: true,
+        dragging: !locked,
+        boxZoom: !locked,
+        scrollWheelZoom: !locked
       });
 
       map.resetView = function() { this.setView(defaultView.center, defaultView.zoom); };
       map.resetView();
-
+      return promise;
     },
 
     zoomIn: function() {
@@ -91,9 +97,9 @@ angular.module('aiddataDET')
       factory.startSpin();
 
       $q.when(retrieveBoundary(boundary))
-        .then(function(layer) {
+        .then(function(geoJson) {
           factory.clearBoundaries();
-          boundaryGroup.addLayer(layer);
+          boundaryGroup.addLayer(L.geoJson(geoJson));
         })
         .finally(function() {
           $rootScope.$broadcast('mapOverlay:remove');

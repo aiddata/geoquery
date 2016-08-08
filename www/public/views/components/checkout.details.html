@@ -1,0 +1,80 @@
+<h5 class="md-title md-padding">Review And Submit</h5>
+
+<md-divider></md-divider>
+
+<div layout="row"
+    layout-align="space-between stretch"
+    flex="40"
+    layout-margin>
+
+  <form name="checkoutForm" layout="column">
+    <md-input-container>
+      <input ng-model="queryData.custom_name"
+          type="text"
+          name="requestName"
+          placeholder="Request Name"
+          required>
+
+    </md-input-container>
+
+
+    <md-input-container>
+      <input ng-model="queryData.email"
+          type="email"
+          name="email"
+          placeholder="Email"
+          required>
+    </md-input-container>
+  </form>
+
+  <md-divider></md-divider>
+
+  <div class="map" flex></div>
+</div>
+
+<md-divider></md-divider>
+
+<div class="termsConditions md-padding" flex="25" layout="column">
+  <label class=""> Terms and Conditions </label>
+  <md-content class="termsContent" layout="column" flex layout-fill layout-margin layout-align="stretch space-between">
+    <p>
+      Marfa slow-carb narwhal, lumbersexual blue bottle pop-up pour-over 90's
+      master cleanse 8-bit organic ugh blog lomo. Sriracha typewriter try-hard
+      intelligentsia, ramps skateboard kickstarter. Tilde kinfolk humblebrag
+      cray crucifix, taxidermy 8-bit vice typewriter blog marfa swag brunch.
+      VHS kale chips crucifix cred williamsburg, ethical fixie try-hard raw
+      denim direct trade. Pitchfork fashion axe vinyl affogato. Offal disrupt
+      man bun small batch. Fingerstache flexitarian DIY mlkshk, wolf meggings
+      meditation.
+    </p>
+    <md-divider></md-divider>
+    <p>
+      Marfa slow-carb narwhal, lumbersexual blue bottle pop-up pour-over 90's
+      master cleanse 8-bit organic ugh blog lomo. Sriracha typewriter try-hard
+      intelligentsia, ramps skateboard kickstarter. Tilde kinfolk humblebrag
+      cray crucifix, taxidermy 8-bit vice typewriter blog marfa swag brunch.
+      VHS kale chips crucifix cred williamsburg, ethical fixie try-hard raw
+      denim direct trade. Pitchfork fashion axe vinyl affogato. Offal disrupt
+      man bun small batch. Fingerstache flexitarian DIY mlkshk, wolf meggings
+      meditation.
+    </p>
+  </md-content>
+</div>
+
+
+<md-divider></md-divider>
+
+
+<div layout="row" flex layout-align="center end" layout-padding>
+  <!-- <div > -->
+  <md-button md-no-ink
+      class="md-accent md-raised"
+      ng-click="submitQuery()"
+      ng-disabled="!checkoutForm.$valid" flex>
+
+    <md-tooltip md-delay="500" md-direction="top"> Submit Requests </md-tooltip>
+
+    Submit
+  </md-button>
+<!-- </div> -->
+</div>

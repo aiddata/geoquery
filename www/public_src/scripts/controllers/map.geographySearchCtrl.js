@@ -29,16 +29,8 @@ angular.module('aiddataDET')
   };
 
   $scope.selectFromFeatured = function(item) {
+    $scope.formData.searchText = item.search;
     $scope.showFeaturedSearches = false;
-    $scope.subBoundaries.splice(0);
-    $scope.formData.boundary = undefined;
-    $scope.formData.subboundary = undefined;
-
-    $scope.formData.searchText = item.name;
-    $timeout(function () {
-      $scope.selectedItemChange(item);
-    });
-
   };
 
   $scope.$watch('formData.subboundary', function (newValue) {
@@ -63,7 +55,6 @@ angular.module('aiddataDET')
           .flatten().uniq().toString().value();
       boundary.search = boundary.name + ' ' + boundary.tags;
     });
-
   });
 
 });

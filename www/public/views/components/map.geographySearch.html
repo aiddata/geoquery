@@ -1,5 +1,6 @@
-<md-content class="md-padding" flex="100">
-  <form uib-collapse="showFeaturedSearches"
+<md-content class="md-padding" flex="100"  md-whiteframe="6">
+  <form class="full-height slide-right"
+      ng-hide="showFeaturedSearches"
       ng-submit="$event.preventDefault()">
 
     <h4 class="md-primary">Select a Boundary to Begin Data Extraction</h4>
@@ -78,16 +79,18 @@
 
   </form>
 
-  <div uib-collapse="!showFeaturedSearches;">
-    <a class="md-primary" href=""
-        ng-click="selectFromFeatured(item)"><i class="fa fa-times" aria-hidden="true"></i></a>
+  <div ng-hide="!showFeaturedSearches;" class="toggle">
+    <a href="" class="md-primary"
+        ng-click="showFeaturedSearches = !showFeaturedSearches">
+      <i class="fa fa-times" aria-hidden="true"></i>
+    </a>
 
     <md-list class="md-dense" flex>
       <md-list-item
           ng-repeat="item in boundaries"
           ng-click="selectFromFeatured(item)">
 
-        <a href="">{{ item.name }}</a>
+        <a href="">{{ item.search }}</a>
       </md-list-item>
     </md-list>
   </div>

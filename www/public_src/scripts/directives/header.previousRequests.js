@@ -6,7 +6,7 @@ angular.module('aiddataDET')
       'menu': '=menuControl'
     },
     link: function(scope, element, attrs) {},
-    templateUrl: "views/components/header.previousRequests.html"//,
-    // controller: "PreviousRequestsCtrl"
+    templateUrl: "views/components/header.previousRequests.html",
+    controller: "PreviousRequestsCtrl"
   };
 });

@@ -1,0 +1,8 @@
+<ul class="breadcrumb-progress" layout="row" ng-class="{ 'justified': !!fullWidth }">
+  <li ng-repeat="step in stepList || defaultSteps">
+    <a href="" class="{{ step.name }} disabled" ng-class="{ 'incomplete': !step.time, 'current': step.name === currentStep }">
+      <i class="fa fa-check-circle" aria-hidden="true" ng-if="step.time && stepList"></i>
+      {{step.name}}
+    </a>
+  </li>
+</ul>

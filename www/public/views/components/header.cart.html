@@ -11,72 +11,57 @@
     </div>
   </md-toolbar>
 
-  <md-tabs md-dynamic-height md-border-bottom>
-    <md-tab label="Cart">
-      <md-content md-padding flex>
-        <div layout="column" layout-padding layout-align="top center">
+  <md-content md-padding>
+    <div layout="column" layout-padding>
 
-          <md-button class="md-raised md-accent"
-              style="width: 100%"
-              ng-disabled="!(queryObj.release_data && queryObj.release_data.length) && !(queryObj.raster_data && queryObj.raster_data.length)"
-              ui-sref="checkout">
-            Checkout
-          </md-button>
+      <md-button class="md-raised md-accent"
+          style="width: 100%"
+          ng-disabled="!(queryObj.release_data && queryObj.release_data.length) && !(queryObj.raster_data && queryObj.raster_data.length)"
+          ng-click="submitQuery()">
+        Checkout
+      </md-button>
 
-          <h3 class="md-headline text-center"
-              ng-show="!(queryObj.release_data && queryObj.release_data.length) && !(queryObj.raster_data && queryObj.raster_data.length)">
-            Your Cart is Empty
-          </h3>
+      <h3 class="md-headline text-center"
+          ng-show="!(queryObj.release_data && queryObj.release_data.length) && !(queryObj.raster_data && queryObj.raster_data.length)">
+        Your Cart is Empty
+      </h3>
 
-        </div>
-      </md-content>
+    </div>
+  </md-content>
 
-      <div ng-if="(queryObj.release_data && queryObj.release_data.length) || (queryObj.raster_data && queryObj.release_data.length)">
-        <md-divider></md-divider>
+  <div ng-if="(queryObj.release_data && queryObj.release_data.length) || (queryObj.raster_data && queryObj.raster_data.length)">
+    <md-list>
+      <md-divider></md-divider>
+      <div ng-repeat="(type, requests) in { release_data: queryObj.release_data, raster_data: queryObj.raster_data }">
+        <div ng-repeat="request in requests"
+            ng-init="dataset = datasetDetails(request); hidden= true;">
+          <md-list-item>
+            <a href="" class="md-primary" ng-click="hidden=!hidden;">
+                <i class="fa fa-chevron-right" aria-hidden="true"
+                    style="margin-right: 10px;"
+                    ng-class="{ 'fa-rotate-90': !hidden }"></i>
+              {{ request.custom_name }}
+            </a>
 
-        <md-list ng-repeat="(type, queries) in { release_data: queryObj.release_data, raster_data: queryObj.raster_data }">
-          <div ng-repeat="q in queries"
-              ng-init="dataset = datasetDetails(q); hidden= true;">
+            <a href="" class="md-secondary md-warn" ng-click="removeQuery(request, type)">
+              <i class="fa fa-minus-circle fa-lg" aria-hidden="true"></i>
+            </a>
 
-            <md-list-item>
-              <a href="" class="md-primary" ng-click="hidden=!hidden;">
-                  <i class="fa fa-chevron-right" aria-hidden="true"
-                      style="margin-right: 10px;"
-                      ng-class="{ 'fa-rotate-90': !hidden }"></i>
-                {{ q.unique_name }}
-              </a>
+        </md-list-item>
 
-              <a href="" class="md-secondary md-warn" ng-click="removeQuery(q, type)">
-                <i class="fa fa-minus-circle fa-lg" aria-hidden="true"></i>
-              </a>
-
-          </md-list-item>
-
-            <div layout-padding uib-collapse="hidden">
-              <plain-text-query
-                ng-if="!hidden"
-                query-dataset="dataset"
-                query-geography="queryObj.boundary.title"
-                query-filters="q.filters"
-                query-options="q"
-                query-editable="false"></plain-text-query>
-            </div>
-
-            <md-divider></md-divider>
+          <div layout-padding uib-collapse="hidden">
+            <plain-text-query
+              ng-if="!hidden"
+              query-dataset="dataset"
+              query-geography="queryObj.boundary.title"
+              query-filters="request.filters"
+              query-options="request"
+              query-editable="false"></plain-text-query>
           </div>
-        </md-list>
-      </div>
-    </md-tab>
 
-    <md-tab label="Request Preview">
-      <md-content md-padding flex>
-        <div layout="column" layout-padding layout-align="top center">
-          <h5 class="md-headline text-center">
-            Request Preview
-          </h5>
-          <pre>{{ query }}</pre>
+          <md-divider></md-divider>
         </div>
-      </md-content>
-    </md-tab>
-  </md-tabs>
+      </div>
+    </md-list>
+  </div>
 </md-sidenav>

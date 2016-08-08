@@ -1,11 +1,9 @@
 angular.module('aiddataDET')
-.controller('CartCtrl', function($scope, $rootScope, $log, $stateParams, $state, queryFactory) {
+.controller('CartCtrl', function($scope, $rootScope, $log, $stateParams, $state, queryFactory, ajaxFactory) {
   $scope.queryObj = {};
-  $scope.query = '{}';
 
   $rootScope.$on('query:updated', function(event, data) {
     $scope.queryObj = data;
-    $scope.query = JSON.stringify(data, null, 4);
   });
 
   $scope.datasetDetails = function (q) {
@@ -18,6 +16,10 @@ angular.module('aiddataDET')
       .then(function(query) {
         $rootScope.$broadcast('query:updated', query);
       });
+  };
+
+  $scope.submitQuery = function () {
+    $state.go('checkout');
   };
 
 });

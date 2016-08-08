@@ -1,0 +1,61 @@
+<div flex id="requestList" class="md-padding">
+  <div ng-repeat="(type, queries) in { release_data: queryObj.release_data, raster_data: queryObj.raster_data }">
+    <md-card ng-repeat="q in queries"
+        class="md-margin"
+        ng-init="dataset = datasetDetails(q); hidden= true;">
+
+      <md-card-header layout-align="center center">
+
+        <md-input-container class="md-icon-float condensed no-label" md-no-float>
+          <md-icon>
+            <md-tooltip md-delay="500" md-direction="top"> Rename this Request </md-tooltip>
+            <i class="fa fa-pencil-square-o " aria-hidden="true"></i>
+          </md-icon>
+
+          <input ng-model="q.custom_name" placeholder="Request Name">
+        </md-input-container>
+
+        <span flex></span>
+
+        <md-button class="md-primary" ng-click="hidden=!hidden;" style="margin: 0 5px;">
+            Details
+            <i class="fa fa-chevron-right" aria-hidden="true"
+                ng-class="{ 'fa-rotate-90': !hidden }"></i>
+        </md-button>
+
+        <md-button class="md-secondary md-warn" ng-click="removeQuery(q, type)" style="margin: 0 5px;">
+          <i class="fa fa-minus-circle fa-lg" aria-hidden="true"></i>
+          Remove
+        </md-button>
+
+      </md-card-header>
+
+
+      <md-content uib-collapse="hidden" layout-padding style="padding: 16px; border-top: 1px solid #eee;">
+
+        <plain-text-query
+            ng-if="!hidden"
+            query-dataset="dataset"
+            query-geography="queryObj.boundary.title"
+            query-filters="q.filters"
+            query-options="q"
+            query-editable="false"></plain-text-query>
+
+      </md-content>
+
+    </md-card>
+  </div>
+</div>
+
+<div layout="row" layout-padding>
+  <md-button md-no-ink
+      class="md-primary"
+      ng-click="addRequest()"
+      flex>
+
+    <md-tooltip md-delay="500" md-direction="top"> Add to Your Cart </md-tooltip>
+
+    Add Another Selection
+    <i class="fa fa-plus" aria-hidden="true"></i>
+  </md-button>
+</div>
