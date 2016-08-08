@@ -2,7 +2,17 @@ angular.module('aiddataDET')
 .factory('mapFactory', function($q, $timeout, $rootScope, ajaxFactory) {
 
   var map = {};
-  var mapboxToken = 'pk.eyJ1IjoiZXNsaXZpbnNraWNhcnRvIiwiYSI6IjRWenpDcmMifQ.IU9qcKhUf_w-lTQQ-I7DIg';
+  var tiles = {
+    default: {
+      url: 'https://api.mapbox.com/styles/v1/mapbox/emerald-v8/tiles/{z}/{x}/{y}?access_token=',
+      token: 'pk.eyJ1IjoiZXNsaXZpbnNraWNhcnRvIiwiYSI6IjRWenpDcmMifQ.IU9qcKhUf_w-lTQQ-I7DIg'
+    },
+    custom: {
+      url: 'https://api.mapbox.com/styles/v1/mapofthrones/cirgjv9i5000tgdlv43vtgvq1/tiles/256/{z}/{x}/{y}?access_token=',
+      token: 'pk.eyJ1IjoibWFwb2Z0aHJvbmVzIiwiYSI6ImNpcmY5eWpsdDAwN3pnYWtyaG42dnozdmoifQ.AqaIZ6DsM7EOoe5bYxeq3Q'
+    }
+  };
+  var currentTileset = tiles.custom;
 
   var defaultView = {
     zoom: 2,
@@ -33,7 +43,7 @@ angular.module('aiddataDET')
     provision: function(element, locked, callback) {
       var promise = $q.defer();
       /* Basemap */
-      var basemap = L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/emerald-v8/tiles/{z}/{x}/{y}?access_token=' + mapboxToken, {
+      var basemap = L.tileLayer(currentTileset.url + currentTileset.token, {
         attribution: '© <a href="https://www.mapbox.com/map-feedback/">Mapbox</a> © <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       });
       basemap.once('load', function() {

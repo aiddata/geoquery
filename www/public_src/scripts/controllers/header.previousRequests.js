@@ -1,11 +1,13 @@
 angular.module('aiddataDET')
 .controller('PreviousRequestsCtrl', function($scope, $rootScope, $log, $stateParams, $state, ajaxFactory, queryFactory) {
 
-  $scope.email = 'eslivinski@gmail.com';
+  $scope.requestForm = {
+    email: ''
+  };
   $scope.requests = [];
 
   $scope.lookup = function() {
-    ajaxFactory.requests('email', $scope.email)
+    ajaxFactory.requests('email', $scope.requestForm.email)
       .then(function(results) {
         $scope.requests = results.data;
       }, function(err) {
@@ -28,6 +30,11 @@ angular.module('aiddataDET')
     })
     .last()
     .value();
+  };
+
+  $scope.logout = function() {
+    $scope.requestForm.email = '';
+    $scope.requests.splice(0);
   };
 
 });

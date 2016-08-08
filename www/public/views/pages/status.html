@@ -1,66 +1,77 @@
-<md-content class="full-height" flex layout-padding>
-  <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
 
-  <div ng-switch="request.process_time" class="status-headline">
-    <div ng-switch-when="undefined">
-      <h1> You're almost there! </h1>
-      <p class="lead"> Your request <strong>{{ request.custom_name }}</strong> has been {{ pastTense(request.status) }} </p>
-    </div>
-    <div ng-switch-default layout="row">
-      <div flex="80">
-        <h1 > You're all set! </h1>
-        <p class="lead"> Your request <strong>{{ request.custom_name }}</strong> is ready for download </p>
+<div class="full-height" flex layout="column">
+
+  <div layout="row" layout-fill>
+    <md-content class="status-headline" flex="45"  layout="column" md-whiteframe="4">
+      <div ng-switch="request.process_time" layout-padding>
+        <div ng-switch-when="undefined">
+          <h1> You're almost there! </h1>
+          <small>
+            <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
+          </small>
+          <p class="lead"> <strong>{{ request.custom_name }}</strong> has been {{ pastTense(request.status) }} </p>
+        </div>
+        <div ng-switch-default>
+          <h1 > You're all set! </h1>
+          <small>
+            <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
+          </small>
+          <p class="lead"> <strong>{{ request.custom_name }}</strong> is ready for download </p>
+        </div>
+       <md-divider></md-divider>
+
+        <div layout="column" ng-if="request.process_time">
+          <strong style="margin-left: 10px;">Download Options</strong>
+          <div layout-align="space-around" layout="row">
+            <md-button class="md-primary" ng-if="request.process_time"
+                ng-href="http://labs.aiddata.org/DET/results/{{ request._id.$id }}/{{ request._id.$id }}.zip">
+              Request Zip
+              <i class="fa fa-file-archive-o" aria-hidden="true"></i>
+            </md-button>
+            <md-button class="md-primary" ng-if="request.process_time" target="_blank"
+                ng-href="http://labs.aiddata.org/DET/results/{{ request._id.$id }}/{{ request._id.$id }}_documentation.pdf">
+              Documentation PDF
+              <i class="fa fa-file-pdf-o" aria-hidden="true"></i>
+            </md-button>
+            <md-button class="md-primary" ng-if="request.process_time"
+                ng-href="http://labs.aiddata.org/DET/results/{{ request._id.$id }}/{{ request._id.$id }}_results.csv">
+              Results CSV
+              <i class="fa fa-file-o" aria-hidden="true"></i>
+            </md-button>
+          </div>
+        </div>
       </div>
-      <div flex layout="column">
-        <md-button class="md-primary" ng-if="request.process_time"
-            ng-href="http://labs.aiddata.org/DET/results/{{ request._id.$id }}/{{ request._id.$id }}.zip">
-          Download Zip
-          <i class="fa fa-file-archive-o" aria-hidden="true"></i>
-        </md-button>
-        <md-button class="md-primary" ng-if="request.process_time"
-            ng-href="http://labs.aiddata.org/DET/results/{{ request._id.$id }}/{{ request._id.$id }}_documentation.pdf">
-          Download Documentation
-          <i class="fa fa-file-pdf-o" aria-hidden="true"></i>
-        </md-button>
-        <md-button class="md-primary" ng-if="request.process_time"
-            ng-href="http://labs.aiddata.org/DET/results/{{ request._id.$id }}/{{ request._id.$id }}_results.csv">
-          Download Results CSV
-          <i class="fa fa-file-o" aria-hidden="true"></i>
-        </md-button>
+    </md-content >
+
+    <div layout="column" flex="55">
+      <h4 class="md-padding" style="padding-bottom: 0px;"><em>Selections included in {{ request.custom_name }} </em></h4>
+
+      <div ng-repeat="(type, queries) in { release_data: request.release_data, raster_data: request.raster_data }">
+        <div ng-repeat="q in queries" ng-init="dataset = getDataset(q)">
+          <md-card >
+            <md-card-header layout-align="center center">
+              <md-card-title-text>
+                <span class="md-title">{{ q.custom_name ? q.custom_name : 'Unamed Request ' + q.name }}</span>
+              </md-card-title-text>
+              <span flex></span>
+              <md-button class="md-primary" ng-click="hidden=!hidden;" ng-init="hidden=true">
+                Details
+                <i class="fa fa-chevron-right" aria-hidden="true" ng-class="{ 'fa-rotate-90': !hidden }"></i>
+              </md-button>
+            </md-card-header>
+
+            <md-content uib-collapse="hidden" style="border-top: 1px solid #eee; padding: 16px">
+              <plain-text-query
+                  ng-if="!hidden"
+                  query-dataset="dataset"
+                  query-geography="request.boundary.group"
+                  query-filters="q.filters"
+                  query-options="q"
+                  query-editable="false"></plain-text-query>
+            </md-content>
+          </md-card>
+        </div>
       </div>
     </div>
   </div>
-  <div layout="column">
-    <md-card >
-      <md-card-header layout-align="center center">
-        <md-card-title-text>
-          <span class="md-headline">{{ request.custom_name }}</span>
-        </md-card-title-text>
-        <span flex></span>
-
-        <md-button class="md-primary" ng-click="hidden=!hidden;">
-          Details
-          <i class="fa fa-chevron-right" aria-hidden="true" ng-class="{ 'fa-rotate-90': !hidden }"></i>
-        </md-button>
-      </md-card-header>
-
-      <md-content uib-collapse="hidden" style="border-top: 1px solid #eee; padding: 16px">
-        <div ng-repeat="(type, queries) in { release_data: request.release_data, raster_data: request.raster_data }">
-          <div ng-repeat="q in queries" ng-init="dataset = getDataset(q)">
-
-           <h4>{{ q.custom_name ? q.custom_name : 'Unamed Request ' + q.name }}</h4>
-            <plain-text-query
-                ng-if="!hidden"
-                query-dataset="dataset"
-                query-geography="request.boundary.group"
-                query-filters="q.filters"
-                query-options="q"
-                query-editable="false"></plain-text-query>
-
-            <hr>
-           </div>
-         </div>
-      </md-content>
-    </md-card>
-  </div>
-</md-content>
+</div>

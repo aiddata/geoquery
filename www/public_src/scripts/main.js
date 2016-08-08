@@ -69,9 +69,9 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
       '': {
         templateUrl: 'views/pages/search.html'
       },
-      'queryText@search': {
-        templateUrl: 'views/components/search.queryText.html',
-        controller: 'QueryTextCtrl'
+      'selectionText@search': {
+        templateUrl: 'views/components/search.selectionText.html',
+        controller: 'SelectionTextCtrl'
       },
       'datasetSelector@search': {
         templateUrl: 'views/components/search.datasetSelector.html',
@@ -154,9 +154,9 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
       '': {
         templateUrl: 'views/pages/checkout.html'
       },
-      'requests@checkout': {
-        templateUrl: 'views/components/checkout.requests.html',
-        controller: 'RequestCtrl'
+      'selections@checkout': {
+        templateUrl: 'views/components/checkout.selections.html',
+        controller: 'SelectionsCtrl'
       },
       'details@checkout': {
         templateUrl: 'views/components/checkout.details.html',
