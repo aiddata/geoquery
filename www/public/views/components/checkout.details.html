@@ -37,26 +37,8 @@
 <div class="termsConditions md-padding" flex="25" layout="column">
   <label class=""> Terms and Conditions </label>
   <md-content class="termsContent" layout="column" flex layout-fill layout-margin layout-align="stretch space-between">
-    <p>
-      Marfa slow-carb narwhal, lumbersexual blue bottle pop-up pour-over 90's
-      master cleanse 8-bit organic ugh blog lomo. Sriracha typewriter try-hard
-      intelligentsia, ramps skateboard kickstarter. Tilde kinfolk humblebrag
-      cray crucifix, taxidermy 8-bit vice typewriter blog marfa swag brunch.
-      VHS kale chips crucifix cred williamsburg, ethical fixie try-hard raw
-      denim direct trade. Pitchfork fashion axe vinyl affogato. Offal disrupt
-      man bun small batch. Fingerstache flexitarian DIY mlkshk, wolf meggings
-      meditation.
-    </p>
-    <md-divider></md-divider>
-    <p>
-      Marfa slow-carb narwhal, lumbersexual blue bottle pop-up pour-over 90's
-      master cleanse 8-bit organic ugh blog lomo. Sriracha typewriter try-hard
-      intelligentsia, ramps skateboard kickstarter. Tilde kinfolk humblebrag
-      cray crucifix, taxidermy 8-bit vice typewriter blog marfa swag brunch.
-      VHS kale chips crucifix cred williamsburg, ethical fixie try-hard raw
-      denim direct trade. Pitchfork fashion axe vinyl affogato. Offal disrupt
-      man bun small batch. Fingerstache flexitarian DIY mlkshk, wolf meggings
-      meditation.
+    <p ng-repeat="paragraph in terms">
+      {{ paragraph }}
     </p>
   </md-content>
 </div>

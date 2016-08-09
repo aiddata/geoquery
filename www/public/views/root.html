@@ -1,0 +1,20 @@
+<!-- Sidebar -->
+<md-sidenav md-component-id="right" md-is-open="sidebar.open" class="md-sidenav-right">
+  <md-toolbar>
+    <div class="md-toolbar-tools">
+      <a href="" class="toolbar-link" ng-click="sidebar.open = false">
+        <i class="fa fa-times" aria-hidden="true"></i>
+      </a>
+      <span flex></span>
+      <h5 class="md-headline"> {{sidebar.active | capitalize}} </h5>
+    </div>
+  </md-toolbar>
+  <div ui-view="cart" ng-show="sidebar.active === 'cart'"></div>
+  <div ui-view="help" ng-show="sidebar.active === 'help'"></div>
+  <div ui-view="previousRequests" ng-show="sidebar.active === 'previousRequests'"></div>
+</md-sidenav>
+
+<!-- Header -->
+<div ui-view="header"></div>
+<!-- Individual Pages Are Inserted Here -->
+<div class="remaining-height" ui-view="" flex> </div>
