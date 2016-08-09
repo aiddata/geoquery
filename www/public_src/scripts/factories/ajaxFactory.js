@@ -26,6 +26,11 @@ angular.module('aiddataDET')
 
       submitRequest: function (query) {
         return $http.post('/api/submit', { query: query });
+      },
+
+      language: function () {
+        return $http.get('/api/language');
       }
+
     };
   });

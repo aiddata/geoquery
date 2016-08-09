@@ -1,0 +1,42 @@
+<md-content md-padding>
+  <div ng-if="!requests.length">
+    <div layout="column" layout-padding layout-align="top">
+
+      <md-input-container class="condensed">
+        <label>e-mail</label>
+        <input ng-model="requestForm.email">
+      </md-input-container>
+
+      <md-button md-no-ink
+          class="md-primary"
+          ng-click="lookup()">Lookup</md-button>
+
+    </div>
+  </div>
+  <div ng-if="requests.length" layout="column" layout-padding>
+    <h4>
+      {{ requests.length }} Requests Found
+      <a class="md-primary pull-right" ui-sref="requests({ email: requestForm.email })"> Requests Home </a>
+    </h4>
+    <a href="" class="md-primary" ng-click="logout()"> Not {{ requestForm.email }} ?? </a>
+    <md-divider></md-divider>
+  </div>
+</md-content>
+
+
+<md-list ng-if="requests.length">
+  <process-breadcrumbs></process-breadcrumbs>
+
+
+  <md-list-item
+      ng-repeat="req in requests"
+      ng-click="viewStatus(req._id.$id)"
+      ng-init="status = getStage(req)">
+
+    <span flex="60">{{ req.custom_name ? req.custom_name : 'Unamed Request ' }}</span>
+    <span class="badge {{ status.name }}">{{ status ? status.name : 'unknown' }}</span>
+    <span flex></span>
+    <i class="fa fa-external-link-square" aria-hidden="true"></i>
+    <md-divider></md-divider>
+  </md-list-item>
+</md-list>

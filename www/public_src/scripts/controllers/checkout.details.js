@@ -1,6 +1,7 @@
 angular.module('aiddataDET')
-.controller('DetailsCtrl', function($scope, $rootScope, $log, $q, $timeout, $state, $element, $mdDialog, queryFactory, mapFactory, spinFactory) {
+.controller('DetailsCtrl', function($scope, $rootScope, $log, $q, $timeout, $state, $element, $mdDialog, queryFactory, mapFactory, spinFactory, language) {
   $scope.queryObj = queryFactory.getQuery();
+  $scope.terms = [];
   $scope.queryData = {
     email: '',
     custom_name: 'Unnamed Request'
@@ -38,6 +39,8 @@ angular.module('aiddataDET')
   };
 
   $scope.$on('$viewContentLoaded', function() {
+    $scope.terms = _.get(language, 'terms_and_conditions.content') || [];
+
     mapFactory.provision(document.querySelector('.map'), true)
       .promise.then(function(){
         var sub = queryFactory.getSubBoundary().name;
