@@ -3,7 +3,7 @@
     <div class="md-toolbar-tools">
 
       <h2>
-        <a href="#">
+        <a href="" ui-sref="map">
            <div class="logo"></div>
         </a>
       </h2>
@@ -12,7 +12,7 @@
       <span ng-repeat="key in tabs.order" layout="row">
         <md-button class="md-icon-button header-button"
             aria-label="{{ tabs.options[key].text }}"
-            ng-click="activate(tabs.options[key])">
+            ng-click="activate(key)">
           <md-tooltip> {{ tabs.options[key].text }} </md-tooltip>
           <i class='fa {{ tabs.options[key].icon }}' aria-hidden="true"></i>
         </md-button>
@@ -64,7 +64,4 @@
         </md-button>
     </div>
   </md-toolbar>
-  <header-cart menu-control="tabs.options.cart.active"></header-cart>
-  <header-help menu-control="tabs.options.help.active"></header-help>
-  <header-previous-requests menu-control="tabs.options.previousRequests.active"></header-previous-requests>
 </div>

@@ -21,7 +21,42 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
   /* Routing and State Management */
   $urlRouterProvider.otherwise('/');
 
-  $stateProvider.state('map', {
+  $stateProvider
+  .state('root', {
+    abstract: true,
+    resolve: {
+      language: function(ajaxFactory) {
+        return ajaxFactory.language()
+          .then(function(results) {
+            return results.data;
+          });
+      }
+    },
+    views: {
+      '': {
+        templateUrl: 'views/root.html',
+        controller: 'RootCtrl'
+      },
+      'header@root': {
+        templateUrl: 'views/components/root.header.html',
+        controller: 'HeaderCtrl'
+      },
+      'cart@root': {
+        templateUrl: 'views/components/root.cart.html',
+        controller: 'CartCtrl'
+      },
+      'help@root': {
+        templateUrl: 'views/components/root.help.html',
+        controller: 'HelpCtrl'
+      },
+      'previousRequests@root': {
+        templateUrl: 'views/components/root.previousRequests.html',
+        controller: 'PreviousRequestsCtrl'
+      }
+    }
+  })
+  .state('map', {
+    parent: 'root',
     url: '/',
     params: { confirmation: { confirmed: false } },
     resolve: {
@@ -51,6 +86,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     }
   })
   .state('search', {
+    parent: 'root',
     url: '/search/:boundary/:subboundary',
     resolve: {
       boundary: function($log, $stateParams, queryFactory) {
@@ -109,6 +145,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     }
   })
   .state('checkout', {
+    parent: 'root',
     url: '/checkout?mode',
     resolve: {
       query: function($state, $stateParams, $timeout, $q, $http, queryFactory) {
@@ -165,6 +202,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     }
   })
   .state('requests', {
+    parent: 'root',
     url: '/requests/:email',
     templateUrl: 'views/pages/requests.html',
     resolve: {
@@ -186,6 +224,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     controller: 'RequestsCtrl'
   })
   .state('status', {
+    parent: 'root',
     url: '/status/:id',
     resolve: {
       request: function(ajaxFactory, $stateParams) {
