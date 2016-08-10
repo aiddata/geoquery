@@ -1,21 +1,11 @@
 <div layout="column" class="full-height">
-
-  <!-- <div layout="row" layout-padding layout-align="space-between">
-    <div>
-      <span class="label label-primary label-circle pull-left"
-        style="margin-top: -5px; margin-left: -5px; margin-right: 5px;">
-        {{ datasets.filtered.length }}
-      </span>
-      Dataset<span ng-if="datasets.filtered.length > 1">s</span> Found
-    </div>
-  </div> -->
   <div class="md-margin">
-    <h4 class="md-headline"> Select and customize datasets</h4>
+    <h4>{{ datasets.filtered.length }} Datasets Found </h4>
   </div>
 
   <div layout="row" flex layout-padding>
     <md-input-container flex class="">
-      <label> Data Tag </label>
+      <label> Search by Dataset Tag </label>
       <md-select ng-model="dataFilters.tag">
         <md-option value="all"> All </md-option>
         <md-option ng-repeat="field in featuredTags" value="{{ field }}">
@@ -28,25 +18,6 @@
     </small>
   </div>
 
-
-  <!-- <md-tabs md-selected="selectedTabIndex"
-      md-border-bottom
-      tab-watch
-      md-stretch-tabs="always">
-
-    <md-tab aria-controls="">
-        <i class="fa fa-briefcase" aria-hidden="true"></i>
-        <i class="fa" aria-hidden="true"
-            ng-class="{'fa-caret-down': showSearchTools, 'fa-caret-up': !showSearchTools }"></i>
-    </md-tab>
-
-    <md-tab ng-repeat="type in dataTypes"
-        ng-click="dataFilters.type = type.value;"
-        aria-controls="">
-        {{ type.text }}
-    </md-tab>
-  </md-tabs> -->
-
   <div uib-collapse="!showSearchTools">
     <div layout="row" layout-padding>
       <md-input-container md-no-float class="flex-50 condensed">
@@ -54,7 +25,7 @@
         <input ng-model="dataFilters.searchText" placeholder="">
       </md-input-container>
 
-      <md-input-container class="flex-30 condensed">
+      <md-input-container class="condensed" flex="30">
         <label>Sort by</label>
         <md-select ng-model="fields.selected">
           <md-option ng-repeat="field in fields.options" value="{{ field }}">
@@ -62,16 +33,15 @@
           </md-option>
         </md-select>
       </md-input-container>
-
-      <md-input-container class="flex-20 condensed">
-        <md-button class="md-icon-button md-primary"
+      <div flex="20">
+        <md-button class="md-primary md-icon-button"
             aria-label="Sort Datasets"
             ng-click="fields.descending = !fields.descending"
             ng-switch="fields.descending">
-          <i ng-switch-when="false" class="fa fa-lg fa-sort-asc"></i>
-          <i ng-switch-when="true" class="fa fa-lg fa-sort-desc"></i>
+          <i ng-switch-when="false" class="fa fa-lg fa-sort-amount-asc"></i>
+          <i ng-switch-when="true" class="fa fa-lg fa-sort-amount-desc"></i>
         </md-button>
-      </md-input-container>
+      </div>
     </div>
   </div>
 
@@ -95,7 +65,7 @@
 
         <div class="md-list-item-text" layout="column">
           <h5> {{ set.title }} </h5>
-          <p> <span ng-repeat="tag in set.extras.tags">{{ tag }} </span> </p>
+          <p><i class="fa fa-tags" aria-hidden="true"></i> <span ng-repeat="tag in set.extras.tags">{{ tag }} </span> </p>
         </div>
 
          <a href=""

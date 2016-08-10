@@ -14,14 +14,6 @@ angular.module('aiddataDET')
     descending: true
   };
 
-  // $scope.dataTypes = [
-  //   { text: 'All', value: 'all' },
-  //   { text: 'AidData', value: 'release' },
-  //   { text: 'External', value: 'raster' }
-  // ];
-  //
-  // $scope.selectedTabIndex = 1;
-
 
   $scope.search = function (item) {
     if ($scope.dataFilters.tag !== 'all' &&
@@ -60,9 +52,6 @@ angular.module('aiddataDET')
 
     $scope.dataFilters = { searchText: '', tag: 'all' };
     $scope.featuredTags = featured;
-
-    // $scope.dataFilters.type = _.get(_.find(datasets, { name: $state.params.dataset }), 'type') || 'all';
-    // $scope.selectedTabIndex = _.findIndex($scope.dataTypes, { value: $scope.dataFilters.type }) + 1;
 
     var d = _.orderBy(datasets, 'type').reverse();      // Position AidData Datasets at the Top of Array
     $scope.datasets.options = d;
