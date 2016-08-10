@@ -20,7 +20,7 @@ angular.module('aiddataDET')
   });
 
   $scope.$on('$viewContentLoaded', function(event) {
-    if ($scope.currentStep === "map" && !welcomeDialog.opened) {
+    if ($state.$current.self.name === "map" && !welcomeDialog.opened) {
       $mdDialog.show(welcomeDialog);
       welcomeDialog.opened = true;
     }
