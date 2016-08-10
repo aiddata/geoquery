@@ -2,12 +2,14 @@
   <md-toolbar md-scroll-shrink>
     <div class="md-toolbar-tools">
 
-      <div style="width: 50%;">
-        <i class="fa fa-pencil-square-o" aria-hidden="true"style="display: block; float: left; padding-right: 5px; padding-top: 8px;"></i>
-        <md-input-container class="condensed no-label md-light"
-          md-no-float>
-          <md-tooltip md-delay="500" md-direction="top"> Change Selection Name </md-tooltip>
-          <input ng-model="selectionData.name" placeholder="Selection Name">
+      <div flex="50" layout="column">
+        <md-input-container class="condensed no-label md-light md-icon-float" flex md-no-float style="font-size: 16px">
+          <md-icon>
+            <md-tooltip md-delay="500" md-direction="top"> Change Selection Name </md-tooltip>
+            <i class="fa fa-pencil-square-o " aria-hidden="true"></i>
+          </md-icon>
+
+          <input ng-model="selectionData.name" placeholder="Selection Name" ng-change="selectionData.renamed = true">
         </md-input-container>
 
         <small ng-if="dataset && dataset.type == 'release'">
@@ -20,20 +22,23 @@
       <span flex></span>
 
 
-      <md-button class="md-raised md-warn md-hue-2" aria-label="Reset Filters"
+      <md-button class="md-raised toggle" aria-label="Reset Filters"
+        ng-class="{'md-warn md-hue-2': selectionData.canAdd, 'md-primary md-hue-1': !selectionData.canAdd }"
         ng-click="clearFilters()"
         ng-show="selectionData.canReset">
         <md-tooltip md-delay="500" md-direction="top"> Clear Search Filters </md-tooltip>
-        <i class="fa fa-lg fa-refresh" aria-hidden="true"></i>
-        Reset Filters
+        <i class="fa fa-lg fa-refresh" aria-hidden="true"></i>&nbsp;&nbsp;
+        <span ng-show="selectionData.canAdd">Reset</span>
+        <span ng-show="!selectionData.canAdd">New Selection</span>
       </md-button>
 
       <md-button class="md-raised md-accent md-hue-5" aria-label="Add to Cart"
           ng-disabled="!selectionData.canAdd"
           ng-click="addToCart()">
         <md-tooltip md-delay="500" md-direction="top"> Move Selection to Cart </md-tooltip>
-        <i class="fa fa-lg fa-plus" aria-hidden="true"></i>
-        Add to Cart
+        <i class="fa fa-lg fa-plus" aria-hidden="true"></i>&nbsp;&nbsp;
+        <span ng-show="selectionData.canAdd || dataset.type === 'raster'">Add to Cart</span>
+        <span ng-show="!selectionData.canAdd && dataset.type !== 'raster'">Added to Cart</span>
       </md-button>
 
     </div>

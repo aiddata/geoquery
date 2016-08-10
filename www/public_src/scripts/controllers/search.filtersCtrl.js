@@ -35,10 +35,9 @@ angular.module('aiddataDET')
   $scope.$watch('filterOrder', function(newValue, oldValue) {
     if (!_.difference(newValue, oldValue)[0]) { return; }
     $timeout(function() {
-      $location.hash('addFilterButton');
-      $anchorScroll();
+      $('#searchModuleView').animate({scrollLeft: $('#searchModuleView').width()}, 'slow');
       $scope.dataset.fields[_.difference(newValue, oldValue)[0]].isActive = true;
-    }, 300);
+    }, 400);
 
   }, true);
 
