@@ -6,7 +6,7 @@
       <div layout="column" flex="75" layout-align="start">
          <md-card-title layout="row" flex="initial">
            <md-card-title-text>
-             <span ng-switch="request.status" class="md-headline">{{ request.custom_name }}
+             <span class="md-headline">{{ request.custom_name }}
                <span class="badge {{ request.status !== 'prep' ? request.status : 'process' }}" layout-align="center">{{ request.status !== 'prep' ? request.status: 'process' }}</span>
              </span>
            </md-card-title-text>
