@@ -3,20 +3,27 @@
 
   <div layout="row" layout-fill>
     <md-content class="status-headline" flex="45"  layout="column" md-whiteframe="4">
-      <div ng-switch="request.process_time" layout-padding>
-        <div ng-switch-when="undefined">
-          <h1> You're almost there! </h1>
+      <div ng-switch="request.status" layout-padding>
+        <div ng-switch-when="submit">
+          <h1> <strong>{{ request.custom_name }}</strong> has been submitted! </h1>
+          <br>
           <small>
             <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
           </small>
-          <p class="lead"> <strong>{{ request.custom_name }}</strong> has been {{ pastTense(request.status) }} </p>
+        </div>
+        <div ng-switch-when="complete">
+          <h1> <strong>{{ request.custom_name }}</strong> is ready for download! </h1>
+          <br>
+          <small>
+            <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
+          </small>
         </div>
         <div ng-switch-default>
-          <h1 > You're all set! </h1>
+          <h1> <strong>{{ request.custom_name }}</strong> is being processed! </h1>
+          <br>
           <small>
             <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
           </small>
-          <p class="lead"> <strong>{{ request.custom_name }}</strong> is ready for download </p>
         </div>
        <md-divider></md-divider>
 
@@ -41,7 +48,7 @@
           </div>
         </div>
       </div>
-    </md-content >
+    </md-content>
 
     <div layout="column" flex="55">
       <h4 class="md-padding" style="padding-bottom: 0px;"><em>Selections included in {{ request.custom_name }} </em></h4>
