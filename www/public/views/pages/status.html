@@ -7,7 +7,7 @@
         <div ng-switch-when="undefined">
           <h1> You're almost there! </h1>
           <small>
-            <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
+            <process-breadcrumbs current-step="request.status" full-width="true"></process-breadcrumbs>
           </small>
           <p class="lead"> <strong>{{ request.custom_name }}</strong> has been {{ pastTense(request.status) }} </p>
         </div>
