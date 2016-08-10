@@ -1,6 +1,6 @@
 <div layout="column" class="full-height">
 
-  <div layout="row" layout-padding layout-align="space-between">
+  <!-- <div layout="row" layout-padding layout-align="space-between">
     <div>
       <span class="label label-primary label-circle pull-left"
         style="margin-top: -5px; margin-left: -5px; margin-right: 5px;">
@@ -8,9 +8,28 @@
       </span>
       Dataset<span ng-if="datasets.filtered.length > 1">s</span> Found
     </div>
+  </div> -->
+  <div class="md-margin">
+    <h4 class="md-headline"> Select and customize datasets</h4>
   </div>
 
-  <md-tabs md-selected="selectedTabIndex"
+  <div layout="row" flex layout-padding>
+    <md-input-container flex class="">
+      <label> Data Tag </label>
+      <md-select ng-model="dataFilters.tag">
+        <md-option value="all"> All </md-option>
+        <md-option ng-repeat="field in featuredTags" value="{{ field }}">
+          {{ field }}
+        </md-option>
+      </md-select>
+    </md-input-container>
+    <small flex="20">
+      <a href="" ng-click="showSearchTools = !showSearchTools"> Advanced Options</a>
+    </small>
+  </div>
+
+
+  <!-- <md-tabs md-selected="selectedTabIndex"
       md-border-bottom
       tab-watch
       md-stretch-tabs="always">
@@ -26,9 +45,9 @@
         aria-controls="">
         {{ type.text }}
     </md-tab>
-  </md-tabs>
+  </md-tabs> -->
 
-  <div uib-collapse="showSearchTools">
+  <div uib-collapse="!showSearchTools">
     <div layout="row" layout-padding>
       <md-input-container md-no-float class="flex-50 condensed">
         <label> Search Datasets </label>
@@ -54,14 +73,14 @@
         </md-button>
       </md-input-container>
     </div>
-
-    <md-divider></md-divider>
   </div>
+
+  <md-divider></md-divider>
 
   <md-list flex="100"
       layout="column"
-      ng-init="showSearchTools = true"
-      class="scroll-container">
+      class="scroll-container"
+      md-whiteframe="8">
 
     <div class="slide-left"
       ng-repeat="set in datasets.filtered = (datasets.options | filter: search) | orderBy: fields.selected : fields.descending"
@@ -92,7 +111,7 @@
 
       </md-list-item>
 
-      <div uib-collapse="!showMetadata" class="metadata"> {{ set.extras.citation }} </div>
+      <div uib-collapse="!showMetadata" class="metadata md-padding"> {{ set.extras.citation }} </div>
       <md-divider></md-divider>
     </div>
 

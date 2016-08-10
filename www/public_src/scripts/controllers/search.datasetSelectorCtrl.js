@@ -1,7 +1,7 @@
 angular.module('aiddataDET')
-.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, datasets, $state) {
+.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, datasets, $state, featured) {
   $scope.showSearchTools = false;
-
+  $scope.featuredTags = [];
   $scope.datasets = {
     filtered: [],
     options: [],
@@ -14,18 +14,18 @@ angular.module('aiddataDET')
     descending: true
   };
 
-  $scope.dataTypes = [
-    { text: 'All', value: 'all' },
-    { text: 'AidData', value: 'release' },
-    { text: 'External', value: 'raster' }
-  ];
-
-  $scope.selectedTabIndex = 1;
+  // $scope.dataTypes = [
+  //   { text: 'All', value: 'all' },
+  //   { text: 'AidData', value: 'release' },
+  //   { text: 'External', value: 'raster' }
+  // ];
+  //
+  // $scope.selectedTabIndex = 1;
 
 
   $scope.search = function (item) {
-    if ($scope.dataFilters.type !== 'all' &&
-      item.type !== $scope.dataFilters.type) {
+    if ($scope.dataFilters.tag !== 'all' &&
+      item.extras.tags.indexOf($scope.dataFilters.tag) < 0 ) {
       return false;
     }
 
@@ -57,15 +57,15 @@ angular.module('aiddataDET')
 
 
   $scope.$on('$viewContentLoaded', function(event) {
-    $scope.dataFilters = { searchText: '' };
-    $scope.dataFilters.type = _.get(_.find(datasets, { name: $state.params.dataset }), 'type') || 'all';
-    $scope.selectedTabIndex = _.findIndex($scope.dataTypes, { value: $scope.dataFilters.type }) + 1;
+
+    $scope.dataFilters = { searchText: '', tag: 'all' };
+    $scope.featuredTags = featured;
+
+    // $scope.dataFilters.type = _.get(_.find(datasets, { name: $state.params.dataset }), 'type') || 'all';
+    // $scope.selectedTabIndex = _.findIndex($scope.dataTypes, { value: $scope.dataFilters.type }) + 1;
 
     var d = _.orderBy(datasets, 'type').reverse();      // Position AidData Datasets at the Top of Array
     $scope.datasets.options = d;
   });
 
-  $scope.toggleToolBox = function() {
-    $scope.showSearchTools = !$scope.showSearchTools;
-  };
 });

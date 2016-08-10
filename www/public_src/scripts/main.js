@@ -99,6 +99,12 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
         return queryFactory.getDatasets(boundary.group)
           .then(function(data) { return data; })
           .catch(function() { return $state.go('map'); });
+      },
+      featured: function(ajaxFactory) {
+        return ajaxFactory.featured()
+          .then(function(results) {
+            return results.data.dataset_tags;
+          });
       }
     },
     views: {

@@ -120,6 +120,6 @@ module.exports.language = function (req, res) {
 };
 
 module.exports.featured = function (req, res) {
-  var mockFeatured = { dataset_tags: ['aidData'] };
+  var mockFeatured = { dataset_tags: ["aiddata", "geocoded", "release", "precipitation", "UDel", "temperature", "nasa", "srtm", "dem", "slope", "cgiar", "csi", "elevation", "population", "density", "ciesin", "count"] };
   return res.send(mockFeatured);
 };
