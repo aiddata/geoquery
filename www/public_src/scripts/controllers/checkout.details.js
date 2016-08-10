@@ -4,7 +4,7 @@ angular.module('aiddataDET')
   $scope.terms = [];
   $scope.queryData = {
     email: '',
-    custom_name: 'Unnamed Request'
+    custom_name: 'Request ' + d3.timeFormat('%m-%d-%y %H:%M')(Date.now())
   };
 
   var submitAlert = $mdDialog.confirm()

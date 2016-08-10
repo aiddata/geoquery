@@ -6,7 +6,7 @@ angular.module('aiddataDET')
   $scope.totals = {};
   $scope.queryStructure = [];
   $scope.geography = '';
-  $scope.selectionData = { name: 'New Selection', editing: false, canReset: false, canAdd: true };
+  $scope.selectionData = { name: 'New Selection', editing: false, canReset: false, canAdd: true, renamed: false };
 
   $scope.clearFilters = function () {
     if ($scope.dataset.type === 'release') {
@@ -22,6 +22,8 @@ angular.module('aiddataDET')
 
   $rootScope.$on('dataset:selected', function(e, data) {
     $scope.dataset = queryFactory.getDataset();
+
+
     updateCounts();
   });
 
@@ -42,7 +44,8 @@ angular.module('aiddataDET')
       })
       .finally(function(){
         $scope.selectionData.canAdd = false;
-        $scope.selectionData.name = 'New Selection';
+        $scope.selectionData.renamed = false;
+        $scope.selectionData.name = getName();
       });
   };
 
@@ -54,7 +57,11 @@ angular.module('aiddataDET')
     if ($state.params.dataset) {
       $scope.dataset = queryFactory.getDataset();
       updateCounts();
+      if (!$scope.selectionData.renamed && $scope.dataset) {
+        $scope.selectionData.name = getName();
+      }
     }
+
   });
 
   $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
@@ -64,6 +71,10 @@ angular.module('aiddataDET')
       $scope.filters = queryFactory.filters;
       $scope.options = queryFactory.options;
       updateCounts();
+      if (!$scope.selectionData.renamed) {
+        console.log("foo");
+        $scope.selectionData.name = getName();
+      }
     }
   });
 
@@ -92,6 +103,15 @@ angular.module('aiddataDET')
         .ariaLabel(label)
         .ok('Got it!')
     );
+  }
+  function getName () {
+    var count = _.chain(queryFactory.getQuery())
+    .pick(['release_data', 'raster_data'])
+    .values().flatten().map('custom_name')
+    .filter(function(n){ return n.indexOf($scope.dataset.title) >= 0; })
+    .size().value();
+
+    return count ? $scope.dataset.title + ' (' + count + ')' : $scope.dataset.title;
   }
 
 });
