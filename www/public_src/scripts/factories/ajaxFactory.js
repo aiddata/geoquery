@@ -30,6 +30,10 @@ angular.module('aiddataDET')
 
       language: function () {
         return $http.get('/api/language');
+      },
+
+      featured: function () {
+        return $http.get('/api/featured');
       }
 
     };
