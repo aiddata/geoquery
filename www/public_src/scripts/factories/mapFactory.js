@@ -59,7 +59,7 @@ angular.module('aiddataDET')
           // Delaying restyle allows for animations
           $timeout(function() {
             boundaryGroup.setStyle({ opacity: 0.5, fillOpacity: 0.2 });
-          }, 600);
+          }, 200);
         });
 
       /* Map */
