@@ -35,7 +35,7 @@ angular.module('aiddataDET')
       })
       .catch(function (err) {
         $log.error(err);
-        return $state.go('map');
+        return $state.go('map', { confirmation: { confirmed: true }});
       });
   };
 
