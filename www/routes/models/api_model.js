@@ -109,6 +109,16 @@ module.exports.language = function (req, res) {
       "title": "Welcome to the Data Extraction Tool by AidData!",
       "content": "Some explanatory text!!!"
     },
+    "submitted": {
+      "title": "This is the title for the submit modal",
+      "content": "Some text to tell the user their request is submitted"
+    },
+    "status": {
+      "submit": ["Some text telling the user about the submit status on the individual request page", "I will appear in place of the download buttons, under the horizontal bar"],
+      "prep": ["Some text telling the user about the prep status on the individual request page", "I will appear in place of the download buttons, under the horizontal bar"],
+      "process": ["Some text telling the user about the process status on the individual request page", "I will appear in place of the download buttons, under the horizontal bar"],
+      "complete": ["Some text telling the user about the complete status on the individual request page", "I will appear in place of the below the download buttons, under the horizontal bar"]
+    },
     "terms_and_conditions": {
       "content": [
         "Marfa slow-carb narwhal, lumbersexual blue bottle pop-up pour-over 90's master cleanse 8-bit organic ugh blog lomo. Sriracha typewriter try-hard intelligentsia, ramps skateboard kickstarter. Tilde kinfolk humblebrag cray crucifix, taxidermy 8-bit vice typewriter blog marfa swag brunch. VHS kale chips crucifix cred williamsburg, ethical fixie try-hard raw denim direct trade. Pitchfork fashion axe vinyl affogato. Offal disrupt man bun small batch. Fingerstache flexitarian DIY mlkshk, wolf meggings meditation.",

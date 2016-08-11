@@ -26,9 +26,10 @@
           </small>
           <h3> <strong>{{ request.custom_name }}</strong> is being processed! </h3>
         </div>
-       <md-divider></md-divider>
 
         <div layout="column" ng-if="request.process_time">
+          <md-divider></md-divider>
+          <br>
           <div layout-align="space-around" layout="row">
             <md-button class="md-primary" ng-if="request.process_time"
                 ng-href="http://labs.aiddata.org/DET/results/{{ request._id.$id }}/{{ request._id.$id }}.zip">
@@ -46,6 +47,11 @@
               <i class="fa fa-file-o" aria-hidden="true"></i>
             </md-button>
           </div>
+        </div>
+        <div class="md-padding">
+          <md-divider></md-divider>
+          <br>
+          <p ng-repeat="paragraph in language">{{ paragraph }}</p>
         </div>
       </div>
     </md-content>
