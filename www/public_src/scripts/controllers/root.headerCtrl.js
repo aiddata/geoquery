@@ -1,8 +1,10 @@
 angular.module('aiddataDET')
-.controller('HeaderCtrl', function($scope, $rootScope, $log, $stateParams, $state, $mdDialog, queryFactory, spinFactory, language) {
+.controller('HeaderCtrl', function($scope, $rootScope, $log, $stateParams, $state, $mdDialog, $timeout, queryFactory, spinFactory, language) {
 
   $scope.currentStep = $state;
   $scope.queryLen = 0;
+  $scope.highlightRed = false;
+  $scope.highlightGreen = false;
 
   $scope.activate = function (tab) {
     $scope.sidebarOpen = true;
@@ -10,7 +12,16 @@ angular.module('aiddataDET')
   };
 
   $rootScope.$on('query:updated', function() {
-    $scope.queryLen = queryFactory.querySize();
+    var oldSize = $scope.queryLen,
+    newSize = queryFactory.querySize();
+    $scope.queryLen = newSize;
+    $scope.hightlightRed = oldSize > newSize;
+    $scope.highlightGreen = newSize > oldSize;
+
+    $timeout(function() {
+      $scope.highlightRed = false;
+      $scope.highlightGreen = false;
+    }, 2750);
   });
 
   $rootScope.$on('$viewContentLoaded', function(event) {
