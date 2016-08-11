@@ -9,20 +9,19 @@
       </h2>
       <span flex></span>
 
-      <span ng-repeat="key in tabs.order" layout="row">
-        <md-button class="md-icon-button header-button"
+      <span ng-repeat="key in tabs.order" layout="row" layout-align="space-between">
+        <md-button class="md-button header-button"
             aria-label="{{ tabs.options[key].text }}"
-            ng-click="activate(key)">
-          <md-tooltip> {{ tabs.options[key].text }} </md-tooltip>
-          <i class='fa {{ tabs.options[key].icon }}' aria-hidden="true"></i>
+            ng-click="activate(tabs.options[key])">
+          <small ng-show="queryLen" ng-if="key === 'cart'">
+            <span class="badge ">
+              {{ queryLen || 0 }}
+            </span>
+          </small>
+          <i class='fa {{ tabs.options[key].icon }}' aria-hidden="true"></i> {{ tabs.options[key].text }}
         </md-button>
-
-        <small ng-show="queryLen" ng-if="key === 'cart'">
-          <div class="label label-primary label-circle" style="margin-top: 10px">
-            {{ queryLen || 0 }}
-          </div>
-        </small>
       </span>
+      
     </div>
   </md-toolbar>
 

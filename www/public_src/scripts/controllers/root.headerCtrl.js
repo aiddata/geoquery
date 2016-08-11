@@ -6,9 +6,9 @@ angular.module('aiddataDET')
 
   $scope.tabs = {
     options:  {
-      cart: { text: 'View Cart', icon: 'fa-shopping-cart' },
+      cart: { text: 'Cart', icon: 'fa-shopping-cart' },
       help: { text: 'Help', icon: 'fa-question-circle' },
-      previousRequests: { text: 'View Past Requests', icon: 'fa-history' }
+      previousRequests: { text: 'Requests', icon: 'fa-history' }
     },
     order: ['cart', 'previousRequests', 'help']
   };
