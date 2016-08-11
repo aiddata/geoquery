@@ -1,0 +1,21 @@
+<md-content class="remaining-height">
+  <div class="md-margin">
+    <process-breadcrumbs full-width="true"></process-breadcrumbs>
+  </div>
+  <div md-padding flex="50" flex-offset="25">
+    <br>
+    <h3>Enter your email to check the status of your requests</h3>
+    <br><br>
+    <div layout="column" layout-padding layout-align="top">
+
+      <md-input-container class="condensed">
+        <label>e-mail</label>
+        <input ng-model="requestForm.email">
+      </md-input-container>
+
+      <md-button md-no-ink
+          class="md-primary"
+          ng-click="lookup()">Lookup</md-button>
+    </div>
+  </div>
+</md-content>
