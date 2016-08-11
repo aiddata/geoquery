@@ -26,7 +26,6 @@
         ng-class="{'md-warn md-hue-2': selectionData.canAdd, 'md-primary md-hue-1': !selectionData.canAdd }"
         ng-click="clearFilters()"
         ng-show="selectionData.canReset">
-        <md-tooltip md-delay="500" md-direction="top"> Clear Search Filters </md-tooltip>
         <i class="fa fa-lg fa-refresh" aria-hidden="true"></i>&nbsp;&nbsp;
         <span ng-show="selectionData.canAdd">Reset</span>
         <span ng-show="!selectionData.canAdd">New Selection</span>
@@ -35,7 +34,6 @@
       <md-button class="md-raised md-accent md-hue-5" aria-label="Add to Cart"
           ng-disabled="!selectionData.canAdd"
           ng-click="addToCart()">
-        <md-tooltip md-delay="500" md-direction="top"> Move Selection to Cart </md-tooltip>
         <i class="fa fa-lg fa-plus" aria-hidden="true"></i>&nbsp;&nbsp;
         <span ng-show="selectionData.canAdd || dataset.type === 'raster'">Add to Cart</span>
         <span ng-show="!selectionData.canAdd && dataset.type !== 'raster'">Added to Cart</span>
