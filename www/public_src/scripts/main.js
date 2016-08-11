@@ -48,10 +48,6 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
       'help@root': {
         templateUrl: 'views/components/root.help.html',
         controller: 'HelpCtrl'
-      },
-      'previousRequests@root': {
-        templateUrl: 'views/components/root.previousRequests.html',
-        controller: 'PreviousRequestsCtrl'
       }
     }
   })
@@ -207,13 +203,18 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
       }
     }
   })
+  .state('login', {
+    parent: 'root',
+    url: '/login',
+    templateUrl: 'views/pages/login.html',
+    controller: 'LoginCtrl'
+  })
   .state('requests', {
     parent: 'root',
     url: '/requests/:email',
     templateUrl: 'views/pages/requests.html',
     resolve: {
       requests: function(ajaxFactory, $stateParams) {
-        // var email = decodeURIComponent(atob($stateParams.email));
         return ajaxFactory.requests('email', $stateParams.email)
           .then(function(results) { return results.data; });
       },

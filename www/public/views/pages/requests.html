@@ -1,6 +1,32 @@
 <md-content class="full-height" flex layout="row" layout-padding>
   <md-content flex class="md-margin" layout="column">
     <process-breadcrumbs full-width="true"></process-breadcrumbs>
+
+      <div ng-if="!requests.length">
+        <div layout="column" layout-padding layout-align="top" flex="50">
+
+          <md-input-container class="condensed">
+            <label>e-mail</label>
+            <input ng-model="requestForm.email">
+          </md-input-container>
+
+          <md-button md-no-ink
+              class="md-primary"
+              ng-click="lookup()">Lookup</md-button>
+
+        </div>
+      </div>
+      <div ng-if="requests.length" layout="column" layout-padding>
+        <h4>
+          {{ requests.length }} Requests Found
+          <a class="md-primary pull-right" ui-sref="requests({ email: requestForm.email })"> Requests Home </a>
+        </h4>
+        <a href="" class="md-primary" ng-click="logout()"> Not {{ requestForm.email }} ?? </a>
+        <md-divider></md-divider>
+      </div>
+
+
+
     <div ng-repeat="request in requests">
     <md-card layout="row">
       <div layout="column" flex="75" layout-align="start">
