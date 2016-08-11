@@ -13,8 +13,8 @@
           aria-label="View Cart"
           ng-click="activate('cart')">
           <small ng-show="queryLen">
-            <span class="badge">
-              {{ queryLen || 0 }}
+            <span  class="badge" ng-class="{ 'normal': !highlightRed && !highlightGreen, 'add': highlightGreen, 'remove': highlightRed }" style="margin-top: -20px;">
+              {{ queryLen || 0}}
             </span>
           </small>
           <i class='fa fa-shopping-cart' aria-hidden="true"></i>
