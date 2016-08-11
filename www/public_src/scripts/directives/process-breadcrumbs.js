@@ -14,6 +14,13 @@ angular.module('aiddataDET')
         { name: 'process', time: true },
         { name: 'complete', time: true }
       ];
+
+      $scope.lastSteps = {
+        submit: ['submit'],
+        prep: ['prep', 'submit'],
+        process: ['process', 'prep', 'submit'],
+        complete: ['complete', 'process', 'prep', 'submit']
+      };
     },
     templateUrl: "views/components/processBreadcrumbs.html"
   };
