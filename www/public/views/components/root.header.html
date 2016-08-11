@@ -9,31 +9,30 @@
       </h2>
       <span flex></span>
 
-      <md-button class="md-icon-button header-button"
+      <md-button class="md-button header-button"
           aria-label="View Cart"
           ng-click="activate('cart')">
-        <md-tooltip> View Cart </md-tooltip>
-        <i class='fa fa-shopping-cart' aria-hidden="true"></i>
+          <small ng-show="queryLen">
+            <span class="badge">
+              {{ queryLen || 0 }}
+            </span>
+          </small>
+          <i class='fa fa-shopping-cart' aria-hidden="true"></i>
+        Cart
       </md-button>
 
-      <small ng-show="queryLen">
-        <div class="label label-primary label-circle" style="margin-top: 10px">
-          {{ queryLen || 0 }}
-        </div>
-      </small>
-
-      <md-button class="md-icon-button header-button"
+      <md-button class="md-button header-button"
           aria-label="View Past Requests"
           ui-sref="login">
-        <md-tooltip> View Past Requests </md-tooltip>
         <i class='fa fa-history' aria-hidden="true"></i>
+        Requests
       </md-button>
 
-      <md-button class="md-icon-button header-button"
+      <md-button class="md-button header-button"
           aria-label="Help"
           ng-click="activate('help')">
-        <md-tooltip> Help </md-tooltip>
         <i class='fa fa-question-circle' aria-hidden="true"></i>
+        Help
       </md-button>
 
     </div>
