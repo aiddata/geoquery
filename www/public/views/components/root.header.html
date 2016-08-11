@@ -9,19 +9,35 @@
       </h2>
       <span flex></span>
 
-      <span ng-repeat="key in tabs.order" layout="row" layout-align="space-between">
-        <md-button class="md-button header-button"
-            aria-label="{{ tabs.options[key].text }}"
-            ng-click="activate(tabs.options[key])">
-          <small ng-show="queryLen" ng-if="key === 'cart'">
-            <span class="badge ">
-              {{ queryLen || 0 }}
-            </span>
-          </small>
-          <i class='fa {{ tabs.options[key].icon }}' aria-hidden="true"></i> {{ tabs.options[key].text }}
-        </md-button>
-      </span>
-      
+
+      <md-button class="md-icon-button header-button"
+          aria-label="View Cart"
+          ng-click="activate('cart')">
+        <md-tooltip> View Cart </md-tooltip>
+        <i class='fa fa-shopping-cart' aria-hidden="true"></i>
+      </md-button>
+
+      <small ng-show="queryLen">
+        <div class="label label-primary label-circle" style="margin-top: 10px">
+          {{ queryLen || 0 }}
+        </div>
+      </small>
+
+      <md-button class="md-icon-button header-button"
+          aria-label="View Past Requests"
+          ui-sref="login">
+        <md-tooltip> View Past Requests </md-tooltip>
+        <i class='fa fa-history' aria-hidden="true"></i>
+      </md-button>
+
+      <md-button class="md-icon-button header-button"
+          aria-label="Help"
+          ng-click="activate('help')">
+        <md-tooltip> Help </md-tooltip>
+        <i class='fa fa-question-circle' aria-hidden="true"></i>
+      </md-button>
+
+>>>>>>> 5ac3481c91cb6a60065112333e312aa2184fa82c
     </div>
   </md-toolbar>
 

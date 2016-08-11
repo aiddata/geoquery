@@ -1,8 +1,9 @@
 angular.module('aiddataDET')
-.controller('RequestsCtrl', function($scope, $rootScope, $log, $q, $state, $timeout, queryFactory, requests) {
+.controller('RequestsCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $timeout, queryFactory, requests) {
+
+  $scope.email = $stateParams.email;
 
   $scope.$on('$viewContentLoaded', function(event) {
-    console.log(requests);
     $scope.requests = _.map(requests, function(req) {
       req.status = _.chain(req.stage)
         .filter('time')
