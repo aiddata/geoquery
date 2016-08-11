@@ -3,32 +3,32 @@
 
   <div layout="row" layout-fill>
     <md-content class="status-headline" flex="45"  layout="column" md-whiteframe="4">
+
+
+
       <div ng-switch="request.status" layout-padding>
+        <h1>Request Status</h1>
         <div ng-switch-when="submit">
-          <h1> <strong>{{ request.custom_name }}</strong> has been submitted! </h1>
-          <br>
           <small>
             <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
           </small>
+          <h3> <strong>{{ request.custom_name }}</strong> has been submitted! </h3>
         </div>
         <div ng-switch-when="complete">
-          <h1> <strong>{{ request.custom_name }}</strong> is ready for download! </h1>
-          <br>
           <small>
             <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
           </small>
+          <h3> <strong>{{ request.custom_name }}</strong> is ready for download! </h3>
         </div>
         <div ng-switch-default>
-          <h1> <strong>{{ request.custom_name }}</strong> is being processed! </h1>
-          <br>
           <small>
             <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
           </small>
+          <h3> <strong>{{ request.custom_name }}</strong> is being processed! </h3>
         </div>
        <md-divider></md-divider>
 
         <div layout="column" ng-if="request.process_time">
-          <strong style="margin-left: 10px;">Download Options</strong>
           <div layout-align="space-around" layout="row">
             <md-button class="md-primary" ng-if="request.process_time"
                 ng-href="http://labs.aiddata.org/DET/results/{{ request._id.$id }}/{{ request._id.$id }}.zip">
@@ -51,7 +51,7 @@
     </md-content>
 
     <div layout="column" flex="55">
-      <h4 class="md-padding" style="padding-bottom: 0px;"><em>Selections included in {{ request.custom_name }} </em></h4>
+      <h4 class="md-padding" style="padding-bottom: 0px;"><em>Selections included in <strong>{{ request.custom_name }}</strong></em></h4>
 
       <div ng-repeat="(type, queries) in { release_data: request.release_data, raster_data: request.raster_data }">
         <div ng-repeat="q in queries" ng-init="dataset = getDataset(q)">
