@@ -49,7 +49,9 @@ angular.module('aiddataDET')
 
 
   $scope.$on('$viewContentLoaded', function(event) {
-
+    if ($state.params.dataset) {
+      $scope.datasets.selected = $state.params.dataset;
+    }
     $scope.dataFilters = { searchText: '', tag: 'all' };
     $scope.featuredTags = featured;
 
