@@ -9,7 +9,7 @@ angular.module('aiddataDET')
 
   var submitAlert = $mdDialog.confirm()
       .clickOutsideToClose(true)
-      .title('Your Request Has been Submitted!')
+      .title('Your Request Has Been Submitted!')
       .ok('Review Request Status')
       .cancel('Start New Search');
 
