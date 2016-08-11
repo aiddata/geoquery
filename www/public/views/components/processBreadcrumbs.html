@@ -1,7 +1,7 @@
 <ul class="breadcrumb-progress" layout="row" ng-class="{ 'justified': !!fullWidth }">
   <li ng-repeat="step in stepList || defaultSteps" ng-if="step.name != 'prep'">
     <a href="" class="{{ step.name }} disabled" ng-class="{ 'current': step.name === currentStep || step.name === 'process' && currentStep === 'prep', 'incomplete': step.name !== currentStep }">
-      <i class="fa fa-check-circle" aria-hidden="true" ng-if="step-time && stepList"></i>
+      <i class="fa fa-check-circle" aria-hidden="true" ng-if="lastSteps[currentStep].indexOf(step.name) >= 0" ></i>
       {{step.name}}
     </a>
   </li>
