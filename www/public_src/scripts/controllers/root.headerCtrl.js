@@ -15,7 +15,7 @@ angular.module('aiddataDET')
     var oldSize = $scope.queryLen,
     newSize = queryFactory.querySize();
     $scope.queryLen = newSize;
-    $scope.hightlightRed = oldSize > newSize;
+    $scope.highlightRed = oldSize > newSize;
     $scope.highlightGreen = newSize > oldSize;
 
     $timeout(function() {
