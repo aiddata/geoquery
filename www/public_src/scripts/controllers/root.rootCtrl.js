@@ -44,9 +44,10 @@ angular.module('aiddataDET')
   /* Modal Definitions */
   var returnToMap = $mdDialog.confirm()
     .clickOutsideToClose(true)
-    .title("This will clear your search")
-    .ok('ok')
-    .cancel('cancel');
+    .title("Are You Sure?")
+    .textContent("If you choose to navigate away from this page your data selection will be lost.")
+    .ok('Yes')
+    .cancel('No');
 
   var welcomeDialog = $mdDialog.alert()
     .clickOutsideToClose(true)
