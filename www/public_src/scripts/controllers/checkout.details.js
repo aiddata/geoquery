@@ -9,7 +9,8 @@ angular.module('aiddataDET')
 
   var submitAlert = $mdDialog.confirm()
       .clickOutsideToClose(true)
-      .title('Your Request Has Been Submitted!')
+      .title(language.submitted.title)
+      .content(language.submitted.content)
       .ok('Review Request Status')
       .cancel('Start New Search');
 
@@ -34,7 +35,7 @@ angular.module('aiddataDET')
       })
       .catch(function (err) {
         $log.error(err);
-        return $state.go('map');
+        return $state.go('map', { confirmation: { confirmed: true }});
       });
   };
 
