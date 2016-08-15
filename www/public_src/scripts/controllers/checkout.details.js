@@ -11,6 +11,7 @@ angular.module('aiddataDET')
       .clickOutsideToClose(true)
       .title(language.submitted.title)
       .content(language.submitted.content)
+      .clickOutsideToClose(false)
       .ok('Review Request Status')
       .cancel('Start New Search');
 
