@@ -4,8 +4,8 @@ angular.module('aiddataDET')
   // $scope.filterOptions
   // $scope.activeFilters
 
-  var min = _.floor(_.min($scope.filterOptions)),
-      max = _.ceil(_.max($scope.filterOptions));
+  var min = _.min($scope.filterOptions),
+      max = _.max($scope.filterOptions);
 
   $scope.sliderOptions = {
     floor: min,
@@ -51,5 +51,23 @@ angular.module('aiddataDET')
       $scope.range.max = $scope.sliderOptions.ceil;
     }
   });
+
+  $scope.$watch('filterOptions', function(newValue, oldValue) {
+    var updateMin = $scope.range.min === min,
+        updateMax = $scope.range.max === max;
+
+    min = _.min(newValue);
+    max = _.max(newValue);
+
+    $scope.sliderOptions = {
+      floor: min,
+      ceil: max,
+      onEnd: function() { $scope.updateRange(); }
+    };
+
+    $scope.range.min = updateMin || $scope.range.min < min ? min : $scope.range.min;
+    $scope.range.max = updateMax || $scope.range.max > max ? max : $scope.range.max;
+
+  }, true);
 
 });
