@@ -228,7 +228,11 @@ angular.module('aiddataDET')
       },
 
       setBoundary: function(boundary, subboundary) {
-        return $q.when(defineBoundary(boundary, subboundary));
+        return $q.when(defineBoundary(boundary, subboundary))
+          .then(function(results) {
+            _datasets = [];
+            return results;
+          });
       },
 
       getDatasets: function (boundaryId) {
