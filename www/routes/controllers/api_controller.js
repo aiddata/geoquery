@@ -5,6 +5,7 @@ module.exports.controller = function(httpApp){
   httpApp.get('/api/geometry/:geomId', apiModel.geometry);
   httpApp.get('/api/datasets/:boundaryId', apiModel.datasets);
   httpApp.get('/api/language', apiModel.language);
+  httpApp.get('/api/limits', apiModel.limits);
   httpApp.get('/api/featured', apiModel.featured);
   httpApp.post('/api/filters', apiModel.filters);
   httpApp.post('/api/requests', apiModel.requestLookup);

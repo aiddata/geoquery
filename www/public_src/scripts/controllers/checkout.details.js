@@ -26,8 +26,9 @@ angular.module('aiddataDET')
 
     queryFactory.submitRequest($scope.queryData)
       .then(function(data) {
-        spinFactory.stop();
         id = data.request._id.$id;
+        $rootScope.$broadcast('query:updated');
+        spinFactory.stop();
         return $mdDialog.show(submitAlert);
       })
       .then(function() {
@@ -36,6 +37,9 @@ angular.module('aiddataDET')
       .catch(function (err) {
         $log.error(err);
         return $state.go('map', { confirmation: { confirmed: true }});
+      })
+      .finally(function() {
+        spinFactory.stop();
       });
   };
 
