@@ -9,9 +9,11 @@ angular.module('aiddataDET')
   $scope.selectionData = { name: 'New Selection', editing: false, canReset: false, canAdd: true, renamed: false };
   $scope.atLimit = false;
   var limits = {};
+
   var limitWarning = {
     shown: false,
-    message: 'The maximum number of selections is now in your cart, please checkout and create a new request to continue'
+    message: 'The maximum number of selections is now in your cart, please checkout and create a new request to continue',
+    title: 'Selection Limit Reached'
   };
 
 
@@ -118,7 +120,17 @@ angular.module('aiddataDET')
 
     if ($scope.atLimit && !limitWarning.shown) {
       limitWarning.shown = true;
-      showDialog(limitWarning.message, 'At Request Limit');
+      $mdDialog.show(
+        $mdDialog.confirm()
+          .clickOutsideToClose(true)
+          .content(limitWarning.message)
+          .title(limitWarning.title)
+          .ariaLabel('Request Limit Reached')
+          .ok('Proceed to checkout')
+          .cancel('OK')
+      ).then(function() {
+        $state.go('checkout');
+      });
     }
   }
 
