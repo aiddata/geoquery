@@ -25,7 +25,8 @@
       <md-button class="md-raised toggle" aria-label="Reset Filters"
         ng-class="{'md-warn md-hue-2': selectionData.canAdd, 'md-primary md-hue-1': !selectionData.canAdd }"
         ng-click="clearFilters()"
-        ng-show="selectionData.canReset">
+        ng-show="selectionData.canReset"
+        ng-disabled="atLimit">
         <i class="fa fa-lg fa-refresh" aria-hidden="true"></i>&nbsp;&nbsp;
         <span ng-show="selectionData.canAdd">Reset</span>
         <span ng-show="!selectionData.canAdd">New Selection</span>

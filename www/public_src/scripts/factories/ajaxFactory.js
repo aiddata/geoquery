@@ -34,6 +34,10 @@ angular.module('aiddataDET')
 
       featured: function () {
         return $http.get('/api/featured');
+      },
+
+      limits: function () {
+        return $http.get('/api/limits');
       }
 
     };

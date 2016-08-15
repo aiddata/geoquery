@@ -174,6 +174,7 @@ angular.module('aiddataDET')
       },
 
       submitRequest: function(additionalFields) {
+        var self = this;
         return $q.when((function() {
           if (!_.has(additionalFields, 'email', 'custom_name')) {
             return $q.reject('email and custom name required');
@@ -185,6 +186,7 @@ angular.module('aiddataDET')
           return ajaxFactory.submitRequest(JSON.stringify(query));
         })())
         .then(function(results) {
+          self.resetQuery();
           return results.data;
         });
       },

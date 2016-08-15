@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('SelectionTextCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $mdDialog, queryFactory) {
+.controller('SelectionTextCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $mdDialog, queryFactory, ajaxFactory) {
   $scope.filters = {};
   $scope.options = {};
   $scope.dataset = {};
@@ -7,6 +7,15 @@ angular.module('aiddataDET')
   $scope.queryStructure = [];
   $scope.geography = '';
   $scope.selectionData = { name: 'New Selection', editing: false, canReset: false, canAdd: true, renamed: false };
+  $scope.atLimit = false;
+  var limits = {};
+
+  var limitWarning = {
+    shown: false,
+    message: 'The maximum number of selections is now in your cart, please checkout and create a new request to continue',
+    title: 'Selection Limit Reached'
+  };
+
 
   $scope.clearFilters = function () {
     if ($scope.dataset.type === 'release') {
@@ -22,8 +31,6 @@ angular.module('aiddataDET')
 
   $rootScope.$on('dataset:selected', function(e, data) {
     $scope.dataset = queryFactory.getDataset();
-
-
     updateCounts();
   });
 
@@ -62,12 +69,14 @@ angular.module('aiddataDET')
       }
     }
 
+    ajaxFactory.limits()
+      .then(function(results) { limits = results.data; });
+
   });
 
   $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
     if (toParams.dataset) {
       $scope.dataset = queryFactory.getDataset(toParams.dataset);
-      /* @TODO: Modify reset so this isn't necessary */
       $scope.filters = queryFactory.filters;
       $scope.options = queryFactory.options;
       updateCounts();
@@ -78,18 +87,48 @@ angular.module('aiddataDET')
   });
 
   function updateCounts() {
+    var query = queryFactory.getQuery();
+
     if ($scope.dataset.type === 'raster') {
       $scope.selectionData.canReset = false;
+      $scope.atLimit = (
+        limits.raster >= 0 && query.raster_data.length >= limits.raster ||
+        limits.all >= 0 && query.release_data.length + query.raster_data.length >= limits.all
+      );
+
       $scope.selectionData.canAdd = (
+        !$scope.atLimit &&
         _.size(_.get($scope.options, 'files')) &&
         _.size(_.get($scope.options, 'options.extract_types'))
       );
 
     } else {
       $scope.totals = _.pick(queryFactory.filterOptions, ['projects', 'locations']);
-      $scope.selectionData.canAdd = _.every(_.values($scope.totals));
+      $scope.atLimit = (
+        limits.release >= 0 && query.release_data.length >= limits.release ||
+        limits.all >= 0 && query.release_data.length + query.raster_data.length >= limits.all
+      );
+      $scope.selectionData.canAdd = (
+        !$scope.atLimit &&
+        _.every(_.values($scope.totals))
+      );
       $scope.selectionData.canReset = _.some(_.omit($scope.filters, 'dataset'), function(d, i) {
         return $scope.dataset.fields[i] && !_.isEqual(d, ['All']);
+      });
+    }
+
+    if ($scope.atLimit && !limitWarning.shown) {
+      limitWarning.shown = true;
+      $mdDialog.show(
+        $mdDialog.confirm()
+          .clickOutsideToClose(true)
+          .content(limitWarning.message)
+          .title(limitWarning.title)
+          .ariaLabel('Request Limit Reached')
+          .ok('Proceed to checkout')
+          .cancel('OK')
+      ).then(function() {
+        $state.go('checkout');
       });
     }
   }
@@ -100,7 +139,7 @@ angular.module('aiddataDET')
         .clickOutsideToClose(true)
         .title(msg)
         .ariaLabel(label)
-        .ok('Got it!')
+        .ok('OK')
     );
   }
   function getName () {
