@@ -148,27 +148,9 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
   })
   .state('checkout', {
     parent: 'root',
-    url: '/checkout?mode',
+    url: '/checkout',
     resolve: {
       query: function($state, $stateParams, $timeout, $q, $http, queryFactory) {
-        if ($stateParams.mode === 'test') {
-          return $http.get('./tests/data/query.json')
-          .then(function (results) {
-            return queryFactory.setQuery(results.data);
-          })
-          .then(function() {
-            return queryFactory.getBoundaries();
-          })
-          .then(function () {
-            return queryFactory.setBoundary('cod_gadm28', 'cod_adm2_gadm28');
-          })
-          .then(function() {
-            return queryFactory.getDatasets('cod_gadm28');
-          }).
-          then(function() {
-            return queryFactory.setDataset('drc-aims_geocodedresearchrelease_level1_v1_3');
-          });
-        }
 
         var boundary = queryFactory.getBoundary(),
             subboundary = queryFactory.getSubBoundary();

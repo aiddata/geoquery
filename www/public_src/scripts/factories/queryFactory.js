@@ -125,12 +125,6 @@ angular.module('aiddataDET')
         files: []
       },
 
-      /* Only Used For Testing */
-      setQuery: function(query) {
-        _query = query;
-        return _query;
-      },
-
       generateQuery: function (datasetType, queryName) {
         // Test that there are projects/locations
         var self = this;

@@ -3,7 +3,6 @@ angular.module('aiddataDET')
   $scope.showOverlay = false;
 
   $scope.$on('$viewContentLoaded', function(event) {
-    console.log(document.querySelector('.map'));
     mapFactory.provision(document.querySelector('.map'));
   });
 
