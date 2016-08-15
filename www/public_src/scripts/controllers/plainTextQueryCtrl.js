@@ -15,7 +15,7 @@ angular.module('aiddataDET')
     if ($scope.dataset.type === 'raster') {
       q.push(
         { value: _.get($scope.options, 'options.extract_types') || [], pre: 'calculating', optional: true, key: 'options.extract_types' },
-        { value: _.get($scope.options, 'files') || [], pre: 'using', optional: true, key: 'files' }
+        { value: getYears() || [], pre: 'in', optional: true, key: 'files' }
       );
 
     } else {
@@ -39,9 +39,15 @@ angular.module('aiddataDET')
   }
 
   $scope.removeFilter = function(filter, option) {
-    return $scope.dataset.type !== 'release' ? queryFactory.toggleOptionOff(filter, option) :
-      $scope.dataset.fields[filter].filter_type === 'list' ? queryFactory.toggleFilterOff(filter, option) :
+    if ($scope.dataset.type !== 'release') {
+      var optionData = option.display ? _.omit(option, ['display', '$$hashKey']) : option;
+      queryFactory.toggleOptionOff(filter, optionData);
+      $rootScope.$broadcast('options:updated', { key: filter, value: optionData, direction: 'off' });
+    } else if ($scope.dataset.fields[filter].filter_type === 'list'){
+      queryFactory.toggleFilterOff(filter, option);
+    } else {
       queryFactory.resetFilterRange(filter);
+    }
   };
 
   function getRange(filterId) {
@@ -50,6 +56,15 @@ angular.module('aiddataDET')
       ' - ' +
       _.chain($scope.filters[filterId]).max().ceil().value().toString()
     ];
+  }
+
+  function getYears() {
+    return _.chain($scope.options)
+      .get('files')
+      .each(function(file) {
+        file.display = _.last(_.split(file.name, "_"));
+      })
+      .value();
   }
 
   function init () {

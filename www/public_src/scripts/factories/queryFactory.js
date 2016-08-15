@@ -310,23 +310,14 @@ angular.module('aiddataDET')
       },
 
       toggleOptionOn: function (key, val) {
-        var optionData = _.isArray(key.pick) ? _.pick(val, key.pick) :
-          _.get(val, key.pick);
-
-        _.get(this.options, key.dest).push(optionData);
-
-        val.checked = true;
+        _.get(this.options, key).push(val);
       },
 
       toggleOptionOff: function (key, val) {
-        var optionData = _.isArray(key.pick) ? _.pick(val, key.pick) : _.get(val, key.pick),
-            targetArry = _.get(this.options, key.dest),
-            optionIndex = _.isString(optionData) ? targetArry.indexOf(optionData) :
-               _.findIndex(targetArry, optionData);
-
-        _.pullAt(targetArry, optionIndex);
-
-        val.checked = false;
+        var optionData = _.get(this.options, key),
+            optionIndex = _.findIndex(optionData, val) < 0 ? optionData.indexOf(val) :
+              _.findIndex(optionData, val);
+        _.pullAt(optionData, optionIndex);
       },
 
       resetOption: function (key) {
