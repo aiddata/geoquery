@@ -27,6 +27,7 @@ angular.module('aiddataDET')
   });
 
   $rootScope.$on('$stateChangeStart', function(event, toState, toParams, fromState, fromParams, options) {
+    spinFactory.start();
     if ( toState.name === 'map' &&
       queryFactory.querySize() &&
       !_.get(toParams, 'confirmation.confirmed') ) {
