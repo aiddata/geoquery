@@ -28,7 +28,7 @@ angular.module('aiddataDET')
   };
 
   $scope.getTimeStamp = function (date, format) {
-    var timeFormatter = d3.timeFormat('%b %d, %Y');
+    var timeFormatter = d3.timeFormat('%Y');
     var timeParser = d3.timeParse(format),
         formDate = timeFormatter(timeParser(date));
     return formDate;

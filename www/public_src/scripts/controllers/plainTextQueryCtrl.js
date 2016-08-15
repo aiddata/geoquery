@@ -15,7 +15,7 @@ angular.module('aiddataDET')
     if ($scope.dataset.type === 'raster') {
       q.push(
         { value: _.get($scope.options, 'options.extract_types') || [], pre: 'calculating', optional: true, key: 'options.extract_types' },
-        { value: _.get($scope.options, 'files') || [], pre: 'using', optional: true, key: 'files' }
+        { value: getYears() || [], pre: 'in', optional: true, key: 'files' }
       );
 
     } else {
@@ -50,6 +50,15 @@ angular.module('aiddataDET')
       ' - ' +
       _.chain($scope.filters[filterId]).max().ceil().value().toString()
     ];
+  }
+
+  function getYears() {
+    return _.chain($scope.options)
+      .get('files')
+      .map(function(file) {
+        return _.last(_.split(file.name, "_"));
+      })
+      .value();
   }
 
   function init () {

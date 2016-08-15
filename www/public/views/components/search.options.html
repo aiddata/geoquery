@@ -9,7 +9,7 @@
       ng-hide="!option.data || option.data.length <= 1">
 
     <md-card-header>
-        {{ option.name }}
+        {{ option.name === 'Resources' ? 'Years' : option.name }}
     </md-card-header>
 
     <div style="overflow-y: auto"
@@ -28,13 +28,11 @@
               md-no-ink></md-checkbox>
 
           <div class="md-list-item-text">
-            <p>{{ choice.name }}</p>
-
-            <small ng-if="(choice.start || choice.end) && dataset.temporal.format">
-              <em ng-if="choice.start"> {{ getTimeStamp(choice.start, dataset.temporal.format) }} </em>
-              <span ng-if="choice.start && choice.end">&dash;</span>
-              <em ng-if="choice.end"> {{ getTimeStamp(choice.end, dataset.temporal.format) }} </em>
-            </small>
+            <p ng-if="(!choice.start && !choice.end) || !dataset.temporal.format">{{ choice.name }}</p>
+            <p ng-if="(choice.start || choice.end) && dataset.temporal.format">
+              {{ getTimeStamp(choice.start, dataset.temporal.format) ||
+                getTimeStamp(choice.end, dataset.temporal.format) }}
+            </p>
           </div>
 
           <md-divider></md-divider>
