@@ -34,9 +34,9 @@
 
 <md-divider></md-divider>
 
-<div class="termsConditions md-padding" flex="25" layout="column">
+<div class="termsConditions md-padding" flex="35" layout="column">
   <label class=""> Terms and Conditions </label>
-  <md-content class="termsContent" layout="column" flex layout-fill layout-margin layout-align="stretch space-between">
+  <md-content class="termsContent" flex layout-fill layout-margin layout-align="stretch space-between">
     <p ng-repeat="paragraph in terms">
       {{ paragraph }}
     </p>
@@ -47,15 +47,15 @@
 <md-divider></md-divider>
 
 
-<div layout="row" flex layout-align="center end" layout-padding>
+<div flex layout-align="center end" layout-padding>
   <!-- <div > -->
   <md-button md-no-ink
       class="md-accent md-raised"
+      style="min-width: 98%;"
       ng-click="submitQuery()"
       ng-disabled="!checkoutForm.$valid" flex>
 
     <md-tooltip md-delay="500" md-direction="top"> Submit Requests </md-tooltip>
-
     Submit
   </md-button>
 <!-- </div> -->
