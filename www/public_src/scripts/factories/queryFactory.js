@@ -240,7 +240,7 @@ angular.module('aiddataDET')
 
       updateFilters: function () {
         var self = this;
-
+        F = _.cloneDeep(self.filters);
         return ajaxFactory.filters(self.filters)
           .then(function(results) {
             var filterOptions = self.filterOptions = results.data;
@@ -347,9 +347,15 @@ angular.module('aiddataDET')
 
       updateFilterRange: function(min, max, filter) {
         var self = this;
-        this.filters[filter] = _.filter(self.filterOptions.distinct[filter], function(f) {
+        var range = _.filter(self.filterOptions.distinct[filter], function(f) {
           return f >= min && f <= max;
         });
+        if (!range.length) {
+          console.log('empty filters');
+          return;
+        }
+
+        this.filters[filter] = [_.min(range), _.max(range)];
       },
 
       resetFilterRange: function(filter) {
