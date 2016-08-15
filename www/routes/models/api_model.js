@@ -135,8 +135,7 @@ module.exports.featured = function (req, res) {
 };
 
 module.exports.limits = function (req, res) {
-  return res.send({"release":2, "raster":-1, "total":-1});
-  // return sendRequest('get_request_limits')
-  //   .then(function(response) { res.send(response.data); })
-  //   .catch(function(err) { res.status(500).send(err); });
+  return sendRequest('get_request_limits')
+    .then(function(response) { res.send(response.data); })
+    .catch(function(err) { res.status(500).send(err); });
 };
