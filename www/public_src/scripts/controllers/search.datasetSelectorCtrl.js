@@ -24,7 +24,8 @@ angular.module('aiddataDET')
     return _.chain(item.extras.tags)
       .concat(item.title)
       .join(', ')
-      .includes($scope.dataFilters.searchText)
+      .toLower()
+      .includes(_.toLower($scope.dataFilters.searchText))
       .value();
   };
 

@@ -72,7 +72,6 @@ angular.module('aiddataDET')
       $scope.options = queryFactory.options;
       updateCounts();
       if (!$scope.selectionData.renamed) {
-        console.log("foo");
         $scope.selectionData.name = getName();
       }
     }
