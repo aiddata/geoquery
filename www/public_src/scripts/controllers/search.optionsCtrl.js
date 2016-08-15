@@ -8,23 +8,28 @@ angular.module('aiddataDET')
       type: 'checkbox',
       loc: 'options.extract_types',
       dest: 'options.extract_types',
-      pick: 'name',
+      pick: function(x) { return _.get(x, 'name'); },
       data: []
     },
     {
-      name: 'Resources',
+      name: 'Years',
       type: 'checkbox',
       loc: 'resources',
       dest: 'files',
-      pick: ['name', 'path'],
+      pick: function(x) { return _.pick(x, ['name', 'path']); },
       data: []
     }
   ];
 
   $scope.toggleOption = function (isChecked, val, option) {
-    var action = isChecked ? queryFactory.toggleOptionOn(option, val) :
-      queryFactory.toggleOptionOff(option, val);
-    $rootScope.$broadcast('options:updated');
+    var optionData = option.pick(val);
+
+    var action = isChecked ? queryFactory.toggleOptionOn(option.dest, optionData) :
+      queryFactory.toggleOptionOff(option.dest, optionData);
+
+    var direction = val.checked ? 'off' : 'on';
+
+    $rootScope.$broadcast('options:updated', { key: option.dest, value: optionData, direction: direction });
   };
 
   $scope.getTimeStamp = function (date, format) {
@@ -45,6 +50,17 @@ angular.module('aiddataDET')
 
   $rootScope.$on('dataset:selected', function (e, data) {
     $scope.dataset = data;
+  });
+
+  $rootScope.$on('options:updated', function(e, data) {
+    var search = _.isString(data.value) ? { name: data.value } : data.value;
+    var targetOption = _.chain($scope.options)
+      .find({ dest: data.key })
+      .get('data')
+      .find(search)
+      .value();
+
+    targetOption.checked = data.direction === 'on';
   });
 
   function mapOption (option) {

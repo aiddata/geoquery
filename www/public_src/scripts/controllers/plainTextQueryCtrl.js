@@ -39,9 +39,15 @@ angular.module('aiddataDET')
   }
 
   $scope.removeFilter = function(filter, option) {
-    return $scope.dataset.type !== 'release' ? queryFactory.toggleOptionOff(filter, option) :
-      $scope.dataset.fields[filter].filter_type === 'list' ? queryFactory.toggleFilterOff(filter, option) :
+    if ($scope.dataset.type !== 'release') {
+      var optionData = option.display ? _.omit(option, ['display', '$$hashKey']) : option;
+      queryFactory.toggleOptionOff(filter, optionData);
+      $rootScope.$broadcast('options:updated', { key: filter, value: optionData, direction: 'off' });
+    } else if ($scope.dataset.fields[filter].filter_type === 'list'){
+      queryFactory.toggleFilterOff(filter, option);
+    } else {
       queryFactory.resetFilterRange(filter);
+    }
   };
 
   function getRange(filterId) {
@@ -55,8 +61,8 @@ angular.module('aiddataDET')
   function getYears() {
     return _.chain($scope.options)
       .get('files')
-      .map(function(file) {
-        return _.last(_.split(file.name, "_"));
+      .each(function(file) {
+        file.display = _.last(_.split(file.name, "_"));
       })
       .value();
   }

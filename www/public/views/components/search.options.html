@@ -8,9 +8,7 @@
 
       ng-hide="!option.data || option.data.length <= 1">
 
-    <md-card-header>
-        {{ option.name === 'Resources' ? 'Years' : option.name }}
-    </md-card-header>
+    <md-card-header> {{ option.name }} </md-card-header>
 
     <div style="overflow-y: auto"
         layout="column"
