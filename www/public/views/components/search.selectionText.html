@@ -9,10 +9,10 @@
             <i class="fa fa-pencil-square-o " aria-hidden="true"></i>
           </md-icon>
 
-          <input ng-model="selectionData.name" placeholder="Selection Name" ng-change="selectionData.renamed = true">
+          <input class="inputsm" ng-model="selectionData.name" placeholder="Selection Name" ng-change="selectionData.renamed = true">
         </md-input-container>
 
-        <small ng-if="dataset && dataset.type == 'release'">
+        <small style="margin-top: -20px;" ng-if="dataset && dataset.type == 'release'">
           <br>
           <strong>{{ totals.projects }}</strong> projects /
           <strong>{{ totals.locations }}</strong> locations
