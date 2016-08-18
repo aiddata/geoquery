@@ -28,16 +28,8 @@ angular.module('aiddataDET')
         return $http.post('/api/submit', { query: query });
       },
 
-      language: function () {
-        return $http.get('/api/language');
-      },
-
-      featured: function () {
-        return $http.get('/api/featured');
-      },
-
-      limits: function () {
-        return $http.get('/api/limits');
+      info: function () {
+        return $http.get('/api/info');
       }
 
     };

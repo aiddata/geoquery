@@ -98,44 +98,8 @@ module.exports.submitRequest = function (req, res) {
   .catch(function(err) { res.status(500).send(err); });
 };
 
-module.exports.language = function (req, res) {
-  var mockLanguage = {
-    "help": [
-      { "question": "What was the first toy advertised on television?", "answer": "Mr. Potato Head" },
-      { "question": "The beaver is the national emblem of which country?", "answer": "Canada" },
-      { "question": "How is the groundnut better known?", "answer": "The peanut." }
-    ],
-    "welcome": {
-      "title": "Welcome to the Data Extraction Tool by AidData!",
-      "content": "Some explanatory text!!!"
-    },
-    "submitted": {
-      "title": "This is the title for the submit modal",
-      "content": "Some text to tell the user their request is submitted"
-    },
-    "status": {
-      "submit": ["Some text telling the user about the submit status on the individual request page", "I will appear in place of the download buttons, under the horizontal bar"],
-      "prep": ["Some text telling the user about the prep status on the individual request page", "I will appear in place of the download buttons, under the horizontal bar"],
-      "process": ["Some text telling the user about the process status on the individual request page", "I will appear in place of the download buttons, under the horizontal bar"],
-      "complete": ["Some text telling the user about the complete status on the individual request page", "I will appear in place of the below the download buttons, under the horizontal bar"]
-    },
-    "terms_and_conditions": {
-      "content": [
-        "Marfa slow-carb narwhal, lumbersexual blue bottle pop-up pour-over 90's master cleanse 8-bit organic ugh blog lomo. Sriracha typewriter try-hard intelligentsia, ramps skateboard kickstarter. Tilde kinfolk humblebrag cray crucifix, taxidermy 8-bit vice typewriter blog marfa swag brunch. VHS kale chips crucifix cred williamsburg, ethical fixie try-hard raw denim direct trade. Pitchfork fashion axe vinyl affogato. Offal disrupt man bun small batch. Fingerstache flexitarian DIY mlkshk, wolf meggings meditation.",
-        "Four dollar toast tattooed 3 wolf moon small batch sriracha biodiesel, tote bag beard gochujang fingerstache yr fashion axe kickstarter lo-fi. Crucifix tote bag four dollar toast, hoodie photo booth williamsburg schlitz selfies chillwave paleo fap cold-pressed authentic PBR&B. Direct trade swag normcore, salvia sartorial biodiesel farm-to-table 90's post-ironic schlitz paleo ramps ugh squid. Fingerstache craft beer dreamcatcher blog you probably haven't heard of them. Narwhal shoreditch stumptown disrupt. Flannel tilde lumbersexual before they sold out, VHS typewriter migas YOLO freegan fixie +1 flexitarian tofu 90's. Tofu celiac craft beer YOLO."
-      ]
-    }
-  };
-  return res.send(mockLanguage);
-};
-
-module.exports.featured = function (req, res) {
-  var mockFeatured = { dataset_tags: ["aiddata", "geocoded", "release", "precipitation", "UDel", "temperature", "nasa", "srtm", "dem", "slope", "cgiar", "csi", "elevation", "population", "density", "ciesin", "count"] };
-  return res.send(mockFeatured);
-};
-
-module.exports.limits = function (req, res) {
-  return sendRequest('get_request_limits')
+module.exports.info = function (req, res) {
+  return sendRequest('get_info')
     .then(function(response) { res.send(response.data); })
     .catch(function(err) { res.status(500).send(err); });
 };

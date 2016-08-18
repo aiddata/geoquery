@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, datasets, $state, featured) {
+.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, datasets, $state, info) {
   $scope.showSearchTools = false;
   $scope.featuredTags = [];
   $scope.datasets = {
@@ -54,7 +54,7 @@ angular.module('aiddataDET')
       $scope.datasets.selected = $state.params.dataset;
     }
     $scope.dataFilters = { searchText: '', tag: 'all' };
-    $scope.featuredTags = featured;
+    $scope.featuredTags = info.data_categories;
 
     var d = _.orderBy(datasets, 'type').reverse();      // Position AidData Datasets at the Top of Array
     $scope.datasets.options = d;

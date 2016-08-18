@@ -25,8 +25,8 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
   .state('root', {
     abstract: true,
     resolve: {
-      language: function(ajaxFactory) {
-        return ajaxFactory.language()
+      info: function(ajaxFactory) {
+        return ajaxFactory.info()
           .then(function(results) {
             return results.data;
           });
@@ -95,12 +95,6 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
         return queryFactory.getDatasets(boundary.group)
           .then(function(data) { return data; })
           .catch(function() { return $state.go('map'); });
-      },
-      featured: function(ajaxFactory) {
-        return ajaxFactory.featured()
-          .then(function(results) {
-            return results.data.dataset_tags;
-          });
       }
     },
     views: {

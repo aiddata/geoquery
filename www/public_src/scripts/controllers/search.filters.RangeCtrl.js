@@ -1,19 +1,19 @@
 angular.module('aiddataDET')
-.controller('RangeCtrl', function($scope, $rootScope, $log, queryFactory) {
+.controller('RangeCtrl', function($scope, $rootScope, $log, $timeout, queryFactory) {
   // $scope.filterData
   // $scope.filterOptions
   // $scope.activeFilters
 
   var min = _.min($scope.filterOptions),
       max = _.max($scope.filterOptions);
+  $scope.showSlider = false;
+  $scope.range = { min: min, max: max };
 
   $scope.sliderOptions = {
     floor: min,
     ceil: max,
     onEnd: function() { $scope.updateRange(); }
   };
-
-  $scope.range = { min: min, max: max };
 
   $scope.fields = [
     {
@@ -59,15 +59,19 @@ angular.module('aiddataDET')
     min = _.min(newValue);
     max = _.max(newValue);
 
+    $scope.range.min = updateMin || $scope.range.min < min ? min : $scope.range.min;
+    $scope.range.max = updateMax || $scope.range.max > max ? max : $scope.range.max;
+
     $scope.sliderOptions = {
       floor: min,
       ceil: max,
       onEnd: function() { $scope.updateRange(); }
     };
 
-    $scope.range.min = updateMin || $scope.range.min < min ? min : $scope.range.min;
-    $scope.range.max = updateMax || $scope.range.max > max ? max : $scope.range.max;
-
   }, true);
+
+  $timeout(function () {
+    $scope.showSlider = true;
+  }, 500);
 
 });

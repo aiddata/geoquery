@@ -12,8 +12,8 @@
       <label> Search by Dataset Tag </label>
       <md-select ng-model="dataFilters.tag">
         <md-option value="all"> All </md-option>
-        <md-option ng-repeat="field in featuredTags" value="{{ field }}">
-          {{ field }}
+        <md-option ng-repeat="field in featuredTags" value="{{ field.tag }}">
+          {{ field.display }}
         </md-option>
       </md-select>
     </md-input-container>
