@@ -55,7 +55,6 @@ angular.module('aiddataDET')
           .flatten().uniq().toString().value();
       boundary.search = boundary.name + ' ' + boundary.tags;
     });
-    console.log($scope.boundaries);
   });
 
 });
