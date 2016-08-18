@@ -28,7 +28,6 @@ angular.module('aiddataDET')
     }
     return ajaxFactory.geometry(boundary)
       .then(function(result) {
-        console.log(result);
         if (!result.data) {
           return $q.reject({ message: 'No data returned' });
         }
