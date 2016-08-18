@@ -1,8 +1,8 @@
 angular.module('aiddataDET')
-.controller('StatusCtrl', function($stateParams, $scope, request, datasets, language) {
+.controller('StatusCtrl', function($stateParams, $scope, request, datasets, info) {
   $scope.id = $stateParams.id;
   $scope.request = request;
-  $scope.language = [];
+  $scope.info = [];
 
   $scope.getDataset = function (query) {
     var name = query.dataset || query.name;
@@ -17,7 +17,7 @@ angular.module('aiddataDET')
       .get('name')
       .value();
 
-    $scope.language = language.status[request.status];
+    $scope.language = info.status[request.status];
   });
 
   $scope.pastTense = function(word) {

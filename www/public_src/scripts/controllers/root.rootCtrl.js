@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('RootCtrl', function($scope, $rootScope, $log, $q, $state, $timeout, $mdDialog, language, queryFactory, spinFactory) {
+.controller('RootCtrl', function($scope, $rootScope, $log, $q, $state, $timeout, $mdDialog, info, queryFactory, spinFactory) {
 
   $scope.sidebar = { open: false, active: '' };
 
@@ -52,8 +52,8 @@ angular.module('aiddataDET')
 
   var welcomeDialog = $mdDialog.alert()
     .clickOutsideToClose(true)
-    .title(language.welcome.title)
-    .textContent(language.welcome.content)
+    .title(info.welcome.title)
+    .textContent(info.welcome.content)
     .ok('Get Started');
 
 });

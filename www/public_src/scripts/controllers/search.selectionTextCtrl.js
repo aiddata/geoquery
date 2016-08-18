@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('SelectionTextCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $mdDialog, queryFactory, ajaxFactory) {
+.controller('SelectionTextCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $mdDialog, queryFactory, ajaxFactory, info) {
   $scope.filters = {};
   $scope.options = {};
   $scope.dataset = {};
@@ -68,10 +68,7 @@ angular.module('aiddataDET')
         $scope.selectionData.name = getName();
       }
     }
-
-    ajaxFactory.limits()
-      .then(function(results) { limits = results.data; });
-
+    limits = info.limits;
   });
 
   $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {

@@ -53,14 +53,14 @@ angular.module('aiddataDET')
   });
 
   $rootScope.$on('options:updated', function(e, data) {
+    var checked = { checked: data.direction === 'on' };
     var search = _.isString(data.value) ? { name: data.value } : data.value;
     var targetOption = _.chain($scope.options)
       .find({ dest: data.key })
       .get('data')
       .find(search)
+      .extend(checked)
       .value();
-
-    targetOption.checked = data.direction === 'on';
   });
 
   function mapOption (option) {

@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('DetailsCtrl', function($scope, $rootScope, $log, $q, $timeout, $state, $element, $mdDialog, queryFactory, mapFactory, spinFactory, language) {
+.controller('DetailsCtrl', function($scope, $rootScope, $log, $q, $timeout, $state, $element, $mdDialog, queryFactory, mapFactory, spinFactory, info) {
   $scope.queryObj = queryFactory.getQuery();
   $scope.terms = [];
   $scope.queryData = {
@@ -9,8 +9,8 @@ angular.module('aiddataDET')
 
   var submitAlert = $mdDialog.confirm()
       .clickOutsideToClose(true)
-      .title(language.submitted.title)
-      .content(language.submitted.content)
+      .title(info.submitted.title)
+      .content(info.submitted.content)
       .clickOutsideToClose(false)
       .ok('Review Request Status')
       .cancel('Start New Search');
@@ -45,7 +45,7 @@ angular.module('aiddataDET')
   };
 
   $scope.$on('$viewContentLoaded', function() {
-    $scope.terms = _.get(language, 'terms_and_conditions.content') || [];
+    $scope.terms = _.get(info, 'terms_and_conditions.content') || [];
 
     mapFactory.provision(document.querySelector('.map'), true)
       .promise.then(function(){
