@@ -44,6 +44,9 @@ angular.module('aiddataDET')
 
     _.each($scope.options, function (opt) {
       mapOption(opt);
+      if (opt.data.length === 1) {
+        $scope.toggleOption(!opt.data[0].checked, opt.data[0], opt);
+      }
     });
   });
 

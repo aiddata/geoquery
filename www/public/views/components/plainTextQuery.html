@@ -1,5 +1,6 @@
 <span style="line-height: 3;"
-  ng-repeat="item in queryStructure">
+  ng-repeat="item in queryStructure"
+  ng-hide="item.value.length === 1 && item.value[0].display && item.value[0].display === 'none'">
   {{ item.pre }}
   <span ng-repeat="option in item.value">
     <span ng-show="item.value.length > 1 && $last"> and </span>
