@@ -30,7 +30,6 @@ angular.module('aiddataDET')
   };
 
   $scope.selectDataset = function(dataset) {
-    console.log(dataset);
     var targetState = dataset.type === 'release' ? 'search.filters' :
         'search.options';
 

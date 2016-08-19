@@ -7,7 +7,7 @@
           placeholder="{{ field.text }} {{ filterData.text }}"
           type="number"
           ng-model="range[field.text]"
-          ng-blur="field.validate(range[field.text])">
+          ng-change="updateRange()">
     </md-input-container>
   </div>
 
