@@ -9,8 +9,8 @@ angular.module('aiddataDET')
   };
 
   $scope.fields = {
-    options: ['date_added', 'date_updated', 'title', 'publishers', 'version'],
-    selected: 'type',     // Sort By type by default -- Positioning AidData at the top
+    options: [{ display: 'Date Updated', value: 'date_updated'}, { display: 'Name', value: 'title'}],
+    selected: '',
     descending: true
   };
 

@@ -32,8 +32,8 @@
       <md-input-container class="condensed" flex="30">
         <label>Sort by</label>
         <md-select ng-model="fields.selected">
-          <md-option ng-repeat="field in fields.options" value="{{ field }}">
-            {{ field }}
+          <md-option ng-repeat="field in fields.options" value="{{ field.value }}">
+            {{ field.display }}
           </md-option>
         </md-select>
       </md-input-container>
