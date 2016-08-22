@@ -1,18 +1,18 @@
 <md-card-content>
 
   <div layout="row">
-    <md-input-container ng-repeat="field in fields">
+    <md-input-container ng-repeat="(key, value) in range">
       <input
-          aria-label="{{ field.text }} {{ filterData.text }}"
-          placeholder="{{ field.text }} {{ filterData.text }}"
+          aria-label="{{ key }}"
+          placeholder="{{ key }}"
           type="number"
-          ng-model="range[field.text]"
+          ng-model="value"
           ng-change="updateRange()">
     </md-input-container>
   </div>
 
   <rzslider
-    ng-if="showSlider"
+    ng-if="sliderOptions.visible"
     rz-slider-model="range.min"
     rz-slider-high="range.max"
     rz-slider-options="sliderOptions"></rzslider>
