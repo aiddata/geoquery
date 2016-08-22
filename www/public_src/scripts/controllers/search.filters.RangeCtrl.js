@@ -4,6 +4,8 @@ angular.module('aiddataDET')
   // $scope.filterOptions
   // $scope.activeFilters
 
+  var numberFormat = d3.format('$,');
+
   var min = _.min($scope.filterOptions),
       max = _.max($scope.filterOptions);
 
@@ -49,7 +51,7 @@ angular.module('aiddataDET')
       ceil: _.ceil(max),
       onEnd: $scope.updateRange,
       enforceRange: true,
-      translate: function(val) { return '$' + val; }
+      translate: numberFormat
     };
 
     $scope.updateRange();

@@ -3,8 +3,8 @@
   <div layout="row">
     <md-input-container ng-repeat="(key, value) in range">
       <input
-          aria-label="{{ key }}"
-          placeholder="{{ key }}"
+          aria-label="{{ key }} ($)"
+          placeholder="{{ key }} ($)"
           type="number"
           ng-model="value"
           ng-change="updateRange()">
