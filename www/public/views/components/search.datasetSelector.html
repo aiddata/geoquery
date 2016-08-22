@@ -9,7 +9,7 @@
 
   <div layout="row" flex layout-padding>
     <md-input-container flex class="">
-      <label> Search by Dataset Tag </label>
+      <label> Select Category </label>
       <md-select ng-model="dataFilters.tag">
         <md-option value="all"> All </md-option>
         <md-option ng-repeat="field in featuredTags" value="{{ field.tag }}">
@@ -32,8 +32,8 @@
       <md-input-container class="condensed" flex="30">
         <label>Sort by</label>
         <md-select ng-model="fields.selected">
-          <md-option ng-repeat="field in fields.options" value="{{ field }}">
-            {{ field }}
+          <md-option ng-repeat="field in fields.options" value="{{ field.value }}">
+            {{ field.display }}
           </md-option>
         </md-select>
       </md-input-container>

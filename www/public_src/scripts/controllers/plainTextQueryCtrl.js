@@ -52,9 +52,9 @@ angular.module('aiddataDET')
 
   function getRange(filterId) {
     return [
-      _.chain($scope.filters[filterId]).min().floor().value().toString() +
+      d3.format('$,')(_.chain($scope.filters[filterId]).min().floor().value()) +
       ' - ' +
-      _.chain($scope.filters[filterId]).max().ceil().value().toString()
+      d3.format(',')(_.chain($scope.filters[filterId]).max().ceil().value())
     ];
   }
 

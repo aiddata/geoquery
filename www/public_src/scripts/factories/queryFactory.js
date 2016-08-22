@@ -341,12 +341,12 @@ angular.module('aiddataDET')
         var range = _.filter(self.filterOptions.distinct[filter], function(f) {
           return f >= min && f <= max;
         });
+
         if (!range.length) {
-          console.log('empty filters');
-          return;
+          return $log.error('empty filters');
         }
 
-        this.filters[filter] = [_.min(range), _.max(range)];
+        this.filters[filter] = [min, max];
       },
 
       resetFilterRange: function(filter) {

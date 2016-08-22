@@ -4,40 +4,19 @@ angular.module('aiddataDET')
   // $scope.filterOptions
   // $scope.activeFilters
 
+  var numberFormat = d3.format('$,');
+
   var min = _.min($scope.filterOptions),
       max = _.max($scope.filterOptions);
-  $scope.showSlider = false;
+
   $scope.range = { min: min, max: max };
-
-  $scope.sliderOptions = {
-    floor: min,
-    ceil: max,
-    onEnd: function() { $scope.updateRange(); }
-  };
-
-  $scope.fields = [
-    {
-      text: 'min',
-      validate: function (val) {
-        $scope.range.min = val >= $scope.range.max ? $scope.range.max - 1 :
-          val < $scope.sliderOptions.floor ? $scope.sliderOptions.floor : val;
-        $scope.updateRange();
-      }
-    },
-    {
-      text: 'max',
-      validate: function (val) {
-        $scope.range.max = val <= $scope.range.min ? $scope.range.min + 1 :
-          val > $scope.sliderOptions.ceil ? $scope.sliderOptions.ceil : val;
-        $scope.updateRange();
-      }
-    }
-  ];
+  $scope.sliderOptions = { visible: false };
 
   $scope.updateRange = function () {
     if (
       $scope.range.min === $scope.sliderOptions.floor &&
-      $scope.range.max === $scope.sliderOptions.ceil
+      $scope.range.max === $scope.sliderOptions.ceil &&
+      $scope.filterOptions.length > 1
     ) {
       queryFactory.resetFilterRange($scope.filterData.field);
     } else {
@@ -53,25 +32,30 @@ angular.module('aiddataDET')
   });
 
   $scope.$watch('filterOptions', function(newValue, oldValue) {
-    var updateMin = $scope.range.min === min,
-        updateMax = $scope.range.max === max;
+    var updateMin = $scope.range.min === min || newValue.length <= 1,
+        updateMax = $scope.range.max === max || newValue.length <= 1;
 
-    min = _.min(newValue);
-    max = _.max(newValue);
+    min = newValue.length ? _.floor(_.min(newValue)) : 0;
+    max = newValue.length ? _.ceil(_.max(newValue)) : 0;
 
     $scope.range.min = updateMin || $scope.range.min < min ? min : $scope.range.min;
     $scope.range.max = updateMax || $scope.range.max > max ? max : $scope.range.max;
 
-    $scope.sliderOptions = {
-      floor: min,
-      ceil: max,
-      onEnd: function() { $scope.updateRange(); }
-    };
-
+    $timeout(buildSlider, 500);
   }, true);
 
-  $timeout(function () {
-    $scope.showSlider = true;
-  }, 500);
+  function buildSlider () {
+    $scope.sliderOptions = {
+      visible: true,
+      floor: _.floor(min),
+      ceil: _.ceil(max),
+      onEnd: $scope.updateRange,
+      enforceRange: true,
+      translate: numberFormat
+    };
+
+    $scope.updateRange();
+  }
+
 
 });
