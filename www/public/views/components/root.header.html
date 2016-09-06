@@ -44,28 +44,31 @@
         <md-button class="md-button-pimary process-button"
             ng-disabled="true"
             ng-class="{ 'current': currentStep === 'map' }"
+            ng-show="showSteps"
             md-no-ink>
 
           <i class="fa fa-map-pin" aria-hidden="true"></i>
           1. Select Boundary
         </md-button>
 
-        <span> / </span>
+        <span ng-show="showSteps"> / </span>
 
         <md-button class="md-button-pimary process-button"
             ng-disabled="true"
             ng-class="{ 'current': currentStep.indexOf('search') >= 0 }"
+            ng-show="showSteps"
             md-no-ink>
 
           <i class="fa fa-star" aria-hidden="true"></i>
           2. Customize Datasets
         </md-button>
 
-        <span> / </span>
+        <span ng-show="showSteps"> / </span>
 
         <md-button class="md-button-pimary process-button"
             ng-disabled="true"
             ng-class="{ 'current': currentStep === 'checkout' }"
+            ng-show="showSteps"
             md-no-ink>
 
           <i class="fa fa-shopping-cart" aria-hidden="true"></i>

@@ -26,6 +26,9 @@ angular.module('aiddataDET')
 
   $rootScope.$on('$viewContentLoaded', function() {
     $scope.currentStep = $state.current.name;
+    $scope.showSteps = $scope.currentStep === 'map' ||
+                       $scope.currentStep.indexOf('search') >= 0 ||
+                       $scope.currentStep === 'checkout';
   });
 
 });
