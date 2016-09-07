@@ -1,24 +1,36 @@
-angular.module('aiddataDET')
-.controller('RootCtrl', function($scope, $rootScope, $log, $q, $state, $timeout, $mdDialog, info, queryFactory, spinFactory) {
+/**
+  * This is the controller for the root page, it is responsible for:
+  *   - Managing sidebar tabs
+  *   - Monitoring state change events and dispatching spinners and dialogs as
+  *     needed
+  */
 
+angular.module('aiddataDET')
+.controller('RootCtrl', function($scope, $rootScope, $log, $q, $state, $timeout, $mdDialog, info, queryFactory, spinFactory, modals) {
+  console.log(modals);
+
+
+  /*
+    ==================
+    Sidebar Management
+    ==================
+   */
   $scope.sidebar = { open: false, active: '' };
 
+  //  Handle request to open sidebar panel
   $rootScope.$on('sidebar:open', function(event, data) {
     $scope.sidebar.open = true;
     $scope.sidebar.active = data;
   });
 
-  $rootScope.$on('$stateChangeError', function(event, toState, toParams, fromState, fromParams, error) {
-    $log.error(event, toState, toParams, fromState, fromParams, error);
-    spinFactory.stop();
-  });
+  /*
+    ===================
+    State change events
+    ===================
+   */
 
-  $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
-    spinFactory.stop();
-    $mdDialog.hide();
-    $scope.sidebar.open = false;
-  });
-
+  // When page content is loaded, open welcomeDialog if the user is landing on
+  // the map page for the first time
   $scope.$on('$viewContentLoaded', function(event) {
     if ($state.$current.self.name === "map" && !welcomeDialog.opened) {
       $mdDialog.show(welcomeDialog);
@@ -26,34 +38,61 @@ angular.module('aiddataDET')
     }
   });
 
+  // Create spinner and dialogs when user begins to navigate to another page
   $rootScope.$on('$stateChangeStart', function(event, toState, toParams, fromState, fromParams, options) {
-    spinFactory.start();
+
+    // If user is going back to the map and will lose data, open map warning dialog
     if ( toState.name === 'map' &&
       queryFactory.querySize() &&
       !_.get(toParams, 'confirmation.confirmed') ) {
+
+      // Cancel page change
       event.preventDefault();
 
-      $mdDialog.show(returnToMap).then(function() {
-        queryFactory.resetQuery();
-        $rootScope.$broadcast('query:updated');
-        $state.go('map', { confirmation: { confirmed: true }});
-        spinFactory.start();
-      });
+      // Open dialog
+      $mdDialog.show(returnToMap)
+        .then(function() {
+          // User clicks Ok
+          queryFactory.resetQuery();
+          $rootScope.$broadcast('query:updated');
+          $state.go('map', { confirmation: { confirmed: true }});
+          spinFactory.start();
+        }, function () {
+          // User clicks cancel
+          spinFactory.stop();
+        });
+    } else {
+      // If map warning dialog isn't needed
+      spinFactory.start();
     }
   });
 
-  /* Modal Definitions */
-  var returnToMap = $mdDialog.confirm()
-    .clickOutsideToClose(true)
-    .title("Are You Sure?")
-    .textContent("If you choose to navigate away from this page your data selection will be lost.")
-    .ok('Yes')
-    .cancel('No');
+  // Stop spinner on successful loading of new page data
+  $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
+    spinFactory.stop();
+    $mdDialog.hide();
+    $scope.sidebar.open = false;
+  });
 
+  /*
+    ==================
+    Dialog Definitions
+    ==================
+   */
+
+  // Return to Map Warning
+  var returnToMap = $mdDialog.confirm()
+    .clickOutsideToClose(modals.returnToMap.clickOutsideToClose)
+    .title(modals.returnToMap.title)
+    .textContent(modals.returnToMap.textContent)
+    .ok(modals.returnToMap.ok)
+    .cancel(modals.returnToMap.cancel);
+
+  // Welcome Dialog
   var welcomeDialog = $mdDialog.alert()
-    .clickOutsideToClose(true)
+    .clickOutsideToClose(modals.welcome.clickOutsideToClose)
     .title(info.welcome.title)
     .textContent(info.welcome.content)
-    .ok('Get Started');
+    .ok(modals.welcome.ok);
 
 });
