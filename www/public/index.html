@@ -1,10 +1,16 @@
 <!DOCTYPE html>
 <html ng-app="aiddataDET">
 <head>
-    <title>AidData Data Extraction Tool</title>
+    <!-- config properties are stored in www/public_src/scripts/constants/config.js -->
+    <title>{{ config.pageTitle }}</title>
+
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="shortcut icon" href="http://www.aiddata.org/sites/all/themes/aiddata/favicon.ico" />
+    <meta name="description" content="{{ config.meta.description }}" />
+    <meta name="keywords" content="{{ config.meta.keywords }}" />
+
+    <link rel="shortcut icon" href="{{ config.faviconUrl }}" />
     <link rel="stylesheet" href="styles/app.css">
+
 </head>
 <body layout="column" flex>
   <!-- Content Inserted Here -->

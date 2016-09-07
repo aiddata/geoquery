@@ -229,4 +229,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
     }
   });
 
+})
+.run(function($rootScope, config) {
+  $rootScope.config = config;
 });
