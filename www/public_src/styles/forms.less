@@ -24,8 +24,9 @@ md-autocomplete md-autocomplete-wrap.md-menu-showing {
   letter-spacing: 1px;
 }
 
-md-input-container.md-light .md-input {
-  color: #fff;
+md-input-container.md-light .md-input,
+md-input-container.md-light.md-input-focused md-icon{
+  color: #fff ;
 }
 
 md-select.md-default-theme:not([disabled]) .md-select-value,
@@ -36,5 +37,4 @@ md-select:not([disabled]) .md-select-value {
 md-input-container.md-default-theme .md-input,
 md-input-container .md-input {
   border-bottom-color: @themeDefault;
-  background-color: #fff;
 }
