@@ -12,5 +12,6 @@ angular.module('aiddataDET')
     meta: {
       description: 'this is the description',
       keywords: 'these,are,some,keywords'
-    }
+    },
+    googleTrackingID: 'UA-83421297-1'
   });
