@@ -4,11 +4,10 @@
       <i class="fa fa-arrow-left" aria-hidden="true"></i>
       Select a Different Boundary
     </a></small>
-    <h4>{{ datasets.filtered.length }} Datasets Found </h4>
   </div>
 
   <div layout="row" flex layout-padding>
-    <md-input-container flex class="">
+    <md-input-container flex>
       <label> Select Category </label>
       <md-select ng-model="dataFilters.tag">
         <md-option value="all"> All </md-option>
@@ -17,9 +16,6 @@
         </md-option>
       </md-select>
     </md-input-container>
-    <small flex="20">
-      <a href="" ng-click="showSearchTools = !showSearchTools"> Advanced Options</a>
-    </small>
   </div>
 
   <div uib-collapse="!showSearchTools">
@@ -47,6 +43,18 @@
         </md-button>
       </div>
     </div>
+  </div>
+
+  <div layout="row" flex layout-padding  layout-align="space-between center">
+    <h5>
+      {{ datasets.filtered.length }}/
+      {{ datasets.options.length }}
+      Datasets
+    </h5>
+    <span flex></span>
+    <small>
+      <a href="" ng-click="showSearchTools = !showSearchTools"> Advanced Options</a>
+    </small>
   </div>
 
   <md-divider></md-divider>
