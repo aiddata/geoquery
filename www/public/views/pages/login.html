@@ -9,7 +9,9 @@
     <div layout="column" layout-padding layout-align="top">
       <md-input-container class="condensed">
         <label>e-mail</label>
-        <input ng-model="requestForm.email"
+        <input
+            ng-model="requestForm.email"
+            ng-enter="lookup()"
             name="email"
             type="email">
       </md-input-container>

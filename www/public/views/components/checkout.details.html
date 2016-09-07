@@ -10,6 +10,7 @@
   <form name="checkoutForm" layout="column">
     <md-input-container>
       <input ng-model="queryData.custom_name"
+          ng-enter="checkoutForm.$valid ? submitQuery() : null;"
           type="text"
           name="requestName"
           placeholder="Request Name"
@@ -20,6 +21,7 @@
 
     <md-input-container>
       <input ng-model="queryData.email"
+          ng-enter="checkoutForm.$valid ? submitQuery() : null;"
           type="email"
           name="email"
           placeholder="Email"
