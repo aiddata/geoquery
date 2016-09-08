@@ -13,5 +13,8 @@ angular.module('aiddataDET')
       description: 'this is the description',
       keywords: 'these,are,some,keywords'
     },
-    googleTrackingID: 'UA-83421297-1'
+    googleTrackingID: 'UA-83421297-1',
+
+    // Brand
+    logoUrl: 'http://aiddata.org/sites/all/themes/aiddata/logo.png'
   });

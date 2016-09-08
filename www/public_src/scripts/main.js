@@ -1,7 +1,21 @@
+/**
+  * This is the main script for aiddataDET angular application.  This
+  * file is responsible for:
+  *   - Declaring and configuring the material design theme
+  *   - Defining all routes and making necessary API requests
+  *   - Injecting google analytics support
+  */
+
 angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', 'ngMaterial', 'rzModule', 'ngAnimate'])
 .config(function($stateProvider, $urlRouterProvider, $mdThemingProvider) {
 
-  /* Material Design Theme Configuration */
+  /*
+   * ====================================================================
+   * Material Design Theme Configuration
+   * https://material.angularjs.org/latest/Theming/03_configuring_a_theme
+   * ====================================================================
+   */
+
   $mdThemingProvider.theme('default')
       .primaryPalette('blue-grey', {
         'default': '400',
@@ -18,7 +32,12 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
       .warnPalette('deep-orange')
       .backgroundPalette('grey');
 
-  /* Routing and State Management */
+  /*
+   * ===========================================
+   * Routing and State Management using UI router
+   * https://github.com/angular-ui/ui-router/wiki
+   * ============================================
+   */
   $urlRouterProvider.otherwise('/');
 
   $stateProvider
@@ -232,4 +251,18 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
 })
 .run(function($rootScope, config) {
   $rootScope.config = config;
+
+  /*
+   * ================
+   * Google analytics
+   * ================
+   */
+  (function(i, s, o, g, r, a, m){ i['GoogleAnalyticsObject'] = r;i[r] = i[r] || function(){
+    (i[r].q = i[r].q || []).push(arguments); }, i[r].l = 1 * new Date();a = s.createElement(o),
+    m = s.getElementsByTagName(o)[0];a.async = 1;a.src = g;m.parentNode.insertBefore(a, m);
+  })(window, document, 'script', 'https://www.google-analytics.com/analytics.js', 'ga');
+
+  ga('create', config.trackingID, 'auto');
+  ga('send', 'pageview');
+
 });

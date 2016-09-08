@@ -11,9 +11,9 @@ angular.module('aiddataDET')
 
 
   /*
-    ==================
-    Sidebar Management
-    ==================
+   * ==================
+   * Sidebar Management
+   * ==================
    */
   $scope.sidebar = { open: false, active: '' };
 
@@ -24,9 +24,9 @@ angular.module('aiddataDET')
   });
 
   /*
-    ===================
-    State change events
-    ===================
+   *  ===================
+   *  State change events
+   *  ===================
    */
 
   // When page content is loaded, open welcomeDialog if the user is landing on
@@ -75,9 +75,9 @@ angular.module('aiddataDET')
   });
 
   /*
-    ==================
-    Dialog Definitions
-    ==================
+   * ==================
+   * Dialog Definitions
+   * ==================
    */
 
   // Return to Map Warning
