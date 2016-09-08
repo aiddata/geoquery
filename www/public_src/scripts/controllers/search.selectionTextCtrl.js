@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('SelectionTextCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $mdDialog, queryFactory, ajaxFactory, info, modals) {
+.controller('SelectionTextCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $mdDialog, modalFactory, queryFactory, ajaxFactory, info, modals) {
   $scope.filters = {};
   $scope.options = {};
   $scope.dataset = {};
@@ -10,14 +10,7 @@ angular.module('aiddataDET')
   $scope.atLimit = false;
   var limits = {};
 
-  var limitWarning = {
-    shown: false,
-    content: modals.limitWarning.content,
-    title: modals.limitWarning.title,
-    ok: modals.limitWarning.ok,
-    cancel: modals.limitWarning.cancel,
-    clickOutsideToClose: modals.limitWarning.clickOutsideToClose
-  };
+  var limitWarning = modalFactory.confirm(modals.limitWarning);
 
 
   $scope.clearFilters = function () {
@@ -41,7 +34,7 @@ angular.module('aiddataDET')
     $q.when(queryFactory.isUniq($scope.dataset, $scope.filters, $scope.options))
       .then(function(unique) {
         if (!unique) {
-          return $q.reject({ message: modals.duplicateSelection.title});
+          return $q.reject(modals.duplicateSelection);
         }
         return queryFactory.generateQuery($scope.dataset.type, $scope.selectionData.name);
       })
@@ -50,7 +43,8 @@ angular.module('aiddataDET')
       })
       .catch(function(err) {
         $log.error(err);
-        showDialog(err.message, 'Error Adding To Cart');
+        var errorDisplay = err.name ? err : modals.submissionError;
+        return $mdDialog.show(modalFactory.alert(errorDisplay));
       })
       .finally(function(){
         $scope.selectionData.canAdd = false;
@@ -120,30 +114,13 @@ angular.module('aiddataDET')
     if ($scope.atLimit && !limitWarning.shown) {
       limitWarning.shown = true;
 
-      $mdDialog.show(
-        $mdDialog.confirm()
-          .clickOutsideToClose(limitWarning.clickOutsideToClose)
-          .content(limitWarning.content)
-          .title(limitWarning.title)
-          .ariaLabel(limitWarning.content)
-          .ok(limitWarning.ok)
-          .cancel(limitWarning.cancel)
-
-      ).then(function() {
-        $state.go('checkout');
-      });
+      $mdDialog.show(limitWarning)
+        .then(function() {
+          $state.go('checkout');
+        });
     }
   }
 
-  function showDialog(msg, label) {
-    $mdDialog.show(
-      $mdDialog.alert()
-        .clickOutsideToClose(true)
-        .title(msg)
-        .ariaLabel(label)
-        .ok('OK')
-    );
-  }
 
   function getName () {
     var count = _.chain(queryFactory.getQuery())

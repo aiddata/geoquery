@@ -1,6 +1,7 @@
 angular.module('aiddataDET')
-.controller('SelectionsCtrl', function($scope, $rootScope, $log, $stateParams, $state, $mdDialog, queryFactory) {
+.controller('SelectionsCtrl', function($scope, $rootScope, $log, $stateParams, $state, $mdDialog, queryFactory, modalFactory, modals) {
   $scope.queryObj = queryFactory.getQuery();
+  var emptyRequest = modalFactory.confirm(modals.emptyRequest);
 
   $scope.datasetDetails = function (q) {
     var datasetName = q.dataset || q.name;
@@ -23,12 +24,6 @@ angular.module('aiddataDET')
     });
   };
 
-  var emptyRequest = $mdDialog.confirm()
-      .clickOutsideToClose(true)
-      .title('Are you sure you want to remove this selection?')
-      .textContent('Your cart will be empty')
-      .ok('Return to search')
-      .cancel('Cancel');
 
   function deleteRequest (q, type) {
     return queryFactory.removeRequest(q, type)

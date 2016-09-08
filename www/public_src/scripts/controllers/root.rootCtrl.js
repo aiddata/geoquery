@@ -6,7 +6,7 @@
   */
 
 angular.module('aiddataDET')
-.controller('RootCtrl', function($scope, $rootScope, $log, $q, $state, $timeout, $mdDialog, info, queryFactory, spinFactory, modals) {
+.controller('RootCtrl', function($scope, $rootScope, $log, $q, $state, $timeout, $mdDialog, info, queryFactory, spinFactory, modals, modalFactory) {
   console.log(modals);
 
 
@@ -33,7 +33,12 @@ angular.module('aiddataDET')
   // the map page for the first time
   $scope.$on('$viewContentLoaded', function(event) {
     if ($state.$current.self.name === "map" && !welcomeDialog.opened) {
-      $mdDialog.show(welcomeDialog);
+      $mdDialog.show(welcomeDialog)
+        .then(function() {
+          console.log(true);
+        }, function() {
+          console.log(false);
+        });
       welcomeDialog.opened = true;
     }
   });
@@ -81,18 +86,10 @@ angular.module('aiddataDET')
    */
 
   // Return to Map Warning
-  var returnToMap = $mdDialog.confirm()
-    .clickOutsideToClose(modals.returnToMap.clickOutsideToClose)
-    .title(modals.returnToMap.title)
-    .textContent(modals.returnToMap.textContent)
-    .ok(modals.returnToMap.ok)
-    .cancel(modals.returnToMap.cancel);
+  var returnToMap = modalFactory.confirm(modals.returnToMap);
 
   // Welcome Dialog
-  var welcomeDialog = $mdDialog.alert()
-    .clickOutsideToClose(modals.welcome.clickOutsideToClose)
-    .title(info.welcome.title)
-    .textContent(info.welcome.content)
-    .ok(modals.welcome.ok);
+  var welcomeContent = _.extend(modals.welcome, info.welcome),
+      welcomeDialog = modalFactory.dialog(welcomeContent);
 
 });

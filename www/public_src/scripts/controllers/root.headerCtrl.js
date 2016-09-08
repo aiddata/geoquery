@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('HeaderCtrl', function($scope, $rootScope, $log, $stateParams, $state, $mdDialog, $timeout, queryFactory, spinFactory, info) {
+.controller('HeaderCtrl', function($scope, $rootScope, $log, $stateParams, $state, $timeout, queryFactory, spinFactory, info) {
 
   $scope.currentStep = $state;
   $scope.queryLen = 0;

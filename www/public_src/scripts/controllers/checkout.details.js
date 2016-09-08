@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('DetailsCtrl', function($scope, $rootScope, $log, $q, $timeout, $state, $element, $mdDialog, queryFactory, mapFactory, spinFactory, info) {
+.controller('DetailsCtrl', function($scope, $rootScope, $log, $q, $timeout, $state, $element, $mdDialog, queryFactory, modalFactory, mapFactory, spinFactory, info, modals) {
   $scope.queryObj = queryFactory.getQuery();
   $scope.terms = [];
   $scope.queryData = {
@@ -7,13 +7,8 @@ angular.module('aiddataDET')
     custom_name: 'Request ' + d3.timeFormat('%m-%d-%y %H:%M')(Date.now())
   };
 
-  var submitAlert = $mdDialog.confirm()
-      .clickOutsideToClose(true)
-      .title(info.submitted.title)
-      .content(info.submitted.content)
-      .clickOutsideToClose(false)
-      .ok('Review Request Status')
-      .cancel('Start New Search');
+  var submitContent = _.extend(modals.submitted, info.submitted),
+      submitAlert = modalFactory.confirm(submitContent);
 
   $scope.datasetDetails = function (q) {
     var datasetName = q.dataset || q.name;
