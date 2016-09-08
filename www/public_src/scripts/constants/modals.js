@@ -26,6 +26,7 @@ angular.module('aiddataDET')
     },
 
     // Limit Warning
+    // (www/public_src/scripts/controllers/search.selectionTextCtrl.js)
     limitWarning: {
       title: 'Selection Limit Reached',
       content: 'The maximum number of selections is now in your cart, please checkout and create a new request to continue',
@@ -33,7 +34,9 @@ angular.module('aiddataDET')
       cancel: 'Ok',
       clickOutsideToClose: true
     },
-    //
+
+    // duplicate selection Warning
+    // (www/public_src/scripts/controllers/search.selectionTextCtrl.js)
     duplicateSelection: {
       title: 'This search is already in your cart'
     }
