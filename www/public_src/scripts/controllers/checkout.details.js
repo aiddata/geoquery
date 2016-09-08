@@ -46,6 +46,7 @@ angular.module('aiddataDET')
 
   $scope.$on('$viewContentLoaded', function() {
     $scope.terms = _.get(info, 'terms_and_conditions.content') || [];
+    $scope.citation = _.get(info, 'citation') || '';
 
     mapFactory.provision(document.querySelector('.map'), true)
       .promise.then(function(){

@@ -67,7 +67,7 @@ module.exports.filters = function (req, res) {
 
   filterData.dataset = req.body.dataset;
   filterData.group = req.body.boundaryId;
-  filterData.filters = _.omit(req.body, ['boundaryId', 'dataset']);
+  filterData.filters = _.omit(req.body, ['boundaryId', 'dataset', 'domain']);
 
   return sendRequest('get_filter_count', { filter: filterData, domain: req.body.domain })
     .then(function(response) { res.send(response.data); })
