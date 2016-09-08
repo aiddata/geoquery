@@ -14,9 +14,9 @@ var sendRequest = function (call, data) {
   });
 };
 
-
 module.exports.boundaries = function(req, res) {
-  return sendRequest('get_boundaries')
+
+  return sendRequest('get_boundaries', { domain: req.body.domain })
     .then(function(response) {
       if (!_.size(response.data)) {
         return res.status(500).send({ message: 'no boundaries found' });
@@ -45,7 +45,7 @@ module.exports.boundaries = function(req, res) {
 module.exports.geometry = function (req, res) {
   var geomId = req.params.geomId;
 
-  return sendRequest('get_boundary_geojson', { name: geomId })
+  return sendRequest('get_boundary_geojson', { name: geomId, domain: req.body.domain })
     .then(function(response) { res.send(response.data); })
     .catch(function(err) { res.status(500).send(err); });
 };
@@ -53,7 +53,7 @@ module.exports.geometry = function (req, res) {
 module.exports.datasets = function (req, res) {
   var boundaryId = req.params.boundaryId;
 
-  return sendRequest('get_relevant_datasets', { group: boundaryId })
+  return sendRequest('get_relevant_datasets', { group: boundaryId, domain: req.body.domain })
     .then(function(response) { res.send(response.data); })
     .catch(function(err) { res.status(500).send(err); });
 };
@@ -69,7 +69,7 @@ module.exports.filters = function (req, res) {
   filterData.group = req.body.boundaryId;
   filterData.filters = _.omit(req.body, ['boundaryId', 'dataset']);
 
-  return sendRequest('get_filter_count', { filter: filterData })
+  return sendRequest('get_filter_count', { filter: filterData, domain: req.body.domain })
     .then(function(response) { res.send(response.data); })
     .catch(function(err) { res.status(500).send(err); });
 };
@@ -84,7 +84,8 @@ module.exports.requestLookup = function (req, res) {
 
   return sendRequest('get_requests', {
     search_type: searchType,
-    search_val: searchVal
+    search_val: searchVal,
+    domain: req.body.domain
   })
   .then(function(response) { res.send(response.data); })
   .catch(function(err) { res.status(500).send(err); });
@@ -93,13 +94,13 @@ module.exports.requestLookup = function (req, res) {
 module.exports.submitRequest = function (req, res) {
   var query = req.body.query;
 
-  return sendRequest('add_request', { request: query })
+  return sendRequest('add_request', { request: query, domain: req.body.domain })
   .then(function(response) { res.send(response.data); })
   .catch(function(err) { res.status(500).send(err); });
 };
 
 module.exports.info = function (req, res) {
-  return sendRequest('get_info')
+  return sendRequest('get_info', { domain: req.body.domain })
     .then(function(response) { res.send(response.data); })
     .catch(function(err) { res.status(500).send(err); });
 };

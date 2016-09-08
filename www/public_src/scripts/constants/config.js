@@ -16,5 +16,8 @@ angular.module('aiddataDET')
     googleTrackingID: 'UA-83421297-1',
 
     // Brand
-    logoUrl: 'http://aiddata.org/sites/all/themes/aiddata/logo.png'
+    logoUrl: 'http://aiddata.org/sites/all/themes/aiddata/logo.png',
+
+    // Domain
+    domain: 'staging'
   });
