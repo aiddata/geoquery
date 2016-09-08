@@ -240,7 +240,6 @@ angular.module('aiddataDET')
 
       updateFilters: function () {
         var self = this;
-        F = _.cloneDeep(self.filters);
         return ajaxFactory.filters(self.filters)
           .then(function(results) {
             var filterOptions = self.filterOptions = results.data;

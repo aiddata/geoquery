@@ -1,3 +1,8 @@
+/**
+  * This is the process breadcrumbs directive, which displays the various data
+  * processing steps, highlighting the current one. It can appear on multiple
+  * pages.
+  */
 angular.module('aiddataDET')
 .directive('processBreadcrumbs', function($window) {
   return {
@@ -7,21 +12,7 @@ angular.module('aiddataDET')
       stepList: '=',
       fullWidth: '='
     },
-    controller: function ($scope) {
-      $scope.defaultSteps = [
-        { name: 'submit', time: true },
-        { name: 'prep', time: true },
-        { name: 'process', time: true },
-        { name: 'complete', time: true }
-      ];
-
-      $scope.lastSteps = {
-        submit: ['submit'],
-        prep: ['prep', 'submit'],
-        process: ['process', 'prep', 'submit'],
-        complete: ['complete', 'process', 'prep', 'submit']
-      };
-    },
+    controller: 'ProcessBreadcrumbsCtrl',
     templateUrl: "views/components/processBreadcrumbs.html"
   };
 });

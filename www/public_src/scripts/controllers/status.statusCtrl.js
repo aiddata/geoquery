@@ -1,3 +1,7 @@
+/**
+  * This is the Controller for individual status pages
+  */
+
 angular.module('aiddataDET')
 .controller('StatusCtrl', function($stateParams, $scope, request, datasets, info) {
   $scope.id = $stateParams.id;
@@ -20,9 +24,4 @@ angular.module('aiddataDET')
     $scope.language = info.status[request.status];
   });
 
-  $scope.pastTense = function(word) {
-    return word === 'submit' ? 'submitted' :
-      word === 'prep' ? 'prepped' :
-      word === 'process' ? 'processed' : '';
-  };
 });

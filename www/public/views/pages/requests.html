@@ -16,7 +16,7 @@
           <md-card-title layout="row" flex="initial">
             <md-card-title-text>
               <span class="md-headline">{{ request.custom_name }}
-                 <span class="badge {{ request.status !== 'prep' ? request.status : 'process' }}" layout-align="center">{{ request.status !== 'prep' ? request.status: 'process' }}</span>
+                 <span class="badge {{ request.statusDisplay }}" layout-align="center"> {{ request.statusDisplay }} </span>
               </span>
             </md-card-title-text>
           </md-card-title>

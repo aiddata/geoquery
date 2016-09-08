@@ -4,27 +4,15 @@
   <div layout="row" layout-fill>
     <md-content class="status-headline" flex="45"  layout="column" md-whiteframe="4">
 
-
-
-      <div ng-switch="request.status" layout-padding>
+      <div layout-padding>
         <h1>Request Status</h1>
-        <div ng-switch-when="submit">
-          <small>
-            <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
-          </small>
-          <h3> <strong>{{ request.custom_name }}</strong> has been submitted! </h3>
-        </div>
-        <div ng-switch-when="complete">
-          <small>
-            <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
-          </small>
-          <h3> <strong>{{ request.custom_name }}</strong> is ready for download! </h3>
-        </div>
-        <div ng-switch-default>
-          <small>
-            <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
-          </small>
-          <h3> <strong>{{ request.custom_name }}</strong> is being processed! </h3>
+        <small>
+          <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
+        </small>
+        <div>
+          <h3 ng-show="request.status.indexOf('submit') >= 0"> <strong>{{ request.custom_name }}</strong> has been submitted! </h3>
+          <h3 ng-show="request.status.indexOf('process') >= 0 || request.status.indexOf('prep') >= 0"> <strong>{{ request.custom_name }}</strong> is being processed! </h3>
+          <h3 ng-show="request.status.indexOf('complete') >= 0"> <strong>{{ request.custom_name }}</strong> is ready for download! </h3>
         </div>
 
         <div layout="column" ng-if="request.process_time">
