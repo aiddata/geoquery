@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('SelectionTextCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $mdDialog, queryFactory, ajaxFactory, info) {
+.controller('SelectionTextCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $mdDialog, queryFactory, ajaxFactory, info, modals) {
   $scope.filters = {};
   $scope.options = {};
   $scope.dataset = {};
@@ -12,8 +12,11 @@ angular.module('aiddataDET')
 
   var limitWarning = {
     shown: false,
-    message: 'The maximum number of selections is now in your cart, please checkout and create a new request to continue',
-    title: 'Selection Limit Reached'
+    content: modals.limitWarning.content,
+    title: modals.limitWarning.title,
+    ok: modals.limitWarning.ok,
+    cancel: modals.limitWarning.cancel,
+    clickOutsideToClose: modals.limitWarning.clickOutsideToClose
   };
 
 
@@ -38,7 +41,7 @@ angular.module('aiddataDET')
     $q.when(queryFactory.isUniq($scope.dataset, $scope.filters, $scope.options))
       .then(function(unique) {
         if (!unique) {
-          return $q.reject({ message: 'This search is already in your cart'});
+          return $q.reject({ message: modals.duplicateSelection.title});
         }
         return queryFactory.generateQuery($scope.dataset.type, $scope.selectionData.name);
       })
@@ -116,14 +119,16 @@ angular.module('aiddataDET')
 
     if ($scope.atLimit && !limitWarning.shown) {
       limitWarning.shown = true;
+
       $mdDialog.show(
         $mdDialog.confirm()
-          .clickOutsideToClose(true)
-          .content(limitWarning.message)
+          .clickOutsideToClose(limitWarning.clickOutsideToClose)
+          .content(limitWarning.content)
           .title(limitWarning.title)
-          .ariaLabel('Request Limit Reached')
-          .ok('Proceed to checkout')
-          .cancel('OK')
+          .ariaLabel(limitWarning.content)
+          .ok(limitWarning.ok)
+          .cancel(limitWarning.cancel)
+
       ).then(function() {
         $state.go('checkout');
       });
@@ -139,6 +144,7 @@ angular.module('aiddataDET')
         .ok('OK')
     );
   }
+
   function getName () {
     var count = _.chain(queryFactory.getQuery())
     .pick(['release_data', 'raster_data'])
