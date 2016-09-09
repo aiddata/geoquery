@@ -147,6 +147,6 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-testling');
 
   grunt.registerTask('default', ['watch']);
-  grunt.registerTask('build', ['clean', 'less', 'copy:fontawesome', 'concat:libs', 'ngAnnotate', 'concat:app', 'uglify']);
+  grunt.registerTask('build', ['clean', 'less', 'copy:fontawesome', 'concat:libs', 'ngAnnotate', 'concat:app']);
 
 };

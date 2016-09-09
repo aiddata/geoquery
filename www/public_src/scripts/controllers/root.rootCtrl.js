@@ -7,7 +7,6 @@
 
 angular.module('aiddataDET')
 .controller('RootCtrl', function($scope, $rootScope, $log, $q, $state, $timeout, $mdDialog, info, queryFactory, spinFactory, modals, modalFactory) {
-  console.log(modals);
   /*
    * ==================
    * Sidebar Management
