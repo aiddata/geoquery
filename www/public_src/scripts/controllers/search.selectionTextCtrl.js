@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('SelectionTextCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $mdDialog, queryFactory, ajaxFactory, info) {
+.controller('SelectionTextCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $mdDialog, modalFactory, queryFactory, ajaxFactory, info, modals) {
   $scope.filters = {};
   $scope.options = {};
   $scope.dataset = {};
@@ -10,11 +10,7 @@ angular.module('aiddataDET')
   $scope.atLimit = false;
   var limits = {};
 
-  var limitWarning = {
-    shown: false,
-    message: 'The maximum number of selections is now in your cart, please checkout and create a new request to continue',
-    title: 'Selection Limit Reached'
-  };
+  var limitWarning = modalFactory.confirm(modals.limitWarning);
 
 
   $scope.clearFilters = function () {
@@ -38,7 +34,7 @@ angular.module('aiddataDET')
     $q.when(queryFactory.isUniq($scope.dataset, $scope.filters, $scope.options))
       .then(function(unique) {
         if (!unique) {
-          return $q.reject({ message: 'This search is already in your cart'});
+          return $q.reject(modals.duplicateSelection);
         }
         return queryFactory.generateQuery($scope.dataset.type, $scope.selectionData.name);
       })
@@ -47,7 +43,8 @@ angular.module('aiddataDET')
       })
       .catch(function(err) {
         $log.error(err);
-        showDialog(err.message, 'Error Adding To Cart');
+        var errorDisplay = err.name ? err : modals.submissionError;
+        return $mdDialog.show(modalFactory.alert(errorDisplay));
       })
       .finally(function(){
         $scope.selectionData.canAdd = false;
@@ -116,29 +113,15 @@ angular.module('aiddataDET')
 
     if ($scope.atLimit && !limitWarning.shown) {
       limitWarning.shown = true;
-      $mdDialog.show(
-        $mdDialog.confirm()
-          .clickOutsideToClose(true)
-          .content(limitWarning.message)
-          .title(limitWarning.title)
-          .ariaLabel('Request Limit Reached')
-          .ok('Proceed to checkout')
-          .cancel('OK')
-      ).then(function() {
-        $state.go('checkout');
-      });
+
+      $mdDialog.show(limitWarning)
+        .then(function() {
+          $state.go('checkout');
+        });
     }
   }
 
-  function showDialog(msg, label) {
-    $mdDialog.show(
-      $mdDialog.alert()
-        .clickOutsideToClose(true)
-        .title(msg)
-        .ariaLabel(label)
-        .ok('OK')
-    );
-  }
+
   function getName () {
     var count = _.chain(queryFactory.getQuery())
     .pick(['release_data', 'raster_data'])

@@ -2,6 +2,7 @@
   <center>
     <h2>Request History</h2>
     <h4 class="headline"> {{ requests.length }} Requests Found for <em> {{ email }} </em></h4>
+    <md-button class="md-primary" ui-sref="map"> Start New Request </md-button>
     <md-button class="md-primary" ui-sref="login"> Login with a different email </md-button>
   </center>
 </md-content>
@@ -15,7 +16,7 @@
           <md-card-title layout="row" flex="initial">
             <md-card-title-text>
               <span class="md-headline">{{ request.custom_name }}
-                 <span class="badge {{ request.status !== 'prep' ? request.status : 'process' }}" layout-align="center">{{ request.status !== 'prep' ? request.status: 'process' }}</span>
+                 <span class="badge {{ request.statusDisplay }}" layout-align="center"> {{ request.statusDisplay }} </span>
               </span>
             </md-card-title-text>
           </md-card-title>

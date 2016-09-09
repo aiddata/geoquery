@@ -10,6 +10,7 @@
   <form name="checkoutForm" layout="column">
     <md-input-container>
       <input ng-model="queryData.custom_name"
+          ng-enter="checkoutForm.$valid ? submitQuery() : null;"
           type="text"
           name="requestName"
           placeholder="Request Name"
@@ -20,6 +21,7 @@
 
     <md-input-container>
       <input ng-model="queryData.email"
+          ng-enter="checkoutForm.$valid ? submitQuery() : null;"
           type="email"
           name="email"
           placeholder="Email"
@@ -41,17 +43,16 @@
       {{ paragraph }}
     </p>
   </md-content>
+  <br>
+  <p>{{ citation }}<p>
 </div>
 
-
 <md-divider></md-divider>
-
 
 <div flex layout-align="center end" layout-padding>
   <!-- <div > -->
   <md-button md-no-ink
-      class="md-accent md-raised"
-      style="min-width: 98%;"
+      class="md-accent md-raised submit-button"
       ng-click="submitQuery()"
       ng-disabled="!checkoutForm.$valid" flex>
 

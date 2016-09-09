@@ -1,20 +1,27 @@
+/**
+  * This is the controller for the dataset selectior on the 'customize datasets'
+  * page.  It is responsible for displaying, filtering, and selecting datasets.
+  */
 angular.module('aiddataDET')
-.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, datasets, $state, info) {
-  $scope.showSearchTools = false;
-  $scope.featuredTags = [];
+.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, $timeout, datasets, $state, info) {
+  $scope.showSearchTools = false;   // Advanced Search Visibility
+  $scope.featuredTags = [];         // Featured Category Tags
+
+  // Datasets container
   $scope.datasets = {
     filtered: [],
     options: [],
     selected: ''
   };
 
+  // Filter Fields
   $scope.fields = {
     options: [{ display: 'Date Updated', value: 'date_updated'}, { display: 'Name', value: 'title'}],
     selected: '',
     descending: true
   };
 
-
+  // Search datasets by tags or title
   $scope.search = function (item) {
     if ($scope.dataFilters.tag !== 'all' &&
       item.extras.tags.indexOf($scope.dataFilters.tag) < 0 ) {
@@ -29,6 +36,7 @@ angular.module('aiddataDET')
       .value();
   };
 
+  // Select dataset
   $scope.selectDataset = function(dataset) {
     var targetState = dataset.type === 'release' ? 'search.filters' :
         'search.options';
@@ -41,14 +49,20 @@ angular.module('aiddataDET')
 
   };
 
+  // When the number of filtered datasets changes - select the dataset that appears on top
   $scope.$watch('datasets.filtered', function (newValue) {
     if (newValue.length === 0 || _.find($scope.datasets.filtered, { name: $scope.datasets.selected }) ) {
       return;
     }
-    $scope.selectDataset(_.head($scope.datasets.filtered));
+    // Decide which dataset appears on top according to how they are currently arranged
+    if ($scope.fields.descending) {
+      $scope.selectDataset(_.last($scope.datasets.filtered));
+    } else {
+      $scope.selectDataset(_.first($scope.datasets.filtered));
+    }
   }, true);
 
-
+  // Define default data filters and order datasets
   $scope.$on('$viewContentLoaded', function(event) {
     if ($state.params.dataset) {
       $scope.datasets.selected = $state.params.dataset;
@@ -56,7 +70,7 @@ angular.module('aiddataDET')
     $scope.dataFilters = { searchText: '', tag: 'all' };
     $scope.featuredTags = info.data_categories;
 
-    var d = _.orderBy(datasets, 'type').reverse();      // Position AidData Datasets at the Top of Array
+    var d = _.orderBy(datasets, 'type');      // Position AidData Datasets at the Top of Array
     $scope.datasets.options = d;
   });
 

@@ -43,6 +43,7 @@ angular.module('aiddataDET')
   });
 
   $scope.$on('$viewContentLoaded', function(event) {
+    SCOPE = $scope;
     $scope.boundaries = _.each(boundaries, function(boundary) {
       boundary.tags = _.chain(boundary)
           .get('subBoundaries')
@@ -55,6 +56,12 @@ angular.module('aiddataDET')
           .flatten().uniq().toString().value();
       boundary.search = boundary.name + ' ' + boundary.tags;
     });
+
+    $scope.featuredBoundaries = _.filter($scope.boundaries, function(b) {
+      return b.subBoundaries &&
+             b.search.indexOf('featured') >= 0;
+    });
+
   });
 
 });

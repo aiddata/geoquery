@@ -22,13 +22,21 @@
     <div ng-repeat="(type, requests) in { release_data: queryObj.release_data, raster_data: queryObj.raster_data }">
       <div ng-repeat="request in requests"
           ng-init="dataset = datasetDetails(request); hidden= true;">
+
         <md-list-item style="margin-left: 3px; background-color: #fafafa">
           <a href="" class="md-primary" ng-click="hidden=!hidden;">
               <i class="fa fa-chevron-right" aria-hidden="true"
                   style="margin-right: 10px;"
                   ng-class="{ 'fa-rotate-90': !hidden }"></i>
-            {{ request.custom_name }}
           </a>
+          <md-input-container class="md-icon-float condensed no-label" md-no-float>
+            <md-icon>
+              <md-tooltip md-delay="500" md-direction="top"> Rename this Selection </md-tooltip>
+              <i class="fa fa-pencil-square-o " aria-hidden="true"></i>
+            </md-icon>
+
+            <input ng-model="request.custom_name" placeholder="Request Name">
+          </md-input-container>
 
           <a href="" class="md-secondary md-warn" ng-click="removeQuery(request, type)">
             <i class="fa fa-minus-circle fa-lg" aria-hidden="true"

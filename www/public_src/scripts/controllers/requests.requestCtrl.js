@@ -1,3 +1,7 @@
+/**
+  * This is the Controller for the requests page
+  */
+
 angular.module('aiddataDET')
 .controller('RequestsCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $timeout, queryFactory, requests) {
 
@@ -14,6 +18,10 @@ angular.module('aiddataDET')
         .last()
         .get('name')
         .value();
+
+      req.statusDisplay = req.status.indexOf('submit') >= 0 ? 'submitted' :
+        req.status.indexOf('complete') >= 0 ? 'completed' : 'processed';
+
       req.submissionTime = _.get(_.head(req.stage), 'time_format') || '';
       return req;
     });

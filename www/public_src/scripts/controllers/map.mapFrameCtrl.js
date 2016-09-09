@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('MapFrameCtrl', function($scope, $rootScope, $log, $timeout, $element, mapFactory, $mdDialog) {
+.controller('MapFrameCtrl', function($scope, $rootScope, $log, $timeout, $element, mapFactory) {
   $scope.showOverlay = false;
 
   $scope.$on('$viewContentLoaded', function(event) {

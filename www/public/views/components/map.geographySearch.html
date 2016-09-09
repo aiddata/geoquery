@@ -1,9 +1,5 @@
-<md-content class="md-padding" flex="100"  md-whiteframe="6">
-  <form class="slide-right"
-      ng-hide="showFeaturedSearches"
-      ng-submit="$event.preventDefault()"
-      layout-fill
-      style="overflow-y: auto;">
+<md-content class="md-padding scroll-hidden" layout="column" flex="100"  md-whiteframe="6">
+  <form ng-submit="$event.preventDefault()" flex="40">
 
     <h4 class="md-primary">Select a Boundary to Begin Data Extraction</h4>
 
@@ -36,14 +32,17 @@
       <br>
       <p class="text-muted">
         Top Searches:
-        <em ng-repeat="item in [boundaries[0], boundaries[3], boundaries[6], boundaries[8]]">
+        <em ng-repeat="item in featuredBoundaries">
           <a class="md-primary" href="" ng-click="selectFromFeatured(item)">{{item.name}}</a>
           <span ng-if="!$last">,</span>
         </em>
       </p>
-
-      <md-button class="md-primary" ng-click="showFeaturedSearches = true;">
-        <span>View Other Popular Searches...</span>
+      <br>
+      <md-button class="md-primary" ng-click="showFeaturedSearches = !showFeaturedSearches;">
+        <span>Other Popular Searches
+          <i class="fa"
+              ng-class="!showFeaturedSearches ? 'fa-chevron-right' : 'fa-chevron-down'"></i>
+        </span>
       </md-button>
     </div>
 
@@ -81,11 +80,11 @@
 
   </form>
 
-  <div ng-hide="!showFeaturedSearches;" class="toggle">
-    <a href="" class="md-primary"
-        ng-click="showFeaturedSearches = !showFeaturedSearches">
-      <i class="fa fa-times" aria-hidden="true"></i>
-    </a>
+
+  <div flex class="scroll-container"
+      ng-hide="!showFeaturedSearches;">
+
+    <md-divider></md-divider>
 
     <md-list class="md-dense" flex>
       <md-list-item

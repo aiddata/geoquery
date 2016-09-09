@@ -3,8 +3,8 @@
     <div class="md-toolbar-tools">
 
       <h2>
-        <a href="" ui-sref="map">
-           <div class="logo"></div>
+        <a href="" ui-sref="map( { confirmation: { confirmed: true }})">
+           <div class="logo" style="background-image: url({{ config.logoUrl }})"></div>
         </a>
       </h2>
       <span flex></span>
@@ -25,7 +25,7 @@
           aria-label="View Past Requests"
           ui-sref="login">
         <i class='fa fa-history' aria-hidden="true"></i>
-        Requests
+        Past Requests
       </md-button>
 
       <md-button class="md-button header-button"
@@ -42,38 +42,44 @@
     <div class="md-toolbar-tools process">
 
         <md-button class="md-button-pimary process-button"
-            ng-disabled="false"
+            ng-disabled="true"
             ng-class="{ 'current': currentStep === 'map' }"
-            ui-sref="map"
+            ng-show="showSteps"
             md-no-ink>
 
           <i class="fa fa-map-pin" aria-hidden="true"></i>
           1. Select Boundary
         </md-button>
 
-        <span> / </span>
+        <span ng-show="showSteps"> / </span>
 
         <md-button class="md-button-pimary process-button"
-            ng-disabled="false"
+            ng-disabled="true"
             ng-class="{ 'current': currentStep.indexOf('search') >= 0 }"
-            ui-sref="search"
+            ng-show="showSteps"
             md-no-ink>
 
           <i class="fa fa-star" aria-hidden="true"></i>
           2. Customize Datasets
         </md-button>
 
-        <span> / </span>
+        <span ng-show="showSteps"> / </span>
 
         <md-button class="md-button-pimary process-button"
-            ng-disabled="false"
+            ng-disabled="true"
             ng-class="{ 'current': currentStep === 'checkout' }"
-            ui-sref="checkout"
+            ng-show="showSteps"
             md-no-ink>
 
           <i class="fa fa-shopping-cart" aria-hidden="true"></i>
           3. Checkout
         </md-button>
+
+        <span flex></span>
+
+        Powered by&nbsp;&nbsp;
+        <a href="www.aiddata.org" class="homepage-button">Aidata</a>'s&nbsp;&nbsp;
+        <a href="www.geo.aiddata.org" class="homepage-button">geo framework</a>
     </div>
   </md-toolbar>
 </div>
