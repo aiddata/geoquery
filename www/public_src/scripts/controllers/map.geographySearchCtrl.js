@@ -43,7 +43,6 @@ angular.module('aiddataDET')
   });
 
   $scope.$on('$viewContentLoaded', function(event) {
-    SCOPE = $scope;
     $scope.boundaries = _.each(boundaries, function(boundary) {
       boundary.tags = _.chain(boundary)
           .get('subBoundaries')
