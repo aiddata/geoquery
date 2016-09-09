@@ -9,14 +9,18 @@
 angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'ngMaterial', 'rzModule', 'ngAnimate', 'angular-google-analytics'])
 .config(function($stateProvider, $urlRouterProvider, $mdThemingProvider, AnalyticsProvider, config) {
 
-  /*
-   * =====================================================
-   * Google analytics
-   * https://github.com/revolunet/angular-google-analytics
-   * =====================================================
-   */
-
-  AnalyticsProvider.setAccount(config.trackingID);
+  // /*
+  //  * =====================================================
+  //  * Google analytics
+  //  * https://github.com/revolunet/angular-google-analytics
+  //  * =====================================================
+  //  */
+  //
+  // AnalyticsProvider.setAccount(config.trackingID)
+  // .setDomainName('none')
+  // .logAllCalls(true)
+  // .enterDebugMode(true)
+  // .enterTestMode();
 
   /*
    * ====================================================================
