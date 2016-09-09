@@ -17,13 +17,13 @@
     "leaflet": "^0.7.7",
     "font-awesome": "fontawesome#^4.6.3",
     "angular-bootstrap": "^1.3.3",
-    "angucomplete-alt": "^2.4.1",
     "angular-ui-router": "^0.3.1",
     "leaflet-spin": "^0.1.1",
     "d3": "^4.1.1",
     "angular-material": "master",
     "angularjs-slider": "^5.4.1",
-    "ngAnimate": "*"
+    "ngAnimate": "*",
+    "angular-google-analytics": "^1.1.7"
   },
   "resolutions": {
     "angular": ">=1.4.0",

@@ -6,8 +6,17 @@
   *   - Injecting google analytics support
   */
 
-angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', 'ngMaterial', 'rzModule', 'ngAnimate'])
-.config(function($stateProvider, $urlRouterProvider, $mdThemingProvider) {
+angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'ngMaterial', 'rzModule', 'ngAnimate', 'angular-google-analytics'])
+.config(function($stateProvider, $urlRouterProvider, $mdThemingProvider, AnalyticsProvider, config) {
+
+  /*
+   * =====================================================
+   * Google analytics
+   * https://github.com/revolunet/angular-google-analytics
+   * =====================================================
+   */
+
+  AnalyticsProvider.setAccount(config.trackingID);
 
   /*
    * ====================================================================
@@ -252,18 +261,4 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
 })
 .run(function($rootScope, config) {
   $rootScope.config = config;
-
-  /*
-   * ================
-   * Google analytics
-   * ================
-   */
-  (function(i, s, o, g, r, a, m){ i['GoogleAnalyticsObject'] = r;i[r] = i[r] || function(){
-    (i[r].q = i[r].q || []).push(arguments); }, i[r].l = 1 * new Date();a = s.createElement(o),
-    m = s.getElementsByTagName(o)[0];a.async = 1;a.src = g;m.parentNode.insertBefore(a, m);
-  })(window, document, 'script', 'https://www.google-analytics.com/analytics.js', 'ga');
-
-  ga('create', config.trackingID, 'auto');
-  ga('send', 'pageview');
-
 });
