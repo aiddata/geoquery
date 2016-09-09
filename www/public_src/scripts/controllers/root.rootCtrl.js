@@ -30,7 +30,6 @@ angular.module('aiddataDET')
   // the map page for the first time
   $scope.$on('$viewContentLoaded', function(event) {
     var stateName = _.get($state, '$current.self.name');
-
     if (stateName === "map" && !welcomeDialog.opened) {
       $mdDialog.show(welcomeDialog);
       welcomeDialog.opened = true;
