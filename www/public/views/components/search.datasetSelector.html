@@ -1,66 +1,67 @@
 <div layout="column" class="full-height">
-  <div class="md-margin">
-    <small><a ui-sref="map">
-      <i class="fa fa-arrow-left" aria-hidden="true"></i>
-      Select a Different Boundary
-    </a></small>
-  </div>
+  <div>
+    <div class="md-margin">
+      <small><a ui-sref="map">
+        <i class="fa fa-arrow-left" aria-hidden="true"></i>
+        Select a Different Boundary
+      </a></small>
+    </div>
 
-  <div layout="row" flex layout-padding>
-    <md-input-container flex>
-      <label> Select Category </label>
-      <md-select ng-model="dataFilters.tag">
-        <md-option value="all"> All </md-option>
-        <md-option ng-repeat="field in featuredTags" value="{{ field.tag }}">
-          {{ field.display }}
-        </md-option>
-      </md-select>
-    </md-input-container>
-  </div>
-
-  <div uib-collapse="!showSearchTools">
     <div layout="row" layout-padding>
-      <md-input-container md-no-float class="flex-50 condensed">
-        <label> Search Datasets </label>
-        <input ng-model="dataFilters.searchText" placeholder="">
-      </md-input-container>
-
-      <md-input-container class="condensed" flex="30">
-        <label>Sort by</label>
-        <md-select ng-model="fields.selected">
-          <md-option ng-repeat="field in fields.options" value="{{ field.value }}">
+      <md-input-container flex>
+        <label> Select Category </label>
+        <md-select ng-model="dataFilters.tag">
+          <md-option value="all"> All </md-option>
+          <md-option ng-repeat="field in featuredTags" value="{{ field.tag }}">
             {{ field.display }}
           </md-option>
         </md-select>
       </md-input-container>
-      <div flex="20">
-        <md-button class="md-primary md-icon-button"
-            aria-label="Sort Datasets"
-            ng-click="fields.descending = !fields.descending"
-            ng-switch="fields.descending">
-          <i ng-switch-when="false" class="fa fa-lg fa-sort-amount-asc"></i>
-          <i ng-switch-when="true" class="fa fa-lg fa-sort-amount-desc"></i>
-        </md-button>
+    </div>
+
+    <div uib-collapse="!showSearchTools">
+      <div layout="row" layout-padding>
+        <md-input-container md-no-float class="flex-50 condensed">
+          <label> Search Datasets </label>
+          <input ng-model="dataFilters.searchText" placeholder="">
+        </md-input-container>
+
+        <md-input-container class="condensed" flex="30">
+          <label>Sort by</label>
+          <md-select ng-model="fields.selected">
+            <md-option ng-repeat="field in fields.options" value="{{ field.value }}">
+              {{ field.display }}
+            </md-option>
+          </md-select>
+        </md-input-container>
+        <div flex="20">
+          <md-button class="md-primary md-icon-button"
+              aria-label="Sort Datasets"
+              ng-click="fields.descending = !fields.descending"
+              ng-switch="fields.descending">
+            <i ng-switch-when="false" class="fa fa-lg fa-sort-amount-asc"></i>
+            <i ng-switch-when="true" class="fa fa-lg fa-sort-amount-desc"></i>
+          </md-button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div layout="row" flex layout-padding  layout-align="space-between center">
-    <h5>
-      {{ datasets.filtered.length }}/
-      {{ datasets.options.length }}
-      Datasets
-    </h5>
-    <span flex></span>
-    <small>
-      <a href="" ng-click="showSearchTools = !showSearchTools"> Advanced Options</a>
-    </small>
+    <div layout="row" layout-padding layout-align="space-between center" class="dataset-counts">
+      <h5>
+        {{ datasets.filtered.length }}/
+        {{ datasets.options.length }}
+        Datasets
+      </h5>
+      <span flex></span>
+      <small>
+        <a href="" ng-click="showSearchTools = !showSearchTools"> Advanced Options</a>
+      </small>
+    </div>
   </div>
 
   <md-divider></md-divider>
 
-  <md-list flex="100"
-      layout="column"
+  <md-list
       class="scroll-container"
       md-whiteframe="8">
 
