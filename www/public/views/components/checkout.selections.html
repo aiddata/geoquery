@@ -17,13 +17,13 @@
 
         <span flex></span>
 
-        <md-button class="md-primary" ng-click="hidden=!hidden;" style="margin: 0 5px;">
+        <md-button class="md-primary details-button" ng-click="hidden=!hidden;">
             Details
             <i class="fa fa-chevron-right" aria-hidden="true"
                 ng-class="{ 'fa-rotate-90': !hidden }"></i>
         </md-button>
 
-        <md-button class="md-secondary md-warn" ng-click="removeQuery(q, type)" style="margin: 0 5px;">
+        <md-button class="md-secondary md-warn remove-button" ng-click="removeQuery(q, type)">
           <i class="fa fa-minus-circle fa-lg" aria-hidden="true"></i>
           Remove
         </md-button>
@@ -31,7 +31,7 @@
       </md-card-header>
 
 
-      <md-content uib-collapse="hidden" layout-padding style="padding: 16px; border-top: 1px solid #eee;">
+      <md-content uib-collapse="hidden" layout-padding class="selection-body">
 
         <plain-text-query
             ng-if="!hidden"

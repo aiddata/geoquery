@@ -1,11 +1,11 @@
 
-<div class="full-height" flex layout="column">
+<div class="full-height" flex layout="column" id="status">
 
   <div layout="row" layout-fill>
     <md-content class="status-headline" flex="45"  layout="column" md-whiteframe="4">
 
       <div layout-padding>
-        <h1>Request Status</h1>
+        <h1 class="md-display-5">Request Status</h1>
         <small>
           <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
         </small>
@@ -13,7 +13,7 @@
           <h3 ng-show="request.status.indexOf('submit') >= 0"> <strong>{{ request.custom_name }}</strong> has been submitted! </h3>
           <h3 ng-show="request.status.indexOf('process') >= 0 || request.status.indexOf('prep') >= 0"> <strong>{{ request.custom_name }}</strong> is being processed! </h3>
           <h3 ng-show="request.status.indexOf('complete') >= 0"> <strong>{{ request.custom_name }}</strong> is ready for download! </h3>
-
+          <p class="request-info">{{ request.info }}</p>
           <ul>
             <li> <strong>Submitted:</strong> {{ request.submissionTime }}</li>
             <li> <strong>Boundary:</strong> {{ request.boundary.title }}</li>
@@ -23,7 +23,7 @@
               <snan ng-hide="!request.raster_data.length"> {{ request.raster_data.length }} External Dataset Selection<span ng-hide="request.raster_data.length === 1">s</span> </span>
             </li>
           </ul>
-          
+
         </div>
 
         <div layout="column" ng-if="request.status.indexOf('complete') >= 0">
@@ -56,7 +56,7 @@
     </md-content>
 
     <div layout="column" flex="55">
-      <h4 class="md-padding" style="padding-bottom: 0px;"><em>Selections included in <strong>{{ request.custom_name }}</strong></em></h4>
+      <h4 class="md-padding selections-heading"><em>Selections included in <strong>{{ request.custom_name }}</strong></em></h4>
 
       <div ng-repeat="(type, queries) in { release_data: request.release_data, raster_data: request.raster_data }">
         <div ng-repeat="q in queries" ng-init="dataset = getDataset(q)">
@@ -72,7 +72,7 @@
               </md-button>
             </md-card-header>
 
-            <md-content uib-collapse="hidden" style="border-top: 1px solid #eee; padding: 16px">
+            <md-content uib-collapse="hidden" class="selection-text-container">
               <plain-text-query
                   ng-if="!hidden"
                   query-dataset="dataset"

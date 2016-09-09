@@ -15,6 +15,8 @@ angular.module('aiddataDET')
   };
 
   $scope.$on('$viewContentLoaded', function() {
+    console.log($scope.request);
+
     request.status = _.chain(request.stage)
       .filter('time')
       .each(function(stage) {
