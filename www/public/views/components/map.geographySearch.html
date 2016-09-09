@@ -32,7 +32,7 @@
       <br>
       <p class="text-muted">
         Top Searches:
-        <em ng-repeat="item in [boundaries[0], boundaries[3], boundaries[6], boundaries[8]]">
+        <em ng-repeat="item in featuredBoundaries">
           <a class="md-primary" href="" ng-click="selectFromFeatured(item)">{{item.name}}</a>
           <span ng-if="!$last">,</span>
         </em>
