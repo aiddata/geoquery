@@ -22,8 +22,7 @@
     "d3": "^4.1.1",
     "angular-material": "master",
     "angularjs-slider": "^5.4.1",
-    "ngAnimate": "*",
-    "angular-google-analytics": "^1.1.7"
+    "ngAnimate": "*"
   },
   "resolutions": {
     "angular": ">=1.4.0",

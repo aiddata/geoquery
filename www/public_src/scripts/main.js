@@ -3,20 +3,10 @@
   * file is responsible for:
   *   - Declaring and configuring the material design theme
   *   - Defining all routes and making necessary API requests
-  *   - Injecting google analytics support
   */
 
-angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'ngMaterial', 'rzModule', 'ngAnimate', 'angular-google-analytics'])
-.config(function($stateProvider, $urlRouterProvider, $mdThemingProvider, AnalyticsProvider, config) {
-
-  // /*
-  //  * =====================================================
-  //  * Google analytics
-  //  * https://github.com/revolunet/angular-google-analytics
-  //  * =====================================================
-  //  */
-  //
-  AnalyticsProvider.setAccount(config.trackingID);
+angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'ngMaterial', 'rzModule', 'ngAnimate'])
+.config(function($stateProvider, $urlRouterProvider, $mdThemingProvider) {
 
   /*
    * ====================================================================
