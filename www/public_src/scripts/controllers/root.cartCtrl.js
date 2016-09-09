@@ -3,7 +3,7 @@ angular.module('aiddataDET')
   $scope.queryObj = {};
 
   $rootScope.$on('query:updated', function(event, data) {
-    $scope.queryObj = data;
+    $scope.queryObj = queryFactory.getQuery();
   });
 
   $scope.datasetDetails = function (q) {
