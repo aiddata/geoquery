@@ -16,11 +16,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'ngMaterial', 'rzModu
   //  * =====================================================
   //  */
   //
-  // AnalyticsProvider.setAccount(config.trackingID)
-  // .setDomainName('none')
-  // .logAllCalls(true)
-  // .enterDebugMode(true)
-  // .enterTestMode();
+  AnalyticsProvider.setAccount(config.trackingID);
 
   /*
    * ====================================================================
