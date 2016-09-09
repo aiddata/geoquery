@@ -207,6 +207,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'angucomplete-alt', '
   .state('requests', {
     parent: 'root',
     url: '/requests/:email',
+    params: { notify: false },
     templateUrl: 'views/pages/requests.html',
     resolve: {
       requests: function(ajaxFactory, $stateParams) {

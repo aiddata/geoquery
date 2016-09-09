@@ -29,6 +29,16 @@ angular.module('aiddataDET')
       name: 'Welcome Greeting'
     },
 
+    // Request Submitted Notification
+    // (www/public_src/scripts/controllers/root.rootCtrl.js)
+    submitted: {
+      // title: SET BY API,
+      // content: SET BY API,
+      clickOutsideToClose: true,
+      ok: 'Ok',
+      name: 'Request Submitted Notification'
+    },
+
     // Limit Warning
     // (www/public_src/scripts/controllers/search.selectionTextCtrl.js)
     limitWarning: {
@@ -63,16 +73,5 @@ angular.module('aiddataDET')
       ok: 'Return to search',
       cancel: 'Cancel',
       name: 'Empty Request Warning'
-    },
-
-    // Request Submitted Notification
-    // (www/public_src/scripts/controllers/checkout.details.js)
-    submitted: {
-      // title: SET BY API,
-      // content: SET BY API,
-      clickOutsideToClose: false,
-      ok: 'Review Request Status',
-      cancel: 'Start New Search',
-      name: 'Request Submitted Notification'
     }
   });

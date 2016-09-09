@@ -7,34 +7,23 @@ angular.module('aiddataDET')
     custom_name: 'Request ' + d3.timeFormat('%m-%d-%y %H:%M')(Date.now())
   };
 
-  var submitContent = _.extend(modals.submitted, info.submitted),
-      submitAlert = modalFactory.confirm(submitContent);
-
   $scope.datasetDetails = function (q) {
     var datasetName = q.dataset || q.name;
     return queryFactory.getDataset(datasetName);
   };
 
   $scope.submitQuery = function () {
-    var id;
-
     spinFactory.start();
 
     queryFactory.submitRequest($scope.queryData)
       .then(function(data) {
-        id = data.request._id.$id;
-        $rootScope.$broadcast('query:updated');
-        spinFactory.stop();
-        return $mdDialog.show(submitAlert);
-      })
-      .then(function() {
-        return $state.go('status', { id: id });
-      })
-      .catch(function (err) {
+        return $state.go('requests', { notify: true, email: $scope.queryData.email });
+      }, function (err) {
         $log.error(err);
-        return $state.go('map', { confirmation: { confirmed: true }});
+        return $state.go('requests', { email: $scope.queryData.email });
       })
       .finally(function() {
+        $rootScope.$broadcast('query:updated');
         spinFactory.stop();
       });
   };

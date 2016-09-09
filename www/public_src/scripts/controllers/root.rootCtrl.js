@@ -7,8 +7,6 @@
 
 angular.module('aiddataDET')
 .controller('RootCtrl', function($scope, $rootScope, $log, $q, $state, $timeout, $mdDialog, info, queryFactory, spinFactory, modals, modalFactory) {
-  console.log(modals);
-
 
   /*
    * ==================
@@ -32,20 +30,17 @@ angular.module('aiddataDET')
   // When page content is loaded, open welcomeDialog if the user is landing on
   // the map page for the first time
   $scope.$on('$viewContentLoaded', function(event) {
-    if ($state.$current.self.name === "map" && !welcomeDialog.opened) {
-      $mdDialog.show(welcomeDialog)
-        .then(function() {
-          console.log(true);
-        }, function() {
-          console.log(false);
-        });
+    var stateName = _.get($state, '$current.self.name');
+
+    if (stateName === "map" && !welcomeDialog.opened) {
+      $mdDialog.show(welcomeDialog);
       welcomeDialog.opened = true;
     }
+
   });
 
   // Create spinner and dialogs when user begins to navigate to another page
   $rootScope.$on('$stateChangeStart', function(event, toState, toParams, fromState, fromParams, options) {
-
     // If user is going back to the map and will lose data, open map warning dialog
     if ( toState.name === 'map' &&
       queryFactory.querySize() &&
@@ -77,6 +72,10 @@ angular.module('aiddataDET')
     spinFactory.stop();
     $mdDialog.hide();
     $scope.sidebar.open = false;
+
+    if (toState.name === 'requests' && toParams.notify) {
+      $mdDialog.show(submittedDialog);
+    }
   });
 
   /*
@@ -91,5 +90,9 @@ angular.module('aiddataDET')
   // Welcome Dialog
   var welcomeContent = _.extend(modals.welcome, info.welcome),
       welcomeDialog = modalFactory.dialog(welcomeContent);
+
+// Submitted
+  var submittedContent = _.extend(modals.submitted, info.submitted),
+      submittedDialog = modalFactory.dialog(submittedContent);
 
 });
