@@ -16,8 +16,12 @@ angular.module('aiddataDET')
 
   //  Handle request to open sidebar panel
   $rootScope.$on('sidebar:open', function(event, data) {
-    $scope.sidebar.open = true;
-    $scope.sidebar.active = data;
+    $timeout(function() {
+      $('body').animate({scrollLeft: $('body').width()}, 'slow');
+      $scope.sidebar.open = true;
+      $scope.sidebar.active = data;
+    }, 400);
+
   });
 
   /*

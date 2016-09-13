@@ -1,9 +1,11 @@
 .full-height {
   height: 100%;
+
 }
 
 .remaining-height {
   height: calc(100vh ~"-" @headerHeight ~"-" @processHeaderHeight);
+  max-height: calc(100vh ~"-" @headerHeight ~"-" @processHeaderHeight);
 }
 
 a.disabled {

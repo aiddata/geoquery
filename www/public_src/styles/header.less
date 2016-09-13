@@ -2,18 +2,21 @@
   #det-header {
     height: @headerHeight;
     background-color: @defaultBackground;
+    .md-toolbar-tools {
+      height: @headerHeight;
+      max-height: calc(@headerHeight ~"-"10px);
+    }
 
     .header-button {
       margin-top: 10px;
       color: @brand-primary;
-      font-size: large;
+      font-size: large !important;
       text-transform: capitalize;
-      min-width: 125px;
       &:hover {
         color: #78909c;
         background-color: @defaultBackground;
       }
-    };
+    }
   }
 
   .logo {
@@ -26,6 +29,8 @@
       background-repeat:no-repeat;
   }
 }
+
+
 
 /* Select Boundary > Customize Datasets > Checkout */
 md-toolbar.process-header {
@@ -65,4 +70,8 @@ md-toolbar.process-header {
 md-sidenav {
   width: 425px;
   z-index: 9999;
+}
+
+.flavor-text {
+  text-align: right;
 }
