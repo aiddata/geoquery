@@ -4,7 +4,7 @@
 
       <h2>
         <a href="" ui-sref="map">
-           <div class="logo" style="background-image: url({{ config.logoUrl }})"></div>
+           <div class="logo" ng-style="{'background-image': 'url(' + config.logoUrl + ')'}"></div>
         </a>
       </h2>
       <span flex></span>
@@ -82,6 +82,7 @@
           <a href="www.aiddata.org" class="homepage-button">Aidata</a>'s&nbsp;&nbsp;
           <a href="www.geo.aiddata.org" class="homepage-button">geo framework</a>
       </span>
+
     </div>
   </md-toolbar>
 </div>
