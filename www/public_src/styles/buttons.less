@@ -9,10 +9,15 @@ button.md-raised.md-button,
     }
   }
 }
-.btn-chip, .btn-chip:hover {
+.btn-chip,
+.btn-chip:hover,
+.btn-chip:focus,
+.btn-chip:active
+.btn-chip:focus:active {
   background-color: grey;
   border-radius: 25px;
-  color: white;
+  color: white !important;
+  outline: none !important;
   cursor: default;
   &.btn-chip-dismissable {
     background-color: @brand-primary;
