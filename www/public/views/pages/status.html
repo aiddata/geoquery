@@ -5,6 +5,10 @@
     <md-content class="status-headline" flex="45"  layout="column" md-whiteframe="4">
 
       <div layout-padding>
+        <small><a ui-sref="map">
+          <i class="fa fa-arrow-left" aria-hidden="true"></i>
+          Start New Request
+        </a></small>
         <h4 class="md-display-5">Request Status</h4>
         <small>
           <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
