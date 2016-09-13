@@ -53,7 +53,7 @@
         Datasets
       </h5>
       <span flex></span>
-      <small>
+      <small class="advanced-options">
         <a href="" ng-click="showSearchTools = !showSearchTools"> Advanced Options</a>
       </small>
     </div>
@@ -94,7 +94,7 @@
 
       </md-list-item>
 
-      <div uib-collapse="!showMetadata" class="metadata md-padding"> {{ set.extras.citation }} </div>
+      <div uib-collapse="!showMetadata" class="metadata md-padding"> {{ set.description }} <br><br> <b><i>Source(s):</i></b> {{ set.extras.sources_name }} </div>
       <md-divider></md-divider>
     </div>
 

@@ -5,6 +5,10 @@
     <md-content class="status-headline" flex="45"  layout="column" md-whiteframe="4">
 
       <div layout-padding>
+        <small><a ui-sref="map">
+          <i class="fa fa-arrow-left" aria-hidden="true"></i>
+          Start New Request
+        </a></small>
         <h4 class="md-display-5">Request Status</h4>
         <small>
           <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
@@ -37,6 +41,13 @@
           <h3 ng-show="request.status.indexOf('submit') >= 0"> <strong>{{ request.custom_name }}</strong> has been submitted! </h3>
           <h3 ng-show="request.status.indexOf('process') >= 0 || request.status.indexOf('prep') >= 0"> <strong>{{ request.custom_name }}</strong> is being processed! </h3>
           <h3 ng-show="request.status.indexOf('complete') >= 0"> <strong>{{ request.custom_name }}</strong> is ready for download! </h3>
+          <br>
+          <p ng-repeat="paragraph in language">{{ paragraph }}</p>
+        </div>
+
+        <div class="md-padding">
+          <md-divider></md-divider>
+          <br>
           <p class="request-info">{{ request.info }}</p>
           <ul>
             <li> <strong>Submitted:</strong> {{ request.submissionTime }}</li>
@@ -47,18 +58,12 @@
               <snan ng-hide="!request.raster_data.length"> {{ request.raster_data.length }} External Dataset Selection<span ng-hide="request.raster_data.length === 1">s</span> </span>
             </li>
           </ul>
-
         </div>
 
-        <div class="md-padding">
-          <md-divider></md-divider>
-          <br>
-          <p ng-repeat="paragraph in language">{{ paragraph }}</p>
-        </div>
       </div>
     </md-content>
 
-    <div layout="column" flex="55">
+    <div layout="column" flex="55" style="overflow: auto;">
       <h4 class="md-padding selections-heading"><em>Selections included in <strong>{{ request.custom_name }}</strong></em></h4>
 
       <div ng-repeat="(type, queries) in { release_data: request.release_data, raster_data: request.raster_data }">

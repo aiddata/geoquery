@@ -45,6 +45,7 @@
 
       </md-list-item>
         <md-divider></md-divider>
+
         <div layout-padding uib-collapse="hidden" style="margin: 8px; overflow-x: auto;">
           <plain-text-query
             ng-if="!hidden"
@@ -52,7 +53,8 @@
             query-geography="queryObj.boundary.title"
             query-filters="request.filters"
             query-options="request"
-            query-editable="false"></plain-text-query>
+            query-editable="false"
+            style="font-size: smaller;"></plain-text-query>
         </div>
 
         <md-divider></md-divider>
