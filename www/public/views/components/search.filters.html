@@ -1,7 +1,7 @@
 <div layout="column"
     ng-repeat="filter in filterOrder"
     ng-init="hideSubHeader = true; dataset.fields[filter].searchText = ''"
-    flex="33" style="min-width: 30%;">
+    flex="33">
 
   <!-- Header -->
   <md-card flex="100" class="filter-card rotate-in" ng-show="dataset.fields[filter].isActive">
@@ -96,16 +96,16 @@
 <div id="addFilterButton"
     layout="column"
     ng-init="hideSubHeader = true; dataset.fields[filter].searchText = ''"
-    flex="33" style="min-width: 33%;">
+    flex="33">
 
   <md-card flex="100" class="filter-card">
     <md-menu layout="row" flex="100" layout-align="center center">
 
       <md-button md-no-ink
-          class="md-primary md-hue-3 hover-text-btn full-height"
+          class="md-primary md-hue-3 hover-text-btn"
           ng-click="$mdOpenMenu($event)">
 
-        <span class="hover-text">Create more filters </span><br>
+        <p class="hover-text">Create more filters </p><br>
         <i class="fa fa-plus fa-5x" aria-hidden="true" md-menu-origin></i>
       </md-button>
 

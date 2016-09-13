@@ -1,5 +1,5 @@
-<div layout="column" class="full-height">
-  <div>
+<div layout="column" class="remaining-height">
+  <div class="search-tools">
     <div class="md-margin">
       <small><a ui-sref="map">
         <i class="fa fa-arrow-left" aria-hidden="true"></i>
@@ -63,7 +63,8 @@
 
   <md-list
       class="scroll-container"
-      md-whiteframe="8">
+      md-whiteframe="8"
+      style="min-height:500px; width:100%">
 
     <div class="slide-left"
       ng-repeat="set in datasets.filtered = (datasets.options | filter: search) | orderBy: fields.selected : fields.descending"

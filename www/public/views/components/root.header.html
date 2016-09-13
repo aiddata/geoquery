@@ -18,21 +18,21 @@
             </span>
           </small>
           <i class='fa fa-shopping-cart' aria-hidden="true"></i>
-        Cart
+        <span class="button-text">Cart</span>
       </md-button>
 
       <md-button class="md-button header-button"
           aria-label="View Past Requests"
           ui-sref="login">
         <i class='fa fa-history' aria-hidden="true"></i>
-        Past Requests
+        <span class="button-text">Past Requests</span>
       </md-button>
 
       <md-button class="md-button header-button"
           aria-label="Help"
           ng-click="activate('help')">
         <i class='fa fa-question-circle' aria-hidden="true"></i>
-        Help
+        <span class="button-text">Help</span>
       </md-button>
 
     </div>
@@ -77,9 +77,12 @@
 
         <span flex></span>
 
-        Powered by&nbsp;&nbsp;
-        <a href="http://www.aiddata.org" class="homepage-button">AidData</a>'s&nbsp;&nbsp;
-        <a href="http://www.geo.aiddata.org" class="homepage-button">Geo Framework</a>
+        <span class="flavor-text">
+          Powered by&nbsp;&nbsp;
+          <a href="www.aiddata.org" class="homepage-button">Aidata</a>'s&nbsp;&nbsp;
+          <a href="www.geo.aiddata.org" class="homepage-button">geo framework</a>
+      </span>
+
     </div>
   </md-toolbar>
 </div>
