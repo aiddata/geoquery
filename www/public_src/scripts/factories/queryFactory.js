@@ -205,13 +205,7 @@ angular.module('aiddataDET')
 
       querySize: function () {
         return _.chain(_query.raster_data)
-          .map(function(d) {
-            var fileSize = _.size(_.get(d, 'files')),
-                extractSize = _.size(_.get(d, 'options.extract_types'));
-
-            return fileSize * extractSize;
-          })
-          .sum()
+          .size()
           .add(_.size(_.get(_query, 'release_data')))
           .value();
       },
