@@ -7,11 +7,11 @@
   </center>
 </md-content>
 <md-divider></md-divider>
-<md-content class="full-height" flex layout="row" layout-padding>
+<md-content flex layout="row" layout-padding>
   <div flex class="md-margin" layout="column">
 
-    <div ng-repeat="request in requests">
-      <md-card layout="row">
+    <!-- <div > -->
+      <md-card layout="row" ng-repeat="request in requests" style="flex-shrink:0;">
         <div layout="column" flex="75" layout-align="start">
           <md-card-title layout="row" flex="initial">
             <md-card-title-text>
@@ -50,6 +50,6 @@
 
       </md-content>
      </md-card>
-    </div>
+    <!-- </div> -->
   </div>
 </md-content>

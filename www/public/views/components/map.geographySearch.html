@@ -1,5 +1,5 @@
-<md-content class="md-padding scroll-hidden" layout="column" flex="100"  md-whiteframe="6">
-  <form ng-submit="$event.preventDefault()" flex="40">
+<md-content class="md-padding scroll-hidden" layout="column" md-whiteframe="6">
+  <form ng-submit="$event.preventDefault()">
 
     <h4 class="md-primary">Select a Boundary to Begin Data Extraction</h4>
 
@@ -81,7 +81,8 @@
   </form>
 
 
-  <div flex class="scroll-container"
+  <div class="scroll-container"
+      style="min-height: 200px; height: 40vh;"
       ng-hide="!showFeaturedSearches;">
 
     <md-divider></md-divider>

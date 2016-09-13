@@ -55,7 +55,7 @@
       </div>
     </md-content>
 
-    <div layout="column" flex="55">
+    <div layout="column" flex="55" class="scroll-container">
       <h4 class="md-padding selections-heading"><em>Selections included in <strong>{{ request.custom_name }}</strong></em></h4>
 
       <div ng-repeat="(type, queries) in { release_data: request.release_data, raster_data: request.raster_data }">
