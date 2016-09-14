@@ -67,6 +67,13 @@ angular.module('aiddataDET')
       // If map warning dialog isn't needed
       spinFactory.start();
     }
+
+    if ((fromState.name === 'search.filters' ||
+      fromState.name === 'search.options') &&
+      toState.name === 'search') {
+      $timeout(function () { $state.go('map'); });
+    }
+
   });
 
   // Stop spinner on successful loading of new page data
