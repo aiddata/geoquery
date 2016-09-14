@@ -12,8 +12,14 @@
         ng-show="!(queryObj.release_data && queryObj.release_data.length) && !(queryObj.raster_data && queryObj.raster_data.length)">
       Your Cart is Empty
     </h3>
-
   </div>
+
+  <md-button class="md-primary"
+      style="width: 100%"
+      ng-click="goBack()"
+      ng-hide="state.$current.name.indexOf('search')>=0 || state.$current.name === 'map' ">
+    Add Selections
+  </md-button>
 </md-content>
 
 <div ng-if="(queryObj.release_data && queryObj.release_data.length) || (queryObj.raster_data && queryObj.raster_data.length)">

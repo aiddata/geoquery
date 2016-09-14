@@ -196,6 +196,9 @@ angular.module('aiddataDET')
       resetQuery: function () {
         _query.raster_data.splice(0);
         _query.release_data.splice(0);
+        _query.boundary = {};
+        _boundary = {};
+        _subBoundary = {};
       },
 
       removeRequest: function(request, type) {

@@ -33,6 +33,7 @@ angular.module('aiddataDET')
   // When page content is loaded, open welcomeDialog if the user is landing on
   // the map page for the first time
   $scope.$on('$viewContentLoaded', function(event) {
+    $rootScope.state = $state;
     var stateName = _.get($state, '$current.self.name');
     if (stateName === "map" && !welcomeDialog.opened) {
       $mdDialog.show(welcomeDialog);
@@ -63,6 +64,10 @@ angular.module('aiddataDET')
           // User clicks cancel
           spinFactory.stop();
         });
+    } else if (
+      toState.name === 'map' &&
+      _.get(queryFactory.getBoundary(), 'boundaryId')) {
+      queryFactory.resetQuery();
     } else {
       // If map warning dialog isn't needed
       spinFactory.start();
