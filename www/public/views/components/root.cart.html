@@ -1,25 +1,27 @@
-<md-content md-padding style="padding-right: 15px;">
+<md-content md-padding style="padding-right: 15px; overflow-x: hidden;">
   <div layout="column" layout-padding>
 
-    <md-button class="md-raised md-accent"
-        style="width: 100%"
-        ng-disabled="!(queryObj.release_data && queryObj.release_data.length) && !(queryObj.raster_data && queryObj.raster_data.length)"
-        ng-click="submitQuery()">
-      Checkout
-    </md-button>
+    <div layout="row">
+      <md-button class="md-raised md-accent"
+          style="width: 80%; float:left;"
+          ng-disabled="!(queryObj.release_data && queryObj.release_data.length) && !(queryObj.raster_data && queryObj.raster_data.length)"
+          ng-click="submitQuery()">
+        Checkout
+      </md-button>
+      <md-button class="md-primary md-raised"
+          style="width: 20%; float:right;"
+          ng-click="goBack()"
+          ng-hide="state.$current.name.indexOf('search')>=0 || state.$current.name === 'map' ">
+        <i class="fa fa-plus fa-lg" aria-hidden="true"></i>
+      </md-button>
+    </div>
 
     <h3 class="md-headline text-center"
         ng-show="!(queryObj.release_data && queryObj.release_data.length) && !(queryObj.raster_data && queryObj.raster_data.length)">
       Your Cart is Empty
     </h3>
-  </div>
 
-  <md-button class="md-primary"
-      style="width: 100%"
-      ng-click="goBack()"
-      ng-hide="state.$current.name.indexOf('search')>=0 || state.$current.name === 'map' ">
-    Add Selections
-  </md-button>
+  </div>
 </md-content>
 
 <div ng-if="(queryObj.release_data && queryObj.release_data.length) || (queryObj.raster_data && queryObj.raster_data.length)">
