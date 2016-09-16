@@ -209,9 +209,22 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'ngMaterial', 'rzModu
     params: { notify: false },
     templateUrl: 'views/pages/requests.html',
     resolve: {
-      requests: function(ajaxFactory, $stateParams) {
-        return ajaxFactory.requests('email', $stateParams.email)
-          .then(function(results) { return results.data; });
+      requests: function(ajaxFactory, $stateParams, $state, $q, $mdDialog, modalFactory, spinFactory) {
+        return $q.when(ajaxFactory.requests('email', $stateParams.email))
+          .then(function(results) {
+            return results.data.length ? results.data : $q.reject('foo');
+          })
+          .catch(function(err) {
+            var notFound = modalFactory.alert({
+              message: 'No Requests Found for user ' + $stateParams.email,
+              name: 'Email Error'
+            });
+            spinFactory.stop();
+            $state.go('login')
+              .then(function() {
+                return $mdDialog.show(notFound);
+              });
+          });
       },
       datasets: function($q, requests, queryFactory) {
         var datasets = _.map(requests, function(req) {

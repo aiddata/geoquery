@@ -11,6 +11,18 @@ angular.module('aiddataDET')
     return queryFactory.getDataset(datasetName);
   };
 
+
+  $scope.goBack = function () {
+    if (_.get(queryFactory.getBoundary(), 'boundaryId')) {
+      $state.go('search', {
+        boundary: _.get(queryFactory.getBoundary(), 'boundaryId'),
+        subboundary: _.get(queryFactory.getSubBoundary(), 'name')
+      });
+    } else {
+      $state.go('map');
+    }
+  };
+
   $scope.removeQuery = function (q, type) {
     queryFactory.removeRequest(q, type)
       .then(function(query) {

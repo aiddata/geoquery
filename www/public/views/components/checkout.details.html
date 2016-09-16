@@ -22,6 +22,7 @@
     <md-input-container>
       <input ng-model="queryData.email"
           ng-enter="checkoutForm.$valid ? submitQuery() : null;"
+          ng-pattern='/^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/'
           type="email"
           name="email"
           placeholder="Email"
