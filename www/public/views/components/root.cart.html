@@ -3,9 +3,17 @@
 
     <div layout="row">
       <md-button class="md-raised md-accent"
+          style="width: 100%"
+          ng-disabled="!(queryObj.release_data && queryObj.release_data.length) && !(queryObj.raster_data && queryObj.raster_data.length)"
+          ng-click="submitQuery()"
+          ng-hide="state.$current.name.indexOf('checkout')>=0 || state.$current.name === 'requests' || state.$current.name === 'status' || state.$current.name === 'login' ">
+        Checkout
+      </md-button>
+      <md-button class="md-raised md-accent"
           style="width: 80%; float:left;"
           ng-disabled="!(queryObj.release_data && queryObj.release_data.length) && !(queryObj.raster_data && queryObj.raster_data.length)"
-          ng-click="submitQuery()">
+          ng-click="submitQuery()"
+          ng-hide="state.$current.name.indexOf('search')>=0 || state.$current.name === 'map' ">
         Checkout
       </md-button>
       <md-button class="md-primary md-raised"
