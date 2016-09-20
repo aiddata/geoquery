@@ -3,7 +3,7 @@
   */
 
 angular.module('aiddataDET')
-.controller('ProcessBreadcrumbsCtrl', function ($scope) {
+.controller('ProcessBreadcrumbsCtrl', function ($scope, $rootScope) {
 
   // sort order for step
   $scope.stepIndex = function(step) {
@@ -15,6 +15,12 @@ angular.module('aiddataDET')
   $scope.stepText = function(step) {
     return step.indexOf('submit') >= 0 ? 'submitted' :
       step.indexOf('complete') >= 0 ? 'completed' : 'processed';
+  };
+
+  $scope.hoverText = function (step) {
+    return !$scope.stepHover[step] ? '' :
+     _.isArray($scope.stepHover[step]) ? $scope.stepHover[step].toString() :
+     $scope.stepHover[step];
   };
 
   // current step sort order and display text

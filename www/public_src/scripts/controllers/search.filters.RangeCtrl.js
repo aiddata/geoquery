@@ -29,9 +29,10 @@ angular.module('aiddataDET')
       $scope.range.min = $scope.sliderOptions.floor;
       $scope.range.max = $scope.sliderOptions.ceil;
     }
+    $timeout(buildSlider, 500);
   });
 
-  $scope.$watch('filterOptions', function(newValue, oldValue) {
+  $scope.$watch('filterOptions', function(newValue) {
     var updateMin = $scope.range.min === min || newValue.length <= 1,
         updateMax = $scope.range.max === max || newValue.length <= 1;
 
@@ -42,7 +43,7 @@ angular.module('aiddataDET')
     $scope.range.max = updateMax || $scope.range.max > max ? max : $scope.range.max;
 
     $timeout(buildSlider, 500);
-  }, true);
+  });
 
   function buildSlider () {
     $scope.sliderOptions = {
@@ -51,7 +52,8 @@ angular.module('aiddataDET')
       ceil: _.ceil(max),
       onEnd: $scope.updateRange,
       enforceRange: true,
-      translate: numberFormat
+      translate: numberFormat,
+      noSwitching: true
     };
 
     $scope.updateRange();

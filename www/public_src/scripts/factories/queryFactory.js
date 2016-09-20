@@ -150,19 +150,12 @@ angular.module('aiddataDET')
 
       isUniq: function(dataset, filters, options) {
         if (dataset.type === 'raster') {
-          var fileNames = _.map(options.files, 'name'),
-              optionNames = options.options.extract_types,
-              combinations = _cartesianProductStrings([fileNames, optionNames]);
+          var fileNames = _.map(options.files, 'name').sort();
 
           return _.every(_query.raster_data, function(q) {
-            if (dataset.title !== q.title) { return true; }
-
-            var q_combinations = _cartesianProductStrings([
-              _.map(q.files, 'name'),
-              q.options.extract_types
-            ]);
-
-            return _.size(_.intersection(q_combinations, combinations)) === 0;
+            return dataset.title !== q.title ||
+              !_.isEqual(q.options.extract_types.sort(), options.options.extract_types.sort()) ||
+              !_.isEqual(_.map(q.files, 'name').sort(), fileNames);
           });
         } else {
           return _.every(_query.release_data, function(q) {
@@ -346,10 +339,6 @@ angular.module('aiddataDET')
           return f >= min && f <= max;
         });
 
-        if (!range.length) {
-          return $log.error('empty filters');
-        }
-
         this.filters[filter] = [min, max];
       },
 
@@ -370,31 +359,3 @@ angular.module('aiddataDET')
       }
     };
   });
-
-  /**
-   * Generate all combination of arguments when given arrays or strings
-  **/
-function _cartesianProductOf(args) {
-  if (arguments.length > 1) { args = _.toArray(arguments); }
-
-    // strings to arrays of letters
-  args = _.map(args, function(opt) {
-    return typeof opt === 'string' ? _.toArray(opt) : opt;
-  });
-
-  return _.reduce(args, function(a, b) {
-    return _.flatten(_.map(a, function(x) {
-      return _.map(b, function(y) {
-        return _.concat(x, [y]);
-      });
-    }), true);
-  }, [ [] ]);
-}
-
-function _cartesianProductStrings (args) {
-  if (arguments.length > 1) { args = _.toArray(arguments); }
-
-  return _.map(_cartesianProductOf(args), function(a) {
-    return a.toString();
-  });
-}

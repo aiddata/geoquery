@@ -15,7 +15,7 @@ angular.module('aiddataDET')
   };
 
   $scope.$on('$viewContentLoaded', function() {
-    console.log($scope.request);
+    $scope.info = info.status;
 
     request.status = _.chain(request.stage)
       .filter('time')
@@ -28,8 +28,6 @@ angular.module('aiddataDET')
       .value();
 
     request.submissionTime = _.get(_.head(request.stage), 'time_format') || '';
-
-    $scope.language = info.status[request.status];
   });
 
 });
