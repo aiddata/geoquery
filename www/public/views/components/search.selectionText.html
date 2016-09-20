@@ -36,8 +36,8 @@
           ng-disabled="!selectionData.canAdd"
           ng-click="addToCart()">
         <i class="fa fa-lg fa-plus" aria-hidden="true"></i>&nbsp;&nbsp;
-        <span ng-show="selectionData.canAdd || dataset.type === 'raster'">Add to Cart</span>
-        <span ng-show="!selectionData.canAdd && dataset.type !== 'raster'">Added to Cart</span>
+        <span ng-show="selectionData.canAdd || dataset.type === 'raster' || !(totals.projects && totals.locations)">Add to Cart</span>
+        <span ng-show="!selectionData.canAdd && dataset.type !== 'raster' && (totals.projects && totals.locations)">Added to Cart</span>
       </md-button>
 
     </div>

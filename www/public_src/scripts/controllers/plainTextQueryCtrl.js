@@ -51,11 +51,12 @@ angular.module('aiddataDET')
   };
 
   function getRange(filterId) {
-    return [
-      d3.format('$,')(_.chain($scope.filters[filterId]).min().floor().value()) +
-      ' - ' +
-      d3.format(',')(_.chain($scope.filters[filterId]).max().ceil().value())
-    ];
+    var min = d3.format(',')(_.chain($scope.filters[filterId]).min().floor().value()),
+        max = d3.format(',')(_.chain($scope.filters[filterId]).max().ceil().value()),
+        rangeString = min === max ? '$' + min :
+          '$' + min + ' - ' + max;
+
+    return [ rangeString ];
   }
 
   function getYears() {
