@@ -10,7 +10,8 @@ angular.module('aiddataDET')
     scope: {
       currentStep: '=',
       stepList: '=',
-      fullWidth: '='
+      fullWidth: '=',
+      stepHover: '='
     },
     controller: 'ProcessBreadcrumbsCtrl',
     templateUrl: "views/components/processBreadcrumbs.html"

@@ -1,4 +1,3 @@
-
 <div class="full-height" flex layout="column" id="status">
 
   <div layout="row" layout-fill>
@@ -11,7 +10,11 @@
         </a></small>
         <h4 class="md-display-5">Request Status</h4>
         <small>
-          <process-breadcrumbs step-list="request.stage" current-step="request.status" full-width="true"></process-breadcrumbs>
+          <process-breadcrumbs
+              step-list="request.stage"
+              current-step="request.status"
+              full-width="true"
+              step-hover="info"></process-breadcrumbs>
         </small>
 
         <div layout="column" ng-if="request.status.indexOf('complete') >= 0">
@@ -41,8 +44,6 @@
           <h3 ng-show="request.status.indexOf('submit') >= 0"> <strong>{{ request.custom_name }}</strong> has been submitted! </h3>
           <h3 ng-show="request.status.indexOf('process') >= 0 || request.status.indexOf('prep') >= 0"> <strong>{{ request.custom_name }}</strong> is being processed! </h3>
           <h3 ng-show="request.status.indexOf('complete') >= 0"> <strong>{{ request.custom_name }}</strong> is ready for download! </h3>
-          <br>
-          <p ng-repeat="paragraph in language">{{ paragraph }}</p>
         </div>
 
         <div class="md-padding">

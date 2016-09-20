@@ -5,10 +5,13 @@
       ng-repeat="step in stepList"
       ng-if="step.name.indexOf('prep') < 0"
       ng-init="step.displayText = stepText(step.name);
-               step.sortOrder = stepIndex(step.name)">
+               step.sortOrder = stepIndex(step.name);
+               step.hover = hoverText(step.name);">
 
     <a href="" class="{{ step.displayText }} disabled"
         ng-class="step.displayText === currentStepName ? 'current' : 'incomplete'">
+
+        <md-tooltip md-direction="top"> {{ step.hover }} </md-tooltip>
 
       <i class="fa fa-check-circle" aria-hidden="true"
           ng-if="step.sortOrder <= currentStepIndex" ></i>
