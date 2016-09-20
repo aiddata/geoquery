@@ -18,9 +18,9 @@ angular.module('aiddataDET')
   };
 
   $scope.hoverText = function (step) {
-    return !$scope.stepHover[step] ? '' :
-     _.isArray($scope.stepHover[step]) ? $scope.stepHover[step].toString() :
-     $scope.stepHover[step];
+    return !$scope.stepHover[step.displayText] ? '' :
+     _.isArray($scope.stepHover[step.displayText]) ? $scope.stepHover[step.displayText].toString() :
+     $scope.stepHover[step.displayText];
   };
 
   // current step sort order and display text

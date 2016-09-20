@@ -5,8 +5,8 @@
       ng-repeat="step in stepList"
       ng-if="step.name.indexOf('prep') < 0"
       ng-init="step.displayText = stepText(step.name);
-               step.sortOrder = stepIndex(step.name);
-               step.hover = hoverText(step.name);">
+               step.sortOrder = stepIndex(step.name);"
+      ng-mouseenter="step.hover = hoverText(step);">
 
     <a href="" class="{{ step.displayText }} disabled"
         ng-class="step.displayText === currentStepName ? 'current' : 'incomplete'">
