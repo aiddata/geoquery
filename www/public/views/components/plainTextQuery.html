@@ -6,7 +6,7 @@
     <span ng-show="item.value.length > 1 && $last"> and </span>
     <span ng-show="item.value.length > 1 && !$last && !$first">, </span>
     <div class="btn btn-sm btn-chip"
-        ng-class="{ 'btn-chip-dismissable': item.optional }"
+        ng-class="{ 'btn-chip-dismissable': item.optional && editable, 'blue': item.optional }"
         ng-click="item.optional && editable ? removeFilter(item.key, option) : null">
       {{ option.display || option }}
       <i class="fa fa-times" aria-hidden="true" ng-show="item.optional && editable"></i>
