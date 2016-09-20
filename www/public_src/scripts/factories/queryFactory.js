@@ -339,10 +339,6 @@ angular.module('aiddataDET')
           return f >= min && f <= max;
         });
 
-        if (!range.length) {
-          return $log.error('empty filters');
-        }
-
         this.filters[filter] = [min, max];
       },
 

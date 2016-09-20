@@ -32,7 +32,7 @@ angular.module('aiddataDET')
     $timeout(buildSlider, 500);
   });
 
-  $scope.$watch('filterOptions', function pullApart(newValue) {
+  $scope.$watch('filterOptions', function(newValue) {
     var updateMin = $scope.range.min === min || newValue.length <= 1,
         updateMax = $scope.range.max === max || newValue.length <= 1;
 
@@ -52,7 +52,8 @@ angular.module('aiddataDET')
       ceil: _.ceil(max),
       onEnd: $scope.updateRange,
       enforceRange: true,
-      translate: numberFormat
+      translate: numberFormat,
+      noSwitching: true
     };
 
     $scope.updateRange();
