@@ -7,7 +7,7 @@
           placeholder="{{ key }} ($)"
           type="number"
           ng-model="value"
-          ng-blur="range[key]=value;">
+          ng-blur="range[key]=value; updateRange()">
     </md-input-container>
   </div>
 
