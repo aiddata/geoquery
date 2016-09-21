@@ -8,7 +8,7 @@
     </div>
 
     <div layout="row" layout-padding>
-      <md-input-container flex>
+      <md-input-container flex class="condensed">
         <label> Select Category </label>
         <md-select ng-model="dataFilters.tag">
           <md-option value="all"> All </md-option>
@@ -47,7 +47,7 @@
     </div>
 
     <div layout="row" layout-padding layout-align="space-between center" class="dataset-counts">
-      <h5>
+      <h5 style="margin-top: 15px;">
         {{ datasets.filtered.length }}/
         {{ datasets.options.length }}
         Datasets

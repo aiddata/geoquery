@@ -303,6 +303,7 @@ angular.module('aiddataDET')
         _.each(_.omit(self.filters, 'dataset'), function(d, i) {
           self.resetFilter(i);
         });
+        self.updateFilters();
         return self.filters;
       },
 
