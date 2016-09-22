@@ -29,7 +29,6 @@ angular.module('aiddataDET')
       $scope.range.min = $scope.sliderOptions.floor;
       $scope.range.max = $scope.sliderOptions.ceil;
     }
-    $timeout(buildSlider, 500);
   });
 
   // $scope.$watch('activeFilters', function(newValue) {
@@ -60,7 +59,7 @@ angular.module('aiddataDET')
   //   }
   // }, true);
 
-  $scope.$watch('filterOptions', function(newValue) {
+  $scope.$watch('filterOptions', function(newValue, oldValue) {
     var updateMin = $scope.range.min === min || newValue.length <= 1,
         updateMax = $scope.range.max === max || newValue.length <= 1;
 
@@ -74,6 +73,7 @@ angular.module('aiddataDET')
   });
 
   function buildSlider () {
+
     $scope.sliderOptions = {
       visible: true,
       floor: _.floor(min),
@@ -81,11 +81,28 @@ angular.module('aiddataDET')
       onEnd: $scope.updateRange,
       enforceRange: true,
       translate: numberFormat,
-      noSwitching: true
+      noSwitching: true,
+      disabled: $scope.disabled
     };
 
     $scope.updateRange();
   }
+
+  $rootScope.$on('filters:update-start', function() {
+    $scope.disabled = true;
+  });
+
+  $rootScope.$on('filters:updated', function(event, data) {
+    $scope.disabled = false;
+  });
+
+  $rootScope.$on('filters:rebuild', function() {
+    $scope.sliderOptions.floor = _.floor(_.min($scope.filterData.distinct));
+    $scope.sliderOptions.ceil = _.ceil(_.max($scope.filterData.distinct));
+    $scope.range.min = $scope.sliderOptions.floor;
+    $scope.range.max = $scope.sliderOptions.ceil;
+    $scope.updateRange();
+  });
 
 
 });

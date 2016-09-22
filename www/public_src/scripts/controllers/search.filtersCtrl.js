@@ -6,6 +6,7 @@ angular.module('aiddataDET')
   // $scope.dataset = { Current Dataset Information }
 
   $scope.updateFilters = function () {
+    $rootScope.$broadcast('filters:update-start');
     queryFactory.updateFilters()
       .then(function (filterOptions) {
         $scope.filterOptions = filterOptions;
@@ -57,10 +58,14 @@ angular.module('aiddataDET')
 
   });
 
+  // For resetting all filters
   $rootScope.$on('filters:reset', function() {
     for (var i = 0; i < $scope.filterOrder.length; i++ ) {
       $scope.toggleAll($scope.filterOrder[i]);
     }
+
+    $rootScope.$broadcast('filters:rebuild');
+
     $timeout(function () {
       $scope.updateFilters();
     });

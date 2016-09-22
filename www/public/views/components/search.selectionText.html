@@ -2,8 +2,8 @@
   <md-toolbar md-scroll-shrink>
     <div class="md-toolbar-tools">
 
-      <div style="overflow-y: hidden;" layout="column" flex>
-        <md-input-container class="condensed no-label md-light md-icon-float" flex md-no-float style="font-size: 16px">
+      <div style="overflow-y: hidden;" flex>
+        <md-input-container class="condensed no-label md-light md-icon-float" flex md-no-float style="font-size: 16px; width: 100%">
           <md-icon>
             <md-tooltip md-delay="500" md-direction="top"> Change Selection Name </md-tooltip>
             <i class="fa fa-pencil-square-o " aria-hidden="true"></i>
@@ -12,8 +12,10 @@
           <input class="inputsm" ng-model="selectionData.name" placeholder="Selection Name" ng-change="selectionData.renamed = true">
         </md-input-container>
 
-        <small style="margin-top: -20px;" ng-if="dataset && dataset.type == 'release'">
+        <small ng-if="dataset && dataset.type == 'release'">
           <br>
+          <i class="fa fa-exclamation-triangle" aria-hidden="true"
+             ng-hide="totals.projects && totals.locations"></i>
           <strong>{{ totals.projects }}</strong> projects /
           <strong>{{ totals.locations }}</strong> locations
         </small>

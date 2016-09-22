@@ -20,6 +20,7 @@
         aria-label="{{ option }}"
         ng-click="toggleFilter(filterData.field, option);"
         ng-checked="activeFilters && activeFilters.indexOf(option) >= 0;"
+        ng-disabled="disabled"
         md-no-ink></md-checkbox>
 
     <p> {{ option }} </p>

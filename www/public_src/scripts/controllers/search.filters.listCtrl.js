@@ -3,6 +3,7 @@ angular.module('aiddataDET')
   // $scope.filterData = {  };
   // $scope.filterOptions = [];
   // $scope.activeFilters = [];
+  $scope.disabled = false;
 
   $scope.toggleFilter = function (filter, option) {
     var checked = $scope.activeFilters && $scope.activeFilters.indexOf(option) >= 0;
@@ -13,5 +14,13 @@ angular.module('aiddataDET')
   $scope.toggleAll = function (filter) {
     queryFactory.resetFilter(filter);
   };
+
+  $rootScope.$on('filters:update-start', function() {
+    $scope.disabled = true;
+  });
+
+  $rootScope.$on('filters:updated', function() {
+    $scope.disabled = false;
+  });
 
 });
