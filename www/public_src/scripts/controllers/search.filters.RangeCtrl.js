@@ -31,34 +31,6 @@ angular.module('aiddataDET')
     }
   });
 
-  // $scope.$watch('activeFilters', function(newValue) {
-  //   // Detect if min and max are the same
-  //   // Reposition either min or max so that there is at
-  //   // Least one value in the range
-  //   if ( newValue.length === 2 && newValue[0] === newValue[1] ) {
-  //
-  //     var closest = _.chain($scope.filterOptions)
-  //       .map(function(d, i) {
-  //         return { index: i, abs: Math.abs(d - newValue[0]) };
-  //       })
-  //       .orderBy(['abs'], ['asc'])
-  //       .head()
-  //       .value();
-  //
-  //     var closestValue = $scope.filterOptions[closest.index];
-  //
-  //     if (closestValue < newValue[0]) {
-  //       $scope.range.min = closestValue;
-  //     }
-  //
-  //     if (closestValue >= newValue[0]) {
-  //       $scope.range.max = closestValue;
-  //     }
-  //
-  //     $scope.updateRange();
-  //   }
-  // }, true);
-
   $scope.$watch('filterOptions', function(newValue, oldValue) {
     var updateMin = $scope.range.min === min || newValue.length <= 1,
         updateMax = $scope.range.max === max || newValue.length <= 1;
@@ -103,6 +75,41 @@ angular.module('aiddataDET')
     $scope.range.max = $scope.sliderOptions.ceil;
     $scope.updateRange();
   });
+
+/*
+    THIS WAS BEING USED TO PREVENT RANGES FROM BEING SET WHERE THERE WERE NO
+    PROJECTS
+    -- IT BECAME SEEMS TOO CONFUSING FOR THE USER --
+    ... ALSO PRECARIUS
+    ... ALSO UGLY
+ */
+  // $scope.$watch('activeFilters', function(newValue) {
+  //   // Detect if min and max are the same
+  //   // Reposition either min or max so that there is at
+  //   // Least one value in the range
+  //   if ( newValue.length === 2 && newValue[0] === newValue[1] ) {
+  //
+  //     var closest = _.chain($scope.filterOptions)
+  //       .map(function(d, i) {
+  //         return { index: i, abs: Math.abs(d - newValue[0]) };
+  //       })
+  //       .orderBy(['abs'], ['asc'])
+  //       .head()
+  //       .value();
+  //
+  //     var closestValue = $scope.filterOptions[closest.index];
+  //
+  //     if (closestValue < newValue[0]) {
+  //       $scope.range.min = closestValue;
+  //     }
+  //
+  //     if (closestValue >= newValue[0]) {
+  //       $scope.range.max = closestValue;
+  //     }
+  //
+  //     $scope.updateRange();
+  //   }
+  // }, true);
 
 
 });

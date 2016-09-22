@@ -71,28 +71,6 @@ angular.module('aiddataDET')
     });
   });
 
-
-    // $rootScope.$on('filters:reset', function() {
-    //   $scope.resetting = true;
-    //   var w = d3.sum($('#searchModuleView').children().map(function() { return $(this).width(); }));
-    //   var filters = _.cloneDeep($scope.filterOrder);
-    //   var promises = _.map(filters, function(filter) {
-    //     return $scope.removeFilter(filter);
-    //   });
-    //   $q.all(promises)
-    //     .then(function(fields) {
-    //       _.each(fields, function(field) {
-    //         $scope.filters[field] = [ 'All' ];
-    //         $scope.dataset.fields[field].isActive = true;
-    //         $scope.filterOrder.push(field);
-    //       });
-    //       $timeout(function() {
-    //         $('#searchModuleView').css({ scrollLeft: w });
-    //         $scope.resetting = false;
-    //       }, 400);
-    //     });
-    // });
-
   function broadcastUpdates () {
     $rootScope.$broadcast('filters:updated', filterOptions);
   }
