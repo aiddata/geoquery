@@ -11,7 +11,8 @@ module.exports = {
     "angular": true,
     "_": true,
     "d3": true,
-    "Spinner": true
+    "Spinner": true,
+    "$": true
   },
   "plugins": [
     "html",

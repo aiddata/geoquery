@@ -32,33 +32,33 @@ angular.module('aiddataDET')
     $timeout(buildSlider, 500);
   });
 
-  $scope.$watch('activeFilters', function(newValue) {
-    // Detect if min and max are the same
-    // Reposition either min or max so that there is at
-    // Least one value in the range
-    if ( newValue.length === 2 && newValue[0] === newValue[1] ) {
-
-      var closest = _.chain($scope.filterOptions)
-        .map(function(d, i) {
-          return { index: i, abs: Math.abs(d - newValue[0]) };
-        })
-        .orderBy(['abs'], ['asc'])
-        .head()
-        .value();
-
-      var closestValue = $scope.filterOptions[closest.index];
-
-      if (closestValue < newValue[0]) {
-        $scope.range.min = closestValue;
-      }
-
-      if (closestValue >= newValue[0]) {
-        $scope.range.max = closestValue;
-      }
-
-      $scope.updateRange();
-    }
-  }, true);
+  // $scope.$watch('activeFilters', function(newValue) {
+  //   // Detect if min and max are the same
+  //   // Reposition either min or max so that there is at
+  //   // Least one value in the range
+  //   if ( newValue.length === 2 && newValue[0] === newValue[1] ) {
+  //
+  //     var closest = _.chain($scope.filterOptions)
+  //       .map(function(d, i) {
+  //         return { index: i, abs: Math.abs(d - newValue[0]) };
+  //       })
+  //       .orderBy(['abs'], ['asc'])
+  //       .head()
+  //       .value();
+  //
+  //     var closestValue = $scope.filterOptions[closest.index];
+  //
+  //     if (closestValue < newValue[0]) {
+  //       $scope.range.min = closestValue;
+  //     }
+  //
+  //     if (closestValue >= newValue[0]) {
+  //       $scope.range.max = closestValue;
+  //     }
+  //
+  //     $scope.updateRange();
+  //   }
+  // }, true);
 
   $scope.$watch('filterOptions', function(newValue) {
     var updateMin = $scope.range.min === min || newValue.length <= 1,

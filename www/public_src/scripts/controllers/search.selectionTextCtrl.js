@@ -15,9 +15,7 @@ angular.module('aiddataDET')
 
   $scope.clearFilters = function () {
     if ($scope.dataset.type === 'release') {
-      // console.log($scope.dataset);
-      $rootScope.$broadcast('filters:reset');
-      // queryFactory.clearFilters();
+      queryFactory.clearFilters();
     } else {
       queryFactory.clearOptions();
     }

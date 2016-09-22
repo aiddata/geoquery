@@ -4,7 +4,6 @@ angular.module('aiddataDET')
   // $scope.filterOptions = { Options for a particular filter field }
   // $scope.filters = { Active Filters }
   // $scope.dataset = { Current Dataset Information }
-  var resetting = false;
 
   $scope.updateFilters = function () {
     queryFactory.updateFilters()
@@ -20,18 +19,15 @@ angular.module('aiddataDET')
   };
 
   $scope.removeFilter = function(field) {
-    var promise = $q.defer();
     $scope.dataset.fields[field].isActive = false;
-    return promise;
     $timeout(function () {
       delete $scope.filters[field];
       _.pull($scope.filterOrder, field);
-      promise.resolve(field);
     }, 300);
   };
 
   $scope.$watch('filters', function (newValue, oldValue) {
-    if (!_.isEqual(newValue, oldValue) || resetting) {
+    if (!_.isEqual(newValue, oldValue)) {
       $scope.updateFilters();
     }
   }, true);
@@ -40,7 +36,6 @@ angular.module('aiddataDET')
     if (!_.difference(newValue, oldValue)[0]) { return; }
     $timeout(function() {
       var w = d3.sum($('#searchModuleView').children().map(function() { return $(this).width(); }));
-      console.log(w);
       $('#searchModuleView').animate({scrollLeft: w});
       $scope.dataset.fields[_.difference(newValue, oldValue)[0]].isActive = true;
     }, 400);
@@ -63,15 +58,35 @@ angular.module('aiddataDET')
   });
 
   $rootScope.$on('filters:reset', function() {
-    resetting = true;
     for (var i = 0; i < $scope.filterOrder.length; i++ ) {
       $scope.toggleAll($scope.filterOrder[i]);
     }
     $timeout(function () {
-      resetting = false;
       $scope.updateFilters();
     });
   });
+
+
+    // $rootScope.$on('filters:reset', function() {
+    //   $scope.resetting = true;
+    //   var w = d3.sum($('#searchModuleView').children().map(function() { return $(this).width(); }));
+    //   var filters = _.cloneDeep($scope.filterOrder);
+    //   var promises = _.map(filters, function(filter) {
+    //     return $scope.removeFilter(filter);
+    //   });
+    //   $q.all(promises)
+    //     .then(function(fields) {
+    //       _.each(fields, function(field) {
+    //         $scope.filters[field] = [ 'All' ];
+    //         $scope.dataset.fields[field].isActive = true;
+    //         $scope.filterOrder.push(field);
+    //       });
+    //       $timeout(function() {
+    //         $('#searchModuleView').css({ scrollLeft: w });
+    //         $scope.resetting = false;
+    //       }, 400);
+    //     });
+    // });
 
   function broadcastUpdates () {
     $rootScope.$broadcast('filters:updated', filterOptions);
