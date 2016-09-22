@@ -17,7 +17,7 @@
       <md-list class="md-dense">
         <md-list-item
             class="md-2-line"
-            ng-repeat="choice in option.data">
+            ng-repeat="choice in option.data | orderBy:'start':true">
 
           <md-checkbox style="md-primary"
               ng-init="choice.checked = false"

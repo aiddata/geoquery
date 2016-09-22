@@ -14,7 +14,7 @@
         <md-tooltip md-direction="top"> {{ step.hover }} </md-tooltip>
 
       <i class="fa fa-check-circle" aria-hidden="true"
-          ng-if="step.sortOrder <= currentStepIndex" ></i>
+          ng-class="{ 'invisible' : step.sortOrder > currentStepIndex }" ></i>
 
       {{ step.displayText }}
     </a>

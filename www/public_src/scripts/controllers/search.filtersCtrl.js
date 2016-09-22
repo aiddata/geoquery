@@ -6,6 +6,7 @@ angular.module('aiddataDET')
   // $scope.dataset = { Current Dataset Information }
 
   $scope.updateFilters = function () {
+    $rootScope.$broadcast('filters:update-start');
     queryFactory.updateFilters()
       .then(function (filterOptions) {
         $scope.filterOptions = filterOptions;
@@ -35,7 +36,8 @@ angular.module('aiddataDET')
   $scope.$watch('filterOrder', function(newValue, oldValue) {
     if (!_.difference(newValue, oldValue)[0]) { return; }
     $timeout(function() {
-      $('#searchModuleView').animate({scrollLeft: $('#searchModuleView').width()}, 'slow');
+      var w = d3.sum($('#searchModuleView').children().map(function() { return $(this).width(); }));
+      $('#searchModuleView').animate({scrollLeft: w});
       $scope.dataset.fields[_.difference(newValue, oldValue)[0]].isActive = true;
     }, 400);
 
@@ -54,6 +56,19 @@ angular.module('aiddataDET')
       $scope.dataset.fields[f].isActive = true;
     });
 
+  });
+
+  // For resetting all filters
+  $rootScope.$on('filters:reset', function() {
+    for (var i = 0; i < $scope.filterOrder.length; i++ ) {
+      $scope.toggleAll($scope.filterOrder[i]);
+    }
+
+    $rootScope.$broadcast('filters:rebuild');
+
+    $timeout(function () {
+      $scope.updateFilters();
+    });
   });
 
   function broadcastUpdates () {

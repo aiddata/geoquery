@@ -29,38 +29,9 @@ angular.module('aiddataDET')
       $scope.range.min = $scope.sliderOptions.floor;
       $scope.range.max = $scope.sliderOptions.ceil;
     }
-    $timeout(buildSlider, 500);
   });
 
-  $scope.$watch('activeFilters', function(newValue) {
-    // Detect if min and max are the same
-    // Reposition either min or max so that there is at
-    // Least one value in the range
-    if ( newValue.length === 2 && newValue[0] === newValue[1] ) {
-
-      var closest = _.chain($scope.filterOptions)
-        .map(function(d, i) {
-          return { index: i, abs: Math.abs(d - newValue[0]) };
-        })
-        .orderBy(['abs'], ['asc'])
-        .head()
-        .value();
-
-      var closestValue = $scope.filterOptions[closest.index];
-
-      if (closestValue < newValue[0]) {
-        $scope.range.min = closestValue;
-      }
-
-      if (closestValue >= newValue[0]) {
-        $scope.range.max = closestValue;
-      }
-
-      $scope.updateRange();
-    }
-  }, true);
-
-  $scope.$watch('filterOptions', function(newValue) {
+  $scope.$watch('filterOptions', function(newValue, oldValue) {
     var updateMin = $scope.range.min === min || newValue.length <= 1,
         updateMax = $scope.range.max === max || newValue.length <= 1;
 
@@ -74,6 +45,7 @@ angular.module('aiddataDET')
   });
 
   function buildSlider () {
+
     $scope.sliderOptions = {
       visible: true,
       floor: _.floor(min),
@@ -81,11 +53,63 @@ angular.module('aiddataDET')
       onEnd: $scope.updateRange,
       enforceRange: true,
       translate: numberFormat,
-      noSwitching: true
+      noSwitching: true,
+      disabled: $scope.disabled
     };
 
     $scope.updateRange();
   }
+
+  $rootScope.$on('filters:update-start', function() {
+    $scope.disabled = true;
+  });
+
+  $rootScope.$on('filters:updated', function(event, data) {
+    $scope.disabled = false;
+  });
+
+  $rootScope.$on('filters:rebuild', function() {
+    $scope.sliderOptions.floor = _.floor(_.min($scope.filterData.distinct));
+    $scope.sliderOptions.ceil = _.ceil(_.max($scope.filterData.distinct));
+    $scope.range.min = $scope.sliderOptions.floor;
+    $scope.range.max = $scope.sliderOptions.ceil;
+    $scope.updateRange();
+  });
+
+/*
+    THIS WAS BEING USED TO PREVENT RANGES FROM BEING SET WHERE THERE WERE NO
+    PROJECTS
+    -- IT SEEMS TOO CONFUSING FOR THE USER --
+    ... ALSO PRECARIUS
+    ... ALSO UGLY
+ */
+  // $scope.$watch('activeFilters', function(newValue) {
+  //   // Detect if min and max are the same
+  //   // Reposition either min or max so that there is at
+  //   // Least one value in the range
+  //   if ( newValue.length === 2 && newValue[0] === newValue[1] ) {
+  //
+  //     var closest = _.chain($scope.filterOptions)
+  //       .map(function(d, i) {
+  //         return { index: i, abs: Math.abs(d - newValue[0]) };
+  //       })
+  //       .orderBy(['abs'], ['asc'])
+  //       .head()
+  //       .value();
+  //
+  //     var closestValue = $scope.filterOptions[closest.index];
+  //
+  //     if (closestValue < newValue[0]) {
+  //       $scope.range.min = closestValue;
+  //     }
+  //
+  //     if (closestValue >= newValue[0]) {
+  //       $scope.range.max = closestValue;
+  //     }
+  //
+  //     $scope.updateRange();
+  //   }
+  // }, true);
 
 
 });
