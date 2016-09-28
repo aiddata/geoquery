@@ -48,7 +48,6 @@ angular.module('aiddataDET')
           .map(function(sub) {
             sub.tags = _.get(sub, 'extras.tags').toString();
             sub.search = sub.title + ' ' + sub.tags;
-            boundaries.push(sub);
             return sub.tags;
           })
           .flatten().uniq().toString().value();
