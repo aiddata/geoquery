@@ -1,4 +1,15 @@
 <div flex id="requestList" class="md-padding">
+  <div layout="row">
+    <md-button md-no-ink
+        class="md-primary md-raised"
+        ng-click="addRequest()"
+        flex>
+
+      <md-tooltip md-delay="500" md-direction="top"> Add to Your Cart </md-tooltip>
+      <i class="fa fa-arrow-left" aria-hidden="true"></i>
+      Add Another Selection
+    </md-button>
+  </div>
   <div ng-repeat="(type, queries) in { release_data: queryObj.release_data, raster_data: queryObj.raster_data }">
     <md-card ng-repeat="q in queries"
         class="md-margin"
@@ -38,17 +49,5 @@
       </md-content>
 
     </md-card>
-  </div>
-
-  <div layout="row" layout-padding>
-    <md-button md-no-ink
-        class="md-primary md-raised"
-        ng-click="addRequest()"
-        flex>
-
-      <md-tooltip md-delay="500" md-direction="top"> Add to Your Cart </md-tooltip>
-
-      Add Another Selection
-    </md-button>
   </div>
 </div>
