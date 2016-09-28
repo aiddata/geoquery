@@ -1,10 +1,16 @@
 <div layout="column" class="remaining-height">
   <div class="search-tools">
-    <div class="md-margin">
-      <small><a ui-sref="map">
+    <div layout="row" layout-padding layout-align="space-between center" >
+      <button class="btn btn-link btn-sm" ui-sref="map">
         <i class="fa fa-arrow-left" aria-hidden="true"></i>
         Select a Different Boundary
-      </a></small>
+      </button>
+      <button class="btn btn-link btn-sm"
+        ng-disabled="!querySize"
+        ui-sref="checkout">
+        Review your Request
+        <i class="fa fa-arrow-right" aria-hidden="true"></i>
+      </button>
     </div>
 
     <div layout="row" layout-padding>
@@ -23,10 +29,10 @@
       <div layout="row" layout-padding>
         <md-input-container md-no-float class="flex-50 condensed">
           <label> Search Datasets </label>
-          <input ng-model="dataFilters.searchText" placeholder="">
+          <input ng-model="dataFilters.searchText" placeholder="" style="height: 45px;">
         </md-input-container>
 
-        <md-input-container class="condensed" flex="30">
+        <md-input-container class="condensed" flex="30" md-no-float>
           <label>Sort by</label>
           <md-select ng-model="fields.selected">
             <md-option ng-repeat="field in fields.options" value="{{ field.value }}">
@@ -34,7 +40,7 @@
             </md-option>
           </md-select>
         </md-input-container>
-        <div flex="20">
+        <div flex="20" style="margin-top:auto;">
           <md-button class="md-primary md-icon-button"
               aria-label="Sort Datasets"
               ng-click="fields.descending = !fields.descending"
@@ -47,7 +53,7 @@
     </div>
 
     <div layout="row" layout-padding layout-align="space-between center" class="dataset-counts">
-      <h5 style="margin-top: 15px;">
+      <h5>
         {{ datasets.filtered.length }}/
         {{ datasets.options.length }}
         Datasets

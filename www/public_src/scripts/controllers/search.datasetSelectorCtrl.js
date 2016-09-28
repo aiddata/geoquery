@@ -3,9 +3,10 @@
   * page.  It is responsible for displaying, filtering, and selecting datasets.
   */
 angular.module('aiddataDET')
-.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, $timeout, datasets, $state, info) {
+.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, $timeout, datasets, $state, info, queryFactory) {
   $scope.showSearchTools = false;   // Advanced Search Visibility
   $scope.featuredTags = [];         // Featured Category Tags
+  $scope.querySize = 0;
 
   // Datasets container
   $scope.datasets = {
@@ -61,6 +62,10 @@ angular.module('aiddataDET')
       $scope.selectDataset(_.first($scope.datasets.filtered));
     }
   }, true);
+
+  $rootScope.$on('query:updated', function() {
+    $scope.querySize = queryFactory.querySize();
+  });
 
   // Define default data filters and order datasets
   $scope.$on('$viewContentLoaded', function(event) {
