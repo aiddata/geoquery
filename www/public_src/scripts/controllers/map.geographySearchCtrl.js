@@ -3,7 +3,7 @@ angular.module('aiddataDET')
   $scope.boundaries = [];
   $scope.subBoundaries = [];
   $scope.formData = {};
-  $scope.showFeaturedSearches = false;
+  $scope.showFeaturedSearches = true;
 
   $scope.defineBoundary = function() {
     $state.go('search', {
