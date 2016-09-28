@@ -15,7 +15,8 @@
 
     <div layout="row" layout-padding>
       <md-input-container flex class="condensed category-selector">
-        <md-select ng-model="dataFilters.tag">
+        <md-select ng-model="dataFilters.tag"
+          aria-label="Dataset Category">
           <md-option value="all"> All Categories </md-option>
           <md-option ng-repeat="field in featuredTags" value="{{ field.tag }}">
             {{ field.display }}

@@ -30,7 +30,6 @@ angular.module('aiddataDET')
 
   $scope.selectFromFeatured = function(item) {
     $scope.formData.searchText = item.search;
-    $scope.showFeaturedSearches = false;
   };
 
   $scope.$watch('formData.subboundary', function (newValue) {
