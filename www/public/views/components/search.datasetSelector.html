@@ -11,7 +11,7 @@
       <md-input-container flex class="condensed">
         <label> Select Category </label>
         <md-select ng-model="dataFilters.tag">
-          <md-option value="all"> All </md-option>
+          <md-option value="all"> All Categories </md-option>
           <md-option ng-repeat="field in featuredTags" value="{{ field.tag }}">
             {{ field.display }}
           </md-option>

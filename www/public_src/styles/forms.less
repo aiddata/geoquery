@@ -29,17 +29,37 @@ md-autocomplete md-autocomplete-wrap.md-menu-showing {
   letter-spacing: 1px;
 }
 
-md-input-container.md-light .md-input,
-md-input-container.md-light.md-input-focused md-icon{
-  color: #fff ;
+md-autocomplete md-autocomplete-wrap{
+  border-radius: 1px;
+  border: 1px solid @themeDefault !important;
+  box-shadow: 0 1px 3px 0 rgba(0,0,0,.1),
+      0 1px 1px 0 rgba(0,0,0,.05),
+      0 2px 1px -1px rgba(0,0,0,.05) !important;
+  &.md-menu-showing {
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,.2),
+      0 1px 1px 0 rgba(0,0,0,.14),
+      0 2px 1px -1px rgba(0,0,0,.12) !important;
+  }
 }
 
 md-select.md-default-theme:not([disabled]) .md-select-value,
-md-select:not([disabled]) .md-select-value {
-  border-bottom-color: @themeDefault;
-}
-
+md-select:not([disabled]) .md-select-value,
 md-input-container.md-default-theme .md-input,
 md-input-container .md-input {
-  border-bottom-color: @themeDefault;
+  font-size: 14px;
+  line-height: 20px;
+  border-radius: 1px;
+  height: 35px;
+  padding: 4px 12px !important;
+  background-color: rgba(255,255,255,1);
+  border: 1px solid @themeDefault !important;
+  box-shadow: 0 1px 3px 0 rgba(0,0,0,.1),
+    0 1px 1px 0 rgba(0,0,0,.05),
+    0 2px 1px -1px rgba(0,0,0,.05);
+  &:focus,
+  &:active {
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,.2),
+      0 1px 1px 0 rgba(0,0,0,.14),
+      0 2px 1px -1px rgba(0,0,0,.12);
+  }
 }
