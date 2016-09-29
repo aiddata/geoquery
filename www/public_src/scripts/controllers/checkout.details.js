@@ -34,8 +34,8 @@ angular.module('aiddataDET')
 
     mapFactory.provision(document.querySelector('.map'), true)
       .promise.then(function(){
-        var sub = queryFactory.getSubBoundary().name;
-        mapFactory.mapBoundary(sub);
+        $scope.boundary = queryFactory.getSubBoundary();
+        mapFactory.mapBoundary($scope.boundary.name);
       });
 
   });

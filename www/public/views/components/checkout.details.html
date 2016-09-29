@@ -33,7 +33,10 @@
 
   <md-divider></md-divider>
 
-  <div class="map" flex></div>
+  <div flex layout="column">
+      <label class="small text-muted">{{ boundary.title }}</label>
+    <div class="map" flex style="height:100%"></div>
+  </div>
 </div>
 
 <md-divider></md-divider>
@@ -46,14 +49,14 @@
     </p>
   </md-content>
   <br>
-  <p>{{ citation }}<p>
+  <p class="citation">{{ citation }}</p>
 </div>
 
 <md-divider></md-divider>
 
 <div layout-align="center end" layout-padding>
   <md-button md-no-ink
-      class="md-accent md-raised submit-button btn-block"
+      class="md-accent md-raised submit-button"
       ng-click="submitQuery()"
       ng-disabled="!checkoutForm.$valid">
 
