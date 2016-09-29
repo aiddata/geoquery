@@ -122,11 +122,9 @@ md-card.filter-card  {
   width: calc(66% ~"+" 12px);
   top: calc(@headerHeight ~"+" @processHeaderHeight);
   z-index: 9999;
-  background-color: rgba(0,0,0,0);
-  transition: background-color 500ms cubic-bezier(0.42, 0, 0.03, 0.99),
-    color 500ms cubic-bezier(0.42, 0, 0.03, 0.99);
+  background-color:  rgba(0,0,0,.5);
   pointer-events: none;
-  color: transparent;
+  color: white;
   padding: 10%;
   font-size: 1.5em;
   text-transform: capitalize;
@@ -134,11 +132,6 @@ md-card.filter-card  {
 
   p {
     margin-bottom: 25px;
-  }
-
-  &.overlay{
-    background-color: rgba(0,0,0,.5);
-    color: white;
   }
 }
 

@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('SelectionTextCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $mdDialog, modalFactory, queryFactory, ajaxFactory, info, modals) {
+.controller('SelectionTextCtrl', function($scope, $rootScope, $log, $q, $timeout, $state, $stateParams, $mdDialog, modalFactory, queryFactory, ajaxFactory, info, modals) {
   $scope.filters = {};
   $scope.options = {};
   $scope.dataset = {};
@@ -8,6 +8,8 @@ angular.module('aiddataDET')
   $scope.geography = '';
   $scope.selectionData = { name: 'New Selection', editing: false, canReset: false, canAdd: true, renamed: false };
   $scope.atLimit = false;
+  $scope.showOverlay = false;
+
   var limits = {};
 
   var limitWarning = modalFactory.confirm(modals.limitWarning);
@@ -26,6 +28,7 @@ angular.module('aiddataDET')
   $rootScope.$on('query:updated', updateCounts);
 
   $rootScope.$on('dataset:selected', function(e, data) {
+    $scope.showOverlay = false;
     $scope.dataset = queryFactory.getDataset();
     updateCounts();
   });
@@ -65,6 +68,10 @@ angular.module('aiddataDET')
       if (!$scope.selectionData.renamed && $scope.dataset) {
         $scope.selectionData.name = getName();
       }
+    } else {
+      $timeout(function () {
+        $scope.showOverlay = true;
+      }, 900);
     }
     limits = info.limits;
   });

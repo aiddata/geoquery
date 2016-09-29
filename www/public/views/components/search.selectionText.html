@@ -52,7 +52,7 @@
 </md-card-content>
 </md-card>
 <div id="searchOverlay"
-    class="remaining-height"
-    ng-class="{'overlay': !dataset || !dataset.type }">
+    class="remaining-height slide-right"
+    ng-show="showOverlay && (!dataset || !dataset.type)">
   <p ng-repeat="paragraph in dataSelectionIntro">{{ paragraph }}</p>
 </div>
