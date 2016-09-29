@@ -2,12 +2,13 @@
   <md-toolbar>
     <div class="md-toolbar-tools">
 
-      <div style="overflow-y: hidden;" flex>
+      <div style="overflow-y: hidden; margin-top: -5px" flex>
         <md-input-container class="condensed no-label md-light" flex md-no-float style="font-size: 16px; width: 70%">
           <input class="inputsm" ng-model="selectionData.name" placeholder="Selection Name" ng-change="selectionData.renamed = true">
         </md-input-container>
 
-        <small ng-if="dataset && dataset.type == 'release'">
+        <small ng-if="dataset && dataset.type == 'release'"
+          style="padding-left: 10px">
           <br>
           <i class="fa fa-exclamation-triangle" aria-hidden="true"
              ng-hide="totals.projects && totals.locations"></i>
