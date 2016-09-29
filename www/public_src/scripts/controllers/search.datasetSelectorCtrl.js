@@ -51,11 +51,13 @@ angular.module('aiddataDET')
   };
 
   // When the number of filtered datasets changes - select the dataset that appears on top
-  $scope.$watch('datasets.filtered', function (newValue) {
-    if (newValue.length === 0 || _.find($scope.datasets.filtered, { name: $scope.datasets.selected }) ) {
+  $scope.$watch('datasets.filtered', function (newValue, oldValue) {
+    if (_.find($scope.datasets.filtered, { name: $scope.datasets.selected }) ||
+      !$scope.datasets.selected ||
+      newValue.length === 0) {
       return;
     }
-    // Decide which dataset appears on top according to how they are currently arranged
+    // // Decide which dataset appears on top according to how they are currently arranged
     if ($scope.fields.descending) {
       $scope.selectDataset(_.last($scope.datasets.filtered));
     } else {

@@ -75,7 +75,8 @@ angular.module('aiddataDET')
 
     if ((fromState.name === 'search.filters' ||
       fromState.name === 'search.options') &&
-      toState.name === 'search') {
+      toState.name === 'search'
+    ) {
       $timeout(function () { $state.go('map'); });
     }
 

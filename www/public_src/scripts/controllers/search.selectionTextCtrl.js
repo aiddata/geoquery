@@ -54,6 +54,7 @@ angular.module('aiddataDET')
   };
 
   $scope.$on('$viewContentLoaded', function(event) {
+    $scope.dataSelectionIntro = info.data_selection_intro ? info.data_selection_intro : ['Select a dataset on the left to begin adding it to your request'];
     $scope.filters = queryFactory.filters;
     $scope.options = queryFactory.options;
     $scope.geography = queryFactory.getSubBoundary();
