@@ -8,7 +8,7 @@ angular.module('aiddataDET')
       token: 'pk.eyJ1IjoiZXNsaXZpbnNraWNhcnRvIiwiYSI6IjRWenpDcmMifQ.IU9qcKhUf_w-lTQQ-I7DIg'
     },
     custom: {
-      url: 'https://api.mapbox.com/styles/v1/mapofthrones/cirgjv9i5000tgdlv43vtgvq1/tiles/256/{z}/{x}/{y}?access_token=',
+      url: 'https://api.mapbox.com/styles/v1/mapofthrones/citpz0dvf000y2iok7nasxnvg/tiles/{z}/{x}/{y}?access_token=',
       token: 'pk.eyJ1IjoibWFwb2Z0aHJvbmVzIiwiYSI6ImNpcmY5eWpsdDAwN3pnYWtyaG42dnozdmoifQ.AqaIZ6DsM7EOoe5bYxeq3Q'
     }
   };

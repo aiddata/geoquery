@@ -29,5 +29,14 @@
             ng-click="lookup()"
             ng-disabled="!emailForm.$valid">Lookup</md-button>
       </form>
+      <br>
+      <div layout="column" ng-hide="$root.boundaryData">
+        <md-button class="md-primary" ui-sref="map"> Start A New Request </md-button>
+      </div>
+      <div layout="row" ng-hide="!$root.boundaryData">
+        <md-button class="md-primary" ui-sref="map" flex="50"> Start A New Request </md-button>
+        <md-divider></md-divider>
+        <md-button class="md-primary" ui-sref="search(boundaryData)" flex="50"> Return to Current Request </md-button>
+      </div>
   </div>
 </md-content>

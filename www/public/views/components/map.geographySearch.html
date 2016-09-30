@@ -32,12 +32,10 @@
     <div ng-hide="formData.boundary">
       <br>
       <br>
-      <md-button class="md-primary" ng-click="showFeaturedSearches = !showFeaturedSearches;">
-        <span>Featured Searches
-          <i class="fa"
-              ng-class="!showFeaturedSearches ? 'fa-chevron-right' : 'fa-chevron-down'"></i>
+      <label>
+        <span>Featured Boundaries
         </span>
-      </md-button>
+      </label>
       <md-divider></md-divider>
 
       <div class="scroll-container"
@@ -59,7 +57,7 @@
     <div ng-hide="!formData.subboundary">
       <md-divider></md-divider>
       <br>
-
+      <br>
       <md-radio-group ng-model="formData.subboundary">
         <label>Select a Subboundary</label>
         <md-radio-button
@@ -83,7 +81,7 @@
             </md-button>
           </div>
           <div class="col-md-6">
-            <md-button class="md-raised md-accent md-hue-5 pull-right" 
+            <md-button class="md-raised md-accent md-hue-5 pull-right"
                 ng-click="defineBoundary()">
               Search Datasets
               <i class="fa fa-angle-double-right" aria-hidden="true"></i>
