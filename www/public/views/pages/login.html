@@ -4,6 +4,9 @@
     <center>
       <h2>Request Search</h2>
       <h4 class="headline">Enter E-mail to View the Status of Your Requests</h4>
+      <md-button class="md-primary" ui-sref="map"> Start A New Request </md-button>
+      <md-button class="md-primary" ui-sref="search(boundaryData)"
+          ng-hide="!$root.boundaryData"> Return to Current Request </md-button>
     </center>
     <br>
     <form layout="column"
