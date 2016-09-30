@@ -11,7 +11,7 @@
         <!-- Title -->
         <md-card-header-text flex="100">
           <small class="md-subhead">{{dataset.fields[filter].display | capitalize }}
-            <small class="text-muted">({{ dataset.fields[filter].filtered.length || 0 }})</small>
+            <small class="text-muted" ng-show="dataset.fields[filter].filter_type === 'list'">({{ dataset.fields[filter].filtered.length || 0 }})</small>
           </small>
         </md-card-header-text>
 
