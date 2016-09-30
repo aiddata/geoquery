@@ -26,6 +26,12 @@ html,body {
   overflow-y: hidden;
   overflow-x: auto;
   background-color: lighten(@steelBlue, 60%);
+
+  &.md-dialog-is-showing {
+    .map-overlay {
+      color: transparent;
+    }
+  }
 }
 
 button, html, input, select, textarea {

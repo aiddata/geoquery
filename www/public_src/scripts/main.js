@@ -94,7 +94,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'ngMaterial', 'rzModu
         controller: 'ZoomControlsCtrl'
       },
       'mapFrame@map': {
-        template: '<div ng-class="{\'overlay\': showOverlay }" class="map"></div>',
+        template: '<div class="map-overlay slide-right" ng-show="showOverlay">{{ overlayText }}</div><div class="map"></div>',
         controller: 'MapFrameCtrl'
       }
     }
