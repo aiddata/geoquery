@@ -1,4 +1,5 @@
 #datasetSelector {
+  z-index: 11;
   .active {
     background-color: @steelBlue;
     h1,h2,h3,h4,h5 {
@@ -40,6 +41,12 @@
 
   .search-tools {
     flex-shrink: 0;
+  }
+
+  md-list {
+    min-height: 500px;
+    width: 100%;
+    box-shadow: 0 -3px 14px -2px rgba(0,0,0,.12);
   }
 }
 
@@ -119,9 +126,9 @@ md-card.filter-card  {
 #searchOverlay {
   right: 0;
   position: absolute;
-  width: calc(66% ~"+" 12px);
+  width: 70%;
   top: calc(@headerHeight ~"+" @processHeaderHeight);
-  z-index: 9999;
+  z-index: 10;
   background-color:  rgba(0,0,0,.5);
   pointer-events: none;
   color: white;
