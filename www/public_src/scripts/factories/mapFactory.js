@@ -12,7 +12,7 @@ angular.module('aiddataDET')
       token: 'pk.eyJ1IjoibWFwb2Z0aHJvbmVzIiwiYSI6ImNpcmY5eWpsdDAwN3pnYWtyaG42dnozdmoifQ.AqaIZ6DsM7EOoe5bYxeq3Q'
     }
   };
-  var currentTileset = tiles.default;
+  var currentTileset = tiles.custom;
 
   var defaultView = {
     zoom: 2,
