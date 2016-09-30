@@ -13,7 +13,8 @@
         md-match-case-insensitive="true"
         md-item-text="item.search"
         md-min-length="0"
-        placeholder="Select boundaries">
+        placeholder="Select boundaries"
+        ng-class="!formData.boundary ? 'autocomplete-empty' : 'autocomplete-selected'">
 
       <md-item-template>
         <span md-highlight-text="formData.searchText" md-highlight-flags="ig">
@@ -30,20 +31,28 @@
 
     <div ng-hide="formData.boundary">
       <br>
-      <p class="text-muted">
-        Top Searches:
-        <em ng-repeat="item in featuredBoundaries">
-          <a class="md-primary" href="" ng-click="selectFromFeatured(item)">{{item.name}}</a>
-          <span ng-if="!$last">,</span>
-        </em>
-      </p>
       <br>
       <md-button class="md-primary" ng-click="showFeaturedSearches = !showFeaturedSearches;">
-        <span>Other Popular Searches
+        <span>Featured Searches
           <i class="fa"
               ng-class="!showFeaturedSearches ? 'fa-chevron-right' : 'fa-chevron-down'"></i>
         </span>
       </md-button>
+      <md-divider></md-divider>
+
+      <div class="scroll-container"
+          style="min-height: 200px; height: 40vh;"
+          ng-hide="!showFeaturedSearches">
+
+        <md-list class="md-dense" flex>
+          <md-list-item
+              ng-repeat="item in boundaries"
+              ng-click="selectFromFeatured(item)">
+
+            <a href="">{{ item.search }}</a>
+          </md-list-item>
+        </md-list>
+      </div>
     </div>
 
 
@@ -65,36 +74,25 @@
       <md-divider></md-divider>
       <br>
 
-      <div layout="row" layout-align="space-between">
-        <md-button class="md-raised" ng-click="formData.searchText = ''">
-          <i class="fa fa-angle-double-left" aria-hidden="true"></i>
-          Back
-        </md-button>
-
-        <md-button class="md-raised md-accent md-hue-5" ng-click="defineBoundary()">
-          Search Datasets
-          <i class="fa fa-angle-double-right" aria-hidden="true"></i>
-        </md-button>
+      <div class="col-md-12">
+        <div class="row">
+          <div class="col-md-6">
+            <md-button class="md-raised" ng-click="formData.searchText = ''">
+              <i class="fa fa-angle-double-left" aria-hidden="true"></i>
+              Back
+            </md-button>
+          </div>
+          <div class="col-md-6">
+            <md-button class="md-raised md-accent md-hue-5 pull-right" 
+                ng-click="defineBoundary()">
+              Search Datasets
+              <i class="fa fa-angle-double-right" aria-hidden="true"></i>
+            </md-button>
+          </div>
+        </div>
       </div>
     </div>
 
   </form>
-
-
-  <div class="scroll-container"
-      style="min-height: 200px; height: 40vh;"
-      ng-hide="!showFeaturedSearches;">
-
-    <md-divider></md-divider>
-
-    <md-list class="md-dense" flex>
-      <md-list-item
-          ng-repeat="item in boundaries"
-          ng-click="selectFromFeatured(item)">
-
-        <a href="">{{ item.search }}</a>
-      </md-list-item>
-    </md-list>
-  </div>
 
 </md-content>

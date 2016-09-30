@@ -6,27 +6,30 @@
           style="width: 100%"
           ng-disabled="!(queryObj.release_data && queryObj.release_data.length) && !(queryObj.raster_data && queryObj.raster_data.length)"
           ng-click="submitQuery()"
-          ng-hide="state.$current.name.indexOf('checkout')>=0 || state.$current.name === 'requests' || state.$current.name === 'status' || state.$current.name === 'login' ">
-        Checkout
+          ng-hide="state.$current.name.indexOf('checkout')>=0 || state.$current.name === 'requests' || state.$current.name === 'status' || state.$current.name === 'login' "
+          aria-label="Review Request">
+        Review Request
       </md-button>
       <md-button class="md-raised md-accent"
           style="width: 80%; float:left;"
           ng-disabled="!(queryObj.release_data && queryObj.release_data.length) && !(queryObj.raster_data && queryObj.raster_data.length)"
           ng-click="submitQuery()"
-          ng-hide="state.$current.name.indexOf('search')>=0 || state.$current.name === 'map' ">
-        Checkout
+          ng-hide="state.$current.name.indexOf('search')>=0 || state.$current.name === 'map' "
+          aria-label="Review Request">
+        Review Request
       </md-button>
       <md-button class="md-primary md-raised"
           style="width: 20%; float:right;"
           ng-click="goBack()"
-          ng-hide="state.$current.name.indexOf('search')>=0 || state.$current.name === 'map' ">
+          ng-show="state.$current.name === 'login' "
+          aria-label="Add To Request">
         <i class="fa fa-plus fa-lg" aria-hidden="true"></i>
       </md-button>
     </div>
 
     <h3 class="md-headline text-center"
         ng-show="!(queryObj.release_data && queryObj.release_data.length) && !(queryObj.raster_data && queryObj.raster_data.length)">
-      Your Cart is Empty
+      Your Request is Empty
     </h3>
 
   </div>
@@ -45,16 +48,12 @@
                   style="margin-right: 10px;"
                   ng-class="{ 'fa-rotate-90': !hidden }"></i>
           </a>
-          <md-input-container class="md-icon-float condensed no-label" md-no-float flex>
-            <md-icon>
-              <md-tooltip md-delay="500" md-direction="top"> Rename this Selection </md-tooltip>
-              <i class="fa fa-pencil-square-o " aria-hidden="true"></i>
-            </md-icon>
-
+          <md-input-container class="condensed no-label" md-no-float flex>
             <input ng-model="request.custom_name" placeholder="Request Name">
           </md-input-container>
 
-          <a href="" class="md-secondary md-warn" ng-click="removeQuery(request, type)">
+          <a href="" class="md-secondary md-warn" ng-click="removeQuery(request, type)"
+                      aria-label="Remove Selection">
             <i class="fa fa-minus-circle fa-lg" aria-hidden="true"
             style="margin-right: -15px;"></i>
           </a>

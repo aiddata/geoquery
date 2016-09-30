@@ -3,7 +3,7 @@ angular.module('aiddataDET')
   $scope.boundaries = [];
   $scope.subBoundaries = [];
   $scope.formData = {};
-  $scope.showFeaturedSearches = false;
+  $scope.showFeaturedSearches = true;
 
   $scope.defineBoundary = function() {
     $state.go('search', {
@@ -30,7 +30,6 @@ angular.module('aiddataDET')
 
   $scope.selectFromFeatured = function(item) {
     $scope.formData.searchText = item.search;
-    $scope.showFeaturedSearches = false;
   };
 
   $scope.$watch('formData.subboundary', function (newValue) {
@@ -49,7 +48,6 @@ angular.module('aiddataDET')
           .map(function(sub) {
             sub.tags = _.get(sub, 'extras.tags').toString();
             sub.search = sub.title + ' ' + sub.tags;
-            boundaries.push(sub);
             return sub.tags;
           })
           .flatten().uniq().toString().value();

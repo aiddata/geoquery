@@ -3,9 +3,10 @@
   * page.  It is responsible for displaying, filtering, and selecting datasets.
   */
 angular.module('aiddataDET')
-.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, $timeout, datasets, $state, info) {
+.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, $timeout, datasets, $state, info, queryFactory) {
   $scope.showSearchTools = false;   // Advanced Search Visibility
   $scope.featuredTags = [];         // Featured Category Tags
+  $scope.querySize = 0;
 
   // Datasets container
   $scope.datasets = {
@@ -50,11 +51,13 @@ angular.module('aiddataDET')
   };
 
   // When the number of filtered datasets changes - select the dataset that appears on top
-  $scope.$watch('datasets.filtered', function (newValue) {
-    if (newValue.length === 0 || _.find($scope.datasets.filtered, { name: $scope.datasets.selected }) ) {
+  $scope.$watch('datasets.filtered', function (newValue, oldValue) {
+    if (_.find($scope.datasets.filtered, { name: $scope.datasets.selected }) ||
+      !$scope.datasets.selected ||
+      newValue.length === 0) {
       return;
     }
-    // Decide which dataset appears on top according to how they are currently arranged
+    // // Decide which dataset appears on top according to how they are currently arranged
     if ($scope.fields.descending) {
       $scope.selectDataset(_.last($scope.datasets.filtered));
     } else {
@@ -62,10 +65,16 @@ angular.module('aiddataDET')
     }
   }, true);
 
+  $rootScope.$on('query:updated', function() {
+    $scope.querySize = queryFactory.querySize();
+  });
+
   // Define default data filters and order datasets
   $scope.$on('$viewContentLoaded', function(event) {
     if ($state.params.dataset) {
       $scope.datasets.selected = $state.params.dataset;
+    } else if (queryFactory.getDataset()) {
+      $scope.datasets.selected = queryFactory.getDataset();
     }
     $scope.dataFilters = { searchText: '', tag: 'all' };
     $scope.featuredTags = info.data_categories;

@@ -4,11 +4,9 @@
       <md-content flex="100" ui-view="datasetSelector" id="datasetSelector" md-whiteframe="4" style="min-height: 500px; overflow-y: hidden"></md-content>
     </div>
     <div style="width:66%; float: right" layout-padding>
-      <div class="row-fluid">
-        <md-card ui-view="selectionText" id="selectionText" ></md-card>
-      </div>
+      <div class="row-fluid" ui-view="selectionText"></div>
       <div class="row-fluid" id="searchRow">
-          <div layout="row" ui-view id="searchModuleView"></div>
+        <div layout="row" ui-view id="searchModuleView"> </div>
       </div>
     </div>
   </div>

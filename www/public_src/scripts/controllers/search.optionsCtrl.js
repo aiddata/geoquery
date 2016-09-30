@@ -23,7 +23,6 @@ angular.module('aiddataDET')
 
   $scope.toggleOption = function (isChecked, val, option) {
     var optionData = option.pick(val);
-
     var action = isChecked ? queryFactory.toggleOptionOn(option.dest, optionData) :
       queryFactory.toggleOptionOff(option.dest, optionData);
 
@@ -39,6 +38,35 @@ angular.module('aiddataDET')
     return formDate;
   };
 
+  $scope.toggleAll = function (option, isChecked) {
+    var checkOn = _.isNil(isChecked) ? option.allChecked : isChecked;
+    var updates = _.chain(option)
+    .get('data')
+    .filter({ checked: checkOn })
+    .map(function(o) {
+      $scope.toggleOption(!checkOn, o, option);
+    })
+    .value();
+  };
+
+  $rootScope.$on('dataset:selected', function (e, data) {
+    $scope.dataset = data;
+  });
+
+  $rootScope.$on('options:updated', function(e, data) {
+    var checked = { checked: data.direction === 'on' };
+    var search = _.isString(data.value) ? { name: data.value } : data.value;
+    var option = _.find($scope.options, { dest: data.key });
+    var targetOption = _.chain(option)
+      .get('data')
+      .find(search)
+      .extend(checked)
+      .value();
+    option.checkedCount = _.chain(option).get('data').filter({ checked: true }).size().value();
+    option.allChecked = data.direction === 'off' ? false :
+      option.checkedCount === option.data.length;
+  });
+
   $scope.$on('$viewContentLoaded', function (event) {
     $scope.dataset = queryFactory.getDataset($stateParams.dataset);
 
@@ -48,22 +76,6 @@ angular.module('aiddataDET')
         $scope.toggleOption(!opt.data[0].checked, opt.data[0], opt);
       }
     });
-  });
-
-
-  $rootScope.$on('dataset:selected', function (e, data) {
-    $scope.dataset = data;
-  });
-
-  $rootScope.$on('options:updated', function(e, data) {
-    var checked = { checked: data.direction === 'on' };
-    var search = _.isString(data.value) ? { name: data.value } : data.value;
-    var targetOption = _.chain($scope.options)
-      .find({ dest: data.key })
-      .get('data')
-      .find(search)
-      .extend(checked)
-      .value();
   });
 
   function mapOption (option) {

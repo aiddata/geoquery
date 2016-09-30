@@ -20,7 +20,7 @@ angular.module('aiddataDET')
         .value();
 
       req.statusDisplay = req.status.indexOf('submit') >= 0 ? 'submitted' :
-        req.status.indexOf('complete') >= 0 ? 'completed' : 'processed';
+        req.status.indexOf('complete') >= 0 ? 'completed' : 'processing';
 
       req.submissionTime = _.get(_.head(req.stage), 'time_format') || '';
       return req;

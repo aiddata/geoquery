@@ -19,20 +19,24 @@
     </md-input-container>
 
 
-    <md-input-container>
+    <md-input-container md-no-float>
+      <label>Email</label>
       <input ng-model="queryData.email"
           ng-enter="checkoutForm.$valid ? submitQuery() : null;"
           ng-pattern='/^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/'
           type="email"
           name="email"
-          placeholder="Email"
-          required>
+          required
+          placeholder="">
     </md-input-container>
   </form>
 
   <md-divider></md-divider>
 
-  <div class="map" flex></div>
+  <div flex layout="column">
+      <label class="small text-muted">{{ boundary.title }}</label>
+    <div class="map" flex style="height:100%"></div>
+  </div>
 </div>
 
 <md-divider></md-divider>
@@ -45,7 +49,7 @@
     </p>
   </md-content>
   <br>
-  <p>{{ citation }}<p>
+  <p class="citation">{{ citation }}</p>
 </div>
 
 <md-divider></md-divider>
@@ -54,7 +58,7 @@
   <md-button md-no-ink
       class="md-accent md-raised submit-button"
       ng-click="submitQuery()"
-      ng-disabled="!checkoutForm.$valid" flex>
+      ng-disabled="!checkoutForm.$valid">
 
     <md-tooltip md-delay="500" md-direction="top"> Submit Requests </md-tooltip>
     Submit

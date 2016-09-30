@@ -1,18 +1,15 @@
+<md-card id="selectionText" ng-hide="!dataset || !dataset.type">
 <md-content class="selection-text-header">
-  <md-toolbar md-scroll-shrink>
+  <md-toolbar>
     <div class="md-toolbar-tools">
 
-      <div style="overflow-y: hidden;" flex>
-        <md-input-container class="condensed no-label md-light md-icon-float" flex md-no-float style="font-size: 16px; width: 100%">
-          <md-icon>
-            <md-tooltip md-delay="500" md-direction="top"> Change Selection Name </md-tooltip>
-            <i class="fa fa-pencil-square-o " aria-hidden="true"></i>
-          </md-icon>
-
+      <div style="overflow-y: hidden; margin-top: -5px" flex>
+        <md-input-container class="condensed no-label md-light" flex md-no-float style="font-size: 16px; width: 70%">
           <input class="inputsm" ng-model="selectionData.name" placeholder="Selection Name" ng-change="selectionData.renamed = true">
         </md-input-container>
 
-        <small ng-if="dataset && dataset.type == 'release'">
+        <small ng-if="dataset && dataset.type == 'release'"
+          style="padding-left: 10px">
           <br>
           <i class="fa fa-exclamation-triangle" aria-hidden="true"
              ng-hide="totals.projects && totals.locations"></i>
@@ -31,12 +28,12 @@
         <span ng-show="!selectionData.canAdd">New Selection</span>
       </md-button>
 
-      <md-button class="md-raised md-accent md-hue-5" aria-label="Add to Cart"
+      <md-button class="md-raised md-accent md-hue-5" aria-label="Add to Request"
           ng-disabled="!selectionData.canAdd"
           ng-click="addToCart()">
         <i class="fa fa-lg fa-plus" aria-hidden="true"></i>&nbsp;&nbsp;
-        <span ng-show="selectionData.canAdd || dataset.type === 'raster' || !(totals.projects && totals.locations)">Add to Cart</span>
-        <span ng-show="!selectionData.canAdd && dataset.type !== 'raster' && (totals.projects && totals.locations)">Added to Cart</span>
+        <span ng-show="selectionData.canAdd || dataset.type === 'raster' || !(totals.projects && totals.locations)">Add to Request</span>
+        <span ng-show="!selectionData.canAdd && dataset.type !== 'raster' && (totals.projects && totals.locations)">Added to Request</span>
       </md-button>
 
     </div>
@@ -53,3 +50,9 @@
     query-editable="true"></plain-text-query>
 
 </md-card-content>
+</md-card>
+<div id="searchOverlay"
+    class="remaining-height slide-right"
+    ng-show="showOverlay && (!dataset || !dataset.type)">
+  <p ng-repeat="paragraph in dataSelectionIntro">{{ paragraph }}</p>
+</div>

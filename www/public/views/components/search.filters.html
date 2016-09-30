@@ -9,8 +9,10 @@
     <md-card-header layout-align="none center">
 
         <!-- Title -->
-        <md-card-header-text flex="60">
-          <small class="md-subhead">{{dataset.fields[filter].display | capitalize }}</small>
+        <md-card-header-text flex="100">
+          <small class="md-subhead">{{dataset.fields[filter].display | capitalize }}
+            <small class="text-muted">({{ dataset.fields[filter].filtered.length || 0 }})</small>
+          </small>
         </md-card-header-text>
 
         <span flex></span>
@@ -30,16 +32,12 @@
           <i class="fa fa-refresh fa-lg" aria-hidden="true"></i>
         </a>
 
-        <a href="" class="toolbar-link"
+        <a href="" class="toolbar-link label label-primary label-circle"
             ng-hide="dataset.fields[filter].filter_type !== 'list'"
             ng-click="hideSubHeader = !hideSubHeader">
             <md-tooltip md-delay="500"> Search Filter Options </md-tooltip>
           <i class="fa fa-search fa-lg" aria-hidden="true"></i>
         </a>
-
-        <div class="label label-primary label-circle">
-          {{ dataset.fields[filter].filtered.length || 0 }}
-        </div>
       </md-card-header>
 
 

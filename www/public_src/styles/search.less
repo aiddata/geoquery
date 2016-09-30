@@ -12,14 +12,22 @@
     }
   }
   .metadata {
-    background-color: #eee;
-    font-size: small;
+    font-size: 12px;
+    line-height: 15px;
     overflow-x: auto;
+  }
+  .secondary-top {
+    .md-secondary-container {
+      margin-top: 2px;
+    }
+  }
+
+  .category-selector {
+    margin-top: -16px;
   }
 
   .dataset-counts {
-    padding-top: 0px;
-    margin-top: -5%;
+    margin-top: -16px;
   }
 
   .advanced-options {
@@ -55,6 +63,10 @@
   }
   .selection-text-header {
     flex-shrink: 0px;
+    md-toolbar {
+      overflow: hidden;
+      line-height: 14px;
+    }
   }
 
 }
@@ -102,4 +114,27 @@ md-card.filter-card  {
   height: calc(65vh ~"-" @headerHeight ~"-" @processHeaderHeight);
   max-height: calc(65vh ~"-" @headerHeight ~"-" @processHeaderHeight);
   min-height: 280px;
+}
+
+#searchOverlay {
+  right: 0;
+  position: absolute;
+  width: calc(66% ~"+" 12px);
+  top: calc(@headerHeight ~"+" @processHeaderHeight);
+  z-index: 9999;
+  background-color:  rgba(0,0,0,.5);
+  pointer-events: none;
+  color: white;
+  padding: 10%;
+  font-size: 1.5em;
+  text-transform: capitalize;
+  letter-spacing: 2px;
+
+  p {
+    margin-bottom: 25px;
+  }
+}
+
+plain-text-query {
+  line-height: 2.2;
 }

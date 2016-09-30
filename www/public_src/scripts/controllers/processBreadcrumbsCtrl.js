@@ -14,7 +14,7 @@ angular.module('aiddataDET')
   // display text for step
   $scope.stepText = function(step) {
     return step.indexOf('submit') >= 0 ? 'submitted' :
-      step.indexOf('complete') >= 0 ? 'completed' : 'processed';
+      step.indexOf('complete') >= 0 ? 'completed' : 'processing';
   };
 
   $scope.hoverText = function (step) {

@@ -1,17 +1,23 @@
 <div layout="column" class="remaining-height">
   <div class="search-tools">
-    <div class="md-margin">
-      <small><a ui-sref="map">
+    <div layout="row" layout-padding layout-align="space-between center" >
+      <button class="btn btn-link btn-sm" ui-sref="map">
         <i class="fa fa-arrow-left" aria-hidden="true"></i>
         Select a Different Boundary
-      </a></small>
+      </button>
+      <button class="btn btn-link btn-sm"
+        ng-disabled="!querySize"
+        ui-sref="checkout">
+        Review your Request
+        <i class="fa fa-arrow-right" aria-hidden="true"></i>
+      </button>
     </div>
 
     <div layout="row" layout-padding>
-      <md-input-container flex class="condensed">
-        <label> Select Category </label>
-        <md-select ng-model="dataFilters.tag">
-          <md-option value="all"> All </md-option>
+      <md-input-container flex class="condensed category-selector">
+        <md-select ng-model="dataFilters.tag"
+          aria-label="Dataset Category">
+          <md-option value="all"> All Categories </md-option>
           <md-option ng-repeat="field in featuredTags" value="{{ field.tag }}">
             {{ field.display }}
           </md-option>
@@ -23,10 +29,10 @@
       <div layout="row" layout-padding>
         <md-input-container md-no-float class="flex-50 condensed">
           <label> Search Datasets </label>
-          <input ng-model="dataFilters.searchText" placeholder="">
+          <input ng-model="dataFilters.searchText" placeholder="" style="height: 45px;">
         </md-input-container>
 
-        <md-input-container class="condensed" flex="30">
+        <md-input-container class="condensed" flex="30" md-no-float>
           <label>Sort by</label>
           <md-select ng-model="fields.selected">
             <md-option ng-repeat="field in fields.options" value="{{ field.value }}">
@@ -34,7 +40,7 @@
             </md-option>
           </md-select>
         </md-input-container>
-        <div flex="20">
+        <div flex="20" style="margin-top:auto;">
           <md-button class="md-primary md-icon-button"
               aria-label="Sort Datasets"
               ng-click="fields.descending = !fields.descending"
@@ -47,7 +53,7 @@
     </div>
 
     <div layout="row" layout-padding layout-align="space-between center" class="dataset-counts">
-      <h5 style="margin-top: 15px;">
+      <h5>
         {{ datasets.filtered.length }}/
         {{ datasets.options.length }}
         Datasets
@@ -72,20 +78,26 @@
 
       <md-list-item
           aria-label="select dataset"
-          class="secondary-button-padding"
+          class="secondary-button-padding secondary-top"
           ng-class="{ 'active' : datasets.selected === set.name }"
           ng-click="selectDataset(set);"
           md-no-ink>
 
-        <div class="md-list-item-text" layout="column">
+        <div class="md-list-item-text">
           <h5> {{ set.title }} </h5>
-          <p><i class="fa fa-tags" aria-hidden="true"></i> <span ng-repeat="tag in set.extras.tags">{{ tag }} </span> </p>
+          <p uib-collapse="!showMetadata" class="metadata">
+            {{ set.description }}
+            <br>
+            <b><i>Source(s):</i></b> {{ set.extras.sources_name }}
+          </p>
         </div>
 
          <a href=""
+            style="margin-top: 0px;"
             class="md-secondary"
             aria-label="show metadata"
-            ng-click="showMetadata = !showMetadata">
+            ng-click="showMetadata = !showMetadata"
+            md-no-ink>
 
           <md-tooltip md-delay="500" md-direction="right"> Show/Hide Metadata </md-tooltip>
           <i class="fa fa-info-circle fa-lg" aria-hidden="true"></i>
@@ -95,8 +107,6 @@
 
       </md-list-item>
 
-      <div uib-collapse="!showMetadata" class="metadata md-padding"> {{ set.description }} <br><br> <b><i>Source(s):</i></b> {{ set.extras.sources_name }} </div>
-      <md-divider></md-divider>
     </div>
 
     <div class="flip-in md-padding"

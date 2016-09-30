@@ -11,11 +11,10 @@
 .step(@color) {
   .stepColor(@color);
   &.incomplete {
-    .stepColor(lighten(@color, 25%));
+    .stepColor(lighten(@color, 20%));
   }
   &.current {
     font-weight: bold;
-    // font-size: 1.2em;
     &::before {
       border-left-color: darken(@color, 10%);
     }

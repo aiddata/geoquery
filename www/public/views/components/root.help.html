@@ -1,9 +1,8 @@
 <md-content md-padding flex>
   <div layout="column" layout-padding layout-align="top">
-    <h4 class="headline"> Common Questions: </h4>
     <div ng-repeat="qa in content">
-      <strong>{{ qa.question }}</strong>
-      <p> {{ qa.answer }} </p>
+      <strong ng-bind-html="qa.question_trusted"></strong>
+      <p ng-bind-html="qa.answer_trusted"></p>
     </div>
   </div>
 </md-content>

@@ -40,6 +40,12 @@ angular.module('aiddataDET')
       welcomeDialog.opened = true;
     }
 
+    var boundary = _.get(queryFactory.getBoundary(), 'boundaryId'),
+        sub = _.get(queryFactory.getSubBoundary(), 'name');
+
+    $rootScope.boundaryData = boundary && sub ? { boundary: boundary, subboundary: sub } :
+      false;
+
   });
 
   // Create spinner and dialogs when user begins to navigate to another page
@@ -75,7 +81,8 @@ angular.module('aiddataDET')
 
     if ((fromState.name === 'search.filters' ||
       fromState.name === 'search.options') &&
-      toState.name === 'search') {
+      toState.name === 'search'
+    ) {
       $timeout(function () { $state.go('map'); });
     }
 

@@ -269,10 +269,10 @@ angular.module('aiddataDET')
         datasetName = datasetName || this.filters.dataset;
 
         var dataset = _.find(_datasets, { name: datasetName });
-        if (!dataset) {
+        if (!dataset && datasetName) {
           $log.error('Dataset not found', datasetName, _datasets);
         }
-        return _.cloneDeep(dataset);
+        return _.cloneDeep(dataset) || false;
       },
 
       toggleFilterOn: function(filter, option) {

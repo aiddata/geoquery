@@ -4,10 +4,19 @@
     <md-content class="status-headline" flex="45"  layout="column" md-whiteframe="4">
 
       <div layout-padding>
-        <small><a ui-sref="map">
-          <i class="fa fa-arrow-left" aria-hidden="true"></i>
-          Start New Request
-        </a></small>
+        <p class="small">
+          <md-button
+             class="md-primary small-btn"
+             ui-sref="search(boundaryData)"
+             ng-hide="!$root.boundaryData"> Return to Current Request </md-button>
+          <br ng-hide="!$root.boundaryData">
+          <md-button
+             class="md-primary small-btn"
+             ui-sref="map"> Start A New Request </md-button>
+          <md-divider></md-divider>
+        </p>
+
+
         <h4 class="md-display-5">Request Status</h4>
         <small>
           <process-breadcrumbs
