@@ -44,10 +44,10 @@
 
         <md-list class="md-dense" flex>
           <md-list-item
-              ng-repeat="item in boundaries"
+              ng-repeat="item in boundaries | filter:{tags:'featured'}"
               ng-click="selectFromFeatured(item)">
 
-            <a href="">{{ item.search }}</a>
+            <a href="">{{ item.name }}</a>
           </md-list-item>
         </md-list>
       </div>
