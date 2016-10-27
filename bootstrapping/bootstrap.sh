@@ -1,3 +1,11 @@
+
+
+if [[ $USER != "aiddata" ]]; then
+    echo Must be run as \"aiddata\" user \(do not run as root\).
+    exit 1
+fi
+
+
 sudo add-apt-repository -y ppa:chris-lea/node.js
 sudo apt-get update
 
@@ -44,22 +52,23 @@ sudo systemctl start nginx
 
 sudo npm config set registry http://registry.npmjs.org/
 
-sudo rm -r ${web_dir}/*
+sudo rm -r ${web_dir}
 sudo mkdir -p ${web_dir}
-sudo chown -R $USER: ${web_dir}
-cp -rT /${root_dir}/www ${web_dir}
+sudo cp -rT /${root_dir}/www ${web_dir}
+sudo chmod -R 775 ${web_dir}
+sudo chown -R :aiddata ${web_dir}
 cd ${web_dir}
 
-sudo npm install
-sudo npm install --save -g supervisor
 
+npm install
+
+sudo npm install --save -g supervisor
 sudo npm install -g grunt-cli
 sudo npm install -g bower
 
-cd /${root_dir}/bootstrapping
-
 
 # copy conf files over
+cd ${boot_dir}
 
 ###
 
@@ -92,3 +101,15 @@ sudo chmod 700 /etc/monit/conf.d/nodeserver_monit.conf
 
 # start monit for error checking
 sudo monit -d 10 -c /etc/monit/conf.d/nodeserver_monit.conf
+
+
+
+
+cd ${web_dir}/public_src/libs
+bower install
+
+cd ${web_dir}
+grunt build
+
+
+
