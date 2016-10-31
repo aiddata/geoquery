@@ -93,7 +93,7 @@ sudo npm install -g bower
 cd ${boot_dir}
 
 
-if [[ $USER == "14.04" ]]; then
+if [[ $ubuntu_version == "14.04" ]]; then
 
     # upstart
     sudo cp nodeserver.conf nodeserver.conf.active
@@ -105,7 +105,7 @@ if [[ $USER == "14.04" ]]; then
     # start the node server daemon
     sudo start nodeserver
 
-elif [[ $USER == "16.04" ]]; then
+elif [[ $ubuntu_version == "16.04" ]]; then
 
     # systemd
     sudo touch /var/log/nodeserver.sys.log
