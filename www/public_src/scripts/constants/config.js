@@ -7,11 +7,11 @@ angular.module('aiddataDET')
   .constant('config', {
 
     // Header Config
-    pageTitle: 'AidData Data Extraction Tool',
+    pageTitle: 'AidData geo(query)',
     faviconUrl: 'http://www.aiddata.org/sites/all/themes/aiddata/favicon.ico',
     meta: {
       description: 'this is the description',
-      keywords: 'these,are,some,keywords'
+      keywords: 'aiddata,geo,query,keywords'
     },
     googleTrackingID: 'UA-83421297-1',
 
@@ -19,5 +19,5 @@ angular.module('aiddataDET')
     logoUrl: 'http://aiddata.org/sites/all/themes/aiddata/logo.png',
 
     // Domain
-    domain: 'staging'
+    domain: 'aiddata'
   });
