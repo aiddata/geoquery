@@ -1,4 +1,4 @@
-<md-content class="md-padding scroll-hidden" layout="column" flex="100" md-whiteframe="6">
+ <md-content class="md-padding scroll-hidden" layout="column" flex="100" md-whiteframe="6">
   <form ng-submit="$event.preventDefault()">
 
     <h4 class="md-primary">Select a Boundary to Begin Data Extraction</h4>
@@ -44,6 +44,7 @@
 
         <md-list class="md-dense" flex>
           <md-list-item
+              aria-label="select featured boundary"
               ng-repeat="item in boundaries | filter:{tags:'featured'}"
               ng-click="selectFromFeatured(item)">
 
