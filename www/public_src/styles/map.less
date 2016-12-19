@@ -16,13 +16,17 @@
   md-autocomplete.autocomplete-empty {
     md-autocomplete-wrap::after {
       content: '\f0dc';
-      position: relative;
-      float: right;
+      position: absolute;
+      right: 0px;
       display: inline-block;
       padding-right: 10px;
       padding-top: 10px;
       color: rgba(0,0,0,0.54);
       font-family: FontAwesome;
+      pointer-events: none;
+    }
+    md-autocomplete-wrap.md-menu-showing::after {
+      pointer-events: auto;
     }
   }
 
