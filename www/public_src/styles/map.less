@@ -8,7 +8,10 @@
 }
 
 [ui-view="geographySearch"] {
-  z-index: 9;
+  display: inline-block;
+  position: absolute;
+  width: 33%;
+  z-index: 11;
   >md-content {
     overflow-y: auto;
     display: block;
@@ -39,7 +42,7 @@
     position: fixed;
     background-color: rgba(0,0,0,.5);
     color: white;
-    padding: 15%;
+    padding: 10% 10% 10% 40%;
     font-size: 21px;
     text-transform: capitalize;
     letter-spacing: 2px;
