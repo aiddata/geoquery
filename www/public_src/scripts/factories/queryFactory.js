@@ -61,7 +61,7 @@ angular.module('aiddataDET')
         group: _subBoundary.options.group,
         name: _subBoundary.name,
         description: _subBoundary.description,
-        path: _subBoundary.base + _.head(_subBoundary.resources).path
+        path: _subBoundary.base + '/' + _.head(_subBoundary.resources).path
       };
       return _query.boundary;
     }
