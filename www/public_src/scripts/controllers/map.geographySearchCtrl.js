@@ -29,7 +29,7 @@ angular.module('aiddataDET')
   };
 
   $scope.selectFromFeatured = function(item) {
-    $scope.formData.searchText = item.search;
+    $scope.formData.searchText = item.name || item.title;
   };
 
   $scope.$watch('formData.subboundary', function (newValue) {
