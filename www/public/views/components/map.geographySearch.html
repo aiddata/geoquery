@@ -11,7 +11,7 @@
         md-selected-item-change="selectedItemChange(item)"
         md-select-on-match="true"
         md-match-case-insensitive="true"
-        md-item-text="item.search"
+        md-item-text="item.name || item.title"
         md-min-length="0"
         placeholder="Select boundaries"
         ng-class="!formData.boundary ? 'autocomplete-empty' : 'autocomplete-selected'">
