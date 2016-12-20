@@ -14,13 +14,14 @@
   </md-list-item>
 
   <md-list-item md-no-ink
-      ng-repeat="option in filterData.filtered = (filterOptions | filter: filterData.searchText)">
+      ng-class="{ disabled: disabled || filterOptions.indexOf(option) < 0 }"
+      ng-repeat="option in filterData.filtered = (filterData.distinct | filter: filterData.searchText)">
 
     <md-checkbox
         aria-label="{{ option }}"
         ng-click="toggleFilter(filterData.field, option);"
         ng-checked="activeFilters && activeFilters.indexOf(option) >= 0;"
-        ng-disabled="disabled"
+        ng-disabled="disabled || filterOptions.indexOf(option) < 0"
         md-no-ink></md-checkbox>
 
     <p> {{ option }} </p>
