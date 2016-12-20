@@ -1,7 +1,7 @@
 <span ng-repeat="item in queryStructure"
   ng-hide="!item.value.length || item.value.length === 1 && item.value[0].display && item.value[0].display === 'none'">
   {{ item.pre }}
-  <span ng-repeat="option in item.value">
+  <span ng-repeat="option in item.value|orderBy:'display'">
     <span ng-show="item.value.length > 1 && $last"> and </span>
     <span ng-show="item.value.length > 1 && !$last && !$first">, </span>
     <div class="btn btn-sm btn-chip"
