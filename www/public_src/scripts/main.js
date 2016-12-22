@@ -225,15 +225,6 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'ngMaterial', 'rzModu
                 return $mdDialog.show(notFound);
               });
           });
-      },
-      datasets: function($q, requests, queryFactory) {
-        var datasets = _.map(requests, function(req) {
-          return queryFactory.getDatasets(req.boundary.group);
-        });
-        return $q.all(datasets)
-        .then(function(results) {
-          return _.mapKeys(results, function(d, i) { return i; });
-        });
       }
     },
     controller: 'RequestsCtrl'
