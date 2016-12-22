@@ -3,10 +3,11 @@
   */
 
 angular.module('aiddataDET')
-.controller('StatusCtrl', function($stateParams, $scope, request, datasets, info, queryFactory) {
+.controller('StatusCtrl', function($stateParams, $scope, $sce, request, datasets, info, queryFactory) {
   $scope.id = $stateParams.id;
   $scope.request = request;
   $scope.info = [];
+  $scope.requestInfo = [];
 
   $scope.getDataset = function (query) {
     var name = query.dataset || query.name;
@@ -28,6 +29,10 @@ angular.module('aiddataDET')
       .value();
 
     request.submissionTime = _.get(_.head(request.stage), 'time_format') || '';
+    $scope.requestInfo = _.map(request.info, function(p) {
+      return $sce.trustAsHtml(p);
+    });
+
   });
 
 });

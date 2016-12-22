@@ -11,10 +11,21 @@
 .step(@color) {
   .stepColor(@color);
   &.incomplete {
-    .stepColor(lighten(@color, 20%));
+    .stepColor(#ccc);
+    font-style: italic;
+    &::before {
+      border-left-color: lighten(#ccc, 5%);
+    }
+  }
+  &.finished {
+    .stepColor(#ccc);
+    &::before {
+      border-left-color: lighten(#ccc, 5%);
+    }
+    // .stepColor(lighten(desaturate(@color, 40%), 15%));
   }
   &.current {
-    font-weight: bold;
+    font-weight: 900;
     &::before {
       border-left-color: darken(@color, 10%);
     }
