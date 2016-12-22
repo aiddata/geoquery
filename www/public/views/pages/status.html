@@ -48,17 +48,11 @@
           <md-divider></md-divider>
         </div>
 
-
-        <div>
+        <div class="md-padding">
           <h3 ng-show="request.status.indexOf('submit') >= 0"> <strong>{{ request.custom_name }}</strong> has been submitted! </h3>
           <h3 ng-show="request.status.indexOf('process') >= 0 || request.status.indexOf('prep') >= 0"> <strong>{{ request.custom_name }}</strong> is being processed! </h3>
           <h3 ng-show="request.status.indexOf('complete') >= 0"> <strong>{{ request.custom_name }}</strong> is ready for download! </h3>
-        </div>
 
-        <div class="md-padding">
-          <md-divider></md-divider>
-          <br>
-          <p class="request-info">{{ request.info }}</p>
           <ul>
             <li> <strong>Submitted:</strong> {{ request.submissionTime }}</li>
             <li> <strong>Boundary:</strong> {{ request.boundary.title }}</li>
@@ -68,6 +62,9 @@
               <snan ng-hide="!request.raster_data.length"> {{ request.raster_data.length }} External Dataset Selection<span ng-hide="request.raster_data.length === 1">s</span> </span>
             </li>
           </ul>
+          <md-divider></md-divider>
+          <br>
+          <p class="request-info" ng-repeat="p in requestInfo" ng-bind-html="p"></p>
         </div>
 
       </div>
