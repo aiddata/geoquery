@@ -9,12 +9,13 @@
       ng-mouseenter="step.hover = hoverText(step);">
 
     <a href="" class="{{ step.displayText }} disabled"
-        ng-class="step.displayText === currentStepName ? 'current' : 'incomplete'">
+        ng-class="step.sortOrder === currentStepIndex ? 'current' :
+                  step.sortOrder > currentStepIndex ? 'incomplete' : 'finished'">
 
         <md-tooltip md-direction="top"> {{ step.hover }} </md-tooltip>
 
       <i class="fa fa-check-circle" aria-hidden="true"
-          ng-class="{ 'invisible' : step.sortOrder > currentStepIndex }" ></i>
+          ng-class="{ 'invisible' : step.sortOrder >= currentStepIndex }" ></i>
 
       {{ step.displayText }}
     </a>
