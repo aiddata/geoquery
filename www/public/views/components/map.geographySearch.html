@@ -1,4 +1,4 @@
-<md-content class="md-padding scroll-hidden" layout="column" flex="100" md-whiteframe="6">
+ <md-content class="md-padding scroll-hidden" layout="column" flex md-whiteframe="6">
   <form ng-submit="$event.preventDefault()">
 
     <h4 class="md-primary">Select a Boundary to Begin Data Extraction</h4>
@@ -11,7 +11,7 @@
         md-selected-item-change="selectedItemChange(item)"
         md-select-on-match="true"
         md-match-case-insensitive="true"
-        md-item-text="item.search"
+        md-item-text="item.name || item.title"
         md-min-length="0"
         placeholder="Select boundaries"
         ng-class="!formData.boundary ? 'autocomplete-empty' : 'autocomplete-selected'">
@@ -20,7 +20,6 @@
         <span md-highlight-text="formData.searchText" md-highlight-flags="ig">
         {{ item.title || item.name }}
         </span>
-        <em class="text-muted"><span md-highlight-text="formData.searchText" md-highlight-flags="gi">{{ item.tags }}</span></em>
       </md-item-template>
 
       <md-not-found>
@@ -28,31 +27,17 @@
       </md-not-found>
     </md-autocomplete>
 
-
     <div ng-hide="formData.boundary">
       <br>
-      <br>
-      <label>
-        <span>Featured Boundaries
-        </span>
-      </label>
-      <md-divider></md-divider>
-
-      <div class="scroll-container"
-          style="min-height: 200px; height: 40vh;"
-          ng-hide="!showFeaturedSearches">
-
-        <md-list class="md-dense" flex>
-          <md-list-item
-              ng-repeat="item in boundaries | filter:{tags:'featured'}"
+      <p class="text-muted">
+        <strong>Featured Boundaries </strong>
+        <em ng-repeat="item in boundaries.slice(0,5) | filter:{tags:'featured'}">
+          <a href="" aria-label="select featured boundary"
               ng-click="selectFromFeatured(item)">
-
-            <a href="">{{ item.name }}</a>
-          </md-list-item>
-        </md-list>
-      </div>
+              {{ $last ? item.name : item.name +', ' }}</a>
+        </em>
+      </p>
     </div>
-
 
     <div ng-hide="!formData.subboundary">
       <md-divider></md-divider>
