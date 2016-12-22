@@ -247,10 +247,6 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'ngMaterial', 'rzModu
           .then(function(results) {
             return results.data[0];
           });
-      },
-      datasets: function(ajaxFactory, request) {
-        return ajaxFactory.datasets(request.boundary.group)
-          .then(function(results) { return results.data; });
       }
     },
     views: {

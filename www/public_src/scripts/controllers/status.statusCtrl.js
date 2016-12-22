@@ -3,21 +3,23 @@
   */
 
 angular.module('aiddataDET')
-.controller('StatusCtrl', function($stateParams, $scope, $sce, request, datasets, info, queryFactory) {
+.controller('StatusCtrl', function($stateParams, $scope, $sce, request, info, queryFactory) {
   $scope.id = $stateParams.id;
   $scope.request = request;
   $scope.info = [];
   $scope.requestInfo = [];
 
-  $scope.getDataset = function (query) {
+  $scope.getDataset = function (query, type) {
     var name = query.dataset || query.name;
-
-    return _.find(datasets, {name : name });
+    return {
+      title: query.custom_name,
+      fields: _.keyBy(info.fields, 'field'),
+      type: type === 'release_data' ? 'release' : 'raster'
+    };
   };
 
   $scope.$on('$viewContentLoaded', function() {
     $scope.info = info.status;
-
     request.status = _.chain(request.stage)
       .filter('time')
       .each(function(stage) {
