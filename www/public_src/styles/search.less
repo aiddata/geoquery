@@ -1,21 +1,38 @@
 #datasetSelector {
   z-index: 11;
-  .active {
-    background-color: @steelBlue;
-    h1,h2,h3,h4,h5 {
-      color: #fff;
+  .dataset-list {
+    transition: background-color 300ms linear;
+    &:hover {
+      background-color: #eee;
     }
-    p {
-      color: #ddd !important;
+    &.active, &.active:hover {
+      background-color: @steelBlue;
+      h1, h2, h3, h4, h5 {
+        color: #fff;
+      }
+      p {
+        color: #ddd !important;
+      }
+      a {
+        color: #fff;
+      }
     }
-    a {
-      color: #fff;
+    .md-button, .md-button:hover{
+      background-color: transparent;
     }
-  }
-  .metadata {
-    font-size: 12px;
-    line-height: 15px;
-    overflow-x: auto;
+    .metadata-toggle {
+      margin-top: 0px;
+    }
+    .metadata {
+      overflow-x: auto;
+      padding: 0px 15px;
+      outline: none;
+      p {
+        font-size: 12px;
+        line-height: 15px;
+        padding-right: 60px;
+      }
+    }
   }
   .secondary-top {
     .md-secondary-container {

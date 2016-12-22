@@ -22,7 +22,8 @@
     <div layout="row" layout-padding>
       <md-input-container flex class="condensed category-selector">
         <md-select ng-model="dataFilters.tag"
-          aria-label="Dataset Category">
+            md-container-class="select-menu-condensed"
+            aria-label="Dataset Category">
           <md-option value="all"> All Categories </md-option>
           <md-option ng-repeat="field in featuredTags" value="{{ field.tag }}">
             {{ field.display }}
@@ -73,44 +74,53 @@
 
   <md-divider></md-divider>
 
-  <md-list
-      class="scroll-container">
+  <md-list class="scroll-container">
 
-    <div class="slide-left"
+    <div class="slide-left dataset-list"
       ng-repeat="set in datasets.filtered = (datasets.options | filter: search) | orderBy: fields.selected : fields.descending"
-      ng-init="showMetadata = false">
+      ng-init="showMetadata = false"
+      ng-class="{ 'active' : datasets.selected === set.name }">
 
       <md-list-item
           aria-label="select dataset"
           class="secondary-button-padding secondary-top"
-          ng-class="{ 'active' : datasets.selected === set.name }"
           ng-click="selectDataset(set);"
           md-no-ink>
 
         <div class="md-list-item-text">
           <h5> {{ set.title }} </h5>
-          <p uib-collapse="!showMetadata" class="metadata">
-            {{ set.description }}
-            <br>
-            <b><i>Source(s):</i></b> {{ set.extras.sources_name }}
-          </p>
+          <a href=""
+             class="md-secondary metadata-toggle"
+             aria-label="show metadata"
+             ng-click="showMetadata = !showMetadata"
+             md-no-ink>
+
+           <md-tooltip md-delay="500" md-direction="right"> Show/Hide Metadata </md-tooltip>
+           <i class="fa fa-info-circle fa-lg" aria-hidden="true"></i>
+         </a>
         </div>
-
-         <a href=""
-            style="margin-top: 0px;"
-            class="md-secondary"
-            aria-label="show metadata"
-            ng-click="showMetadata = !showMetadata"
-            md-no-ink>
-
-          <md-tooltip md-delay="500" md-direction="right"> Show/Hide Metadata </md-tooltip>
-          <i class="fa fa-info-circle fa-lg" aria-hidden="true"></i>
-        </a>
-
-        <md-divider></md-divider>
-
       </md-list-item>
+      <div class="metadata"
+           ng-click="selectDataset(set);"
+           uib-collapse="!showMetadata">
+        <p> {{ set.description }}</p>
+        <p>
+          <strong><i>Source(s):</i></strong>
+          <span ng-hide="set.extras.sources_web">{{ set.extras.sources_name }}</span>
 
+          <a aria-label="visit datasource home page"
+             target="_blank"
+             href="{{set.extras.sources_web}}"
+             ng-hide="!set.extras.sources_web"
+             md-no-ink>
+
+           {{ set.extras.sources_name }}
+           <i class="fa fa-fw fa-external-link" aria-hidden="true"></i>
+           <md-tooltip md-delay="500" md-direction="right"> Visit Datasource Homepage </md-tooltip>
+         </a>
+        </p>
+      </div>
+      <md-divider></md-divider>
     </div>
 
     <div class="flip-in md-padding"
