@@ -81,6 +81,7 @@ angular.module('aiddataDET')
 
     var d = _.orderBy(datasets, 'type');      // Position AidData Datasets at the Top of Array
     $scope.datasets.options = d;
+    $scope.querySize = queryFactory.querySize();
   });
 
 });
