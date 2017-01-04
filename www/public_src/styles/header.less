@@ -7,15 +7,24 @@
       max-height: calc(@headerHeight ~"-"10px);
     }
 
-    .header-button {
+    .md-button {
       margin-top: 10px;
-      color: @brand-primary;
-      font-size: large !important;
+      font-size: large;
       text-transform: capitalize;
+      transition: background-color 300ms cubic-bezier(0.55, 0.09, 0.68, 0.53);
+    }
+
+    .header-button {
+      color: @brand-primary;
       &:hover {
         color: #78909c;
         background-color: @defaultBackground;
       }
+    }
+
+    .badge.selection-count-badge {
+      margin-top: -20px;
+      background-color: rgba(255,255,255,0.5);
     }
   }
 

@@ -3,8 +3,7 @@ angular.module('aiddataDET')
 
   $scope.currentStep = $state;
   $scope.queryLen = 0;
-  $scope.highlightRed = false;
-  $scope.highlightGreen = false;
+  $scope.highlight = '';
 
   $scope.activate = function (tab) {
     $scope.sidebarOpen = true;
@@ -15,13 +14,11 @@ angular.module('aiddataDET')
     var oldSize = $scope.queryLen,
         newSize = queryFactory.querySize();
     $scope.queryLen = newSize;
-    $scope.highlightRed = oldSize > newSize;
-    $scope.highlightGreen = newSize > oldSize;
+    $scope.highlight = oldSize > newSize ? 'md-warn' : 'md-accent';
 
     $timeout(function() {
-      $scope.highlightRed = false;
-      $scope.highlightGreen = false;
-    }, 2750);
+      $scope.highlight = $scope.queryLen ? 'md-primary' : '';
+    }, 1500);
   });
 
   $rootScope.$on('$viewContentLoaded', function() {
