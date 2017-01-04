@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('LoginCtrl', function($scope, $rootScope, $log, $stateParams, $state, ajaxFactory, queryFactory) {
+.controller('LoginCtrl', function($scope, $rootScope, $log, $stateParams, $state, $cookies, ajaxFactory, queryFactory) {
 
   $scope.requestForm = {
     email: ''

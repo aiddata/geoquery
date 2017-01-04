@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('HeaderCtrl', function($scope, $rootScope, $log, $stateParams, $state, $timeout, queryFactory, spinFactory, info) {
+.controller('HeaderCtrl', function($scope, $rootScope, $log, $stateParams, $state, $timeout, $cookies, queryFactory, spinFactory, info) {
 
   $scope.currentStep = $state;
   $scope.queryLen = 0;
@@ -20,6 +20,11 @@ angular.module('aiddataDET')
       $scope.highlight = $scope.queryLen ? 'md-primary' : '';
     }, 1500);
   });
+
+  $scope.pastRequests = function() {
+    return $cookies.get('email') ? $state.go('requests', { email: $cookies.get('email') }) :
+      $state.go('login');
+  };
 
   $rootScope.$on('$viewContentLoaded', function() {
     $scope.currentStep = $state.current.name;
