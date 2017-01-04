@@ -8,6 +8,19 @@
         </a>
       </h2>
       <span flex></span>
+      <md-button class="md-button header-button"
+          aria-label="Help"
+          ng-click="activate('help')">
+        <i class='fa fa-question-circle' aria-hidden="true"></i>
+        <span class="button-text">Help</span>
+      </md-button>
+
+      <md-button class="md-button header-button"
+          aria-label="View Past Requests"
+          ui-sref="login">
+        <i class='fa fa-history' aria-hidden="true"></i>
+        <span class="button-text">Past Requests</span>
+      </md-button>
 
       <md-button class="md-button header-button"
           aria-label="Review Request"
@@ -20,21 +33,7 @@
           <i class='fa fa-tasks' aria-hidden="true"></i>
         <span class="button-text">Current Request</span>
       </md-button>
-
-      <md-button class="md-button header-button"
-          aria-label="View Past Requests"
-          ui-sref="login">
-        <i class='fa fa-history' aria-hidden="true"></i>
-        <span class="button-text">Past Requests</span>
-      </md-button>
-
-      <md-button class="md-button header-button"
-          aria-label="Help"
-          ng-click="activate('help')">
-        <i class='fa fa-question-circle' aria-hidden="true"></i>
-        <span class="button-text">Help</span>
-      </md-button>
-
+      
     </div>
   </md-toolbar>
 
