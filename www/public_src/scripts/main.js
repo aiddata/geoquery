@@ -5,7 +5,7 @@
   *   - Defining all routes and making necessary API requests
   */
 
-angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'ngMaterial', 'rzModule', 'ngAnimate'])
+angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'ngMaterial', 'rzModule', 'ngAnimate', 'ngCookies'])
 .config(function($stateProvider, $urlRouterProvider, $mdThemingProvider) {
 
   /*
@@ -209,10 +209,11 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'ngMaterial', 'rzModu
     params: { notify: false },
     templateUrl: 'views/pages/requests.html',
     resolve: {
-      requests: function(ajaxFactory, $stateParams, $state, $q, $mdDialog, modalFactory, spinFactory) {
+      requests: function(ajaxFactory, $stateParams, $state, $q, $mdDialog, $cookies, modalFactory, spinFactory) {
         return $q.when(ajaxFactory.requests('email', $stateParams.email))
           .then(function(results) {
-            return results.data.length ? results.data : $q.reject('foo');
+            $cookies.put('email', $stateParams.email);
+            return results.data.length ? results.data : $q.reject('no requests');
           })
           .catch(function(err) {
             var notFound = modalFactory.alert({

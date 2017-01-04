@@ -3,7 +3,7 @@
   */
 
 angular.module('aiddataDET')
-.controller('RequestsCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $timeout, queryFactory, requests) {
+.controller('RequestsCtrl', function($scope, $rootScope, $log, $q, $state, $stateParams, $timeout, $cookies, queryFactory, requests) {
 
   $scope.email = $stateParams.email;
 
@@ -26,4 +26,9 @@ angular.module('aiddataDET')
       return req;
     });
   });
+
+  $scope.logout = function() {
+    $cookies.remove('email');
+    $state.go('login');
+  };
 });

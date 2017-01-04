@@ -1,9 +1,9 @@
 angular.module('aiddataDET')
-.controller('DetailsCtrl', function($scope, $rootScope, $log, $q, $timeout, $state, $element, $mdDialog, queryFactory, modalFactory, mapFactory, spinFactory, info, modals) {
+.controller('DetailsCtrl', function($scope, $rootScope, $log, $q, $timeout, $state, $cookies, $element, $mdDialog, queryFactory, modalFactory, mapFactory, spinFactory, info, modals) {
   $scope.queryObj = queryFactory.getQuery();
   $scope.terms = [];
   $scope.queryData = {
-    email: '',
+    email: $cookies.get('email') || '',
     custom_name: 'Request ' + d3.timeFormat('%m-%d-%y %H:%M')(Date.now())
   };
 
