@@ -8,17 +8,11 @@
         </a>
       </h2>
       <span flex></span>
-
       <md-button class="md-button header-button"
-          aria-label="Review Request"
-          ng-click="activate('cart')">
-          <small ng-show="queryLen">
-            <span  class="badge" ng-class="{ 'normal': !highlightRed && !highlightGreen, 'add': highlightGreen, 'remove': highlightRed }" style="margin-top: -20px;">
-              {{ queryLen || 0}}
-            </span>
-          </small>
-          <i class='fa fa-tasks' aria-hidden="true"></i>
-        <span class="button-text">Current Request</span>
+          aria-label="Help"
+          ng-click="activate('help')">
+        <i class='fa fa-question-circle' aria-hidden="true"></i>
+        <span class="button-text">Help</span>
       </md-button>
 
       <md-button class="md-button header-button"
@@ -28,11 +22,18 @@
         <span class="button-text">Past Requests</span>
       </md-button>
 
-      <md-button class="md-button header-button"
-          aria-label="Help"
-          ng-click="activate('help')">
-        <i class='fa fa-question-circle' aria-hidden="true"></i>
-        <span class="button-text">Help</span>
+      <md-button class="md-button {{ highlight }} md-hue-2"
+          aria-label="Review Request"
+          ng-click="activate('cart')"
+          ng-disabled="!queryLen"
+          ng-class="{ 'md-raised': queryLen }">
+
+          <i class='fa fa-tasks' aria-hidden="true"></i>
+        <span class="button-text">Submit Request</span>
+        <span class="badge selection-count-badge"
+            ng-show="queryLen || highlight">
+          {{ queryLen || 0}}
+        </span>
       </md-button>
 
     </div>
