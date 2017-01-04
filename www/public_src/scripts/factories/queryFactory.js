@@ -238,7 +238,7 @@ angular.module('aiddataDET')
 
       updateFilters: function () {
         var self = this;
-        return ajaxFactory.filters(self.filters)
+        return ajaxFactory.filters(self.filters, _query.boundary.group)
           .then(function(results) {
             var filterOptions = self.filterOptions = results.data;
             filterOptions.filterTypes = _.keys(filterOptions.distinct);
