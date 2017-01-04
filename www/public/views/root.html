@@ -6,7 +6,7 @@
         <i class="fa fa-times" aria-hidden="true"></i>
       </a>
       <span flex></span>
-      <h5 class="md-headline"> {{sidebar.active | capitalize}} </h5>
+      <h5 class="md-headline text-capitalize"> {{ sidebar.active === 'cart' ? 'Current Request' : sidebar.active }} </h5>
     </div>
   </md-toolbar>
   <div ui-view="cart" ng-show="sidebar.active === 'cart'"></div>
