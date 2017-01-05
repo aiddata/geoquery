@@ -51,7 +51,8 @@ angular.module('aiddataDET')
 
   $scope.showOption = function (option) {
     return !_.size(option.data) ? false :
-      option.data.length > 1 ? true : option.name !== 'Years' ;
+      option.data.length > 1 ? true :
+      !(option.name === 'Years' && _.get($scope.dataset, 'temporal.name') === 'Temporally Invariant');
   };
 
   $rootScope.$on('dataset:selected', function (e, data) {
