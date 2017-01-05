@@ -5,8 +5,8 @@
   <md-card
       class="filter-card"
       flex="100"
-
-      ng-hide="!option.data || option.data.length <= 1">
+      ng-init="option.shown = showOption(option)"
+      ng-show="option.shown">
 
     <md-card-header>
       <md-card-header-text flex="100">
@@ -32,10 +32,10 @@
 
       <md-list class="md-dense">
         <md-list-item md-no-ink
-          ng-if="option.data && option.data.length > 1">
+          ng-if="option.data && option.data.length">
 
           <md-checkbox style="md-primary"
-              ng-init="option.allChecked = false"
+              ng-init="option.allChecked = option.data.length === 1"
               ng-checked="option.allChecked"
               ng-click="toggleAll(option, option.allChecked)"
               md-no-ink></md-checkbox>
@@ -51,7 +51,7 @@
             md-no-ink>
 
           <md-checkbox style="md-primary"
-              ng-init="choice.checked = false"
+              ng-init="choice.checked = option.data.length === 1"
               ng-checked="choice.checked"
               ng-click="toggleOption(!choice.checked, choice, option)"
               md-no-ink></md-checkbox>

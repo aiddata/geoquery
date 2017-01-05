@@ -2,10 +2,12 @@
     ng-repeat="filter in filterOrder"
     ng-init="hideSubHeader = true; dataset.fields[filter].searchText = ''"
     flex="33"
-    style="flex-shrink:0;">
+    style="flex-shrink:0;"
+    ng-if="dataset.fields[filter].distinct.length">
 
   <!-- Header -->
-  <md-card flex="100" class="filter-card rotate-in" ng-show="dataset.fields[filter].isActive">
+  <md-card flex="100" class="filter-card rotate-in"
+      ng-show="dataset.fields[filter].isActive">
     <md-card-header layout-align="none center">
 
         <!-- Title -->
@@ -19,7 +21,6 @@
 
         <!-- Buttons -->
         <a href="" class="md-warn"
-            ng-if="!dataset.fields[filter].is_default"
             ng-click="removeFilter(filter)">
             <md-tooltip md-delay="500"> Remove Filter Field </md-tooltip>
             <i class="fa fa-minus-circle fa-lg" aria-hidden="true"></i>

@@ -140,6 +140,10 @@ md-card.filter-card  {
   height: calc(65vh ~"-" @headerHeight ~"-" @processHeaderHeight);
   max-height: calc(65vh ~"-" @headerHeight ~"-" @processHeaderHeight);
   min-height: 280px;
+
+  md-list-item {
+    text-transform: capitalize;
+  }
 }
 
 #searchOverlay {
@@ -163,4 +167,12 @@ md-card.filter-card  {
 
 plain-text-query {
   line-height: 2.2;
+}
+md-list-item.disabled {
+  background-color: rgba(211, 211, 211, 0.27);
+  color: #808080;
+  font-style: italic;
+}
+md-checkbox.md-default-theme:not([disabled]) .md-icon, md-checkbox:not([disabled]) .md-icon {
+  border-color: @themeAccent;
 }

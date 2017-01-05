@@ -25,7 +25,7 @@ angular.module('aiddataDET')
           var filterObj = {
             value: _.get($scope.dataset, ['fields', filterId, 'filter_type']) === 'slider' &&
               !_.isEqual($scope.filters[filterId], ['All']) ? getRange(filterId) :
-              _.filter($scope.filters[filterId], function(d) { return d !== 'All'; }),
+              _.sortBy(_.filter($scope.filters[filterId], function(d) { return d !== 'All'; })),
             pre: ' where ' + _.get($scope.dataset, ['fields', filterId, 'display']) + ' includes ',
             optional: true,
             key: filterId
