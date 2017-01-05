@@ -4,27 +4,22 @@
     background-color: @defaultBackground;
     .md-toolbar-tools {
       height: @headerHeight;
-      max-height: calc(@headerHeight ~"-"10px);
+      max-height: @headerHeight;
+      line-height: @headerHeight;
     }
 
     .md-button {
-      margin-top: 10px;
-      font-size: large;
+      font-size: .8em;
       text-transform: capitalize;
       transition: background-color 300ms cubic-bezier(0.55, 0.09, 0.68, 0.53);
       padding: 4px 10px;
     }
 
     .header-button {
-      color: @brand-primary;
-      &:hover {
-        color: #78909c;
-        background-color: @defaultBackground;
-      }
+      color: @themeDefault;
     }
 
     .badge.selection-count-badge {
-      margin-top: -15px;
       background-color: transparent;
       border: 1px solid white;
       margin-left: 4px;
@@ -32,8 +27,7 @@
   }
 
   .logo {
-    margin-top: 15px;
-    max-height: 60px;
+    max-height: calc(@headerHeight ~"-"10px);
     cursor: pointer;
   }
 }
@@ -45,41 +39,26 @@ md-toolbar.process-header {
   height: @processHeaderHeight;
   min-height: @processHeaderHeight;
   z-index: 12;
-  background-color: #405469;
+  cursor: default;
 
-  .md-toolbar-tools {
-    color: rgba(255,255,255,0.38);
+  .md-toolbar-tools,
+  .md-toolbar-tools .md-button.process-button{
+    line-height: @processHeaderHeight;
     font-size: 12px;
-
-    .md-button.process-button {
-      color: rgba(255,255,255,0.38);
-      font-size: 12px;
-
-      &:hover {
-        background-color: transparent;
-        color: rgba(255,255,255,0.5);
-      }
-
-      &.current, .current:hover {
-        color: #fff;
-        text-shadow: 1px 2px 1px rgba(0, 0, 0, 0.41);
-        letter-spacing: .1em;
-      }
-    }
+    color: fade(@inverseText, 60%);
+    word-spacing: 2px;
   }
-  a.homepage-button {
-    color: rgba(255,255,255,0.6);
-    &:hover {
-      color: rgba(255,255,255,0.75);
-    }
+  .md-button.process-button.current {
+    color: @inverseText;
+    letter-spacing: .1em;
+    font-weight: bold;
+  }
+
+  .homepage-button:hover{
+    color: fade(@inverseText, 85%);
   }
 }
-
 md-sidenav {
   width: 425px;
   z-index: 9999;
-}
-
-.flavor-text {
-  text-align: right;
 }

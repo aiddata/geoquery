@@ -6,7 +6,7 @@
       background-color: #eee;
     }
     &.active, &.active:hover {
-      background-color: @steelBlue;
+      background-color: @themeDefault;
       h1, h2, h3, h4, h5 {
         color: #fff;
       }
@@ -104,31 +104,33 @@ md-card.filter-card  {
   min-height: 200px;
 
   md-card-header{
-    background-color: rgb(250, 250, 250);
-    border-bottom: 1px solid rgba(84, 110, 122, 0.44);
     height: 60px;
+    line-height: 60px;
   }
   a.toolbar-link {
-      margin-left: 10px;
-    }
+    margin-left: 10px;
+  }
 
   .md-subheader{
     background-color: #fff;
   }
+  md-list {
+    padding-top: 0px;
+  }
 }
 
-.label.label-circle {
-  height: 2.5em;
-  width: 2.5em;
-  border-radius: 50%;
-  line-height: 2em;
-  box-shadow: 0 1px 3px 0 rgba(0,0,0,.2),
-    0 1px 1px 0 rgba(0,0,0,.14),
-    0 2px 1px -1px rgba(0,0,0,.12);
-  text-align: center!important;
-  margin-left: 10px;
-  display: block;
-}
+// .label.label-circle {
+//   height: 2.5em;
+//   width: 2.5em;
+//   border-radius: 50%;
+//   line-height: 2em;
+//   box-shadow: 0 1px 3px 0 rgba(0,0,0,.2),
+//     0 1px 1px 0 rgba(0,0,0,.14),
+//     0 2px 1px -1px rgba(0,0,0,.12);
+//   text-align: center!important;
+//   margin-left: 10px;
+//   display: block;
+// }
 
 #searchModuleView {
   max-width:100%;
@@ -148,7 +150,7 @@ md-card.filter-card  {
   z-index: 10;
   background-color:  rgba(0,0,0,.5);
   pointer-events: none;
-  color: white;
+  color: @inverseText;
   padding: 10%;
   font-size: 21px;
   text-transform: capitalize;

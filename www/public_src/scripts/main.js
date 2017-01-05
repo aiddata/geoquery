@@ -16,13 +16,13 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'ngMaterial', 'rzModu
    */
 
   $mdThemingProvider.theme('default')
-      .primaryPalette('blue-grey', {
-        'default': '400',
+      .primaryPalette('teal', {
+        'default': '700',
         'hue-1': '100',
         'hue-2': '600',
         'hue-3': 'A100'
       })
-      .accentPalette('green', {
+      .accentPalette('amber', {
         'default': '500',
         'hue-1': '100',
         'hue-2': '600',
