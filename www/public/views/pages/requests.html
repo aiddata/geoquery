@@ -15,7 +15,7 @@
   <div flex layout="row" layout-padding>
     <div flex class="md-margin" layout="column">
 
-        <md-card layout="row" ng-repeat="request in requests | orderBy:'submitTime':true" style="flex-shrink:0;">
+        <md-card layout="row" ng-repeat="request in requests | orderBy:'-submissionDate'" style="flex-shrink:0;">
           <div layout="column" flex="75" layout-align="start">
             <md-card-title layout="row" flex="initial">
               <md-card-title-text>
