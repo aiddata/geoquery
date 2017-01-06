@@ -1,4 +1,4 @@
-<div layout="column" class="remaining-height">
+<div layout="column">
   <div class="search-tools">
     <div class="col-md-12" style="margin: 16px 0px;">
       <div class="row">
@@ -74,7 +74,7 @@
 
   <md-divider></md-divider>
 
-  <md-list class="scroll-container">
+  <md-list ng-style="listStyle" id="datasetList">
 
     <div class="slide-left dataset-list"
       ng-repeat="set in datasets.filtered = (datasets.options | filter: search) | orderBy: fields.selected : fields.descending"
