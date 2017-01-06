@@ -176,7 +176,6 @@ angular.module('aiddataDET')
           }
 
           var query = _.extend(_.cloneDeep(_query), additionalFields);
-          query.submitTime = Date.now();
 
           return ajaxFactory.submitRequest(JSON.stringify(query));
         })())

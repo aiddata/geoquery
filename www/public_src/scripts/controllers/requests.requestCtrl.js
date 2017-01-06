@@ -21,8 +21,8 @@ angular.module('aiddataDET')
 
       req.statusDisplay = req.status.indexOf('submit') >= 0 ? 'submitted' :
         req.status.indexOf('complete') >= 0 ? 'completed' : 'processing';
-
-      req.submissionTime = _.get(_.head(req.stage), 'time_format') || '';
+      req.submissionDate = _.head(req.stage);
+      req.submissionTime = _.get(req.submissionDate, 'time_format') || '';
       return req;
     });
   });
