@@ -3,10 +3,11 @@
   * page.  It is responsible for displaying, filtering, and selecting datasets.
   */
 angular.module('aiddataDET')
-.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, $timeout, datasets, $state, info, queryFactory) {
+.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, $timeout, datasets, $state, $window, $element, info, queryFactory) {
   $scope.showSearchTools = false;   // Advanced Search Visibility
   $scope.featuredTags = [];         // Featured Category Tags
   $scope.querySize = 0;
+  $scope.listStyle = { };
 
   // Datasets container
   $scope.datasets = {
@@ -84,4 +85,28 @@ angular.module('aiddataDET')
     $scope.querySize = queryFactory.querySize();
   });
 
+
+  /* Mananage List Size */
+  var searchContent = document.querySelector('#search-content'),
+      searchTools = document.querySelector('#datasetSelector .search-tools'),
+      minHeight = 500;
+
+  $scope.$watch(
+    function() { return searchTools.offsetHeight; },
+    function() { setListHeight(); }
+  );
+
+  angular.element($window).bind('resize', function() {
+    $timeout(function() { setListHeight(); });
+  });
+
+  function setListHeight () {
+    var contentHeight = searchContent.offsetHeight,
+        toolsHeight = searchTools.offsetHeight,
+        searchHeight = contentHeight < minHeight ? minHeight : contentHeight,
+        listHeight = searchHeight - toolsHeight + 'px';
+
+    $scope.listStyle['max-height'] = listHeight;
+    $scope.listStyle['height'] = listHeight;
+  }
 });
