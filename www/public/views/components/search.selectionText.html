@@ -4,7 +4,7 @@
     <div class="md-toolbar-tools">
 
       <div style="overflow-y: hidden; margin-top: -5px" flex>
-        <md-input-container class="condensed no-label md-light" flex md-no-float style="font-size: 16px; width: 70%">
+        <md-input-container class="condensed no-label" flex md-no-float style="font-size: 16px; width: 70%">
           <input class="inputsm" ng-model="selectionData.name" placeholder="Selection Name" ng-change="selectionData.renamed = true">
         </md-input-container>
 
@@ -18,7 +18,7 @@
         </small>
       </div>
 
-      <md-button class="md-raised toggle" aria-label="Reset Filters"
+      <md-button class="md-raised toggle" aria-label="Reset Filters" md-no-ink
         ng-class="{'md-warn md-hue-2': selectionData.canAdd, 'md-primary md-hue-1': !selectionData.canAdd }"
         ng-click="clearFilters()"
         ng-show="selectionData.canReset"
@@ -28,7 +28,7 @@
         <span ng-show="!selectionData.canAdd">New Selection</span>
       </md-button>
 
-      <md-button class="md-raised md-accent md-hue-5" aria-label="Add to Request"
+      <md-button class="md-raised md-primary" aria-label="Add to Request" md-no-ink
           ng-disabled="!selectionData.canAdd"
           ng-click="addToCart()">
         <i class="fa fa-lg fa-plus" aria-hidden="true"></i>&nbsp;&nbsp;

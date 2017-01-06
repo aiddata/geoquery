@@ -16,18 +16,8 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'ngMaterial', 'rzModu
    */
 
   $mdThemingProvider.theme('default')
-      .primaryPalette('teal', {
-        'default': '700',
-        'hue-1': '100',
-        'hue-2': '600',
-        'hue-3': 'A100'
-      })
-      .accentPalette('amber', {
-        'default': '500',
-        'hue-1': '100',
-        'hue-2': '600',
-        'hue-3': 'A100'
-      })
+      .primaryPalette('teal')
+      .accentPalette('amber')
       .warnPalette('deep-orange')
       .backgroundPalette('grey');
 
