@@ -76,6 +76,10 @@ angular.module('aiddataDET')
       });
 
       map.resetView = function() { this.setView(defaultView.center, defaultView.zoom); };
+      map.adjustBounds = function () {
+        map.invalidateSize();
+        $timeout(function() { map.fitBounds(boundaryGroup); }, 300);
+      };
       map.resetView();
       return promise;
     },
