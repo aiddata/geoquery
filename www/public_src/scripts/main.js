@@ -19,7 +19,7 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'ngMaterial', 'rzModu
       .primaryPalette('teal')
       .accentPalette('amber')
       .warnPalette('deep-orange')
-      .backgroundPalette('grey');
+      .backgroundPalette('grey', 'dark');
 
   /*
    * ===========================================

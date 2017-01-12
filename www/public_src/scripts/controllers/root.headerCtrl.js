@@ -14,7 +14,7 @@ angular.module('aiddataDET')
     var oldSize = $scope.queryLen,
         newSize = queryFactory.querySize();
     $scope.queryLen = newSize;
-    $scope.highlight = oldSize > newSize ? 'md-warn' : 'md-accent';
+    $scope.highlight = oldSize > newSize ? 'context-danger' : 'context-success';
 
     $timeout(function() {
       $scope.highlight = $scope.queryLen ? 'md-primary' : '';

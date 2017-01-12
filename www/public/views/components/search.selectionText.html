@@ -1,3 +1,11 @@
+<h4 ng-if="dataset && dataset.type "><strong>Selection</strong>
+<small ng-if="dataset && dataset.type == 'release'">
+  <i class="fa fa-exclamation-triangle" aria-hidden="true"
+     ng-hide="totals.projects && totals.locations"></i>
+  <strong>{{ totals.projects }}</strong> projects /
+  <strong>{{ totals.locations }}</strong> locations
+</small>
+</h4>
 <md-card id="selectionText" ng-hide="!dataset || !dataset.type">
 <md-content class="selection-text-header">
   <md-toolbar>
@@ -7,19 +15,11 @@
         <md-input-container class="condensed no-label" flex md-no-float style="font-size: 16px; width: 70%">
           <input class="inputsm" ng-model="selectionData.name" placeholder="Selection Name" ng-change="selectionData.renamed = true">
         </md-input-container>
-
-        <small ng-if="dataset && dataset.type == 'release'"
-          style="padding-left: 10px">
-          <br>
-          <i class="fa fa-exclamation-triangle" aria-hidden="true"
-             ng-hide="totals.projects && totals.locations"></i>
-          <strong>{{ totals.projects }}</strong> projects /
-          <strong>{{ totals.locations }}</strong> locations
-        </small>
       </div>
 
-      <md-button class="md-raised toggle" aria-label="Reset Filters" md-no-ink
-        ng-class="{'md-warn md-hue-2': selectionData.canAdd, 'md-primary md-hue-1': !selectionData.canAdd }"
+      <md-button class="md-raised toggle" aria-label="Reset Filters"
+        md-no-ink
+        ng-class=" selectionData.canAdd ? 'context-danger' : 'context-info'"
         ng-click="clearFilters()"
         ng-show="selectionData.canReset"
         ng-disabled="atLimit">
@@ -28,7 +28,8 @@
         <span ng-show="!selectionData.canAdd">New Selection</span>
       </md-button>
 
-      <md-button class="md-raised md-primary" aria-label="Add to Request" md-no-ink
+      <md-button class="md-raised context-success" aria-label="Add to Request"
+          md-no-ink
           ng-disabled="!selectionData.canAdd"
           ng-click="addToCart()">
         <i class="fa fa-lg fa-plus" aria-hidden="true"></i>&nbsp;&nbsp;
@@ -52,7 +53,7 @@
 </md-card-content>
 </md-card>
 <div id="searchOverlay"
-    class="remaining-height slide-right"
+    class="remaining-height slide-right row"
     ng-show="showOverlay && (!dataset || !dataset.type)">
   <p ng-repeat="paragraph in dataSelectionIntro">{{ paragraph }}</p>
 </div>

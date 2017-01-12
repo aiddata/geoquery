@@ -1,74 +1,76 @@
 <div class="full-height" flex layout="column" id="status">
-
   <div layout="row" layout-fill>
-    <md-content class="status-headline" flex="45"  layout="column" md-whiteframe="4">
+    <!-- Side Panel -->
+    <md-content flex="45" layout="column" md-whiteframe="4" class="md-padding">
+      <div>
+        <a ui-sref="search(boundaryData)"
+           class="context-info small"
+           ng-hide="!$root.boundaryData && 0"> Return to Current Request </a>
 
-      <div layout-padding>
-        <p class="small">
-          <md-button
-             class="md-primary small-btn"
-             ui-sref="search(boundaryData)"
-             ng-hide="!$root.boundaryData"> Return to Current Request </md-button>
-          <br ng-hide="!$root.boundaryData">
-          <md-button
-             class="md-primary small-btn"
-             ui-sref="map"> Start A New Request </md-button>
-          <md-divider></md-divider>
-        </p>
+        <br ng-hide="!$root.boundaryData && 0">
+
+        <a ui-sref="map"
+           class="context-info small"> Start A New Request </a>
+      </div>
+
+      <h3>{{ request.custom_name }}
+      <small>
+        <strong ng-show="request.status.indexOf('submit') >= 0">has been submitted! </strong>
+        <strong ng-show="request.status.indexOf('process') >= 0 || request.status.indexOf('prep') >= 0"> is being processed! </strong>
+        <strong ng-show="request.status.indexOf('complete') >= 0"> is ready for download! </strong>
+      </small>
+      </h3>
+
+      <small>
+        <process-breadcrumbs
+            step-list="request.stage"
+            current-step="request.status"
+            full-width="true"
+            step-hover="info"></process-breadcrumbs>
+      </small>
 
 
-        <h4 class="md-display-5">Request Status</h4>
-        <small>
-          <process-breadcrumbs
-              step-list="request.stage"
-              current-step="request.status"
-              full-width="true"
-              step-hover="info"></process-breadcrumbs>
-        </small>
-
-        <div layout="column" ng-if="request.status.indexOf('complete') >= 0">
-          <md-divider></md-divider>
-          <div layout-align="space-around" layout="row">
-            <md-button class="md-primary"
-                ng-href="http://geo.aiddata.org/data/geoquery_results/{{ request._id.$id }}/{{ request._id.$id }}.zip">
-              Request Zip
-              <i class="fa fa-file-archive-o" aria-hidden="true"></i>
-            </md-button>
-            <md-button class="md-primary" target="_blank"
-                ng-href="http://geo.aiddata.org/data/geoquery_results/{{ request._id.$id }}/{{ request._id.$id }}_documentation.pdf">
-              Documentation PDF
-              <i class="fa fa-file-pdf-o" aria-hidden="true"></i>
-            </md-button>
-            <md-button class="md-primary"
-                ng-href="http://geo.aiddata.org/data/geoquery_results/{{ request._id.$id }}/{{ request._id.$id }}_results.csv">
-              Results CSV
-              <i class="fa fa-file-o" aria-hidden="true"></i>
-            </md-button>
-          </div>
-          <md-divider></md-divider>
+      <div ng-if="request.status.indexOf('complete') >= 0" class="row">
+        <br>
+        <md-divider></md-divider>
+        <div layout-align="space-around" layout="row">
+          <md-button class="md-primary"
+              ng-href="http://geo.aiddata.org/data/geoquery_results/{{ request._id.$id }}/{{ request._id.$id }}.zip">
+            Request Zip
+            <i class="fa fa-file-archive-o" aria-hidden="true"></i>
+          </md-button>
+          <md-button class="md-primary" target="_blank"
+              ng-href="http://geo.aiddata.org/data/geoquery_results/{{ request._id.$id }}/{{ request._id.$id }}_documentation.pdf">
+            Documentation PDF
+            <i class="fa fa-file-pdf-o" aria-hidden="true"></i>
+          </md-button>
+          <md-button class="md-primary"
+              ng-href="http://geo.aiddata.org/data/geoquery_results/{{ request._id.$id }}/{{ request._id.$id }}_results.csv">
+            Results CSV
+            <i class="fa fa-file-o" aria-hidden="true"></i>
+          </md-button>
         </div>
-
-        <div class="md-padding">
-          <h3 ng-show="request.status.indexOf('submit') >= 0"> <strong>{{ request.custom_name }}</strong> has been submitted! </h3>
-          <h3 ng-show="request.status.indexOf('process') >= 0 || request.status.indexOf('prep') >= 0"> <strong>{{ request.custom_name }}</strong> is being processed! </h3>
-          <h3 ng-show="request.status.indexOf('complete') >= 0"> <strong>{{ request.custom_name }}</strong> is ready for download! </h3>
-
-          <ul>
-            <li> <strong>Submitted:</strong> {{ request.submissionTime }}</li>
-            <li> <strong>Boundary:</strong> {{ request.boundary.title }}</li>
-            <li> <strong>Customization:</strong>
-              <span ng-hide="!request.release_data.length"> {{ request.release_data.length }} AidData Selection<span ng-hide="request.release_data.length === 1">s</span> </span>
-              <span ng-hide="!request.raster_data.length || !request.release_data.length"> and </span>
-              <snan ng-hide="!request.raster_data.length"> {{ request.raster_data.length }} External Dataset Selection<span ng-hide="request.raster_data.length === 1">s</span> </span>
-            </li>
-          </ul>
-          <md-divider></md-divider>
-          <br>
-          <p class="request-info" ng-repeat="p in requestInfo" ng-bind-html="p"></p>
-        </div>
+        <md-divider></md-divider>
 
       </div>
-    </md-content>
+      <br>
+      <p style="font-weight:700; font-size:18px">Request Overview</p>
+      <ul>
+        <li> <strong>Submitted:</strong> {{ request.submissionTime }}</li>
+        <li> <strong>Boundary:</strong> {{ request.boundary.title }}</li>
+        <li> <strong>Customization:</strong>
+          <span ng-hide="!request.release_data.length"> {{ request.release_data.length }} AidData Selection<span ng-hide="request.release_data.length === 1">s</span> </span>
+          <span ng-hide="!request.raster_data.length || !request.release_data.length"> and </span>
+          <snan ng-hide="!request.raster_data.length"> {{ request.raster_data.length }} External Dataset Selection<span ng-hide="request.raster_data.length === 1">s</span> </span>
+        </li>
+      </ul>
+
+      <br>
+      <p class="request-info" ng-repeat="p in requestInfo" ng-bind-html="p"></p>
+
+  </md-content>
+
+
 
     <div layout="column" flex="55" style="overflow: auto;">
       <h4 class="md-padding selections-heading"><em>Selections included in <strong>{{ request.custom_name }}</strong></em></h4>

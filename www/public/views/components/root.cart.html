@@ -2,7 +2,7 @@
   <div layout="column" layout-padding>
 
     <div layout="row">
-      <md-button class="md-raised md-accent"
+      <md-button class="md-raised context-success"
           style="width: 100%"
           ng-disabled="!(queryObj.release_data && queryObj.release_data.length) && !(queryObj.raster_data && queryObj.raster_data.length)"
           ng-click="submitQuery()"
@@ -36,8 +36,10 @@
             <input ng-model="request.custom_name" placeholder="Request Name">
           </md-input-container>
 
-          <a href="" class="md-secondary md-warn" ng-click="removeQuery(request, type)"
-                      aria-label="Remove Selection">
+          <a href=""
+              class="md-secondary context-danger"
+              ng-click="removeQuery(request, type)"
+              aria-label="Remove Selection">
             <i class="fa fa-minus-circle fa-lg" aria-hidden="true"
             style="margin-right: -15px;"></i>
           </a>
