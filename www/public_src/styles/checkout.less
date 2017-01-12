@@ -28,5 +28,18 @@
 }
 
 #checkoutDetails {
+  overflow-y: hidden;
+  #detailsContent {
+    height: calc(100vh ~"-" @headerHeight ~"-" @processHeaderHeight  ~"-" 74px);
+    overflow-y: auto;
 
+    .termsConditions {
+      height: 40%;
+      min-height: 200px;
+    }
+  }
+  .map {
+    height: 100%;
+    width: 100%;
+  }
 }

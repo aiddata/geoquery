@@ -1,5 +1,5 @@
 angular.module('aiddataDET')
-.controller('DetailsCtrl', function($scope, $rootScope, $log, $q, $timeout, $state, $cookies, $element, $mdDialog, queryFactory, modalFactory, mapFactory, spinFactory, info, modals) {
+.controller('DetailsCtrl', function($scope, $rootScope, $log, $q, $window, $timeout, $state, $cookies, $element, $mdDialog, queryFactory, modalFactory, mapFactory, spinFactory, info, modals) {
   $scope.queryObj = queryFactory.getQuery();
   $scope.terms = [];
   $scope.queryData = {
@@ -33,9 +33,14 @@ angular.module('aiddataDET')
     $scope.citation = _.get(info, 'citation') || '';
 
     mapFactory.provision(document.querySelector('.map'), true)
-      .promise.then(function(){
+      .promise.then(function(map){
         $scope.boundary = queryFactory.getSubBoundary();
         mapFactory.mapBoundary($scope.boundary.name);
+
+        angular.element($window).bind('resize', function() {
+          $timeout(function() { map.adjustBounds(); });
+        });
+        $timeout(function() { map.adjustBounds(); });
       });
 
   });
