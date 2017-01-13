@@ -3,11 +3,13 @@
   * page.  It is responsible for displaying, filtering, and selecting datasets.
   */
 angular.module('aiddataDET')
-.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, $timeout, datasets, $state, $window, $element, info, queryFactory) {
+.controller('DatasetSelectorCtrl', function($scope, $rootScope, $mdDialog, $log, $timeout, datasets, $state, $window, $cookies, $element, info, queryFactory, modals, modalFactory) {
   $scope.showSearchTools = false;   // Advanced Search Visibility
   $scope.featuredTags = [];         // Featured Category Tags
   $scope.querySize = 0;
   $scope.listStyle = { };
+
+  var resetFilters = modalFactory.confirm(modals.resetFilters);
 
   // Datasets container
   $scope.datasets = {
@@ -40,16 +42,24 @@ angular.module('aiddataDET')
 
   // Select dataset
   $scope.selectDataset = function(dataset) {
+    if (!$cookies.get('resetFilters') && $('.btn-chip-dismissable').length) {
+      return $mdDialog.show(resetFilters)
+        .then(function() {
+          swapDataset(dataset);
+        }, function(err) {
+          console.log('Do not change dataset');
+        });
+    }
+    return swapDataset(dataset);
+  };
+
+  function swapDataset (dataset) {
     var targetState = dataset.type === 'release' ? 'search.filters' :
         'search.options';
-
     $log.debug('Navigating to: ', targetState);
-
     $scope.datasets.selected = dataset.name;
-
     $state.go(targetState, { dataset: dataset.name });
-
-  };
+  }
 
   // When the number of filtered datasets changes - select the dataset that appears on top
   $scope.$watch('datasets.filtered', function (newValue, oldValue) {
