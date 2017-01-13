@@ -42,7 +42,9 @@ angular.module('aiddataDET')
 
   // Select dataset
   $scope.selectDataset = function(dataset) {
-    if (!$cookies.get('resetFilters') && $('.btn-chip-dismissable').length) {
+    if (!$cookies.get('resetFilters') &&
+      $('.btn-chip-dismissable').length &&
+      !$('#addSelection').is('[disabled]')) {
       return $mdDialog.show(resetFilters)
         .then(function() {
           swapDataset(dataset);
