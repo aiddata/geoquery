@@ -55,10 +55,18 @@ angular.module('aiddataDET')
 
   function swapDataset (dataset) {
     var targetState = dataset.type === 'release' ? 'search.filters' :
-        'search.options';
+        'search.options',
+        firstDataset = $state.current.name === 'search';
     $log.debug('Navigating to: ', targetState);
     $scope.datasets.selected = dataset.name;
-    $state.go(targetState, { dataset: dataset.name });
+    $state.go(targetState, { dataset: dataset.name })
+      .then(function(d) {
+        if (firstDataset) {
+          $timeout(function () {
+            attachPopover();
+          }, 1000);
+        }
+      });
   }
 
   // When the number of filtered datasets changes - select the dataset that appears on top
@@ -94,6 +102,29 @@ angular.module('aiddataDET')
     $scope.datasets.options = d;
     $scope.querySize = queryFactory.querySize();
   });
+
+
+ /* Create Popover */
+  function attachPopover () {
+    var popoverSettings = {
+      content: [
+        '<p>When you are satisfied with your selection click here to add it to your request.</p>',
+        '<button class="md-button md-raised md-primary" id="closePopover">Got It</button>'
+      ].join('\n'),
+      container: 'body',
+      html: true,
+      placement: 'bottom'
+    };
+
+    $('#addSelection').popover(popoverSettings)
+      .on('shown.bs.popover', function() {
+        var btn = $(this);
+        $('#closePopover').click(function () {
+          btn.popover('destroy');
+        });
+      })
+      .popover('show');
+  }
 
 
   /* Mananage List Size */

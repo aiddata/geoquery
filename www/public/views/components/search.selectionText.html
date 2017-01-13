@@ -28,13 +28,13 @@
         <span ng-show="!selectionData.canAdd">New Selection</span>
       </md-button>
 
-      <md-button class="md-raised md-accent md-hue-5" aria-label="Add to Request"
+      <button id="addSelection" class="md-button md-raised md-accent md-hue-5" aria-label="Add to Request"
           ng-disabled="!selectionData.canAdd"
           ng-click="addToCart()">
         <i class="fa fa-lg fa-plus" aria-hidden="true"></i>&nbsp;&nbsp;
         <span ng-show="selectionData.canAdd || dataset.type === 'raster' || !(totals.projects && totals.locations)">Add to Request</span>
         <span ng-show="!selectionData.canAdd && dataset.type !== 'raster' && (totals.projects && totals.locations)">Added to Request</span>
-      </md-button>
+      </button>
 
     </div>
   </md-toolbar>
