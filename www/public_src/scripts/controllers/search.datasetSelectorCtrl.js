@@ -111,7 +111,7 @@ angular.module('aiddataDET')
     var popoverSettings = {
       content: [
         '<p>When you are satisfied with your selection click here to add it to your request.</p>',
-        '<button class="md-button md-raised md-primary" id="closePopover">Got It</button>'
+        '<button class="md-button md-raised md-primary pull-right" flex id="closePopover">Got It</button>'
       ].join('\n'),
       container: 'body',
       html: true,
@@ -121,7 +121,7 @@ angular.module('aiddataDET')
     $('#addSelection').popover(popoverSettings)
       .on('shown.bs.popover', function() {
         var btn = $(this);
-        $('#closePopover').click(function () {
+        $('body').click(function () {
           btn.popover('destroy');
         });
       })
