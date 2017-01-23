@@ -31,7 +31,7 @@
       <br>
       <p class="text-muted">
         <strong>Featured Boundaries </strong>
-        <em ng-repeat="item in boundaries.slice(0,5) | filter:{tags:'featured'}">
+        <em ng-repeat="item in featuredBoundaries.slice(0,5)">
           <a href="" aria-label="select featured boundary"
               ng-click="selectFromFeatured(item)">
               {{ $last ? item.name : item.name +', ' }}</a>
