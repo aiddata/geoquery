@@ -15,21 +15,31 @@ angular.module('aiddataDET', ['ui.router', 'ui.bootstrap', 'ngMaterial', 'rzModu
    * ====================================================================
    */
 
+  $mdThemingProvider.definePalette('aiddataGreen', {
+    '50': 'c9ffed',
+    '100': 'a3e9d2',
+    '200': '86ccb5',
+    '300': '67ad96',
+    '400': '50967f',
+    '500': '397f68',
+    '600': '30765f',
+    '700': '256b54',
+    '800': '1a6049',
+    '900': '064c35',
+    'A100': 'b4fae3',
+    'A200': '9ee4cd',
+    'A400': '78bea7',
+    'A700': '559b84',
+    'contrastDefaultColor': 'light',    // whether, by default, text (contrast) on this palette should be dark or light
+    'contrastDarkColors': ['50', '100', '200', '300', '400', 'A100'], //hues which contrast should be 'dark' by default
+    'contrastLightColors': undefined    // could also specify this if default was 'dark'
+  });
+
   $mdThemingProvider.theme('default')
-      .primaryPalette('blue-grey', {
-        'default': '400',
-        'hue-1': '100',
-        'hue-2': '600',
-        'hue-3': 'A100'
-      })
-      .accentPalette('green', {
-        'default': '500',
-        'hue-1': '100',
-        'hue-2': '600',
-        'hue-3': 'A100'
-      })
+      .primaryPalette('aiddataGreen')
+      .accentPalette('amber')
       .warnPalette('deep-orange')
-      .backgroundPalette('grey');
+      .backgroundPalette('grey', 'dark');
 
   /*
    * ===========================================

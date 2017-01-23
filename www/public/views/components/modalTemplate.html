@@ -9,12 +9,12 @@
   </md-dialog-content>
   <md-dialog-actions>
 
-    <md-button class="md-primary"
+    <md-button md-no-ink class="md-primary"
                ng-click="closeDialog()">
       {{ configs.ok || 'OK' }}
     </md-button>
 
-    <md-button class="md-primary"
+    <md-button md-no-ink class="md-primary"
                ng-if="type === 'confirm'"
                ng-click="cancelDialog()" >
       {{ configs.cancel || 'cancel' }}

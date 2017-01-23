@@ -8,7 +8,7 @@
       ng-init="option.shown = showOption(option)"
       ng-show="option.shown">
 
-    <md-card-header>
+    <md-card-header layout-align="none center">
       <md-card-header-text flex="100">
         <small class="md-subhead">{{ option.name }}
           <small class="text-muted">({{ option.checkedCount || 0 }}/{{ option.data.length }})</small>
