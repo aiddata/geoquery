@@ -8,18 +8,20 @@
          ng-bind-html="trustedContent"></div>
   </md-dialog-content>
   <md-dialog-actions>
+
     <md-checkbox ng-show="showCheckbox"
                  ng-model="hideMsg"
                  aria-label="Don't show me this again">
-        Don't show me this again 
+        Don't show me this again
     </md-checkbox>
     <span flex></span>
-    <md-button class="md-primary"
+
+    <md-button md-no-ink class="md-primary"
                ng-click="closeDialog()">
       {{ configs.ok || 'OK' }}
     </md-button>
 
-    <md-button class="md-primary"
+    <md-button md-no-ink class="md-primary"
                ng-if="type === 'confirm'"
                ng-click="cancelDialog()" >
       {{ configs.cancel || 'cancel' }}

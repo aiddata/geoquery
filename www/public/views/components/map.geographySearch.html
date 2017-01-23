@@ -7,7 +7,7 @@
         md-no-cache="false"
         md-selected-item="formData.boundary"
         md-search-text="formData.searchText"
-        md-items="item in boundaries | filter: { search: formData.searchText }"
+        md-items="item in boundaries | filter: { search: formData.searchText } | orderBy: 'name'"
         md-selected-item-change="selectedItemChange(item)"
         md-select-on-match="true"
         md-match-case-insensitive="true"
@@ -31,7 +31,7 @@
       <br>
       <p class="text-muted">
         <strong>Featured Boundaries </strong>
-        <em ng-repeat="item in boundaries.slice(0,5) | filter:{tags:'featured'}">
+        <em ng-repeat="item in featuredBoundaries.slice(0,5)">
           <a href="" aria-label="select featured boundary"
               ng-click="selectFromFeatured(item)">
               {{ $last ? item.name : item.name +', ' }}</a>
@@ -60,16 +60,13 @@
       <div class="col-md-12">
         <div class="row">
           <div class="col-md-6">
-            <md-button class="md-raised" ng-click="formData.searchText = ''">
-              <i class="fa fa-angle-double-left" aria-hidden="true"></i>
-              Back
+            <md-button md-no-ink class="md-primary" ng-click="formData.searchText = ''">
+              <i class="fa fa-angle-double-left" aria-hidden="true"></i> Back
             </md-button>
           </div>
           <div class="col-md-6">
-            <md-button class="md-raised md-accent md-hue-5 pull-right"
-                ng-click="defineBoundary()">
-              Search Datasets
-              <i class="fa fa-angle-double-right" aria-hidden="true"></i>
+            <md-button md-no-ink class="md-raised md-primary pull-right" ng-click="defineBoundary()">
+              Search Datasets <i class="fa fa-angle-double-right" aria-hidden="true"></i>
             </md-button>
           </div>
         </div>

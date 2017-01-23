@@ -1,12 +1,14 @@
 #datasetSelector {
+  min-height: 500px;
+  overflow-y: hidden;
   z-index: 11;
   .dataset-list {
     transition: background-color 300ms linear;
-    &:hover {
-      background-color: #eee;
-    }
+    // &:hover {
+    //   background-color: #eee;
+    // }
     &.active, &.active:hover {
-      background-color: @steelBlue;
+      background-color: @themeDefault;
       h1, h2, h3, h4, h5 {
         color: #fff;
       }
@@ -65,10 +67,8 @@
     padding-top: 0px;
     overflow-y: auto;
     width: 100%;
-    box-shadow: 0 -3px 14px -2px rgba(0,0,0,.12);
   }
 }
-
 
 #selectionText {
   height: calc(40vh ~"-" @headerHeight ~"-" @processHeaderHeight);
@@ -90,6 +90,9 @@
   .selection-text-header {
     flex-shrink: 0px;
     md-toolbar {
+      background-color: @cardHeader;
+      border-bottom: 1px solid @borderColor;
+      color: black;
       overflow: hidden;
       line-height: 14px;
     }
@@ -106,39 +109,28 @@ md-card.filter-card  {
   min-height: 200px;
 
   md-card-header{
-    background-color: rgb(250, 250, 250);
-    border-bottom: 1px solid rgba(84, 110, 122, 0.44);
     height: 60px;
+    line-height: 60px;
   }
   a.toolbar-link {
-      margin-left: 10px;
-    }
+    margin-left: 10px;
+  }
 
   .md-subheader{
     background-color: #fff;
   }
+  md-list {
+    padding-top: 0px;
+  }
 }
 
-.label.label-circle {
-  height: 2.5em;
-  width: 2.5em;
-  border-radius: 50%;
-  line-height: 2em;
-  box-shadow: 0 1px 3px 0 rgba(0,0,0,.2),
-    0 1px 1px 0 rgba(0,0,0,.14),
-    0 2px 1px -1px rgba(0,0,0,.12);
-  text-align: center!important;
-  margin-left: 10px;
-  display: block;
-}
-
-#searchModuleView {
+#searchRow {
   max-width:100%;
   overflow-x: auto;
   overflow-y: hidden;
   flex: 1 1 auto;
-  height: calc(65vh ~"-" @headerHeight ~"-" @processHeaderHeight);
-  max-height: calc(65vh ~"-" @headerHeight ~"-" @processHeaderHeight);
+  height: calc(65vh ~"-" @headerHeight ~"-" (@processHeaderHeight + 20));
+  max-height: calc(65vh ~"-" @headerHeight ~"-" (@processHeaderHeight + 20));
   min-height: 280px;
 
   md-list-item {
@@ -147,14 +139,11 @@ md-card.filter-card  {
 }
 
 #searchOverlay {
-  right: 0;
-  position: absolute;
-  width: 70%;
   top: calc(@headerHeight ~"+" @processHeaderHeight);
   z-index: 10;
   background-color:  rgba(0,0,0,.5);
   pointer-events: none;
-  color: white;
+  color: @inverseText;
   padding: 10%;
   font-size: 21px;
   text-transform: capitalize;

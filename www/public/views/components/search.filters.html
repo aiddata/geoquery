@@ -20,7 +20,7 @@
         <span flex></span>
 
         <!-- Buttons -->
-        <a href="" class="md-warn"
+        <a href="" class="context-danger"
             ng-click="removeFilter(filter)">
             <md-tooltip md-delay="500"> Remove Filter Field </md-tooltip>
             <i class="fa fa-minus-circle fa-lg" aria-hidden="true"></i>
@@ -33,7 +33,7 @@
           <i class="fa fa-refresh fa-lg" aria-hidden="true"></i>
         </a>
 
-        <a href="" class="toolbar-link label label-primary label-circle"
+        <a href="" class="toolbar-link context-info"
             ng-hide="dataset.fields[filter].filter_type !== 'list'"
             ng-click="hideSubHeader = !hideSubHeader">
             <md-tooltip md-delay="500"> Search Filter Options </md-tooltip>

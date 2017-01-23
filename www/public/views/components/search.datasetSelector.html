@@ -3,18 +3,16 @@
     <div class="col-md-12" style="margin: 16px 0px;">
       <div class="row">
         <div class="col-md-6">
-          <button class="btn btn-link btn-sm" ui-sref="map">
-            <i class="fa fa-arrow-left" aria-hidden="true"></i>
+          <a href="" ui-sref="map" class="small context-info">
+            <i class="fa fa-angle-double-left" aria-hidden="true"></i>
             Select a Different Boundary
-          </button>
+          </a>
         </div>
-        <div class="col-md-6">
-          <button class="btn btn-link btn-sm pull-right"
-            ng-disabled="!querySize"
-            ui-sref="checkout">
+        <div class="col-md-6 text-right">
+          <a ui-sref="checkout" class="small context-info" ng-class="{'disabled': !querySize}">
             Submit Request
-            <i class="fa fa-arrow-right" aria-hidden="true"></i>
-          </button>
+            <i class="fa fa-angle-double-right" aria-hidden="true"></i>
+          </a>
         </div>
       </div>
     </div>
@@ -60,11 +58,12 @@
     </div>
 
     <div layout="row" layout-padding layout-align="space-between center" class="dataset-counts">
-      <h5>
-        {{ datasets.filtered.length }}/
-        {{ datasets.options.length }}
-        Datasets
-      </h5>
+      <h4>
+        <strong>Datasets</strong>
+        <small class="text-muted">
+          ({{ datasets.filtered.length }}/{{ datasets.options.length }})
+        </small>
+      </h4>
       <span flex></span>
       <small class="advanced-options">
         <a href="" ng-click="showSearchTools = !showSearchTools"> Advanced Options</a>
