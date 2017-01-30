@@ -7,9 +7,11 @@ angular.module('aiddataDET')
       name: 'Extract Options',
       type: 'checkbox',
       loc: 'options.extract_types',
+      info_loc: 'options.extract_types_info',
       dest: 'options.extract_types',
       pick: function(x) { return _.get(x, 'name'); },
-      data: []
+      data: [],
+      info: {}
     },
     {
       name: 'Years',
@@ -91,5 +93,7 @@ angular.module('aiddataDET')
         return _.isString(choice) ? { name: choice } : choice;
       })
       .value();
+
+    option.info = option.info_loc ? _.get($scope.dataset, option.info_loc) : {};
   }
 });

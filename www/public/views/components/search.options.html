@@ -62,6 +62,12 @@
               getTimeStamp(choice.end, dataset.temporal.format) }}
           </p>
 
+          <a href=""
+              ng-if="option.info && option.info[choice.name]">
+            <i class="fa fa-info-circle fa-lg" aria-hidden="true"></i>
+            <md-tooltip md-direction="right"> {{option.info[choice.name]}} </md-tooltip>
+          </a>
+
           <md-divider></md-divider>
 
         </md-list-item>
