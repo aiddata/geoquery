@@ -3,11 +3,13 @@
   * page.  It is responsible for displaying, filtering, and selecting datasets.
   */
 angular.module('aiddataDET')
-.controller('DatasetSelectorCtrl', function($scope, $rootScope, $log, $timeout, datasets, $state, $window, $element, info, queryFactory) {
+.controller('DatasetSelectorCtrl', function($scope, $rootScope, $mdDialog, $log, $timeout, datasets, $state, $window, $cookies, $element, info, queryFactory, modals, modalFactory) {
   $scope.showSearchTools = false;   // Advanced Search Visibility
   $scope.featuredTags = [];         // Featured Category Tags
   $scope.querySize = 0;
   $scope.listStyle = { };
+
+  var resetFilters = modalFactory.confirm(modals.resetFilters);
 
   // Datasets container
   $scope.datasets = {
@@ -40,16 +42,34 @@ angular.module('aiddataDET')
 
   // Select dataset
   $scope.selectDataset = function(dataset) {
-    var targetState = dataset.type === 'release' ? 'search.filters' :
-        'search.options';
-
-    $log.debug('Navigating to: ', targetState);
-
-    $scope.datasets.selected = dataset.name;
-
-    $state.go(targetState, { dataset: dataset.name });
-
+    if ($cookies.get('resetFilters') !== 'true' &&
+      $('.btn-chip-dismissable').length &&
+      !$('#addSelection').is('[disabled]')) {
+      return $mdDialog.show(resetFilters)
+        .then(function() {
+          swapDataset(dataset);
+        }, function(err) {
+          console.log('Do not change dataset');
+        });
+    }
+    return swapDataset(dataset);
   };
+
+  function swapDataset (dataset) {
+    var targetState = dataset.type === 'release' ? 'search.filters' :
+        'search.options',
+        firstDataset = $state.current.name === 'search';
+    $log.debug('Navigating to: ', targetState);
+    $scope.datasets.selected = dataset.name;
+    $state.go(targetState, { dataset: dataset.name })
+      .then(function(d) {
+        if (firstDataset) {
+          $timeout(function () {
+            attachPopover();
+          }, 1000);
+        }
+      });
+  }
 
   // When the number of filtered datasets changes - select the dataset that appears on top
   $scope.$watch('datasets.filtered', function (newValue, oldValue) {
@@ -84,6 +104,29 @@ angular.module('aiddataDET')
     $scope.datasets.options = d;
     $scope.querySize = queryFactory.querySize();
   });
+
+
+ /* Create Popover */
+  function attachPopover () {
+    var popoverSettings = {
+      content: [
+        '<p>When you are satisfied with your selection click here to add it to your request.</p>',
+        '<button class="md-button md-raised md-primary pull-right" flex id="closePopover">Got It</button>'
+      ].join('\n'),
+      container: 'body',
+      html: true,
+      placement: 'bottom'
+    };
+
+    $('#addSelection').popover(popoverSettings)
+      .on('shown.bs.popover', function() {
+        var btn = $(this);
+        $('body').click(function () {
+          btn.popover('destroy');
+        });
+      })
+      .popover('show');
+  }
 
 
   /* Mananage List Size */

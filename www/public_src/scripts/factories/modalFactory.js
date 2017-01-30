@@ -4,19 +4,27 @@ function makeDialog (type, configs) {
 
     templateUrl: 'views/components/modalTemplate.html',
 
-    controller: function DialogController($scope, $sce, $mdDialog) {
+    controller: function DialogController($scope, $sce, $mdDialog, $cookies) {
       $scope.configs = configs;
       $scope.type = type;
+      $scope.hideMsg = false;
+      $scope.showCheckbox = !!configs.hideCookie;
+
       if (configs.content || configs.textContent) {
-        var content = configs.content ? configs.content :
-          '<p>' + configs.textContent + '</p>';
+        var content = configs.content ? configs.content : '<p>' + configs.textContent + '</p>';
         $scope.trustedContent = $sce.trustAsHtml(content);
       }
 
+
+
       $scope.cancelDialog = function() {
+        if (configs.hideCookie) { $cookies.put(configs.hideCookie, $scope.hideMsg); }
+
         $mdDialog.cancel();
       };
       $scope.closeDialog = function() {
+        if (configs.hideCookie) { $cookies.put(configs.hideCookie, $scope.hideMsg); }
+
         $mdDialog.hide();
       };
     }

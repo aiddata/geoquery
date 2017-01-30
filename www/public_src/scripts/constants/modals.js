@@ -73,5 +73,17 @@ angular.module('aiddataDET')
       ok: 'Return to search',
       cancel: 'Cancel',
       name: 'Empty Request Warning'
+    },
+
+    // Reset Filters Warning
+    // (www/public_src/scripts/controllers/search.datasetSelector.js)
+    resetFilters: {
+      clickOutsideToClose: true,
+      hideCookie: 'resetFilters',
+      title: 'Are you sure you want to swap datasets? Your filters will not be saved.',
+      textContent: 'To add the current selection to your request, click the "Add to Request" button',
+      ok: 'Continue',
+      cancel: 'Cancel',
+      name: 'Reset Filters Warning'
     }
   });
