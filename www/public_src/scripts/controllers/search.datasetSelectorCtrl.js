@@ -42,7 +42,7 @@ angular.module('aiddataDET')
 
   // Select dataset
   $scope.selectDataset = function(dataset) {
-    if (!$cookies.get('resetFilters') &&
+    if ($cookies.get('resetFilters') !== 'true' &&
       $('.btn-chip-dismissable').length &&
       !$('#addSelection').is('[disabled]')) {
       return $mdDialog.show(resetFilters)
