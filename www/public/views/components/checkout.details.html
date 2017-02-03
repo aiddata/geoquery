@@ -43,14 +43,18 @@
   <md-divider></md-divider>
 
   <div class="termsConditions md-padding" flex layout="column">
+
+    <label class=""> Citation </label>
+    <p class="citation md-padding">{{ citation }}</p>
+
+
     <label class=""> Terms and Conditions </label>
     <md-content class="termsContent" flex layout-fill layout-margin layout-align="stretch space-between">
       <p ng-repeat="paragraph in terms">
         {{ paragraph }}
       </p>
     </md-content>
-    <br>
-    <p class="citation">{{ citation }}</p>
+
   </div>
 
   <md-divider></md-divider>

@@ -16,8 +16,8 @@ angular.module('aiddataDET')
     googleTrackingID: 'UA-86742618-1',
 
     // Brand
-    logoUrl: 'http://aiddata.org/sites/all/themes/aiddata/logo.png',
-
+    // logoUrl: 'http://aiddata.org/sites/all/themes/aiddata/logo.png',
+    logoUrl: 'http://geo.aiddata.org/assets/aid_data.png',
     // Domain
     domain: 'aiddata'
   });
