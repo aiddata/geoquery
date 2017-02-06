@@ -36,8 +36,8 @@ angular.module('aiddataDET')
   $scope.$watch('filterOrder', function(newValue, oldValue) {
     if (!_.difference(newValue, oldValue)[0]) { return; }
     $timeout(function() {
-      var w = d3.sum($('#searchRow').children().map(function() { return $(this).width(); }));
-      $('#searchRow').animate({scrollLeft: w});
+      var w = d3.sum($('#searchModuleView').children().map(function() { return $(this).width(); }));
+      $('#searchModuleView').animate({scrollLeft: w});
       $scope.dataset.fields[_.difference(newValue, oldValue)[0]].isActive = true;
     }, 400);
 
