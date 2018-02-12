@@ -46,7 +46,7 @@ sudo apt-get update
   # monit - for restarting webserver after crashes, and reporting
 
 
-sudo apt-get install -y unzip curl vim git nginx python-software-properties python g++ make nodejs upstart monit #npm
+sudo apt-get install -y unzip curl vim git nginx python-software-properties python g++ make nodejs upstart monit npm
 
 sudo ln -s "$(which nodejs)" /usr/bin/node
 
@@ -139,5 +139,6 @@ bower install
 cd ${web_dir}
 grunt build
 
+sudo service nginx reload
 
 
