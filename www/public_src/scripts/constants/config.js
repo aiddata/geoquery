@@ -7,7 +7,7 @@ angular.module('aiddataDET')
   .constant('config', {
 
     // Header Config
-    pageTitle: 'AidData geo(query)',
+    pageTitle: 'AidData GeoQuery',
     faviconUrl: 'http://www.aiddata.org/sites/all/themes/aiddata/favicon.ico',
     meta: {
       description: 'this is the description',
