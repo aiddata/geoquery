@@ -8,15 +8,14 @@ angular.module('aiddataDET')
 
     // Header Config
     pageTitle: 'AidData GeoQuery',
-    faviconUrl: 'http://www.aiddata.org/sites/all/themes/aiddata/favicon.ico',
+    faviconUrl: 'http://geo.aiddata.org/assets/favicon.png',
     meta: {
-      description: 'this is the description',
-      keywords: 'aiddata,geo,query,keywords'
+      description: 'GeoQuery enables individuals and organizations of all skill levels to freely find and aggregate satellite, economic, health, conflict, and other spatial data into a single, simple-to-use file compatible with Microsoft Excel and other common software.',
+      keywords: 'aiddata,geo,query,geoquery,geospatial,aid,satellite,data,gis'
     },
     googleTrackingID: 'UA-86742618-1',
 
     // Brand
-    // logoUrl: 'http://aiddata.org/sites/all/themes/aiddata/logo.png',
     logoUrl: 'http://geo.aiddata.org/assets/aid_data.png',
     // Domain
     domain: 'aiddata'
