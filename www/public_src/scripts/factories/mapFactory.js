@@ -65,7 +65,7 @@ angular.module('aiddataDET')
       /* Map */
       map = L.map(element, {
         zoomControl: false,
-        maxZoom: 6,
+        maxZoom: 10,
         layers: [ basemap, boundaryGroup ],
         doubleClickZoom: false,
         zoomAnimation: true,
