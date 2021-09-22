@@ -33,12 +33,16 @@ angular.module('aiddataDET')
     $rootScope.$broadcast('options:updated', { key: option.dest, value: optionData, direction: direction });
   };
 
-  $scope.getTimeStamp = function (date, format) {
+  $scope.getTimeStamp = function (date, format, temporal) {
     var timeFormatter = d3.timeFormat('%Y');
+    if (temporal == "year month") {
+        timeFormatter = d3.timeFormat('%Y - %m');
+    };
     var timeParser = d3.timeParse(format),
         formDate = timeFormatter(timeParser(date));
     return formDate;
   };
+
 
   $scope.toggleAll = function (option, isChecked) {
     var checkOn = _.isNil(isChecked) ? option.allChecked : isChecked;

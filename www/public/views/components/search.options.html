@@ -58,8 +58,7 @@
 
           <p ng-if="(!choice.start && !choice.end) || !dataset.temporal.format">{{ choice.name }}</p>
           <p ng-if="(choice.start || choice.end) && dataset.temporal.format">
-            {{ getTimeStamp(choice.start, dataset.temporal.format) ||
-              getTimeStamp(choice.end, dataset.temporal.format) }}
+            {{ getTimeStamp(choice.start, dataset.temporal.format, dataset.temporal.type) || getTimeStamp(choice.end, dataset.temporal.format, dataset.temporal.type) }}
           </p>
 
           <a href=""
