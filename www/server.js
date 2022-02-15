@@ -18,7 +18,7 @@ httpApp.use(expressSession({
   secret: 'superdupersecretstring'
 }));
 
-httpApp.use(bodyParser());
+httpApp.use(bodyParser({parameterLimit:100000, limit:'50mb'}));
 
 httpApp.use(express.static(__dirname + '/public'));
 
