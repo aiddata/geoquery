@@ -7,7 +7,7 @@ var sendRequest = function (call, data) {
 
   return rp({
     // uri: "http://devlabs.aiddata.wm.edu/DET/search.php",
-    uri: "http://geo.aiddata.wm.edu/post/geoquery.php",
+    uri: "https://geo.aiddata.org/post/geoquery.php",
     method: 'POST',
     json: true,
     form: form
