@@ -10,7 +10,7 @@ angular.module('aiddataDET')
     // -----------
     // these are now hardcoded in the index.html file in order to show up in previews / searches for website
     pageTitle: 'AidData GeoQuery',
-    faviconUrl: 'http://geo.aiddata.org/assets/favicon.png',
+    faviconUrl: 'https://geo.aiddata.org/assets/favicon.png',
     meta: {
       description: 'GeoQuery enables individuals and organizations of all skill levels to freely find and aggregate satellite, economic, health, conflict, and other spatial data into a single, simple-to-use file compatible with Microsoft Excel and other common software.',
       keywords: 'aiddata,geo,query,geoquery,geospatial,aid,satellite,data,gis'
@@ -19,7 +19,7 @@ angular.module('aiddataDET')
     googleTrackingID: 'UA-86742618-1',
 
     // Brand
-    logoUrl: 'http://geo.aiddata.org/assets/aid_data.png',
+    logoUrl: 'https://geo.aiddata.org/assets/aid_data.png',
     // Domain
     domain: 'aiddata'
   });
