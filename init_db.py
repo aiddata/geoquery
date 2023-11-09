@@ -30,7 +30,7 @@ def init_db(overwrite: bool) -> None:
             cur.execute("""
                 CREATE TABLE datasets (
                     id     SERIAL PRIMARY KEY,
-                    name   varchar(200) NOT NULL
+                    name   varchar(200) UNIQUE NOT NULL
                  );
             """)
 
