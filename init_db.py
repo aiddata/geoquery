@@ -1,5 +1,6 @@
 import click
 import psycopg
+from psycopg.errors import DuplicateTable
 
 from conn import get_conn
 
@@ -49,7 +50,10 @@ def init_db(overwrite: bool) -> None:
 @click.command()
 @click.option('--overwrite/--no-overwrite', default=False)
 def main(overwrite: bool) -> None:
-    init_db(overwrite)        
+    try:
+        init_db(overwrite)        
+    except DuplicateTable:
+        raise DuplicateTable("Table(s) already exist, did you mean to use the --overwrite option?")
 
 if __name__ == "__main__":
     main()
