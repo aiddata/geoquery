@@ -1,11 +1,33 @@
-from pathlib import Path
 
 import psycopg
-from psycopg.types.json import Jsonb
 import shapely
-import geopandas as gpd
 import rasterstats as rs
+from psycopg.types.json import Jsonb
 
+def build_extract_tasks():
+    with psycopg.connect("postgresql://postgres:mysecretpassword@localhost:5432") as conn:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT fid FROM feature_geom""")
+            fid_list = [i[0] for i in cur.fetchall()]
+            cur.execute("""SELECT * FROM datasets""")
+            datasets = cur.fetchall()
+            for fid in fid_list:
+                for data in datasets:
+                    if data[2] == "raster":
+                        op = "zonal_stat_default"
+                        method_list = ["min", "max", "mean", "count"]
+                        params = {}
+                    elif data[2] == "categorical":
+                        op = "zonal_stat_categorical"
+                        method_list = ["categorical"]
+                        params = data[5]
+
+                    for method in method_list:
+                        cur.execute("""
+                            INSERT INTO extract_tasks (fid, did, op, method, params)
+                            VALUES (%s, %s, %s, %s, %s)""",
+                            (fid, data[0], op, method, Jsonb(params))
+                        )
 
 def run_extract():
     """Main function to run an extraction of a dataset to a feature
@@ -86,8 +108,7 @@ def get_extract_task():
 
 
 def get_feat(fid):
-    """xxxxx"""
-    # GET FEATURE FROM FEATURE TABLE
+    """GET FEATURE FROM FEATURE TABLE"""
     with psycopg.connect("postgresql://postgres:mysecretpassword@localhost:5432") as conn:
         with conn.cursor() as cur:
             feat = cur.execute("""SELECT * FROM feature_geom WHERE fid = %s""", (fid,)).fetchall()[0]
@@ -97,8 +118,7 @@ def get_feat(fid):
 
 
 def get_data(did):
-    """xxxxx"""
-    # data = # GET DATA META FROM DATA TABLE AND ASSOCIATED PATH/INFO FOR ACTUAL DATASET
+    """GET DATA META FROM DATA TABLE AND ASSOCIATED PATH/INFO FOR ACTUAL DATASET"""
     with psycopg.connect("postgresql://postgres:mysecretpassword@localhost:5432") as conn:
         with conn.cursor() as cur:
             data = cur.execute("""SELECT * FROM datasets WHERE did = %s""", (did,)).fetchall()[0]
@@ -107,7 +127,7 @@ def get_data(did):
 
 
 def get_func(op):
-    """xxxxx"""
+    """Get appropriate function for operation."""
     if op == "zonal_stat_default":
         func = zonal_stat_default
     elif op == "zonal_stat_categorical":
@@ -123,7 +143,7 @@ def run_op(feat, data, func, **kwargs):
 
 
 def format_output(result, **kwargs):
-    """xxxxx"""
+    """Format output data to be exported to extract_data table."""
     if kwargs["stat"] == "categorical":
         formatted_result = [(f"categorical_{k}", v) for k, v in result.items()]
     else:
@@ -157,167 +177,3 @@ def zonal_stat_categorical(feat, raster, category_map, **kwargs):
     """Default zonal stat function."""
     zs_output = rs.zonal_stats(feat, raster, categorical=True, category_map=category_map)
     return zs_output[0]
-
-
-# ==============================================================================
-
-
-def create_table_feature_geom(cur):
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS feature_geom (
-            fid        SERIAL PRIMARY KEY,
-            geom       geometry NOT NULL
-        );
-    """)
-
-def insert_dummy_feature_geom(cur):
-    adm_level = 1
-    print(f"Loading ADM{adm_level}...")
-    src = Path(f"geoBoundariesCGAZ_ADM{adm_level}.gpkg")
-    # load this file into a geopandas df
-    df = gpd.read_file(src)
-    # iterate through rows of df
-    # NOTE: there may be faster ways to iterate
-    for ix, row in enumerate(df.to_dict(orient="records")):
-        insert_row(cur, row)
-        if ix > 10:
-            break
-
-# function to insert row from geopandas df into boundaries table
-def insert_row(cur, row):
-    cur.execute("""
-        INSERT INTO feature_geom (geom)
-        VALUES (ST_GeomFromText(%s));
-        """,
-        ( shapely.to_wkt(row["geometry"]), )
-    )
-
-def create_table_datasets(cur):
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS datasets (
-            did        SERIAL PRIMARY KEY,
-            path       varchar(200),
-            type       varchar(200),
-            info       jsonb DEFAULT NULL
-        );
-    """)
-
-def insert_dummy_datasets(cur):
-    esa_cmap = {
-        "urban" : 190,
-        "bare_areas" : 200,
-        "sparse_vegetation" : 140,
-        "snow_ice" : 220,
-        "shrubland" : 120,
-        "no_data" : 0,
-        "mosaic_cropland" : 30,
-        "rainfed_cropland" : 10,
-        "wetland" : 180,
-        "forest" : 50,
-        "grassland" : 110,
-        "water_bodies" : 210,
-        "irrigated_cropland" : 20
-    }
-    data = [
-        ("/home/userx/Desktop/postgis_test/avhrr_ndvi_v5_2010.tif", "raster", None),
-        ("/home/userx/Desktop/postgis_test/esa_lc_2000.tif", "categorical_raster", esa_cmap)
-    ]
-    for d in data:
-        cur.execute("""
-            INSERT INTO datasets (path, type, info)
-            VALUES (%s, %s, %s);
-            """,
-            (d[0], d[1], Jsonb(d[2]))
-        )
-
-def create_table_extract_tasks(cur):
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS extract_tasks (
-            task_id         SERIAL PRIMARY KEY,
-            fid             varchar(100),
-            did             varchar(100),
-            op              varchar(100),
-            method          varchar(100),
-            params          jsonb DEFAULT NULL,
-            status          integer DEFAULT 0,
-            priority        integer DEFAULT 0,
-            submit_time     timestamp DEFAULT CURRENT_TIMESTAMP,
-            start_time      timestamp DEFAULT NULL,
-            update_time     timestamp DEFAULT NULL,
-            complete_time   timestamp DEFAULT NULL,
-            attempts        integer DEFAULT 0,
-            error           varchar(100) DEFAULT NULL
-        );
-    """)
-
-
-def insert_dummy_extract_tasks(cur):
-    data = [
-        (1, 1, "zonal_stat_default", "mean", Jsonb({})),
-        (1, 2, "zonal_stat_categorical", "categorical", Jsonb({}))
-    ]
-    for d in data:
-        cur.execute("""
-            INSERT INTO extract_tasks (fid, did, op, method, params)
-            VALUES (%s, %s, %s, %s, %s);
-            """,
-            d
-        )
-
-def create_table_extract_data(cur):
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS extract_data (
-            fid        varchar(100),
-            did        varchar(100),
-            op         varchar(100),
-            method     varchar(100),
-            value      float,
-            version    varchar(10)
-        );
-    """)
-
-
-if __name__ == "__main__":
-
-
-    with psycopg.connect("postgresql://postgres:mysecretpassword@localhost:5432") as conn:
-        with conn.cursor() as cur:
-            cur.execute("""DROP TABLE feature_geom""")
-            cur.execute("""DROP TABLE datasets""")
-            cur.execute("""DROP TABLE extract_tasks""")
-            cur.execute("""DROP TABLE extract_data""")
-
-
-    # connect to PostgreSQL
-    # TODO: configurable connection options, e.g. host and password
-    with psycopg.connect("postgresql://postgres:mysecretpassword@localhost:5432") as conn:
-        with conn.cursor() as cur:
-
-            create_table_feature_geom(cur)
-            create_table_datasets(cur)
-            create_table_extract_tasks(cur)
-            create_table_extract_data(cur)
-
-            insert_dummy_feature_geom(cur)
-            insert_dummy_datasets(cur)
-            insert_dummy_extract_tasks(cur)
-
-
-
-    with psycopg.connect("postgresql://postgres:mysecretpassword@localhost:5432") as conn:
-        with conn.cursor() as cur:
-            x = cur.execute("""SELECT * FROM feature_geom""").fetchall()
-            cur.execute("""SELECT * FROM datasets""").fetchall()
-            cur.execute("""SELECT * FROM extract_tasks""").fetchall()
-            cur.execute("""SELECT * FROM extract_data""").fetchall()
-
-
-
-
-"""
-conn = psycopg.connect("postgresql://postgres:mysecretpassword@localhost:5432")
-cur = conn.cursor()
-
-cur.close()
-conn.close()
-"""
