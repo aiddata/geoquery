@@ -224,10 +224,10 @@ def create_table_requests(cur):
             info            varchar(500),
             status          int,
             priority        int,
-            submit_time     timestamp,
-            prepare_time    timestamp,
-            processe_time   timestamp,
-            complete_time   timestamp
+            submit_time     timestamp DEFAULT CURRENT_TIMESTAMP,
+            prepare_time    timestamp DEFAULT NULL,
+            process_time   timestamp DEFAULT NULL,
+            complete_time   timestamp DEFAULT NULL
         );
         """
     )
