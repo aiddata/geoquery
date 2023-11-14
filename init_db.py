@@ -11,8 +11,8 @@ def create_table_features(cur):
     cur.execute(
         """
         CREATE TABLE features (
-            id      SERIAL PRIMARY KEY,
-            shape   geometry NOT NULL
+            id              SERIAL PRIMARY KEY,
+            shape           geometry NOT NULL
             );
         """
     )
@@ -48,7 +48,6 @@ def create_table_feature_collection(cur):
             source_url              varchar(200),
             variable_description    varchar(500),
             variable_factor         float,
-            processing_options      jsonb,
             other                   jsonb,
             temporal_start          timestamp,
             temporal_end            timestamp,
@@ -71,12 +70,12 @@ def create_table_feat_map(cur):
     cur.execute(
         """
         CREATE TABLE feat_map (
-            id          SERIAL PRIMARY KEY,
-            fc_id       int NOT NULL REFERENCES feature_collection(id),
-            geom_id     int NOT NULL REFERENCES features(id),
-            name        varchar(200),
-            attr        jsonb,
-            parent      int REFERENCES feat_map(id)
+            id              SERIAL PRIMARY KEY,
+            fc_id           int NOT NULL REFERENCES feature_collection(id),
+            geom_id         int NOT NULL REFERENCES features(id),
+            name            varchar(200),
+            attr            jsonb,
+            parent          int REFERENCES feat_map(id)
         );
         """
     )
@@ -105,7 +104,6 @@ def create_table_datasets(cur):
             source_url              varchar(200),
             variable_description    varchar(500),
             variable_factor         float,
-            processing_options      jsonb,
             other                   jsonb,
             temporal_start          timestamp,
             temporal_end            timestamp,
@@ -141,9 +139,9 @@ def create_table_mappings(cur):
     cur.execute(
         """
         CREATE TABLE mappings (
-            dataset_id  int REFERENCES datasets(id),
-            map_name    varchar(100),
-            map_val     int
+            dataset_id      int REFERENCES datasets(id),
+            map_name        varchar(100),
+            map_val         int
         );
         """
     )
@@ -152,11 +150,11 @@ def create_table_processing_options(cur):
     cur.execute(
         """
         CREATE TABLE processing_options (
-            id          SERIAL PRIMARY KEY,
-            dataset_id  int REFERENCES datasets(id),
-            short_name  varchar(100),
-            function    varchar(100),
-            kwargs      jsonb
+            id              SERIAL PRIMARY KEY,
+            dataset_id      int REFERENCES datasets(id),
+            short_name      varchar(100),
+            function        varchar(100),
+            kwargs          jsonb
         );
         """
     )
@@ -167,9 +165,9 @@ def create_table_coverage(cur):
     cur.execute(
         """
         CREATE TABLE coverage (
-            geom_id        SERIAL PRIMARY KEY,
-            dataset_id     int REFERENCES datasets(id),
-            status         int
+            geom_id         SERIAL PRIMARY KEY,
+            dataset_id      int REFERENCES datasets(id),
+            status          int
         );
         """
     )
@@ -224,10 +222,10 @@ def create_table_requests(cur):
             info            varchar(500),
             status          int,
             priority        int,
-            submit_time     timestamp,
-            prepare_time    timestamp,
-            processe_time   timestamp,
-            complete_time   timestamp
+            submit_time     timestamp DEFAULT CURRENT_TIMESTAMP,
+            prepare_time    timestamp DEFAULT NULL,
+            process_time    timestamp DEFAULT NULL,
+            complete_time   timestamp DEFAULT NULL
         );
         """
     )
