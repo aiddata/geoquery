@@ -48,7 +48,6 @@ def create_table_feature_collection(cur):
             source_url              varchar(200),
             variable_description    varchar(500),
             variable_factor         float,
-            processing_options      jsonb,
             other                   jsonb,
             temporal_start          timestamp,
             temporal_end            timestamp,
