@@ -128,9 +128,9 @@ def init_db(overwrite: bool) -> None:
                 cur.execute("DROP TABLE extract_data;")
 
 
+            create_table_feature_collection(cur)
             create_table_features(cur)
             create_index_features(cur)
-            create_table_feature_collection(cur)
             create_table_feat_map(cur)
 
             create_table_datasets(cur)
@@ -138,6 +138,13 @@ def init_db(overwrite: bool) -> None:
 
             create_table_extract_tasks(cur)
             create_table_extract_data(cur)
+
+            create_table_mappings(cur)
+            create_table_processing_options(cur)
+            create_table_coverage(cur)
+
+            create_table_requests(cur)
+            create_table_request_map(cur)
 
 
 @click.command()
