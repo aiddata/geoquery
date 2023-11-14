@@ -5,23 +5,80 @@ from psycopg.errors import DuplicateTable
 
 from conn import get_conn
 
-
-def create_table_feature_meta(conn):
-    with conn.cursor() as cur:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS feature_meta (
-                fid        SERIAL PRIMARY KEY,
-                collection varchar(100) DEFAULT NULL,
-                dataset    varchar(100) DEFAULT NULL,
-                parent     varchar(100) DEFAULT NULL,
-                level      integer DEFAULT NULL,
-                attributes jsonb DEFAULT NULL
+def create_table_features(cur):
+    # create features table
+    cur.execute(
+        """
+        CREATE TABLE features (
+            id      SERIAL PRIMARY KEY,
+            shape   geometry NOT NULL
             );
-        """)
+        """
+    )
 
+def create_index_features(cur):
+    # create spatial index on features table
+    cur.execute(
+        """
+        CREATE INDEX features_geom_idx ON features
+        USING GIST (shape);
+        """
+    )
+
+def create_table_feature_collection(cur):
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS feature_meta (
+            fid        SERIAL PRIMARY KEY,
+            collection varchar(100) DEFAULT NULL,
+            dataset    varchar(100) DEFAULT NULL,
+            parent     varchar(100) DEFAULT NULL,
+            level      integer DEFAULT NULL,
+            attributes jsonb DEFAULT NULL
+        );
+        """
+    )
+
+def create_table_feat_map(cur):
+    # create feat_map table
+    cur.execute(
+        """
+        CREATE TABLE feat_map (
+            dataset_id  int NOT NULL REFERENCES datasets(id),
+            geom_id     int NOT NULL REFERENCES features(id),
+            name        varchar(200),
+            grouping    varchar(100),
+            level       smallint,
+            attr        jsonb
+            );
+        """
+    )
+
+def create_table_datasets(cur):
+    # create datasets table
+    cur.execute(
+        """
+        CREATE TABLE datasets (
+            id     SERIAL PRIMARY KEY,
+            name   varchar(200) UNIQUE NOT NULL
+            );
+        """
+    )
+
+def create_table_dataset_resources(cur):
+    # create datasets table
+    cur.execute(
+        """
+        CREATE TABLE dataset_resources (
+            id     SERIAL PRIMARY KEY,
+            name   varchar(200) UNIQUE NOT NULL
+            );
+        """
+    )
 
 def create_table_extract_tasks(cur):
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS extract_tasks (
             task_id         SERIAL PRIMARY KEY,
             fid             varchar(100),
@@ -38,11 +95,13 @@ def create_table_extract_tasks(cur):
             attempts        integer DEFAULT 0,
             error           varchar(100) DEFAULT NULL
         );
-    """)
+        """
+    )
 
 
 def create_table_extract_data(cur):
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS extract_data (
             fid        varchar(100),
             did        varchar(100),
@@ -51,7 +110,8 @@ def create_table_extract_data(cur):
             value      float,
             version    varchar(10)
         );
-    """)
+        """
+    )
 
 
 
@@ -68,49 +128,13 @@ def init_db(overwrite: bool) -> None:
                 cur.execute("DROP TABLE extract_data;")
 
 
-            # create features table
-            cur.execute(
-                """
-                CREATE TABLE features (
-                    id      SERIAL PRIMARY KEY,
-                    shape   geometry NOT NULL
-                 );
-            """
-            )
+            create_table_features(cur)
+            create_index_features(cur)
+            create_table_feature_collection(cur)
+            create_table_feat_map(cur)
 
-            # create spatial index on features table
-            cur.execute(
-                """
-                CREATE INDEX features_geom_idx ON features
-                USING GIST (shape);
-            """
-            )
-
-            # create datasets table
-            cur.execute(
-                """
-                CREATE TABLE datasets (
-                    id     SERIAL PRIMARY KEY,
-                    name   varchar(200) UNIQUE NOT NULL
-                 );
-            """
-            )
-
-            # create feat_map table
-            cur.execute(
-                """
-                CREATE TABLE feat_map (
-                    dataset_id  int NOT NULL REFERENCES datasets(id),
-                    geom_id     int NOT NULL REFERENCES features(id),
-                    name        varchar(200),
-                    grouping    varchar(100),
-                    level       smallint,
-                    attr        jsonb
-                 );
-            """
-            )
-
-            create_table_feature_meta(cur)
+            create_table_datasets(cur)
+            create_table_dataset_resources(cur)
 
             create_table_extract_tasks(cur)
             create_table_extract_data(cur)
