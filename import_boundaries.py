@@ -101,7 +101,7 @@ def run_import(sample: Optional[int] = False) -> None:
 def main(sample: bool) -> None:
     if sample:
         print(
-            f"WARNING: Only importing a sample of {sample} countrys' boundaries for testing."
+            f"WARNING: Only importing a sample of {sample} countries' boundaries for testing."
         )
     run_import(sample=sample)
 
