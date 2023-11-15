@@ -4,10 +4,27 @@ from typing import Dict, List, Optional
 
 from psycopg import Cursor
 from psycopg.types.json import Jsonb
-from pydantic import BaseModel, Json
+from pydantic import BaseModel, Json, field_validator
 
+import processors
 from conn import get_conn
 from resource_management import populate_resources
+
+
+class ProcessingOption(BaseModel):
+    dataset_id: int
+    active: bool = False
+    public: bool = False
+    short_name: str
+    function: str
+    kwargs: Json
+
+    @field_validator("function")
+    @classmethod
+    def function_must_exist(cls, f: str) -> str:
+        if not hasattr(processors, f):
+            raise ValueError("function must be a callable from the processors module")
+        return f
 
 
 class Dataset(BaseModel):
@@ -37,10 +54,11 @@ class Dataset(BaseModel):
     # spatial_extent:
     ingest_src: Optional[str] = None
 
-                
+
 def _insert_mappings(cur: Cursor, dataset_id: int, mappings: Dict[str, int]) -> None:
     for key, value in mappings.items():
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO mappings (
                 dataset_id,
                 map_name,
@@ -51,12 +69,38 @@ def _insert_mappings(cur: Cursor, dataset_id: int, mappings: Dict[str, int]) -> 
                 %s
             );
         """,
-        (dataset_id, key, value))
+            (dataset_id, key, value),
+        )
+
+
+def add_processing_option(dataset_id: int, processing_option: ProcessingOption) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            query = """
+                INSERT INTO processing_options (
+                    dataset_id,
+                    active,
+                    public,
+                    short_name,
+                    function,
+                    kwargs
+                ) VALUES (
+                    %(dataset_id)s,
+                    %(active)s,
+                    %(public)s,
+                    %(short_name)s,
+                    %(function)s,
+                    %(kwargs)s
+                );
+            """
+
+            cur.execute(query, processing_option)
 
 
 def insert_dataset(dataset: Dataset) -> None:
     params = dict(dataset)
-    if params["mapped"]: bool = params["mappings"] is not None
+    if params["mapped"]:
+        bool = params["mappings"] is not None
 
     with get_conn() as conn:
         with conn.cursor() as cur:
