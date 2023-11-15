@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from typing import List, Optional
 
+import shapely
 from psycopg import Cursor
 from pydantic import BaseModel, Json
 from shapely.geometry.polygon import Polygon
@@ -13,6 +14,13 @@ class Feature(BaseModel):
     name: Optional[str]
     attr: Json
     parent: Optional[int]
+
+    @field_validator("geometry")
+    @classmethod
+    def function_must_exist(cls, g: str) -> str:
+        if not shapely.is_valid(g):
+            raise ValueError("the geometry of a feature must be well-formed.")
+        return g
 
 
 class FeatureCollection(BaseModel):
