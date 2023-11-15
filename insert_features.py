@@ -40,7 +40,7 @@ class FeatureCollection(BaseModel):
     temporal_end: Optional[datetime] = None
     temporal_step: Optional[timedelta] = None
     # spatial: # what is this for?
-    _global: bool
+    is_global: bool
     ingest_src: Optional[str] = None
     group_name: Optional[str] = None
     group_title: Optional[str] = None
@@ -116,7 +116,7 @@ def insert_feature_collection(feature_collection: FeatureCollection) -> None:
                     temporal_end,
                     temporal_step,
                     spatial,
-                    global,
+                    is_global,
                     ingest_src,
                     group_name,
                     group_title,
@@ -146,7 +146,7 @@ def insert_feature_collection(feature_collection: FeatureCollection) -> None:
                     %(temporal_end)s,
                     %(temporal_step)s,
                     %(spatial)s,
-                    %(_global)s,
+                    %(is_global)s,
                     %(ingest_src)s,
                     %(group_name)s,
                     %(group_title)s,

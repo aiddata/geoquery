@@ -52,6 +52,8 @@ class Dataset(BaseModel):
     temporal_end: Optional[datetime] = None
     temporal_step: Optional[timedelta] = None
     # spatial_extent:
+    is_global: bool
+    coverage_dependency: Optional[str] = None
     ingest_src: Optional[str] = None
 
 

@@ -7,29 +7,21 @@ feature_collections
   active int
   public int
   name varchar UNIQUE
-  type varchar
   path varchar
   file_extension varchar
   file_mask varchar
   title varchar UNIQUE
   description varchar
   details varchar
-  version varchar
   tags array
   citation varchar
   source_name varchar
   source_link varchar
-  variable_description varchar
-  variable_factor float
-  processing_options jsonb
   other jsonb  
-  temporal_start datetime
-  temporal_end datetime
-  temporal_step varchar
   spatial geometry
   date_added datetime
   date_updated datetime
-  global boolean
+  is_global boolean
   ingest_src varchar
   group_name varchar
   group_title varchar
@@ -65,7 +57,6 @@ datasets
   title varchar UNIQUE
   description varchar
   details varchar
-  version varchar
   tags array
   citation varchar
   source_name varchar
@@ -79,7 +70,7 @@ datasets
   spatial_extent geometry
   date_added datetime
   date_updated datetime
-  global boolean
+  is_global boolean
   coverage_dependency varchar fk datasets.name
   ingest_src varchar
 
