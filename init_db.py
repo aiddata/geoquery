@@ -26,41 +26,35 @@ def create_index_features(cur):
         """
     )
 
-def create_table_feature_collection(cur):
+def create_table_feature_collections(cur):
     cur.execute(
         """
-        CREATE TABLE feature_collection (
+        CREATE TABLE feature_collections (
             id                      SERIAL PRIMARY KEY,
             active                  boolean DEFAULT FALSE,
             public                  boolean DEFAULT FALSE,
             name                    varchar(200) UNIQUE NOT NULL,
-            type                    varchar(100) NOT NULL,
             path                    varchar(200) UNIQUE NOT NULL,
             file_extension          varchar(10),
             file_mask               varchar(100),
             title                   varchar(200),
             description             varchar(500),
             details                 varchar(500),
-            version                 varchar(100),
             tags                    varchar(100)[],
             citation                varchar(500),
             source_name             varchar(100),
             source_url              varchar(200),
-            variable_description    varchar(500),
-            variable_factor         float,
             other                   jsonb,
-            temporal_start          timestamp,
-            temporal_end            timestamp,
-            temporal_step           interval,
-            spatial_extent          geometry,
-            date_added              timestamp DEFAULT CURRENT_TIMESTAMP,
-            date_updated            timestamp DEFAULT CURRENT_TIMESTAMP,
-            global                  boolean DEFAULT FALSE,
-            ingest_src              varchar(200),
+            is_global               boolean DEFAULT FALSE,
             group_name              varchar(100),
             group_title             varchar(100),
             group_class             varchar(100),
             group_level             integer
+            spatial_extent          geometry,
+            date_added              timestamp DEFAULT CURRENT_TIMESTAMP,
+            date_updated            timestamp DEFAULT CURRENT_TIMESTAMP,
+            ingest_src              varchar(200),
+
         );
         """
     )
@@ -71,7 +65,7 @@ def create_table_feat_map(cur):
         """
         CREATE TABLE feat_map (
             id              SERIAL PRIMARY KEY,
-            fc_id           int NOT NULL REFERENCES feature_collection(id),
+            fc_id           int NOT NULL REFERENCES feature_collections(id),
             geom_id         int NOT NULL REFERENCES features(id),
             name            varchar(200),
             attr            jsonb,
@@ -252,7 +246,7 @@ def init_db(overwrite: bool) -> None:
                 cur.execute("DROP TABLE IF EXISTS extract_tasks;")
                 cur.execute("DROP TABLE IF EXISTS feat_map;")
                 cur.execute("DROP TABLE IF EXISTS features;")
-                cur.execute("DROP TABLE IF EXISTS feature_collection;")
+                cur.execute("DROP TABLE IF EXISTS feature_collections;")
                 cur.execute("DROP TABLE IF EXISTS dataset_resources;")
                 cur.execute("DROP TABLE IF EXISTS mappings;")
                 cur.execute("DROP TABLE IF EXISTS processing_options;")
