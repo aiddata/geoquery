@@ -13,7 +13,6 @@ from resource_management import populate_resources
 
 
 class ProcessingOption(BaseModel):
-    dataset_id: int
     active: bool = False
     public: bool = False
     short_name: str
@@ -103,31 +102,31 @@ def _insert_mappings(cur: Cursor, dataset_id: int, mappings: Dict[str, int]) -> 
         )
 
 
-def add_processing_option(dataset_id: int, processing_option: ProcessingOption) -> None:
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            query = """
-                INSERT INTO processing_options (
-                    dataset_id,
-                    active,
-                    public,
-                    short_name,
-                    function,
-                    kwargs
-                ) VALUES (
-                    %(dataset_id)s,
-                    %(active)s,
-                    %(public)s,
-                    %(short_name)s,
-                    %(function)s,
-                    %(kwargs)s
-                );
-            """
+def _add_processing_option(cur: Cursor, dataset_id: int, processing_option: ProcessingOption) -> None:
+    query = """
+        INSERT INTO processing_options (
+            dataset_id,
+            active,
+            public,
+            short_name,
+            function,
+            kwargs
+        ) VALUES (
+            %(dataset_id)s,
+            %(active)s,
+            %(public)s,
+            %(short_name)s,
+            %(function)s,
+            %(kwargs)s
+        );
+    """
 
-            cur.execute(query, processing_option)
+    params = dict(processing_option).update({"dataset_id": dataset_id})
+
+    cur.execute(query, params)
 
 
-def insert_dataset(dataset: Dataset) -> None:
+def insert_dataset(dataset: Dataset, processing_options: Optional[List[ProcessingOption]] = None) -> None:
     params = dict(dataset)
     if params["mapped"]:
         bool = params["mappings"] is not None
@@ -193,6 +192,11 @@ def insert_dataset(dataset: Dataset) -> None:
 
             if params["mapped"]:
                 _insert_mappings(cur, dataset_id, params["mappings"])
+
+            # if processing options were passed, insert those in the same transaction
+            if processing_options:
+                for processing_option in processing_options:
+                    _add_processing_option(cur, dataset_id, processing_option)
 
             cur.commit()
 

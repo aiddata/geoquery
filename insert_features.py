@@ -1,9 +1,12 @@
 from datetime import datetime, timedelta
 from typing import List, Optional
 
+import shapely
 from psycopg import Cursor
-from pydantic import BaseModel, Json
+from pydantic import BaseModel, Json, field_validator
 from shapely.geometry.polygon import Polygon
+
+from conn import get_conn
 
 
 class Feature(BaseModel):
@@ -14,9 +17,16 @@ class Feature(BaseModel):
     attr: Json
     parent: Optional[int]
 
+    @field_validator("geometry")
+    @classmethod
+    def function_must_exist(cls, g: str) -> str:
+        if not shapely.is_valid(g):
+            raise ValueError("the geometry of a feature must be well-formed.")
+        return g
+
 
 class FeatureCollection(BaseModel):
-    features: List[shape]
+    features: List[Feature]
     active: bool = False
     public: bool = False
     name: str
@@ -46,41 +56,55 @@ class FeatureCollection(BaseModel):
 def _insert_features(
     cur: Cursor, feature_collection_id: int, features: List[Feature]
 ) -> None:
-    raise NotImplementedError(
-        "I copy/pasted this code from a similar function, editing is needed!"
-    )
-    # wkt = shapely.to_wkt(row["geometry"])
+    for feature in features:
+        wkt = shapely.to_wkt(feature.geometry)
 
-    # # check if geom is already in features table, returning any matching ids
-    # cur.execute(
-    #     """
-    #     SELECT id FROM features WHERE ST_Equals(ST_GeomFromText(%s), shape)
-    # """,
-    #     (wkt,),
-    # )
+        # check if geom is already in features table, returning any matching ids
+        cur.execute(
+            """
+            SELECT id FROM features WHERE ST_Equals(ST_GeomFromText(%s), shape)
+        """,
+            (wkt,),
+        )
 
-    # result = cur.fetchone()
+        result = cur.fetchone()
 
-    # if result is None:
-    #     cur.execute(
-    #         """
-    #         INSERT INTO features (shape) VALUES (ST_GeomFromText(%s)) RETURNING id;
-    #         """,
-    #         (wkt,),
-    #     )
-    #     result = cur.fetchone()[0]
-    # else:
-    #     # print("Found a matching geometry!")
-    #     result = result[0]
+        if result is None:
+            cur.execute(
+                """
+                INSERT INTO features (shape) VALUES (ST_GeomFromText(%s)) RETURNING id;
+                """,
+                (wkt,),
+            )
+            result = cur.fetchone()[0]
+        else:
+            # print("Found a matching geometry!")
+            result = result[0]
 
-    # # insert into feat_map with that id
-    # cur.execute(
-    #     """
-    #     INSERT INTO feat_map (dataset_id, geom_id, name, grouping, level)
-    #     VALUES (%s, %s, %s, %s, %s);
-    #     """,
-    #     (dataset_id, result, row["shapeName"], row["shapeGroup"], adm_level),
-    # )
+        added_params = {
+            "fc_id": feature_collection_id,
+            "geom_id": result,
+        }
+
+        # insert into feat_map with that id
+        cur.execute(
+            """
+            INSERT INTO feat_map (
+                fc_id,
+                geom_id,
+                name,
+                attr,
+                parent
+            ) VALUES (
+                %(fc_id)s,
+                %(geom_id)s,
+                %(name)s,
+                %(attr)s,
+                %(parent)s
+            );
+            """,
+            dict(feature).update(added_params),
+        )
 
 
 def insert_feature_collection(feature_collection: FeatureCollection) -> None:
