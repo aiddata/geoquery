@@ -27,19 +27,14 @@ class FeatureCollection(BaseModel):
     title: str
     description: str
     details: str
-    version: str
     tags: List[str]
     citation: Optional[str] = None
     source_name: Optional[str] = None
     source_link: Optional[str] = None
-    variable_description: Optional[str] = None
-    variable_factor: Optional[float] = None
-    processing_options: Optional[Json] = None
     other: Optional[Json] = None
     temporal_start: Optional[datetime] = None
     temporal_end: Optional[datetime] = None
     temporal_step: Optional[timedelta] = None
-    # spatial: # what is this for?
     is_global: bool
     ingest_src: Optional[str] = None
     group_name: Optional[str] = None
@@ -108,14 +103,10 @@ def insert_feature_collection(feature_collection: FeatureCollection) -> None:
                     citation,
                     source_name,
                     source_link,
-                    variable_description,
-                    variable_factor,
-                    processing_options,
                     other,
                     temporal_start,
                     temporal_end,
                     temporal_step,
-                    spatial,
                     is_global,
                     ingest_src,
                     group_name,
