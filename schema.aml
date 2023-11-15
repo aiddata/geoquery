@@ -21,6 +21,9 @@ feature_collections
   spatial geometry
   date_added datetime
   date_updated datetime
+  temporal_start datetime
+  temporal_end datetime
+  temporal_step interval
   is_global boolean
   ingest_src varchar
   group_name varchar
@@ -35,16 +38,6 @@ feat_map
   name varchar(200)
   attr jsonb
   parent int fk feat_map.id
-
-coverage
-  geom_id integer pk fk features.id
-  dataset_id integer pk fk datasets.id
-  status int
-
-mappings
-  dataset_id fk datasets.id
-  map_name varchar
-  map_val int
 
 datasets
   id "serial integer" pk
@@ -85,24 +78,10 @@ dataset_resources
   size_kb int
   other jsonb
 
-requests
-  id "serial integer"
-  date datetime
-  source varchar
-  contact varchar
-  custom_name varchar
-  info varchar
-  status int
-  priority int
-  submit_time datetime
-  prepare_time datetime
-  process_time datetime
-  complete_time datetime
-  data jsonb
-
-request_map
-  req_id integer fk requests.id
-  task_id integer fk extract_tasks.id
+mappings
+  dataset_id fk datasets.id
+  map_name varchar
+  map_val int
 
 processing_options
   id "serial integer" pk
@@ -112,6 +91,11 @@ processing_options
   short_name varchar(10)
   function varchar(100)
   kwargs json
+
+coverage
+  geom_id integer pk fk features.id
+  dataset_id integer pk fk datasets.id
+  status int
 
 extract_tasks
   id  "SERIAL INTEGER"
@@ -135,3 +119,22 @@ extract_data
   float_value float
   int_value int
   str_value varchar
+
+requests
+  id "serial integer"
+  date datetime
+  source varchar
+  contact varchar
+  custom_name varchar
+  info varchar
+  status int
+  priority int
+  submit_time datetime
+  prepare_time datetime
+  process_time datetime
+  complete_time datetime
+  data jsonb
+
+request_map
+  req_id integer fk requests.id
+  task_id integer fk extract_tasks.id
