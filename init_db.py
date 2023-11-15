@@ -1,4 +1,3 @@
-
 import click
 import psycopg
 from psycopg.errors import DuplicateTable
@@ -17,6 +16,7 @@ def create_table_features(cur):
         """
     )
 
+
 def create_index_features(cur):
     # create spatial index on features table
     cur.execute(
@@ -25,6 +25,7 @@ def create_index_features(cur):
         USING GIST (shape);
         """
     )
+
 
 def create_table_feature_collection(cur):
     cur.execute(
@@ -65,6 +66,7 @@ def create_table_feature_collection(cur):
         """
     )
 
+
 def create_table_feat_map(cur):
     # create feat_map table
     cur.execute(
@@ -79,6 +81,7 @@ def create_table_feat_map(cur):
         );
         """
     )
+
 
 def create_table_datasets(cur):
     # create datasets table
@@ -118,6 +121,7 @@ def create_table_datasets(cur):
         """
     )
 
+
 def create_table_dataset_resources(cur):
     # create datasets table
     cur.execute(
@@ -146,6 +150,7 @@ def create_table_mappings(cur):
         """
     )
 
+
 def create_table_processing_options(cur):
     cur.execute(
         """
@@ -158,7 +163,6 @@ def create_table_processing_options(cur):
         );
         """
     )
-
 
 
 def create_table_coverage(cur):
@@ -230,6 +234,7 @@ def create_table_requests(cur):
         """
     )
 
+
 def create_table_request_map(cur):
     cur.execute(
         """
@@ -257,7 +262,6 @@ def init_db(overwrite: bool) -> None:
                 cur.execute("DROP TABLE IF EXISTS mappings;")
                 cur.execute("DROP TABLE IF EXISTS processing_options;")
                 cur.execute("DROP TABLE IF EXISTS datasets;")
-
 
             create_table_feature_collection(cur)
             create_table_features(cur)

@@ -1,11 +1,13 @@
-
 import psycopg
-import shapely
 import rasterstats as rs
+import shapely
 from psycopg.types.json import Jsonb
 
+
 def build_extract_tasks():
-    with psycopg.connect("postgresql://postgres:mysecretpassword@localhost:5432") as conn:
+    with psycopg.connect(
+        "postgresql://postgres:mysecretpassword@localhost:5432"
+    ) as conn:
         with conn.cursor() as cur:
             cur.execute("""SELECT fid FROM feature_geom""")
             fid_list = [i[0] for i in cur.fetchall()]
@@ -23,11 +25,13 @@ def build_extract_tasks():
                         params = data[5]
 
                     for method in method_list:
-                        cur.execute("""
+                        cur.execute(
+                            """
                             INSERT INTO extract_tasks (fid, did, op, method, params)
                             VALUES (%s, %s, %s, %s, %s)""",
-                            (fid, data[0], op, method, Jsonb(params))
+                            (fid, data[0], op, method, Jsonb(params)),
                         )
+
 
 def run_extract():
     """Main function to run an extraction of a dataset to a feature
@@ -39,7 +43,9 @@ def run_extract():
     - export results
     """
     version = "0.0.1"
-    with psycopg.connect("postgresql://postgres:mysecretpassword@localhost:5432") as conn:
+    with psycopg.connect(
+        "postgresql://postgres:mysecretpassword@localhost:5432"
+    ) as conn:
         with conn.cursor() as cur:
             task = get_extract_task()
             feat = get_feat(task[1])
@@ -47,20 +53,27 @@ def run_extract():
             func = get_func(task[3])
             method = task[4]
 
-            op_kwargs = {"stat" : method}
+            op_kwargs = {"stat": method}
             if method == "categorical":
-                op_kwargs["category_map"] = dict(zip(data_info.values(), data_info.keys()))
-
+                op_kwargs["category_map"] = dict(
+                    zip(data_info.values(), data_info.keys())
+                )
 
             result = run_op(feat, data_path, func, **op_kwargs)
 
             formatted_results = format_output(result, **op_kwargs)
             for method, val in formatted_results:
-                status = export_result(fid=task[1], did=task[2], op=task[3], method=method, clean_result=val, version=version)
+                status = export_result(
+                    fid=task[1],
+                    did=task[2],
+                    op=task[3],
+                    method=method,
+                    clean_result=val,
+                    version=version,
+                )
 
             update_extract_task(task[0], 1, "complete")
             return status
-
 
 
 def update_extract_task(task_id, status, update_type):
@@ -68,21 +81,27 @@ def update_extract_task(task_id, status, update_type):
     if update_type not in ["update", "complete"]:
         raise ValueError(f"Update type {update_type} not supported.")
     update_str = f"{update_type}_time"
-    with psycopg.connect("postgresql://postgres:mysecretpassword@localhost:5432") as conn:
+    with psycopg.connect(
+        "postgresql://postgres:mysecretpassword@localhost:5432"
+    ) as conn:
         with conn.cursor() as cur:
             cur.execute(
-                psycopg.sql.SQL("""
+                psycopg.sql.SQL(
+                    """
                 UPDATE extract_tasks
                 SET    status = %s, {} = CURRENT_TIMESTAMP
                 WHERE  task_id = %s;
-                """).format(psycopg.sql.Identifier(update_str)),
-                (status, task_id))
-
+                """
+                ).format(psycopg.sql.Identifier(update_str)),
+                (status, task_id),
+            )
 
 
 def get_extract_task():
     """Retrieve an extract task"""
-    with psycopg.connect("postgresql://postgres:mysecretpassword@localhost:5432") as conn:
+    with psycopg.connect(
+        "postgresql://postgres:mysecretpassword@localhost:5432"
+    ) as conn:
         with conn.cursor() as cur:
             # GET TASK FROM EXTRACT TASK TABLE
             # task = cur.execute("""SELECT * FROM extract_tasks LIMIT 1""").fetchall()[0]
@@ -109,9 +128,13 @@ def get_extract_task():
 
 def get_feat(fid):
     """GET FEATURE FROM FEATURE TABLE"""
-    with psycopg.connect("postgresql://postgres:mysecretpassword@localhost:5432") as conn:
+    with psycopg.connect(
+        "postgresql://postgres:mysecretpassword@localhost:5432"
+    ) as conn:
         with conn.cursor() as cur:
-            feat = cur.execute("""SELECT * FROM feature_geom WHERE fid = %s""", (fid,)).fetchall()[0]
+            feat = cur.execute(
+                """SELECT * FROM feature_geom WHERE fid = %s""", (fid,)
+            ).fetchall()[0]
     geom = shapely.wkb.loads(feat[1], hex=True)
 
     return geom
@@ -119,9 +142,13 @@ def get_feat(fid):
 
 def get_data(did):
     """GET DATA META FROM DATA TABLE AND ASSOCIATED PATH/INFO FOR ACTUAL DATASET"""
-    with psycopg.connect("postgresql://postgres:mysecretpassword@localhost:5432") as conn:
+    with psycopg.connect(
+        "postgresql://postgres:mysecretpassword@localhost:5432"
+    ) as conn:
         with conn.cursor() as cur:
-            data = cur.execute("""SELECT * FROM datasets WHERE did = %s""", (did,)).fetchall()[0]
+            data = cur.execute(
+                """SELECT * FROM datasets WHERE did = %s""", (did,)
+            ).fetchall()[0]
     path, type, info = data[1], data[2], data[3]
     return path, type, info
 
@@ -153,18 +180,22 @@ def format_output(result, **kwargs):
 
 def export_result(fid, did, op, method, clean_result, version, **kwargs):
     """EXPORT RESULT TO EXTRACT RESULT TABLE"""
-    with psycopg.connect("postgresql://postgres:mysecretpassword@localhost:5432") as conn:
+    with psycopg.connect(
+        "postgresql://postgres:mysecretpassword@localhost:5432"
+    ) as conn:
         with conn.cursor() as cur:
             status = insert_result(cur, version, fid, did, op, method, clean_result)
     return status
 
 
 def insert_result(cur, version, fid, did, op, method, result):
-    cur.execute("""
+    cur.execute(
+        """
         INSERT INTO extract_data (fid, did, op, method, value, version)
         VALUES (%s, %s, %s, %s, %s, %s);
         """,
-        (fid, did, op, method, result, version))
+        (fid, did, op, method, result, version),
+    )
 
 
 def zonal_stat_default(feat, raster, stat, **kwargs):
@@ -175,5 +206,7 @@ def zonal_stat_default(feat, raster, stat, **kwargs):
 
 def zonal_stat_categorical(feat, raster, category_map, **kwargs):
     """Default zonal stat function."""
-    zs_output = rs.zonal_stats(feat, raster, categorical=True, category_map=category_map)
+    zs_output = rs.zonal_stats(
+        feat, raster, categorical=True, category_map=category_map
+    )
     return zs_output[0]
