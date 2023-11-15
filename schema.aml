@@ -17,7 +17,7 @@ feature_collections
   citation varchar
   source_name varchar
   source_link varchar
-  other jsonb  
+  other jsonb
   spatial geometry
   date_added datetime
   date_updated datetime
@@ -51,7 +51,7 @@ datasets
   mapped boolean
   name varchar UNIQUE
   type varchar
-  path varchar 
+  path varchar
   file_extension varchar
   file_mask varchar
   title varchar UNIQUE
@@ -63,7 +63,7 @@ datasets
   source_url varchar
   variable_description varchar
   variable_factor float
-  other jsonb  
+  other jsonb
   temporal_start datetime
   temporal_end datetime
   temporal_step interval
@@ -114,9 +114,9 @@ processing_options
   kwargs json
 
 extract_tasks
-  id  "SERIAL INTEGER" 
+  id  "SERIAL INTEGER"
   resource_id integer pk fk dataset_resources.id
-  fm_id integer pk fk feat_map.id 
+  fm_id integer pk fk feat_map.id
   processing_options_id fk processing_options.id
   status int
   priority int
@@ -125,14 +125,13 @@ extract_tasks
   update_time timestamp
   complete_time timestamp
   attempts int
-  error varchar 
+  error varchar
   kwargs jsonb pk
 
 extract_data
-  id int fk extract_tasks.id 
+  id int fk extract_tasks.id
   name fk mappings.map_name
   data_column varchar
   float_value float
   int_value int
   str_value varchar
-  
