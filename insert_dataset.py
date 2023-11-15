@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
+import re
 
 from psycopg import Cursor
 from psycopg.types.json import Jsonb
-from pydantic import BaseModel, Json, field_validator
+from pydantic import BaseModel, Json, field_validator, ValidationInfo
 
 import processors
 from conn import get_conn
@@ -28,6 +29,8 @@ class ProcessingOption(BaseModel):
 
 
 class Dataset(BaseModel):
+    update_meta: bool = False
+    update_resources: bool = False
     active: bool = False
     public: bool = False
     mappings: Optional[Dict[str, int]] = None  # categorial data mappings
@@ -51,10 +54,35 @@ class Dataset(BaseModel):
     temporal_start: Optional[datetime] = None
     temporal_end: Optional[datetime] = None
     temporal_step: Optional[timedelta] = None
-    # spatial_extent:
     is_global: bool
     coverage_dependency: Optional[str] = None
     ingest_src: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def name_is_unique(cls, f: str, info: ValidationInfo) -> str:
+        if f != f.lower():
+            raise ValueError("name must be lowercase")
+
+        clean = re.sub(' ', '_', f)
+        clean = re.sub('[^0-9a-zA-Z._-]+', '', clean)
+
+    # @field_validator("name")
+    # @classmethod
+    # def name_is_unique(cls, f: str, info: ValidationInfo) -> str:
+    #     with get_conn() as conn:
+    #         with conn.cursor() as cur:
+    #             if not info["update_meta"]:
+    #                 query = "SELECT * FROM datasets WHERE name = %s;", (f,)
+    #                 result = cur.execute(query)
+    #                 if result:
+    #                     raise ValueError("name not unique")
+    #             else:
+    #                 query = "SELECT * FROM datasets WHERE name = %s;", (f,)
+    #                 result = cur.execute(query)
+    #                 if not result:
+    #                     raise ValueError("existing dataset not found")
+    #     return f
 
 
 def _insert_mappings(cur: Cursor, dataset_id: int, mappings: Dict[str, int]) -> None:
