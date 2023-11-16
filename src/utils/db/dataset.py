@@ -13,12 +13,10 @@ from utils.conn import get_conn
 
 class DatasetResource(BaseModel):
     name: str
-    path: Path
+    path: str
     temporal_start: Optional[datetime]
     temporal_end: Optional[datetime]
-    spatial_extent: Optional[Polygon]
-    size_kb: int
-    other: Jsonb
+    spatial_extent: Optional[str]
 
 
 class ProcessingOption(BaseModel):
@@ -279,7 +277,7 @@ def insert_dataset(
 def update_dataset(dataset: Dataset) -> None:
     params = dict(dataset)
     if params["mapped"]:
-        bool = params["mappings"] is not None
+        params["mapped"] = params["mappings"] is not None
 
     with get_conn() as conn:
         with conn.cursor() as cur:
