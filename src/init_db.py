@@ -179,7 +179,7 @@ def create_table_extract_tasks(cur):
     cur.execute(
         """
         CREATE TABLE extract_tasks (
-            id              int generated always as identity,
+            id              int UNIQUE generated always as identity,
             resource_id     int REFERENCES dataset_resources(id),
             fm_id           int REFERENCES feat_map(id),
             op              int REFERENCES processing_options(id),
