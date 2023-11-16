@@ -137,7 +137,8 @@ def create_table_mappings(cur):
         CREATE TABLE mappings (
             dataset_id      int REFERENCES datasets(id),
             map_name        varchar(100),
-            map_val         int
+            map_val         int,
+            UNIQUE (dataset_id, map_val)
         );
         """
     )
