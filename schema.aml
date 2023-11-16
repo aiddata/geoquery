@@ -89,6 +89,7 @@ processing_options
   public int
   dataset_id "serial integer" fk datasets.id
   short_name varchar(10)
+  description varchar(500)
   function varchar(100)
   kwargs json
 
