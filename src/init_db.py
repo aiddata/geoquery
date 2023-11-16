@@ -107,7 +107,7 @@ def create_table_datasets(cur):
             date_added              timestamp DEFAULT CURRENT_TIMESTAMP,
             date_updated            timestamp DEFAULT CURRENT_TIMESTAMP,
             global                  boolean DEFAULT FALSE,
-            coverage_dependency     varchar(100) REFERENCES datasets(name),
+            coverage_dependency     varchar(100) REFERENCES datasets(name) DEFAULT NULL,
             ingest_src              varchar(200)
         );
         """
