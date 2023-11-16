@@ -352,5 +352,3 @@ def update_dataset(dataset: Dataset) -> None:
                     _insert_processing_option(cur, dataset_id, processing_option)
 
             conn.commit()
-
-            populate_resources(dataset_id)
