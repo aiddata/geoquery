@@ -6,7 +6,7 @@ import requests
 import geopandas as gpd
 from psycopg.types.json import Jsonb, Json
 
-from src.utils.db import features as futils
+from utils.db import features as futils
 
 dl_iso3_list = ["AFG"]
 
@@ -92,7 +92,6 @@ for iso3 in set(gb_iso3_list).intersection(set(dl_iso3_list)):
                 )
             )
         adm_meta["features"] = feature_list
-        break
 
         # export to json
         json_path = gpkg_path.with_suffix(".json")
@@ -100,8 +99,8 @@ for iso3 in set(gb_iso3_list).intersection(set(dl_iso3_list)):
             json.dump(adm_meta, file, indent=4)
 
 
-FC = futils.FeatureCollection(**adm_meta)
+        FC = futils.FeatureCollection(**adm_meta)
 
-futils.insert_feature_collection(FC)
+        futils.insert_feature_collection(FC)
 
-# futils.update_feature_collection(FC)
+        # futils.update_feature_collection(FC)
