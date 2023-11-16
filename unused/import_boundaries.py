@@ -14,6 +14,7 @@ from utils.conn import get_conn
 
 # function to insert row from geopandas df into boundaries table
 def insert_feature(cur, dataset_id, adm_level, row) -> None:
+    print(type(row["geometry"]))
     wkt = shapely.to_wkt(row["geometry"])
 
     # check if geom is already in features table, returning any matching ids

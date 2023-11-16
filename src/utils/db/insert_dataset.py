@@ -23,7 +23,7 @@ class ProcessingOption(BaseModel):
     @classmethod
     def validate_function(cls, f: str) -> str:
         if not hasattr(utils.processors, f) and callable(getattr(utils.processors, f)):
-            raise ValueError("function must be a callable from the processors module")
+            raise ValueError("function must be a callable from the utils.processors module")
         return f
 
 
