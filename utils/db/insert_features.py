@@ -6,7 +6,7 @@ from psycopg import Cursor
 from pydantic import BaseModel, Json, field_validator
 from shapely.geometry.polygon import Polygon
 
-from conn import get_conn
+from utils.conn import get_conn
 
 
 class Feature(BaseModel):

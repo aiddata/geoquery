@@ -9,7 +9,7 @@ import shapely
 from psycopg.errors import UniqueViolation
 from tqdm import tqdm
 
-from conn import get_conn
+from utils.conn import get_conn
 
 
 # function to insert row from geopandas df into boundaries table

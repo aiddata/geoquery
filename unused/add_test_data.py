@@ -4,7 +4,7 @@ from typing import List
 import psycopg
 from psycopg.types.json import Jsonb
 
-from conn import get_conn
+from utils.conn import get_conn
 
 
 def insert_dummy_datasets(conn):
@@ -75,8 +75,19 @@ if __name__ == "__main__":
     # show data inserted into tables
     with get_conn() as conn:
         with conn.cursor() as cur:
+            cur.execute("""SELECT * FROM datasets""").fetchall()
+            cur.execute("""SELECT * FROM mappings""").fetchall()
+
             x = cur.execute("""SELECT * FROM feature_geom""").fetchall()
             cur.execute("""SELECT * FROM feature_meta""").fetchall()
             cur.execute("""SELECT * FROM datasets""").fetchall()
             cur.execute("""SELECT * FROM extract_tasks""").fetchall()
             cur.execute("""SELECT * FROM extract_data""").fetchall()
+
+
+from utils.conn import get_conn
+with get_conn() as conn:
+    with conn.cursor() as cur:
+        cur.execute("""SELECT * FROM datasets""").fetchall()
+        cur.execute("""SELECT * FROM mappings""").fetchall()
+        cur.execute("""SELECT * FROM processing_options""").fetchall()

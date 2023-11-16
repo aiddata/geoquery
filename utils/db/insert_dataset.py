@@ -8,8 +8,8 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Json, field_validator, ValidationInfo
 
 import processors
-from conn import get_conn
-from resource_management import populate_resources
+from utils.conn import get_conn
+from utils.resource_management import populate_resources
 
 
 class ProcessingOption(BaseModel):
@@ -28,10 +28,9 @@ class ProcessingOption(BaseModel):
 
 
 class Dataset(BaseModel):
-    update_meta: bool = False
-    update_resources: bool = False
     active: bool = False
     public: bool = False
+    mapped: bool = False
     mappings: Optional[Dict[str, int]] = None  # categorial data mappings
     name: str
     type: str
@@ -41,7 +40,6 @@ class Dataset(BaseModel):
     title: str
     description: str
     details: str
-    version: str
     tags: Optional[List[str]] = None
     citation: Optional[str] = None
     source_name: Optional[str] = None
@@ -59,12 +57,25 @@ class Dataset(BaseModel):
 
     @field_validator("name")
     @classmethod
-    def name_is_unique(cls, f: str, info: ValidationInfo) -> str:
+    def validate_name(cls, f: str, info: ValidationInfo) -> str:
         if f != f.lower():
             raise ValueError("name must be lowercase")
 
-        clean = re.sub(' ', '_', f)
-        clean = re.sub('[^0-9a-zA-Z._-]+', '', clean)
+        if f != re.sub(' ', '_', f):
+            raise ValueError("name must not have spaces")
+
+        if f != re.sub('[^0-9a-zA-Z._-]+', '', f):
+            raise ValueError("name must be alphanumeric with only underscores, dashes, or periods")
+        return f
+
+    @field_validator("path")
+    @classmethod
+    def validate_path(cls, f: str, info: ValidationInfo) -> str:
+        f = str(f)
+        if f.endswith("/"):
+            Warning("path must not end with a slash, correcting for you")
+            f = f[:-1]
+        return f
 
     # @field_validator("name")
     # @classmethod
@@ -146,14 +157,12 @@ def insert_dataset(dataset: Dataset, processing_options: Optional[List[Processin
                     title,
                     description,
                     details,
-                    version,
                     tags,
                     citation,
                     source_name,
                     source_url,
                     variable_description,
                     variable_factor,
-                    processing_options,
                     other,
                     temporal_start,
                     temporal_end,
@@ -171,17 +180,16 @@ def insert_dataset(dataset: Dataset, processing_options: Optional[List[Processin
                     %(title)s,
                     %(description)s,
                     %(details)s,
-                    %(version)s,
                     %(tags)s,
                     %(citation)s,
                     %(source_name)s,
                     %(source_url)s,
                     %(variable_description)s,
                     %(variable_factor)s,
-                    %(processing_options)s,
                     %(other)s,
                     %(temporal_start)s,
                     %(temporal_end)s,
+                    %(temporal_step)s,
                     %(ingest_src)s
                 ) RETURNING id;
             """
@@ -198,6 +206,81 @@ def insert_dataset(dataset: Dataset, processing_options: Optional[List[Processin
                 for processing_option in processing_options:
                     _add_processing_option(cur, dataset_id, processing_option)
 
-            cur.commit()
+            conn.commit()
+
+            populate_resources(dataset_id)
+
+
+def update_dataset(dataset: Dataset, processing_options: Optional[List[ProcessingOption]] = None) -> None:
+    params = dict(dataset)
+    if params["mapped"]:
+        bool = params["mappings"] is not None
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            query = """
+                UPDATE datasets SET (
+                    active,
+                    public,
+                    mapped,
+                    name,
+                    type,
+                    path,
+                    file_extension,
+                    file_mask,
+                    title,
+                    description,
+                    details,
+                    tags,
+                    citation,
+                    source_name,
+                    source_url,
+                    variable_description,
+                    variable_factor,
+                    other,
+                    temporal_start,
+                    temporal_end,
+                    temporal_step,
+                    ingest_src
+                ) = (
+                    %(active)s,
+                    %(public)s,
+                    %(mapped)s,
+                    %(name)s,
+                    %(type)s,
+                    %(path)s,
+                    %(file_extension)s,
+                    %(file_mask)s,
+                    %(title)s,
+                    %(description)s,
+                    %(details)s,
+                    %(tags)s,
+                    %(citation)s,
+                    %(source_name)s,
+                    %(source_url)s,
+                    %(variable_description)s,
+                    %(variable_factor)s,
+                    %(other)s,
+                    %(temporal_start)s,
+                    %(temporal_end)s,
+                    %(temporal_step)s,
+                    %(ingest_src)s
+                ) WHERE name = %(name)s
+                RETURNING id;
+            """
+
+            cur.execute(query, params)
+
+            dataset_id = cur.fetchone()[0]
+
+            if params["mapped"]:
+                _insert_mappings(cur, dataset_id, params["mappings"])
+
+            # if processing options were passed, insert those in the same transaction
+            if processing_options:
+                for processing_option in processing_options:
+                    _add_processing_option(cur, dataset_id, processing_option)
+
+            conn.commit()
 
             populate_resources(dataset_id)

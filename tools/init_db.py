@@ -2,7 +2,7 @@ import click
 import psycopg
 from psycopg.errors import DuplicateTable
 
-from conn import get_conn
+from utils.conn import get_conn
 
 
 def create_table_features(cur):
@@ -38,8 +38,8 @@ def create_table_feature_collections(cur):
             file_extension          varchar(10),
             file_mask               varchar(100),
             title                   varchar(200),
-            description             varchar(500),
-            details                 varchar(500),
+            description             varchar(1000),
+            details                 varchar(1000),
             tags                    varchar(100)[],
             citation                varchar(500),
             source_name             varchar(100),
@@ -49,12 +49,11 @@ def create_table_feature_collections(cur):
             group_name              varchar(100),
             group_title             varchar(100),
             group_class             varchar(100),
-            group_level             integer
+            group_level             integer,
             spatial_extent          geometry,
             date_added              timestamp DEFAULT CURRENT_TIMESTAMP,
             date_updated            timestamp DEFAULT CURRENT_TIMESTAMP,
-            ingest_src              varchar(200),
-
+            ingest_src              varchar(200)
         );
         """
     )
@@ -91,8 +90,8 @@ def create_table_datasets(cur):
             file_extension          varchar(10),
             file_mask               varchar(100),
             title                   varchar(200),
-            description             varchar(500),
-            details                 varchar(500),
+            description             varchar(1000),
+            details                 varchar(1000),
             version                 varchar(100),
             tags                    varchar(100)[],
             citation                varchar(500),
