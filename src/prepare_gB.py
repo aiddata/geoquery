@@ -6,7 +6,7 @@ import requests
 import geopandas as gpd
 from psycopg.types.json import Jsonb, Json
 
-from utils.db import insert_features as insf
+from src.utils.db import features as futils
 
 dl_iso3_list = ["AFG"]
 
@@ -84,7 +84,7 @@ for iso3 in set(gb_iso3_list).intersection(set(dl_iso3_list)):
         feature_list = []
         for ix, row in gdf.iterrows():
             feature_list.append(
-                insf.Feature(
+                futils.Feature(
                     geometry=row.geometry.wkt,
                     name=row["shapeName"],
                     attr=row.drop(["geometry"]).to_dict(),
@@ -100,8 +100,8 @@ for iso3 in set(gb_iso3_list).intersection(set(dl_iso3_list)):
             json.dump(adm_meta, file, indent=4)
 
 
-FC = insf.FeatureCollection(**adm_meta)
+FC = futils.FeatureCollection(**adm_meta)
 
-insf.insert_feature_collection(FC)
+futils.insert_feature_collection(FC)
 
-# insf.update_feature_collection(FC)
+# futils.update_feature_collection(FC)
