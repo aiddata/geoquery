@@ -1,15 +1,26 @@
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
-import re
 
 from psycopg import Cursor
-from psycopg.types.json import Jsonb, Json
-from pydantic import BaseModel, Json, field_validator, ValidationInfo
+from psycopg.types.json import Json, Jsonb
+from pydantic import BaseModel, Json, ValidationInfo, field_validator
+from shapely.geometry.polygon import Polygon
 
 import utils.processors
 from utils.conn import get_conn
 from utils.resource_management import populate_resources
+
+
+class DatasetResource(BaseModel):
+    name: str
+    path: Path
+    temporal_start: Optional[datetime]
+    temporal_end: Optional[datetime]
+    spatial_extent: Optional[Polygon]
+    size_kb: int
+    other: Jsonb
 
 
 class ProcessingOption(BaseModel):
@@ -24,9 +35,10 @@ class ProcessingOption(BaseModel):
     @classmethod
     def validate_function(cls, f: str) -> str:
         if not hasattr(utils.processors, f) and callable(getattr(utils.processors, f)):
-            raise ValueError("function must be a callable from the utils.processors module")
+            raise ValueError(
+                "function must be a callable from the utils.processors module"
+            )
         return f
-
 
 
 class Dataset(BaseModel):
@@ -63,11 +75,13 @@ class Dataset(BaseModel):
         if f != f.lower():
             raise ValueError("name must be lowercase")
 
-        if f != re.sub(' ', '_', f):
+        if f != re.sub(" ", "_", f):
             raise ValueError("name must not have spaces")
 
-        if f != re.sub('[^0-9a-zA-Z._-]+', '', f):
-            raise ValueError("name must be alphanumeric with only underscores, dashes, or periods")
+        if f != re.sub("[^0-9a-zA-Z._-]+", "", f):
+            raise ValueError(
+                "name must be alphanumeric with only underscores, dashes, or periods"
+            )
         return f
 
     @field_validator("path")
@@ -78,7 +92,6 @@ class Dataset(BaseModel):
             Warning("path must not end with a slash, correcting for you")
             f = f[:-1]
         return f
-
 
     # @field_validator("name")
     # @classmethod
@@ -99,12 +112,9 @@ class Dataset(BaseModel):
 
 
 def _insert_mappings(cur: Cursor, dataset_id: int, mappings: Dict[str, int]) -> None:
-    cur.execute(
-        "DELETE FROM mappings WHERE dataset_id = %s ;", (dataset_id,)
-    )
+    cur.execute("DELETE FROM mappings WHERE dataset_id = %s ;", (dataset_id,))
 
     for key, value in mappings.items():
-
         cur.execute(
             """
             INSERT INTO mappings (
@@ -121,8 +131,9 @@ def _insert_mappings(cur: Cursor, dataset_id: int, mappings: Dict[str, int]) -> 
         )
 
 
-def _insert_processing_option(cur: Cursor, dataset_id: int, processing_option: ProcessingOption) -> None:
-
+def _insert_processing_option(
+    cur: Cursor, dataset_id: int, processing_option: ProcessingOption
+) -> None:
     query = """
         INSERT INTO processing_options (
             dataset_id,
@@ -216,7 +227,10 @@ def insert_dataset(dataset: Dataset) -> None:
 
             # if processing options were passed, insert those in the same transaction
             if params["processing_options"]:
-                cur.execute("UPDATE processing_options SET active = False WHERE dataset_id = %s ;", (dataset_id,))
+                cur.execute(
+                    "UPDATE processing_options SET active = False WHERE dataset_id = %s ;",
+                    (dataset_id,),
+                )
                 for processing_option in params["processing_options"]:
                     _insert_processing_option(cur, dataset_id, processing_option)
 
@@ -293,10 +307,44 @@ def update_dataset(dataset: Dataset) -> None:
 
             # if processing options were passed, insert those in the same transaction
             if params["processing_options"]:
-                cur.execute("UPDATE processing_options SET active = False WHERE dataset_id = %s ;", (dataset_id,))
+                cur.execute(
+                    "UPDATE processing_options SET active = False WHERE dataset_id = %s ;",
+                    (dataset_id,),
+                )
                 for processing_option in params["processing_options"]:
                     _insert_processing_option(cur, dataset_id, processing_option)
 
             conn.commit()
 
             populate_resources(dataset_id)
+
+
+def insert_dataset_resource(dataset_id: int, resource: DatasetResource):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            query = """
+                INSERT INTO dataset_resources (
+                    dataset_id,
+                    name,
+                    path,
+                    temporal_start,
+                    temporal_end,
+                    spatial_extent,
+                    size_kb,
+                    other
+                ) VALUES (
+                    %(dataset_id)s,
+                    %(name)s,
+                    %(path)s,
+                    %(temporal_start)s,
+                    %(temporal_end)s,
+                    %(spatial_extent)s,
+                    %(size_kb)s,
+                    %(other)s
+                );
+            """
+
+            params = dict(resource)
+            params.update({"dataset_id": dataset_id})
+
+            cur.execute(query, params)
