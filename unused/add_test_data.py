@@ -88,6 +88,19 @@ if __name__ == "__main__":
 from utils.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
-        cur.execute("""SELECT * FROM datasets""").fetchall()
-        cur.execute("""SELECT * FROM mappings""").fetchall()
-        cur.execute("""SELECT * FROM processing_options""").fetchall()
+        x = cur.execute("""SELECT * FROM feature_collections""").fetchall()
+        y = cur.execute("""SELECT * FROM features""").fetchall()
+        z = cur.execute("""SELECT * FROM feat_map""").fetchall()
+        print('feature_collections', len(x), x)
+        print('features', len(y), y)
+        print('feat_map', len(z), z)
+
+from utils.conn import get_conn
+with get_conn() as conn:
+    with conn.cursor() as cur:
+        x = cur.execute("""SELECT * FROM datasets""").fetchall()
+        y = cur.execute("""SELECT * FROM mappings""").fetchall()
+        z = cur.execute("""SELECT * FROM processing_options""").fetchall()
+        print('datasets', len(x), x)
+        print('mappings', len(y), y)
+        print('processing_options', len(z), z)
