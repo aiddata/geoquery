@@ -67,7 +67,10 @@ def insert_request(request: Request):
                     %(processing_option_id)s,
                     %(priority)s,
                     %(kwargs)s
-                ) RETURNING id;
+                )
+                ON CONFLICT (resource_id, fm_id, processing_option_id)
+                DO UPDATE SET priority = priority + %(priority)s
+                RETURNING id;
             """
 
             per_task_ids: Tuple[int, int, int] = itertools.product(
