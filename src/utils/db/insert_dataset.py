@@ -17,14 +17,15 @@ class ProcessingOption(BaseModel):
     public: bool = False
     short_name: str
     function: str
-    kwargs: Json
+    kwargs: dict
 
     @field_validator("function")
     @classmethod
-    def function_must_exist(cls, f: str) -> str:
-        if not hasattr(utils.processors, f):
+    def validate_function(cls, f: str) -> str:
+        if not hasattr(utils.processors, f) and callable(getattr(utils.processors, f)):
             raise ValueError("function must be a callable from the processors module")
         return f
+
 
 
 class Dataset(BaseModel):
@@ -46,7 +47,7 @@ class Dataset(BaseModel):
     source_url: Optional[str] = None
     variable_description: Optional[str] = None
     variable_factor: Optional[float] = None
-    processing_options: Optional[list] = None
+    processing_options: Optional[List[ProcessingOption]] = None
     other: Optional[dict] = None
     temporal_start: Optional[datetime] = None
     temporal_end: Optional[datetime] = None
@@ -77,25 +78,6 @@ class Dataset(BaseModel):
             f = f[:-1]
         return f
 
-
-    @field_validator("processing_options")
-    @classmethod
-    def validate_processing_options(cls, f: list, info: ValidationInfo) -> str:
-        required_keys = ["active", "public", "short_name", "description", "function"]
-        if not isinstance(f, list):
-            raise ValueError("processing options must be a list")
-        for x in f:
-            if not isinstance(x, dict):
-                raise ValueError("processing options must be a list of dicts")
-            if not all([i in x for i in required_keys]):
-                raise ValueError(f"each processing option must include: {required_keys}")
-            if "kwargs" in x:
-                if x["kwargs"] and not isinstance(x["kwargs"], dict):
-                    raise ValueError("kwargs must be a dict or None/False (null or false in JSON)")
-            # make sure the function exists
-            if not hasattr(utils.processors, x["function"]) and callable(getattr(utils.processors, x["function"])):
-                raise ValueError("function must be a callable from the processors module")
-        return f
 
     # @field_validator("name")
     # @classmethod
