@@ -7,7 +7,7 @@ from psycopg import Cursor
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Json, field_validator, ValidationInfo
 
-import processors
+import utils.processors
 from utils.conn import get_conn
 from utils.resource_management import populate_resources
 
@@ -22,7 +22,7 @@ class ProcessingOption(BaseModel):
     @field_validator("function")
     @classmethod
     def function_must_exist(cls, f: str) -> str:
-        if not hasattr(processors, f):
+        if not hasattr(utils.processors, f):
             raise ValueError("function must be a callable from the processors module")
         return f
 
@@ -46,8 +46,8 @@ class Dataset(BaseModel):
     source_url: Optional[str] = None
     variable_description: Optional[str] = None
     variable_factor: Optional[float] = None
-    processing_options: Optional[Json] = None
-    other: Optional[Json] = None
+    processing_options: Optional[list] = None
+    other: Optional[dict] = None
     temporal_start: Optional[datetime] = None
     temporal_end: Optional[datetime] = None
     temporal_step: Optional[timedelta] = None
@@ -75,6 +75,23 @@ class Dataset(BaseModel):
         if f.endswith("/"):
             Warning("path must not end with a slash, correcting for you")
             f = f[:-1]
+        return f
+
+
+    @field_validator("processing_options")
+    @classmethod
+    def validate_processing_options(cls, f: list, info: ValidationInfo) -> str:
+        required_keys = ["short_name", "description", "function"]
+        if not isinstance(f, list):
+            raise ValueError("processing options must be a list")
+        for x in f:
+            if not isinstance(x, dict):
+                raise ValueError("processing options must be a list of dicts")
+            if not all([i in x for i in required_keys]):
+                raise ValueError(f"each processing option must include: {required_keys}")
+            if "kwargs" in x:
+                if x["kwargs"] and not isinstance(x["kwargs"], dict):
+                    raise ValueError("kwargs must be a dict or None/False (null or false in JSON)")
         return f
 
     # @field_validator("name")
