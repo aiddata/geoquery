@@ -92,6 +92,9 @@ class Dataset(BaseModel):
             if "kwargs" in x:
                 if x["kwargs"] and not isinstance(x["kwargs"], dict):
                     raise ValueError("kwargs must be a dict or None/False (null or false in JSON)")
+            # make sure the function exists
+            if not hasattr(utils.processors, x["function"]) and callable(getattr(utils.processors, x["function"])):
+                raise ValueError("function must be a callable from the processors module")
         return f
 
     # @field_validator("name")
