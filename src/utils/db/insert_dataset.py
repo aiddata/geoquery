@@ -152,7 +152,7 @@ def _insert_processing_option(cur: Cursor, dataset_id: int, processing_option: P
 def insert_dataset(dataset: Dataset) -> None:
     params = dict(dataset)
     if params["mapped"]:
-        bool = params["mappings"] is not None
+        params["mapped"] = params["mappings"] is not None
 
     with get_conn() as conn:
         with conn.cursor() as cur:
