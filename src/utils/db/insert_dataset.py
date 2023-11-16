@@ -130,7 +130,7 @@ def _insert_mappings(cur: Cursor, dataset_id: int, mappings: Dict[str, int]) -> 
         )
 
 
-def _add_processing_option(cur: Cursor, dataset_id: int, processing_option: ProcessingOption) -> None:
+def _insert_processing_option(cur: Cursor, dataset_id: int, processing_option: ProcessingOption) -> None:
     query = """
         INSERT INTO processing_options (
             dataset_id,
@@ -221,7 +221,7 @@ def insert_dataset(dataset: Dataset, processing_options: Optional[List[Processin
             # if processing options were passed, insert those in the same transaction
             if processing_options:
                 for processing_option in processing_options:
-                    _add_processing_option(cur, dataset_id, processing_option)
+                    _insert_processing_option(cur, dataset_id, processing_option)
 
             conn.commit()
 
@@ -296,7 +296,7 @@ def update_dataset(dataset: Dataset, processing_options: Optional[List[Processin
             # if processing options were passed, insert those in the same transaction
             if processing_options:
                 for processing_option in processing_options:
-                    _add_processing_option(cur, dataset_id, processing_option)
+                    _insert_processing_option(cur, dataset_id, processing_option)
 
             conn.commit()
 

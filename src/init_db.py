@@ -10,7 +10,7 @@ def create_table_features(cur):
     cur.execute(
         """
         CREATE TABLE features (
-            id              SERIAL PRIMARY KEY,
+            id              int PRIMARY KEY generated always as identity,
             shape           geometry NOT NULL
             );
         """
@@ -30,7 +30,7 @@ def create_table_feature_collections(cur):
     cur.execute(
         """
         CREATE TABLE feature_collections (
-            id                      SERIAL PRIMARY KEY,
+            id                      int PRIMARY KEY generated always as identity,
             active                  boolean DEFAULT FALSE,
             public                  boolean DEFAULT FALSE,
             name                    varchar(200) UNIQUE NOT NULL,
@@ -64,7 +64,7 @@ def create_table_feat_map(cur):
     cur.execute(
         """
         CREATE TABLE feat_map (
-            id              SERIAL PRIMARY KEY,
+            id              int PRIMARY KEY generated always as identity,
             fc_id           int NOT NULL REFERENCES feature_collections(id),
             geom_id         int NOT NULL REFERENCES features(id),
             name            varchar(200),
@@ -80,7 +80,7 @@ def create_table_datasets(cur):
     cur.execute(
         """
         CREATE TABLE datasets (
-            id                      SERIAL PRIMARY KEY,
+            id                      int PRIMARY KEY generated always as identity,
             active                  boolean DEFAULT FALSE,
             public                  boolean DEFAULT FALSE,
             mapped                  boolean DEFAULT FALSE,
@@ -119,7 +119,7 @@ def create_table_dataset_resources(cur):
     cur.execute(
         """
         CREATE TABLE dataset_resources (
-            id              SERIAL PRIMARY KEY,
+            id              int PRIMARY KEY generated always as identity,
             dataset_id      int REFERENCES datasets(id),
             name            varchar(200) UNIQUE NOT NULL,
             path            varchar(200) UNIQUE NOT NULL,
@@ -147,12 +147,13 @@ def create_table_processing_options(cur):
     cur.execute(
         """
         CREATE TABLE processing_options (
-            id              SERIAL PRIMARY KEY,
+            id              int primary key generated always as identity,
             dataset_id      int REFERENCES datasets(id),
             short_name      varchar(100),
             description     varchar(500),
             function        varchar(100),
-            kwargs          jsonb
+            kwargs          jsonb,
+            UNIQUE (dataset_id, function, kwargs)
         );
         """
     )
@@ -162,7 +163,7 @@ def create_table_coverage(cur):
     cur.execute(
         """
         CREATE TABLE coverage (
-            geom_id         SERIAL PRIMARY KEY,
+            geom_id         int PRIMARY KEY generated always as identity,
             dataset_id      int REFERENCES datasets(id),
             status          int
         );
@@ -174,7 +175,7 @@ def create_table_extract_tasks(cur):
     cur.execute(
         """
         CREATE TABLE extract_tasks (
-            id              SERIAL PRIMARY KEY,
+            id              int PRIMARY KEY generated always as identity,
             resource_id     int REFERENCES dataset_resources(id),
             fm_id           int REFERENCES feat_map(id),
             op              int REFERENCES processing_options(id),
@@ -211,7 +212,7 @@ def create_table_requests(cur):
     cur.execute(
         """
         CREATE TABLE requests (
-            id              SERIAL PRIMARY KEY,
+            id              int PRIMARY KEY generated always as identity,
             date            timestamp,
             source          varchar(100),
             contact         varchar(100),
