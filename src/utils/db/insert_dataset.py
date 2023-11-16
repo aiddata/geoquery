@@ -13,6 +13,7 @@ from utils.resource_management import populate_resources
 
 
 class ProcessingOption(BaseModel):
+    dataset_id: int = None
     active: bool = False
     public: bool = False
     short_name: str
@@ -142,13 +143,13 @@ def _insert_processing_option(cur: Cursor, dataset_id: int, processing_option: P
         DO UPDATE SET (active, public, short_name) = (%(active)s, %(public)s, %(short_name)s)
         ;
     """
-
-    params = dict(processing_option).update({"dataset_id": dataset_id})
-
+    params = processing_option.dict()
+    params.update({"dataset_id": dataset_id})
+    params["kwargs"] = Jsonb(params["kwargs"])
     cur.execute(query, params)
 
 
-def insert_dataset(dataset: Dataset, processing_options: Optional[List[ProcessingOption]] = None) -> None:
+def insert_dataset(dataset: Dataset) -> None:
     params = dict(dataset)
     if params["mapped"]:
         bool = params["mappings"] is not None
@@ -214,10 +215,9 @@ def insert_dataset(dataset: Dataset, processing_options: Optional[List[Processin
                 _insert_mappings(cur, dataset_id, params["mappings"])
 
             # if processing options were passed, insert those in the same transaction
-            if processing_options:
-                print (processing_options)
+            if params["processing_options"]:
                 cur.execute("UPDATE processing_options SET active = False WHERE dataset_id = %s ;", (dataset_id,))
-                for processing_option in processing_options:
+                for processing_option in params["processing_options"]:
                     _insert_processing_option(cur, dataset_id, processing_option)
 
             conn.commit()
@@ -225,7 +225,7 @@ def insert_dataset(dataset: Dataset, processing_options: Optional[List[Processin
             populate_resources(dataset_id)
 
 
-def update_dataset(dataset: Dataset, processing_options: Optional[List[ProcessingOption]] = None) -> None:
+def update_dataset(dataset: Dataset) -> None:
     params = dict(dataset)
     if params["mapped"]:
         bool = params["mappings"] is not None
@@ -292,10 +292,9 @@ def update_dataset(dataset: Dataset, processing_options: Optional[List[Processin
                 _insert_mappings(cur, dataset_id, params["mappings"])
 
             # if processing options were passed, insert those in the same transaction
-            if processing_options:
-                print (processing_options)
+            if params["processing_options"]:
                 cur.execute("UPDATE processing_options SET active = False WHERE dataset_id = %s ;", (dataset_id,))
-                for processing_option in processing_options:
+                for processing_option in params["processing_options"]:
                     _insert_processing_option(cur, dataset_id, processing_option)
 
             conn.commit()
