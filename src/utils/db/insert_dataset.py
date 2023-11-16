@@ -3,14 +3,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import utils.processors
 from psycopg import Cursor
 from psycopg.types.json import Json, Jsonb
 from pydantic import BaseModel, Json, ValidationInfo, field_validator
 from shapely.geometry.polygon import Polygon
-
-import utils.processors
 from utils.conn import get_conn
-from utils.resource_management import populate_resources
 
 
 class DatasetResource(BaseModel):
@@ -131,6 +129,41 @@ def _insert_mappings(cur: Cursor, dataset_id: int, mappings: Dict[str, int]) -> 
         )
 
 
+def _insert_dataset_resource(cur: Cursor, dataset_id: int, resource: DatasetResource):
+    query = """
+        INSERT INTO dataset_resources (
+            dataset_id,
+            name,
+            path,
+            temporal_start,
+            temporal_end,
+            spatial_extent,
+            size_kb,
+            other
+        ) VALUES (
+            %(dataset_id)s,
+            %(name)s,
+            %(path)s,
+            %(temporal_start)s,
+            %(temporal_end)s,
+            %(spatial_extent)s,
+            %(size_kb)s,
+            %(other)s
+        );
+    """
+
+    params = dict(resource)
+    params.update({"dataset_id": dataset_id})
+
+    cur.execute(query, params)
+
+
+def insert_dataset_resource(dataset_id: int, resource: DatasetResource):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            _insert_dataset_resource(cur, dataset_id, resource)
+
+
 def _insert_processing_option(
     cur: Cursor, dataset_id: int, processing_option: ProcessingOption
 ) -> None:
@@ -160,7 +193,9 @@ def _insert_processing_option(
     cur.execute(query, params)
 
 
-def insert_dataset(dataset: Dataset) -> None:
+def insert_dataset(
+    dataset: Dataset, dataset_resources: Optional[List[DatasetResource]] = None
+) -> None:
     params = dict(dataset)
     if params["mapped"]:
         params["mapped"] = params["mappings"] is not None
@@ -234,9 +269,11 @@ def insert_dataset(dataset: Dataset) -> None:
                 for processing_option in params["processing_options"]:
                     _insert_processing_option(cur, dataset_id, processing_option)
 
-            conn.commit()
+            if dataset_resources is not None:
+                for resource in dataset_resources:
+                    _insert_dataset_resource(cur, dataset_id, resource)
 
-            populate_resources(dataset_id)
+            conn.commit()
 
 
 def update_dataset(dataset: Dataset) -> None:
@@ -317,34 +354,3 @@ def update_dataset(dataset: Dataset) -> None:
             conn.commit()
 
             populate_resources(dataset_id)
-
-
-def insert_dataset_resource(dataset_id: int, resource: DatasetResource):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            query = """
-                INSERT INTO dataset_resources (
-                    dataset_id,
-                    name,
-                    path,
-                    temporal_start,
-                    temporal_end,
-                    spatial_extent,
-                    size_kb,
-                    other
-                ) VALUES (
-                    %(dataset_id)s,
-                    %(name)s,
-                    %(path)s,
-                    %(temporal_start)s,
-                    %(temporal_end)s,
-                    %(spatial_extent)s,
-                    %(size_kb)s,
-                    %(other)s
-                );
-            """
-
-            params = dict(resource)
-            params.update({"dataset_id": dataset_id})
-
-            cur.execute(query, params)
