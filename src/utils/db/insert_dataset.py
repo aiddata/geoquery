@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 import re
 
 from psycopg import Cursor
-from psycopg.types.json import Jsonb
+from psycopg.types.json import Jsonb, Json
 from pydantic import BaseModel, Json, field_validator, ValidationInfo
 
 import utils.processors
@@ -81,7 +81,7 @@ class Dataset(BaseModel):
     @field_validator("processing_options")
     @classmethod
     def validate_processing_options(cls, f: list, info: ValidationInfo) -> str:
-        required_keys = ["short_name", "description", "function"]
+        required_keys = ["active", "public", "short_name", "description", "function"]
         if not isinstance(f, list):
             raise ValueError("processing options must be a list")
         for x in f:
@@ -113,7 +113,12 @@ class Dataset(BaseModel):
 
 
 def _insert_mappings(cur: Cursor, dataset_id: int, mappings: Dict[str, int]) -> None:
+    cur.execute(
+        "DELETE FROM mappings WHERE dataset_id = %s ;", (dataset_id,)
+    )
+
     for key, value in mappings.items():
+
         cur.execute(
             """
             INSERT INTO mappings (
@@ -124,13 +129,14 @@ def _insert_mappings(cur: Cursor, dataset_id: int, mappings: Dict[str, int]) -> 
                 %s,
                 %s,
                 %s
-            );
-        """,
+            )
+            """,
             (dataset_id, key, value),
         )
 
 
 def _insert_processing_option(cur: Cursor, dataset_id: int, processing_option: ProcessingOption) -> None:
+
     query = """
         INSERT INTO processing_options (
             dataset_id,
@@ -146,7 +152,10 @@ def _insert_processing_option(cur: Cursor, dataset_id: int, processing_option: P
             %(short_name)s,
             %(function)s,
             %(kwargs)s
-        );
+        )
+        ON CONFLICT (dataset_id, function, kwargs)
+        DO UPDATE SET (active, public, short_name) = (%(active)s, %(public)s, %(short_name)s)
+        ;
     """
 
     params = dict(processing_option).update({"dataset_id": dataset_id})
@@ -210,6 +219,7 @@ def insert_dataset(dataset: Dataset, processing_options: Optional[List[Processin
                     %(ingest_src)s
                 ) RETURNING id;
             """
+            params["other"] = Jsonb(params["other"])
 
             cur.execute(query, params)
 
@@ -220,6 +230,8 @@ def insert_dataset(dataset: Dataset, processing_options: Optional[List[Processin
 
             # if processing options were passed, insert those in the same transaction
             if processing_options:
+                print (processing_options)
+                cur.execute("UPDATE processing_options SET active = False WHERE dataset_id = %s ;", (dataset_id,))
                 for processing_option in processing_options:
                     _insert_processing_option(cur, dataset_id, processing_option)
 
@@ -285,6 +297,7 @@ def update_dataset(dataset: Dataset, processing_options: Optional[List[Processin
                 ) WHERE name = %(name)s
                 RETURNING id;
             """
+            params["other"] = Jsonb(params["other"])
 
             cur.execute(query, params)
 
@@ -295,6 +308,8 @@ def update_dataset(dataset: Dataset, processing_options: Optional[List[Processin
 
             # if processing options were passed, insert those in the same transaction
             if processing_options:
+                print (processing_options)
+                cur.execute("UPDATE processing_options SET active = False WHERE dataset_id = %s ;", (dataset_id,))
                 for processing_option in processing_options:
                     _insert_processing_option(cur, dataset_id, processing_option)
 
