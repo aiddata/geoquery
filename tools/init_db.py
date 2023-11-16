@@ -150,6 +150,7 @@ def create_table_processing_options(cur):
             id              SERIAL PRIMARY KEY,
             dataset_id      int REFERENCES datasets(id),
             short_name      varchar(100),
+            description     varchar(500),
             function        varchar(100),
             kwargs          jsonb
         );
