@@ -4,8 +4,9 @@ import json
 
 import requests
 import geopandas as gpd
+from psycopg.types.json import Jsonb, Json
 
-
+from utils.db import insert_features as insf
 
 dl_iso3_list = ["AFG"]
 
@@ -23,10 +24,9 @@ default_meta = {
     "type": "boundary",
     "path": None,
     "file_extension": ".gpkg",
-    "file_mask": None,
     "title": None,
     "description": None,
-    "details": None,
+    "details": "",
     "tags": ["geoboundaries", "administrative", "boundary"],
     "citation": "Runfola, D. et al. (2020) geoBoundaries: A global database of political administrative boundaries. PLoS ONE 15(4): e0231866. https://doi.org/10.1371/journal.pone.0231866",
     "source_name": "geoBoundaries",
@@ -64,7 +64,7 @@ for iso3 in set(gb_iso3_list).intersection(set(dl_iso3_list)):
         adm_meta["name"] = f"gB_v6_{iso3}_{item['boundaryType']}"
         adm_meta["title"] = f"geoBoundaries v6 - {item['boundaryName']} {item['boundaryType']}"
         adm_meta["description"] = f"This feature collection represents the {item['boundaryType']} level boundaries for {item['boundaryName']} ({iso3}) from geoBoundaries v6."
-        adm_meta["details"] = None
+        adm_meta["details"] = ""
         adm_meta["group_name"] = f"gb_v6_{iso3}"
         adm_meta["group_title"] = f"gB v6 - {iso3}"
         adm_meta["group_class"] = "parent" if item['boundaryType'] == "ADM0" else "child"
@@ -81,8 +81,27 @@ for iso3 in set(gb_iso3_list).intersection(set(dl_iso3_list)):
         gdf = gpd.read_file(commit_dl_url)
         gdf.to_file(gpkg_path, driver="GPKG")
 
+        feature_list = []
+        for ix, row in gdf.iterrows():
+            feature_list.append(
+                insf.Feature(
+                    geometry=row.geometry.wkt,
+                    name=row["shapeName"],
+                    attr=row.drop(["geometry"]).to_dict(),
+                    parent=None
+                )
+            )
+        adm_meta["features"] = feature_list
+        break
 
         # export to json
         json_path = gpkg_path.with_suffix(".json")
         with open(json_path, "w") as file:
             json.dump(adm_meta, file, indent=4)
+
+
+FC = insf.FeatureCollection(**adm_meta)
+
+insf.insert_feature_collection(FC)
+
+# insf.update_feature_collection(FC)
