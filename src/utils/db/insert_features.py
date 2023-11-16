@@ -3,24 +3,28 @@ from typing import List, Optional
 
 import shapely
 from psycopg import Cursor
-from pydantic import BaseModel, Json, field_validator
-from shapely.geometry.polygon import Polygon
+from pydantic import BaseModel as PydanticBaseModel
+from pydantic import Json, field_validator
+from shapely.geometry import shape
 
 from utils.conn import get_conn
 
 
+class BaseModel(PydanticBaseModel):
+    class Config:
+        arbitrary_types_allowed = True
+
 class Feature(BaseModel):
-    geometry: List[
-        Polygon
-    ]  # TODO: I don't think this includes CRS info? We'll have to deal with that
+    geometry: str # TODO: I don't think this includes CRS info? We'll have to deal with that
     name: Optional[str]
-    attr: Json
+    attr: Optional[dict]
     parent: Optional[int]
 
     @field_validator("geometry")
     @classmethod
-    def function_must_exist(cls, g: str) -> str:
-        if not shapely.is_valid(g):
+    def validate_geometry(cls, g: str) -> str:
+        geom = shapely.wkt.loads(g)
+        if not geom.is_valid:
             raise ValueError("the geometry of a feature must be well-formed.")
         return g
 
@@ -33,15 +37,14 @@ class FeatureCollection(BaseModel):
     type: str
     path: str
     file_extension: str
-    file_mask: str
     title: str
     description: str
-    details: str
+    details: str = None
     tags: List[str]
     citation: Optional[str] = None
     source_name: Optional[str] = None
     source_link: Optional[str] = None
-    other: Optional[Json] = None
+    other: Optional[dict] = None
     temporal_start: Optional[datetime] = None
     temporal_end: Optional[datetime] = None
     temporal_step: Optional[timedelta] = None
