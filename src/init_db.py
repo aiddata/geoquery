@@ -5,26 +5,6 @@ from psycopg.errors import DuplicateTable
 from utils.conn import get_conn
 
 
-def create_table_features(cur):
-    # create features table
-    cur.execute(
-        """
-        CREATE TABLE features (
-            id              int PRIMARY KEY generated always as identity,
-            shape           geometry NOT NULL
-            );
-        """
-    )
-
-
-def create_index_features(cur):
-    # create spatial index on features table
-    cur.execute(
-        """
-        CREATE INDEX features_geom_idx ON features
-        USING GIST (shape);
-        """
-    )
 
 def create_table_feature_collections(cur):
     cur.execute(
@@ -46,6 +26,9 @@ def create_table_feature_collections(cur):
             source_url              varchar(200),
             other                   jsonb,
             is_global               boolean DEFAULT FALSE,
+            temporal_start          timestamp,
+            temporal_end            timestamp,
+            temporal_step           interval,
             group_name              varchar(100),
             group_title             varchar(100),
             group_class             varchar(100),
@@ -55,6 +38,28 @@ def create_table_feature_collections(cur):
             date_updated            timestamp DEFAULT CURRENT_TIMESTAMP,
             ingest_src              varchar(200)
         );
+        """
+    )
+
+
+def create_table_features(cur):
+    # create features table
+    cur.execute(
+        """
+        CREATE TABLE features (
+            id              int PRIMARY KEY generated always as identity,
+            shape           geometry NOT NULL
+            );
+        """
+    )
+
+
+def create_index_features(cur):
+    # create spatial index on features table
+    cur.execute(
+        """
+        CREATE INDEX features_geom_idx ON features
+        USING GIST (shape);
         """
     )
 
