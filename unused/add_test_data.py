@@ -72,17 +72,12 @@ def insert_dummy_data():
 if __name__ == "__main__":
     insert_dummy_data()
 
-    # show data inserted into tables
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""SELECT * FROM datasets""").fetchall()
-            cur.execute("""SELECT * FROM mappings""").fetchall()
 
-            x = cur.execute("""SELECT * FROM feature_geom""").fetchall()
-            cur.execute("""SELECT * FROM feature_meta""").fetchall()
-            cur.execute("""SELECT * FROM datasets""").fetchall()
-            cur.execute("""SELECT * FROM extract_tasks""").fetchall()
-            cur.execute("""SELECT * FROM extract_data""").fetchall()
+from utils.conn import get_conn
+with get_conn() as conn:
+    with conn.cursor() as cur:
+        cur.execute("""SELECT * FROM extract_tasks""").fetchall()
+        cur.execute("""SELECT * FROM extract_data""").fetchall()
 
 
 from utils.conn import get_conn
@@ -104,3 +99,5 @@ with get_conn() as conn:
         print('datasets', len(x), x)
         print('mappings', len(y), y)
         print('processing_options', len(z), z)
+        w = cur.execute("""SELECT * FROM dataset_resources""").fetchall()
+        print('dataset_resources', len(w), w)
