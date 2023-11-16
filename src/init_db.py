@@ -154,6 +154,8 @@ def create_table_processing_options(cur):
             description     varchar(500),
             function        varchar(100),
             kwargs          jsonb,
+            active          boolean DEFAULT FALSE,
+            public          boolean DEFAULT FALSE,
             UNIQUE (dataset_id, function, kwargs)
         );
         """
