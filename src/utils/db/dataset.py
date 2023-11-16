@@ -136,8 +136,6 @@ def _insert_dataset_resource(cur: Cursor, dataset_id: int, resource: DatasetReso
             temporal_start,
             temporal_end,
             spatial_extent,
-            size_kb,
-            other
         ) VALUES (
             %(dataset_id)s,
             %(name)s,
@@ -145,8 +143,6 @@ def _insert_dataset_resource(cur: Cursor, dataset_id: int, resource: DatasetReso
             %(temporal_start)s,
             %(temporal_end)s,
             %(spatial_extent)s,
-            %(size_kb)s,
-            %(other)s
         );
     """
 
