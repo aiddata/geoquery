@@ -15,7 +15,7 @@ class BaseModel(PydanticBaseModel):
         arbitrary_types_allowed = True
 
 class Feature(BaseModel):
-    geometry: str # TODO: I don't think this includes CRS info? We'll have to deal with that
+    geometry: str # this is a wkt str. TODO: this does not include CRS info. We should verify (or be reasonably certain) it is EPSG:4326
     name: Optional[str]
     attr: Optional[dict]
     parent: Optional[int]
@@ -121,7 +121,6 @@ def insert_feature_collection(feature_collection: FeatureCollection) -> None:
                     type,
                     path,
                     file_extension,
-                    file_mask,
                     title,
                     description,
                     details,
@@ -147,7 +146,6 @@ def insert_feature_collection(feature_collection: FeatureCollection) -> None:
                     %(type)s,
                     %(path)s,
                     %(file_extension)s,
-                    %(file_mask)s,
                     %(title)s,
                     %(description)s,
                     %(details)s,
