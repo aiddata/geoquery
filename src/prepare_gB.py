@@ -2,6 +2,7 @@ import requests
 from pathlib import Path
 import json
 
+import shapely
 import requests
 import geopandas as gpd
 from psycopg.types.json import Jsonb, Json
@@ -21,7 +22,6 @@ default_meta = {
     "active": 0,
     "public": 0,
     "name": None,
-    "type": "boundary",
     "path": None,
     "file_extension": ".gpkg",
     "title": None,
@@ -81,6 +81,9 @@ for iso3 in set(gb_iso3_list).intersection(set(dl_iso3_list)):
         gdf = gpd.read_file(commit_dl_url)
         gdf.to_file(gpkg_path, driver="GPKG")
 
+        spatial_extent = shapely.box(*gdf.total_bounds).wkt
+        adm_meta["spatial_extent"] = spatial_extent
+
         feature_list = []
         for ix, row in gdf.iterrows():
             feature_list.append(
@@ -94,9 +97,11 @@ for iso3 in set(gb_iso3_list).intersection(set(dl_iso3_list)):
         adm_meta["features"] = feature_list
 
         # export to json
+        export_adm_meta = adm_meta.copy()
+        export_adm_meta["features"] = None
         json_path = gpkg_path.with_suffix(".json")
         with open(json_path, "w") as file:
-            json.dump(adm_meta, file, indent=4)
+            json.dump(export_adm_meta, file, indent=4)
 
 
         FC = futils.FeatureCollection(**adm_meta)

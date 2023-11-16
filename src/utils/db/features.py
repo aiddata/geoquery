@@ -5,6 +5,8 @@ import shapely
 from psycopg import Cursor
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Json, field_validator
+from psycopg.types.json import Jsonb, Json
+
 from shapely.geometry import shape
 
 from utils.conn import get_conn
@@ -34,7 +36,6 @@ class FeatureCollection(BaseModel):
     active: bool = False
     public: bool = False
     name: str
-    type: str
     path: str
     file_extension: str
     title: str
@@ -43,11 +44,12 @@ class FeatureCollection(BaseModel):
     tags: List[str]
     citation: Optional[str] = None
     source_name: Optional[str] = None
-    source_link: Optional[str] = None
+    source_url: Optional[str] = None
     other: Optional[dict] = None
     temporal_start: Optional[datetime] = None
     temporal_end: Optional[datetime] = None
     temporal_step: Optional[timedelta] = None
+    spatial_extent: str
     is_global: bool
     ingest_src: Optional[str] = None
     group_name: Optional[str] = None
@@ -60,7 +62,7 @@ def _insert_features(
     cur: Cursor, feature_collection_id: int, features: List[Feature]
 ) -> None:
     for feature in features:
-        wkt = shapely.to_wkt(feature.geometry)
+        wkt = feature.geometry
 
         # check if geom is already in features table, returning any matching ids
         cur.execute(
@@ -84,9 +86,12 @@ def _insert_features(
             # print("Found a matching geometry!")
             result = result[0]
 
-        added_params = {
+        fm_params = {
             "fc_id": feature_collection_id,
             "geom_id": result,
+            "name": feature.name,
+            "attr": Jsonb(feature.attr),
+            "parent": None
         }
 
         # insert into feat_map with that id
@@ -106,7 +111,7 @@ def _insert_features(
                 %(parent)s
             );
             """,
-            dict(feature).update(added_params),
+            fm_params
         )
 
 
@@ -118,21 +123,20 @@ def insert_feature_collection(feature_collection: FeatureCollection) -> None:
                     active,
                     public,
                     name,
-                    type,
                     path,
                     file_extension,
                     title,
                     description,
                     details,
-                    version,
                     tags,
                     citation,
                     source_name,
-                    source_link,
+                    source_url,
                     other,
                     temporal_start,
                     temporal_end,
                     temporal_step,
+                    spatial_extent,
                     is_global,
                     ingest_src,
                     group_name,
@@ -143,25 +147,20 @@ def insert_feature_collection(feature_collection: FeatureCollection) -> None:
                     %(active)s,
                     %(public)s,
                     %(name)s,
-                    %(type)s,
                     %(path)s,
                     %(file_extension)s,
                     %(title)s,
                     %(description)s,
                     %(details)s,
-                    %(version)s,
                     %(tags)s,
                     %(citation)s,
                     %(source_name)s,
-                    %(source_link)s,
-                    %(variable_description)s,
-                    %(variable_factor)s,
-                    %(processing_options)s,
+                    %(source_url)s,
                     %(other)s,
                     %(temporal_start)s,
                     %(temporal_end)s,
                     %(temporal_step)s,
-                    %(spatial)s,
+                    %(spatial_extent)s,
                     %(is_global)s,
                     %(ingest_src)s,
                     %(group_name)s,
@@ -171,7 +170,10 @@ def insert_feature_collection(feature_collection: FeatureCollection) -> None:
                 ) RETURNING id;
             """
 
-            cur.execute(query, feature_collection)
+            fc_params = feature_collection.dict()
+            fc_params["other"] = Jsonb(fc_params["other"])
+
+            cur.execute(query, fc_params)
 
             feature_collection_id = cur.fetchone()[0]
 
