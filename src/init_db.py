@@ -6,6 +6,7 @@ from utils.conn import get_conn
 
 
 
+
 def create_table_feature_collections(cur):
     cur.execute(
         """
@@ -183,7 +184,7 @@ def create_table_extract_tasks(cur):
     cur.execute(
         """
         CREATE TABLE extract_tasks (
-            id              int PRIMARY KEY generated always as identity,
+            id              int UNIQUE generated always as identity,
             resource_id     int REFERENCES dataset_resources(id),
             fm_id           int REFERENCES feat_map(id),
             op              int REFERENCES processing_options(id),
@@ -195,7 +196,8 @@ def create_table_extract_tasks(cur):
             complete_time   timestamp DEFAULT NULL,
             attempts        integer DEFAULT 0,
             error           varchar(100) DEFAULT NULL,
-            kwargs          jsonb DEFAULT NULL
+            kwargs          jsonb DEFAULT NULL,
+            PRIMARY KEY (resource_id, fm_id, op)
         );
         """
     )
