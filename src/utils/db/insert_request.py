@@ -1,7 +1,7 @@
 from datetime import datetime
-from pydantic import BaseModel, field_validator
 
 from conn import get_conn
+from pydantic import BaseModel, field_validator
 
 
 class Request(BaseModel):
@@ -19,10 +19,11 @@ class Request(BaseModel):
             raise ValueError("request priority must be at least 1")
         return p
 
+
 def insert_request(request: Request):
     with get_conn() as conn:
         with conn.cursor() as cur:
-            query = "" # TODO
+            query = ""  # TODO
 
             cur.execute(query, request)
 
