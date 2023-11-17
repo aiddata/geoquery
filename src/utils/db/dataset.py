@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import shapely
 import utils.processors
 from psycopg import Cursor
 from psycopg.types.json import Json, Jsonb
@@ -97,52 +98,12 @@ def get_date_range(date_obj, drange=0):
             date_type)
 
 
-def get_raster_extent(path):
-    """Get geojson style envelope of raster file
-    """
+def get_raster_bbox(path):
     with rasterio.open(path, 'r') as raster:
-
         # bounds = (xmin, ymin, xmax, ymax)
         b = raster.bounds
-        env = [[b[0], b[3]], [b[0], b[1]], [b[2], b[1]], [b[2], b[3]]]
+        return box(*b)
 
-        return env
-
-
-def trim_envelope(env):
-    """Trim envelope to global extents
-    """
-    # clip extents if they are outside global bounding box
-    for c in range(len(env)):
-        if env[c][0] < -180:
-            env[c][0] = -180
-
-        elif env[c][0] > 180:
-            env[c][0] = 180
-
-        if env[c][1] < -90:
-            env[c][1] = -90
-
-        elif env[c][1] > 90:
-            env[c][1] = 90
-
-    return env
-
-
-def envelope_to_geom(env):
-    """convert envelope array to geojson
-    """
-    geom = {
-        "type": "Polygon",
-        "coordinates": [ [
-            env[0],
-            env[1],
-            env[2],
-            env[3],
-            env[0]
-        ] ]
-    }
-    return geom
 
 class DatasetResource(BaseModel):
     name: str
@@ -194,6 +155,9 @@ class Dataset(BaseModel):
     temporal_start: Optional[datetime] = None
     temporal_end: Optional[datetime] = None
     temporal_step: Optional[timedelta] = None
+    temporal_name: Optional[str] = None
+    temporal_format: Optional[str] = None
+    temporal_type: Optional[str] = None
     is_global: bool
     coverage_dependency: Optional[str] = None
     ingest_src: Optional[str] = None
@@ -270,14 +234,14 @@ def _insert_dataset_resource(cur: Cursor, dataset_id: int, resource: DatasetReso
             path,
             temporal_start,
             temporal_end,
-            spatial_extent,
+            spatial_extent
         ) VALUES (
             %(dataset_id)s,
             %(name)s,
             %(path)s,
             %(temporal_start)s,
             %(temporal_end)s,
-            %(spatial_extent)s,
+            %(spatial_extent)s
         );
     """
 
@@ -352,6 +316,9 @@ def insert_dataset(dataset: Dataset) -> None:
                     temporal_start,
                     temporal_end,
                     temporal_step,
+                    temporal_name,
+                    temporal_format,
+                    temporal_type,
                     ingest_src
                 ) VALUES (
                     %(active)s,
@@ -375,6 +342,9 @@ def insert_dataset(dataset: Dataset) -> None:
                     %(temporal_start)s,
                     %(temporal_end)s,
                     %(temporal_step)s,
+                    %(temporal_name)s,
+                    %(temporal_format)s,
+                    %(temporal_type)s,
                     %(ingest_src)s
                 ) RETURNING id;
             """
@@ -396,10 +366,32 @@ def insert_dataset(dataset: Dataset) -> None:
                 for processing_option in params["processing_options"]:
                     _insert_processing_option(cur, dataset_id, processing_option)
 
-            identify_dataset_resources(dataset_id, params["name"], params["file_mask"], params["file_extension"], params["path"])
+            dset_params = identify_dataset_resources(dataset_id, params["name"], params["file_mask"], params["file_extension"], params["path"])
+
+            update_dataset_from_resources(cur, dataset_id, dset_params)
 
             conn.commit()
 
+
+def update_dataset_from_resources(cur, dataset_id: int, dset_params: dict) -> None:
+    dset_params["dataset_id"] = dataset_id
+    cur.execute("""
+        UPDATE datasets SET (
+            temporal_start,
+            temporal_end,
+            temporal_name,
+            temporal_format,
+            temporal_type,
+            spatial_extent
+        ) = (
+            %(temporal_start)s,
+            %(temporal_end)s,
+            %(temporal_name)s,
+            %(temporal_format)s,
+            %(temporal_type)s,
+            %(spatial_extent)s
+        ) WHERE id = %(dataset_id)s
+    """, dset_params)
 
 
 def start_dataset_resources_check(dataset_name: str) -> None:
@@ -415,7 +407,10 @@ def start_dataset_resources_check(dataset_name: str) -> None:
             file_extension = dataset_info["file_extension"]
             dataset_path = Path(dataset_info["path"])
 
-            identify_dataset_resources(dataset_id, dataset_name, file_mask, file_extension, dataset_path)
+            dset_params = identify_dataset_resources(dataset_id, dataset_name, file_mask, file_extension, dataset_path)
+
+            update_dataset_from_resources(cur, dataset_id, dset_params)
+
 
 
 def identify_dataset_resources(dataset_id: int, dataset_name:str, file_mask: str, file_extension: str, dataset_path: str) -> None:
@@ -430,16 +425,8 @@ def identify_dataset_resources(dataset_id: int, dataset_name:str, file_mask: str
     if file_mask is None and len(file_list) != 1:
         raise ValueError("Multiple files found, but no file mask specified")
 
-    # -------------------------------------
-    # check file mask
-
-    # file mask identifying temporal attributes in path/file names
-    test_fname = os.path.relpath(file_list[0], dataset_path)
-    test_date_str = run_file_mask(file_mask, test_fname)
-    valid_date = validate_date(test_date_str)
-    if not valid_date:
-        raise ValueError("File mask failed to validate using first resource ({}).".format(test_fname))
-
+    # list of spatial exten bboxes for each resource that can be used to get total extent for dataset
+    spatial_extent_bbox_list = []
 
     # -------------------------------------
     # prepare resources
@@ -454,7 +441,9 @@ def identify_dataset_resources(dataset_id: int, dataset_name:str, file_mask: str
         # path relative to base
         resource["path"] = os.path.relpath(f, dataset_path)
 
-        resource["spatial"] = get_raster_extent(f)
+        spatial_extent_geom = get_raster_bbox(f)
+        spatial_extent_bbox_list.append(spatial_extent_geom)
+        resource["spatial_extent"] = spatial_extent_geom.wkt
 
         if file_mask is not None:
             # temporal
@@ -464,30 +453,30 @@ def identify_dataset_resources(dataset_id: int, dataset_name:str, file_mask: str
             date_str = run_file_mask(file_mask, resource["path"])
             validate_date_str = validate_date(date_str)
             if not validate_date_str[0]:
-                raise Exception(validate_date_str[1])
+                # raise Exception(validate_date_str[1])
+                raise Exception("File mask failed to validate using resource ({}).".format(resource["path"]))
 
             # if "day_range" in doc:
             #     resource["start"], resource["end"], range_type = get_date_range(date_str, doc["day_range"])
             # else:
-            resource["start"], resource["end"], range_type = get_date_range(date_str)
+            resource["temporal_start"], resource["temporal_end"], range_type = get_date_range(date_str)
 
             # name (unique among this dataset's resources,
             # not same name as dataset name)
             resource["name"] = f"{dataset_name}_{date_str['year']}{date_str['month']}{date_str['day']}"
 
         else:
-            resource["start"]  = 10000101
-            resource["end"] = 99991231
+            resource["temporal_start"]  = 10000101
+            resource["temporal_end"] = 99991231
             resource["name"] = f"{dataset_name}_none"
 
 
         # update main list
         resource_list.append(resource)
 
-    breakpoint()
-
     # -------------------------------------
-    # get temporal for whole dataset
+    # get spatial and temporal for whole dataset
+
 
     if file_mask is None:
         temporal_name = "Temporally Invariant"
@@ -498,43 +487,28 @@ def identify_dataset_resources(dataset_id: int, dataset_name:str, file_mask: str
         temporal_format = "%Y%m%d"
         temporal_type = get_date_range(run_file_mask(file_mask, file_list[0].name))[2]
 
-
     temporal_start = None
     temporal_end = None
     for r in resource_list:
         if (temporal_start is None or
-                r["start"] < temporal_start):
-            temporal_start = r["start"]
+                r["temporal_start"] < temporal_start):
+            temporal_start = r["temporal_start"]
         elif (temporal_end is None or
-                r["end"] > temporal_end):
-            temporal_end = r["end"]
+                r["temporal_end"] > temporal_end):
+            temporal_end = r["temporal_end"]
 
+    spatial_extent = shapely.ops.unary_union(spatial_extent_bbox_list).wkt
 
-    # -------------------------------------
-    # get spatial for full dataset
-
-    # iterate over files to get bbox and do basic spatial validation
-    # (mainly make sure rasters are all same size)
-    base_geo = None
-    for f in file_list:
-        # get basic geo info from each file
-        env = get_raster_extent(f)
-        # get full geo info from first file
-        base_geo = env if not base_geo else base_geo
-        if base_geo != env:
-            Warning(f"Raster bounding box does not match: \n\tfile: {f}\n\tbbox: {env}\n\tbase: {base_geo}")
-
-
-    env = trim_envelope(env)
-    print("Dataset bounding box: ", env)
-
-    # set spatial
-    spatial_extent = envelope_to_geom(env)
-
+    dset_params = {
+        "temporal_start": temporal_start,
+        "temporal_end": temporal_end,
+        "temporal_name": temporal_name,
+        "temporal_format": temporal_format,
+        "temporal_type": temporal_type,
+        "spatial_extent": spatial_extent,
+    }
 
     # ==================
-
-    resource_list = []
 
     if resource_list is not None:
         with get_conn() as conn:
@@ -542,6 +516,7 @@ def identify_dataset_resources(dataset_id: int, dataset_name:str, file_mask: str
                 for resource in resource_list:
                     _insert_dataset_resource(cur, dataset_id, resource)
 
+    return dset_params
 
 
 def update_dataset(dataset: Dataset) -> None:
@@ -574,6 +549,9 @@ def update_dataset(dataset: Dataset) -> None:
                     temporal_start,
                     temporal_end,
                     temporal_step,
+                    temporal_name,
+                    temporal_format,
+                    temporal_type,
                     ingest_src
                 ) = (
                     %(active)s,
@@ -597,6 +575,9 @@ def update_dataset(dataset: Dataset) -> None:
                     %(temporal_start)s,
                     %(temporal_end)s,
                     %(temporal_step)s,
+                    %(temporal_name)s,
+                    %(temporal_format)s,
+                    %(temporal_type)s,
                     %(ingest_src)s
                 ) WHERE name = %(name)s
                 RETURNING id;
@@ -618,5 +599,11 @@ def update_dataset(dataset: Dataset) -> None:
                 )
                 for processing_option in params["processing_options"]:
                     _insert_processing_option(cur, dataset_id, processing_option)
+
+
+            dset_params = identify_dataset_resources(dataset_id, params["name"], params["file_mask"], params["file_extension"], params["path"])
+
+            update_dataset_from_resources(cur, dataset_id, dset_params)
+
 
             conn.commit()
