@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import shapely
 import utils.processors
@@ -92,7 +92,7 @@ class DatasetResource(BaseModel):
 
 
 class ProcessingOption(BaseModel):
-    dataset_id: int = None
+    dataset_id: int
     active: bool = False
     public: bool = False
     short_name: str
@@ -386,9 +386,7 @@ def start_dataset_resources_check(dataset_name: str) -> None:
 
 
 
-def identify_dataset_resources(cur, dataset_id: int, dataset_name:str, file_mask: str, file_extension: str, dataset_path: str) -> None:
-
-    dataset_path = Path(dataset_path)
+def identify_dataset_resources(cur, dataset_id: int, dataset_name:str, file_mask: str, file_extension: str, dataset_path: Path) -> Dict[str, Any]:
 
     if not dataset_path.is_dir():
         file_list = [dataset_path]
@@ -407,37 +405,37 @@ def identify_dataset_resources(cur, dataset_id: int, dataset_name:str, file_mask
     resource_list = []
 
     for f in file_list:
-        print(f)
-        # individual resource info
-        resource = {}
-
         # path relative to base
-        resource["path"] = os.path.relpath(f, dataset_path)
+        resource_path = os.path.relpath(f, dataset_path)
 
         spatial_extent_geom = get_raster_bbox(f)
         spatial_extent_bbox_list.append(spatial_extent_geom)
-        resource["spatial_extent"] = spatial_extent_geom.wkt
+        resource_spatial_extent = spatial_extent_geom.wkt
 
         if file_mask is not None:
             # temporal
             # get unique time range based on dir path / file names
 
             # get data from mask
-            timestamp, date_str, step, date_type = run_file_mask(file_mask, resource["path"])
+            timestamp, date_str, step, date_type = run_file_mask(file_mask, resource_path)
             temporal_info_list.append((timestamp, date_str, step, date_type))
 
-            resource["temporal"] = timestamp
-
-            # name (unique among this dataset's resources,
-            # not same name as dataset name)
-            resource["name"] = f"{dataset_name}_{date_str}"
-            resource["label"] = date_str
+            resource = DatasetResource(
+                name=f"{dataset_name}_{date_str}", # unique among this dataset's resources, not the same name as dataset
+                path=resource_path,
+                temporal = timestamp,
+                label = date_str,
+                spatial_extent = resource_spatial_extent,
+            )
 
         else:
-            resource["temporal"]  = None
-            resource["name"] = f"{dataset_name}_none"
-            resource["label"]  = None
-
+            resource = DatasetResource(
+                name = f"{dataset_name}_none",
+                path=resource_path,
+                temporal = None,
+                label = None,
+                spatial_extent = resource_spatial_extent,
+            )
 
         # update main list
         resource_list.append(resource)
