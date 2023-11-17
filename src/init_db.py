@@ -108,9 +108,7 @@ def create_table_datasets(cur):
             other                   jsonb,
             temporal_start          timestamp,
             temporal_end            timestamp,
-            temporal_step           interval,
             temporal_name           varchar(100),
-            temporal_format         varchar(100),
             temporal_type           varchar(100),
             spatial_extent          geometry,
             date_added              timestamp DEFAULT CURRENT_TIMESTAMP,
@@ -131,9 +129,9 @@ def create_table_dataset_resources(cur):
             id              int PRIMARY KEY generated always as identity,
             dataset_id      int REFERENCES datasets(id),
             name            varchar(200) UNIQUE NOT NULL,
+            label           varchar(200),
             path            varchar(200) UNIQUE NOT NULL,
-            temporal_start  timestamp,
-            temporal_end    timestamp,
+            temporal        timestamp,
             spatial_extent  geometry
             );
         """

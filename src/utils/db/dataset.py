@@ -1,6 +1,7 @@
 import re
 import os
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -19,83 +20,60 @@ from dateutil.relativedelta import relativedelta
 import rasterio
 from shapely.geometry import box
 
+
 def run_file_mask(fmask, fname):
     """extract temporal data from file name
     """
-    output = {
-        "year": "".join([x for x,y in zip(fname, fmask) if y == 'Y' and x.isdigit()]),
-        "month": "".join([x for x,y in zip(fname, fmask) if y == 'M' and x.isdigit()]),
-        "day": "".join([x for x,y in zip(fname, fmask) if y == 'D' and x.isdigit()])
-    }
-    return output
 
+    year = "".join([x for x,y in zip(fname, fmask) if y == 'Y' and x.isdigit()])
+    month = "".join([x for x,y in zip(fname, fmask) if y == 'M' and x.isdigit()])
+    day = "".join([x for x,y in zip(fname, fmask) if y == 'D' and x.isdigit()])
 
-def validate_date(date_obj):
-    """validate a date object
-    """
-    # year is always required
-    y = date_obj["year"]
-    m = date_obj["month"]
-    d = date_obj["day"]
-
-    if y == "":
-        return False, "No year found for data."
+    # check all potential issues
+    if year == "":
+        raise Exception("No year found for data.")
 
     # full 4 digit year required
-    elif len(y) != 4:
-        return False, "Invalid year."
+    elif len(year) != 4:
+        raise Exception("Invalid year.")
 
     # months must always use 2 digits
-    elif m != "" and len(m) != 2:
-        return False, "Invalid month."
+    elif month != "" and len(month) != 2:
+        raise Exception("Invalid month.")
 
     # days of month (day when month is given) must always use 2 digits
-    elif m != "" and d != "" and len(d) != 2:
-        return False, "Invalid day of month."
+    elif month != "" and day != "" and len(day) != 2:
+        raise Exception("Invalid day of month.")
 
     # days of year (day when month is not given) must always use 3 digits
-    elif m == "" and d != "" and len(d) != 3:
-        return False, "Invalid day of year."
+    elif month == "" and day != "" and len(day) != 3:
+        raise Exception("Invalid day of year.")
 
-    return True, None
+    # prepare timestamp
+    if month == "" and day != "":
+        date_str = f"{year}{day}"
+        timestamp = datetime(year, 1, 1) + timedelta(day - 1)
+    else:
+        date_str = f"{year}{month}{day}"
+        month = "01" if month == "" else month
+        day = "01" if day == "" else day
+        ymd = f"{year}{month}{day}"
+        timestamp = datetime.strptime(ymd, "%Y%m%d")
 
-
-# generate date range and date type from date object
-def get_date_range(date_obj, drange=0):
-    y = date_obj["year"]
-    m = date_obj["month"]
-    d = date_obj["day"]
-
-    date_type = "None"
-
-    # year, day of year (7)
-    if m == "" and len(d) == 3:
-        tmp_start = datetime(int(y), 1, 1) + datetime.timedelta(int(d)-1)
-        tmp_end = tmp_start + relativedelta(days=drange)
+    if len(date_str) == 7:
+        step = relativedelta(days=1)
         date_type = "day of year"
-
-    # year, month, day (8)
-    if m != "" and len(d) == 2:
-        tmp_start = datetime(int(y), int(m), int(d))
-        tmp_end = tmp_start + relativedelta(days=drange)
+    elif len(date_str) == 8:
+        step = relativedelta(days=1)
         date_type = "year month day"
-
-    # year, month (6)
-    if m != "" and d == "":
-        tmp_start = datetime(int(y), int(m), 1)
-        month_range = calendar.monthrange(int(y), int(m))[1]
-        tmp_end = datetime(int(y), int(m), month_range)
+    elif len(date_str) == 6:
+        step = relativedelta(months=1)
         date_type = "year month"
-
-    # year (4)
-    if m == "" and d == "":
-        tmp_start = datetime(int(y), 1, 1)
-        tmp_end = datetime(int(y), 12, 31)
+    elif len(date_str) == 4:
+        step = relativedelta(years=1)
         date_type = "year"
 
-    return (int(datetime.strftime(tmp_start, '%Y%m%d')),
-            int(datetime.strftime(tmp_end, '%Y%m%d')),
-            date_type)
+    return timestamp, date_str, step, date_type
 
 
 def get_raster_bbox(path):
@@ -108,8 +86,8 @@ def get_raster_bbox(path):
 class DatasetResource(BaseModel):
     name: str
     path: str
-    temporal_start: Optional[datetime]
-    temporal_end: Optional[datetime]
+    temporal: Optional[datetime]
+    label: Optional[str]
     spatial_extent: Optional[str]
 
 
@@ -154,9 +132,7 @@ class Dataset(BaseModel):
     other: Optional[dict] = None
     temporal_start: Optional[datetime] = None
     temporal_end: Optional[datetime] = None
-    temporal_step: Optional[timedelta] = None
     temporal_name: Optional[str] = None
-    temporal_format: Optional[str] = None
     temporal_type: Optional[str] = None
     is_global: bool
     coverage_dependency: Optional[str] = None
@@ -232,17 +208,20 @@ def _insert_dataset_resource(cur: Cursor, dataset_id: int, resource: DatasetReso
             dataset_id,
             name,
             path,
-            temporal_start,
-            temporal_end,
+            temporal,
+            label,
             spatial_extent
         ) VALUES (
             %(dataset_id)s,
             %(name)s,
             %(path)s,
-            %(temporal_start)s,
-            %(temporal_end)s,
+            %(temporal)s,
+            %(label)s,
             %(spatial_extent)s
-        );
+        )
+        ON CONFLICT (name)
+        DO UPDATE SET (path, temporal, label, spatial_extent) = (%(path)s, %(temporal)s, %(label)s, %(spatial_extent)s)
+        ;
     """
 
     params = dict(resource)
@@ -251,7 +230,7 @@ def _insert_dataset_resource(cur: Cursor, dataset_id: int, resource: DatasetReso
     cur.execute(query, params)
 
 
-def insert_dataset_resource(dataset_id: int, resource: DatasetResource):
+def insert_dataset_resource(cur, dataset_id: int, resource: DatasetResource):
     with get_conn() as conn:
         with conn.cursor() as cur:
             _insert_dataset_resource(cur, dataset_id, resource)
@@ -315,9 +294,7 @@ def insert_dataset(dataset: Dataset) -> None:
                     other,
                     temporal_start,
                     temporal_end,
-                    temporal_step,
                     temporal_name,
-                    temporal_format,
                     temporal_type,
                     ingest_src
                 ) VALUES (
@@ -341,9 +318,7 @@ def insert_dataset(dataset: Dataset) -> None:
                     %(other)s,
                     %(temporal_start)s,
                     %(temporal_end)s,
-                    %(temporal_step)s,
                     %(temporal_name)s,
-                    %(temporal_format)s,
                     %(temporal_type)s,
                     %(ingest_src)s
                 ) RETURNING id;
@@ -366,7 +341,7 @@ def insert_dataset(dataset: Dataset) -> None:
                 for processing_option in params["processing_options"]:
                     _insert_processing_option(cur, dataset_id, processing_option)
 
-            dset_params = identify_dataset_resources(dataset_id, params["name"], params["file_mask"], params["file_extension"], params["path"])
+            dset_params = identify_dataset_resources(cur, dataset_id, params["name"], params["file_mask"], params["file_extension"], params["path"])
 
             update_dataset_from_resources(cur, dataset_id, dset_params)
 
@@ -380,14 +355,12 @@ def update_dataset_from_resources(cur, dataset_id: int, dset_params: dict) -> No
             temporal_start,
             temporal_end,
             temporal_name,
-            temporal_format,
             temporal_type,
             spatial_extent
         ) = (
             %(temporal_start)s,
             %(temporal_end)s,
             %(temporal_name)s,
-            %(temporal_format)s,
             %(temporal_type)s,
             %(spatial_extent)s
         ) WHERE id = %(dataset_id)s
@@ -407,13 +380,13 @@ def start_dataset_resources_check(dataset_name: str) -> None:
             file_extension = dataset_info["file_extension"]
             dataset_path = Path(dataset_info["path"])
 
-            dset_params = identify_dataset_resources(dataset_id, dataset_name, file_mask, file_extension, dataset_path)
+            dset_params = identify_dataset_resources(cur, dataset_id, dataset_name, file_mask, file_extension, dataset_path)
 
             update_dataset_from_resources(cur, dataset_id, dset_params)
 
 
 
-def identify_dataset_resources(dataset_id: int, dataset_name:str, file_mask: str, file_extension: str, dataset_path: str) -> None:
+def identify_dataset_resources(cur, dataset_id: int, dataset_name:str, file_mask: str, file_extension: str, dataset_path: str) -> None:
 
     dataset_path = Path(dataset_path)
 
@@ -427,7 +400,7 @@ def identify_dataset_resources(dataset_id: int, dataset_name:str, file_mask: str
 
     # list of spatial exten bboxes for each resource that can be used to get total extent for dataset
     spatial_extent_bbox_list = []
-
+    temporal_info_list = []
     # -------------------------------------
     # prepare resources
 
@@ -450,25 +423,20 @@ def identify_dataset_resources(dataset_id: int, dataset_name:str, file_mask: str
             # get unique time range based on dir path / file names
 
             # get data from mask
-            date_str = run_file_mask(file_mask, resource["path"])
-            validate_date_str = validate_date(date_str)
-            if not validate_date_str[0]:
-                # raise Exception(validate_date_str[1])
-                raise Exception("File mask failed to validate using resource ({}).".format(resource["path"]))
+            timestamp, date_str, step, date_type = run_file_mask(file_mask, resource["path"])
+            temporal_info_list.append((timestamp, date_str, step, date_type))
 
-            # if "day_range" in doc:
-            #     resource["start"], resource["end"], range_type = get_date_range(date_str, doc["day_range"])
-            # else:
-            resource["temporal_start"], resource["temporal_end"], range_type = get_date_range(date_str)
+            resource["temporal"] = timestamp
 
             # name (unique among this dataset's resources,
             # not same name as dataset name)
-            resource["name"] = f"{dataset_name}_{date_str['year']}{date_str['month']}{date_str['day']}"
+            resource["name"] = f"{dataset_name}_{date_str}"
+            resource["label"] = date_str
 
         else:
-            resource["temporal_start"]  = 10000101
-            resource["temporal_end"] = 99991231
+            resource["temporal"]  = None
             resource["name"] = f"{dataset_name}_none"
+            resource["label"]  = None
 
 
         # update main list
@@ -477,25 +445,17 @@ def identify_dataset_resources(dataset_id: int, dataset_name:str, file_mask: str
     # -------------------------------------
     # get spatial and temporal for whole dataset
 
-
     if file_mask is None:
         temporal_name = "Temporally Invariant"
-        temporal_format = None
+        temporal_start = None
+        temporal_end = None
         temporal_type = None
     else:
-        temporal_name = "Date Range"
-        temporal_format = "%Y%m%d"
-        temporal_type = get_date_range(run_file_mask(file_mask, file_list[0].name))[2]
-
-    temporal_start = None
-    temporal_end = None
-    for r in resource_list:
-        if (temporal_start is None or
-                r["temporal_start"] < temporal_start):
-            temporal_start = r["temporal_start"]
-        elif (temporal_end is None or
-                r["temporal_end"] > temporal_end):
-            temporal_end = r["temporal_end"]
+        temporal_name = "Datetime"
+        temporal_start = min([i[0] for i in temporal_info_list])
+        temporal_end = max([i[0] for i in temporal_info_list])
+        # temporal_step = min([i[2] for i in temporal_info_list])
+        temporal_type = temporal_info_list[0][3]
 
     spatial_extent = shapely.ops.unary_union(spatial_extent_bbox_list).wkt
 
@@ -503,7 +463,6 @@ def identify_dataset_resources(dataset_id: int, dataset_name:str, file_mask: str
         "temporal_start": temporal_start,
         "temporal_end": temporal_end,
         "temporal_name": temporal_name,
-        "temporal_format": temporal_format,
         "temporal_type": temporal_type,
         "spatial_extent": spatial_extent,
     }
@@ -511,10 +470,8 @@ def identify_dataset_resources(dataset_id: int, dataset_name:str, file_mask: str
     # ==================
 
     if resource_list is not None:
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                for resource in resource_list:
-                    _insert_dataset_resource(cur, dataset_id, resource)
+        for resource in resource_list:
+            _insert_dataset_resource(cur, dataset_id, resource)
 
     return dset_params
 
@@ -548,9 +505,7 @@ def update_dataset(dataset: Dataset) -> None:
                     other,
                     temporal_start,
                     temporal_end,
-                    temporal_step,
                     temporal_name,
-                    temporal_format,
                     temporal_type,
                     ingest_src
                 ) = (
@@ -574,9 +529,7 @@ def update_dataset(dataset: Dataset) -> None:
                     %(other)s,
                     %(temporal_start)s,
                     %(temporal_end)s,
-                    %(temporal_step)s,
                     %(temporal_name)s,
-                    %(temporal_format)s,
                     %(temporal_type)s,
                     %(ingest_src)s
                 ) WHERE name = %(name)s
@@ -601,7 +554,7 @@ def update_dataset(dataset: Dataset) -> None:
                     _insert_processing_option(cur, dataset_id, processing_option)
 
 
-            dset_params = identify_dataset_resources(dataset_id, params["name"], params["file_mask"], params["file_extension"], params["path"])
+            dset_params = identify_dataset_resources(cur, dataset_id, params["name"], params["file_mask"], params["file_extension"], params["path"])
 
             update_dataset_from_resources(cur, dataset_id, dset_params)
 
