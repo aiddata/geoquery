@@ -7,7 +7,8 @@ from psycopg.types.json import Json, Jsonb
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Json, field_validator
 from shapely.geometry import shape
-from utils.conn import get_conn
+
+from conn import get_conn
 
 
 class BaseModel(PydanticBaseModel):
@@ -39,7 +40,7 @@ class FeatureCollection(BaseModel):
     file_extension: str
     title: str
     description: str
-    details: str = None
+    details: Optional[str] = None
     tags: List[str]
     citation: Optional[str] = None
     source_name: Optional[str] = None

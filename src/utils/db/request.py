@@ -1,9 +1,11 @@
 import itertools
 from datetime import datetime
+from typing import List, Tuple
+
+from psycopg import Cursor
+from pydantic import BaseModel, Json, field_validator
 
 from conn import get_conn
-from psycopg import Cursor
-from pydantic import BaseModel, field_validator
 
 
 class Request(BaseModel):
@@ -16,6 +18,7 @@ class Request(BaseModel):
     custom_name: str
     info: str
     priority: int = 1
+    data: Json
 
     @field_validator("priority")
     @classmethod
@@ -60,20 +63,20 @@ def insert_request(request: Request):
                     fm_id,
                     processing_option_id,
                     priority,
-                    kwargs
+                    data
                 ) VALUES (
                     %(resource_id)s,
                     %(feature_id)s,
                     %(processing_option_id)s,
                     %(priority)s,
-                    %(kwargs)s
+                    %(data)s
                 )
                 ON CONFLICT (resource_id, fm_id, processing_option_id)
                 DO UPDATE SET priority = priority + %(priority)s
                 RETURNING id;
             """
 
-            per_task_ids: Tuple[int, int, int] = itertools.product(
+            per_task_ids: List[Tuple[int, int, int]] = itertools.product(
                 [
                     request.resource_ids,
                     request.feature_ids,
@@ -87,7 +90,7 @@ def insert_request(request: Request):
                     "feature_id": ids[1],
                     "processing_options_id": ids[2],
                     "priority": request.priority,
-                    "kwargs": request.kwargs,
+                    "data": request.data,
                 }
                 for ids in per_task_ids
             ]

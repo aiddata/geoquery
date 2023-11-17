@@ -14,7 +14,8 @@ from psycopg.types.json import Json, Jsonb
 from pydantic import BaseModel, Json, ValidationInfo, field_validator
 from shapely.geometry import box
 from shapely.geometry.polygon import Polygon
-from utils.conn import get_conn
+
+from conn import get_conn
 
 
 def run_file_mask(fmask, fname):
