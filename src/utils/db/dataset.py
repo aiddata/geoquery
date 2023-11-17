@@ -1,33 +1,28 @@
-import re
+import calendar
 import os
+import re
 from datetime import datetime, timedelta
-from dateutil.relativedelta import relativedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import rasterio
 import shapely
 import utils.processors
+from dateutil.relativedelta import relativedelta
 from psycopg import Cursor
 from psycopg.types.json import Json, Jsonb
 from pydantic import BaseModel, Json, ValidationInfo, field_validator
+from shapely.geometry import box
 from shapely.geometry.polygon import Polygon
 from utils.conn import get_conn
 
 
-import calendar
-from dateutil.relativedelta import relativedelta
-
-import rasterio
-from shapely.geometry import box
-
-
 def run_file_mask(fmask, fname):
-    """extract temporal data from file name
-    """
+    """extract temporal data from file name"""
 
-    year = "".join([x for x,y in zip(fname, fmask) if y == 'Y' and x.isdigit()])
-    month = "".join([x for x,y in zip(fname, fmask) if y == 'M' and x.isdigit()])
-    day = "".join([x for x,y in zip(fname, fmask) if y == 'D' and x.isdigit()])
+    year = "".join([x for x, y in zip(fname, fmask) if y == "Y" and x.isdigit()])
+    month = "".join([x for x, y in zip(fname, fmask) if y == "M" and x.isdigit()])
+    day = "".join([x for x, y in zip(fname, fmask) if y == "D" and x.isdigit()])
 
     # check all potential issues
     if year == "":
@@ -77,7 +72,7 @@ def run_file_mask(fmask, fname):
 
 
 def get_raster_bbox(path):
-    with rasterio.open(path, 'r') as raster:
+    with rasterio.open(path, "r") as raster:
         # bounds = (xmin, ymin, xmax, ymax)
         b = raster.bounds
         return box(*b)
@@ -341,7 +336,14 @@ def insert_dataset(dataset: Dataset) -> None:
                 for processing_option in params["processing_options"]:
                     _insert_processing_option(cur, dataset_id, processing_option)
 
-            dset_params = identify_dataset_resources(cur, dataset_id, params["name"], params["file_mask"], params["file_extension"], params["path"])
+            dset_params = identify_dataset_resources(
+                cur,
+                dataset_id,
+                params["name"],
+                params["file_mask"],
+                params["file_extension"],
+                params["path"],
+            )
 
             update_dataset_from_resources(cur, dataset_id, dset_params)
 
@@ -350,7 +352,8 @@ def insert_dataset(dataset: Dataset) -> None:
 
 def update_dataset_from_resources(cur, dataset_id: int, dset_params: dict) -> None:
     dset_params["dataset_id"] = dataset_id
-    cur.execute("""
+    cur.execute(
+        """
         UPDATE datasets SET (
             temporal_start,
             temporal_end,
@@ -364,7 +367,9 @@ def update_dataset_from_resources(cur, dataset_id: int, dset_params: dict) -> No
             %(temporal_type)s,
             %(spatial_extent)s
         ) WHERE id = %(dataset_id)s
-    """, dset_params)
+    """,
+        dset_params,
+    )
 
 
 def start_dataset_resources_check(dataset_name: str) -> None:
@@ -380,14 +385,21 @@ def start_dataset_resources_check(dataset_name: str) -> None:
             file_extension = dataset_info["file_extension"]
             dataset_path = Path(dataset_info["path"])
 
-            dset_params = identify_dataset_resources(cur, dataset_id, dataset_name, file_mask, file_extension, dataset_path)
+            dset_params = identify_dataset_resources(
+                cur, dataset_id, dataset_name, file_mask, file_extension, dataset_path
+            )
 
             update_dataset_from_resources(cur, dataset_id, dset_params)
 
 
-
-def identify_dataset_resources(cur, dataset_id: int, dataset_name:str, file_mask: str, file_extension: str, dataset_path: Path) -> Dict[str, Any]:
-
+def identify_dataset_resources(
+    cur,
+    dataset_id: int,
+    dataset_name: str,
+    file_mask: str,
+    file_extension: str,
+    dataset_path: Path,
+) -> Dict[str, Any]:
     if not dataset_path.is_dir():
         file_list = [dataset_path]
     else:
@@ -417,24 +429,26 @@ def identify_dataset_resources(cur, dataset_id: int, dataset_name:str, file_mask
             # get unique time range based on dir path / file names
 
             # get data from mask
-            timestamp, date_str, step, date_type = run_file_mask(file_mask, resource_path)
+            timestamp, date_str, step, date_type = run_file_mask(
+                file_mask, resource_path
+            )
             temporal_info_list.append((timestamp, date_str, step, date_type))
 
             resource = DatasetResource(
-                name=f"{dataset_name}_{date_str}", # unique among this dataset's resources, not the same name as dataset
+                name=f"{dataset_name}_{date_str}",  # unique among this dataset's resources, not the same name as dataset
                 path=resource_path,
-                temporal = timestamp,
-                label = date_str,
-                spatial_extent = resource_spatial_extent,
+                temporal=timestamp,
+                label=date_str,
+                spatial_extent=resource_spatial_extent,
             )
 
         else:
             resource = DatasetResource(
-                name = f"{dataset_name}_none",
+                name=f"{dataset_name}_none",
                 path=resource_path,
-                temporal = None,
-                label = None,
-                spatial_extent = resource_spatial_extent,
+                temporal=None,
+                label=None,
+                spatial_extent=resource_spatial_extent,
             )
 
         # update main list
@@ -551,10 +565,15 @@ def update_dataset(dataset: Dataset) -> None:
                 for processing_option in params["processing_options"]:
                     _insert_processing_option(cur, dataset_id, processing_option)
 
-
-            dset_params = identify_dataset_resources(cur, dataset_id, params["name"], params["file_mask"], params["file_extension"], params["path"])
+            dset_params = identify_dataset_resources(
+                cur,
+                dataset_id,
+                params["name"],
+                params["file_mask"],
+                params["file_extension"],
+                params["path"],
+            )
 
             update_dataset_from_resources(cur, dataset_id, dset_params)
-
 
             conn.commit()

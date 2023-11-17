@@ -3,12 +3,10 @@ from typing import List, Optional
 
 import shapely
 from psycopg import Cursor
+from psycopg.types.json import Json, Jsonb
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Json, field_validator
-from psycopg.types.json import Jsonb, Json
-
 from shapely.geometry import shape
-
 from utils.conn import get_conn
 
 
@@ -16,8 +14,9 @@ class BaseModel(PydanticBaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+
 class Feature(BaseModel):
-    geometry: str # this is a wkt str. TODO: this does not include CRS info. We should verify (or be reasonably certain) it is EPSG:4326
+    geometry: str  # this is a wkt str. TODO: this does not include CRS info. We should verify (or be reasonably certain) it is EPSG:4326
     name: Optional[str]
     attr: Optional[dict]
     parent: Optional[int]
@@ -91,7 +90,7 @@ def _insert_features(
             "geom_id": result,
             "name": feature.name,
             "attr": Jsonb(feature.attr),
-            "parent": None
+            "parent": None,
         }
 
         # insert into feat_map with that id
@@ -111,7 +110,7 @@ def _insert_features(
                 %(parent)s
             );
             """,
-            fm_params
+            fm_params,
         )
 
 
