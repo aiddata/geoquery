@@ -58,10 +58,10 @@ for iso3 in set(gb_iso3_list).intersection(set(dl_iso3_list)):
 
         adm_meta = default_meta.copy()
 
-        # save full metadata from geoboundaries api to the "other" field
-        adm_meta["other"] = item.copy()
-
         adm_meta["name"] = f"gB_v6_{iso3}_{item['boundaryType']}"
+
+        print(f"Processing {adm_meta['name']}")
+        
         adm_meta["title"] = f"geoBoundaries v6 - {item['boundaryName']} {item['boundaryType']}"
         adm_meta["description"] = f"This feature collection represents the {item['boundaryType']} level boundaries for {item['boundaryName']} ({iso3}) from geoBoundaries v6."
         adm_meta["details"] = ""
@@ -69,6 +69,9 @@ for iso3 in set(gb_iso3_list).intersection(set(dl_iso3_list)):
         adm_meta["group_title"] = f"gB v6 - {iso3}"
         adm_meta["group_class"] = "parent" if item['boundaryType'] == "ADM0" else "child"
         adm_meta["group_level"] = int(item['boundaryType'][3:])
+
+        # save full metadata from geoboundaries api to the "other" field
+        adm_meta["other"] = item.copy()
 
         raw_dl_url = item["gjDownloadURL"]
         # "https://github.com/wmgeolab/geoBoundaries/raw/c0ed7b8/releaseData/gbOpen/AFG/ADM0/geoBoundaries-AFG-ADM0.geojson",
