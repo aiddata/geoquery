@@ -76,6 +76,11 @@ if __name__ == "__main__":
 from utils.db.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
+        cur.execute("""SELECT * FROM coverage""").fetchall()
+
+from utils.db.conn import get_conn
+with get_conn() as conn:
+    with conn.cursor() as cur:
         cur.execute("""SELECT * FROM extract_tasks""").fetchall()
         cur.execute("""SELECT * FROM extract_data""").fetchall()
 
