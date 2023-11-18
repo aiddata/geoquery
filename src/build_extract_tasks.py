@@ -37,3 +37,25 @@ class ExtractTask(BaseModel):
                 "status must be one of the following: {}".format(valid_status_dict)
             )
         return s
+
+
+def generate_tasks():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            get_valid_coverage_records = "SELECT * FROM coverage WHERE status = 1"
+            cur.execute(get_valid_coverage_records)
+            valid_coverage = cur.fetchall()
+            if len(valid_coverage) == 0:
+                Warning("No valid coverage records found in database")
+                return
+            
+    # TODO: add logic to generate potential extract tasks associated with coverage,
+    # then check if they exist, and create/add if they do not
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            feature_query = ""
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            resource_query = ""
