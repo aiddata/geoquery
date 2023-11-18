@@ -173,7 +173,7 @@ def create_table_coverage(cur):
     cur.execute(
         """
         CREATE TABLE coverage (
-            geom_id         int PRIMARY KEY generated always as identity,
+            geom_id         int REFERENCES features(id),
             dataset_id      int REFERENCES datasets(id),
             status          int
         );
