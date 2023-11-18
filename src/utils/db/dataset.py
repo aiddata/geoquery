@@ -15,7 +15,7 @@ from pydantic import BaseModel, Json, ValidationInfo, field_validator
 from shapely.geometry import box
 from shapely.geometry.polygon import Polygon
 
-from conn import get_conn
+from utils.db.conn import get_conn
 
 
 def run_file_mask(fmask, fname):
@@ -88,7 +88,7 @@ class DatasetResource(BaseModel):
 
 
 class ProcessingOption(BaseModel):
-    dataset_id: int
+    dataset_id: int = None # this needs to be None in the model because dataset id is not known at the time of validation
     active: bool = False
     public: bool = False
     short_name: str
@@ -323,7 +323,7 @@ def insert_dataset(dataset: Dataset) -> None:
 
             cur.execute(query, params)
 
-            dataset_id = cur.fetchone()[0]
+            dataset_id = cur.fetchone()["id"]
 
             if params["mapped"]:
                 _insert_mappings(cur, dataset_id, params["mappings"])
@@ -378,7 +378,7 @@ def start_dataset_resources_check(dataset_name: str) -> None:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM datasets WHERE name = %s ;", (dataset_name,))
 
-            dataset_info = cur.fetchone()[0]
+            dataset_info = cur.fetchone()
 
             dataset_id = dataset_info["id"]
             dataset_name = dataset_info["name"]
@@ -401,6 +401,10 @@ def identify_dataset_resources(
     file_extension: str,
     dataset_path: Path,
 ) -> Dict[str, Any]:
+
+    # dataset_path is read directly from an ingest json, so it won't actually be enforced as a Path yet
+    dataset_path = Path(dataset_path)
+
     if not dataset_path.is_dir():
         file_list = [dataset_path]
     else:
@@ -552,7 +556,7 @@ def update_dataset(dataset: Dataset) -> None:
 
             cur.execute(query, params)
 
-            dataset_id = cur.fetchone()[0]
+            dataset_id = cur.fetchone()["id"]
 
             if params["mapped"]:
                 _insert_mappings(cur, dataset_id, params["mappings"])

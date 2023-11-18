@@ -8,7 +8,7 @@ from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Json, field_validator
 from shapely.geometry import shape
 
-from conn import get_conn
+from utils.db.conn import get_conn
 
 
 class BaseModel(PydanticBaseModel):
@@ -81,7 +81,7 @@ def _insert_features(
                 """,
                 (wkt,),
             )
-            result = cur.fetchone()[0]
+            result = cur.fetchone()["id"]
         else:
             # print("Found a matching geometry!")
             result = result[0]
@@ -173,8 +173,8 @@ def insert_feature_collection(feature_collection: FeatureCollection) -> None:
             fc_params = feature_collection.dict()
             fc_params["other"] = Jsonb(fc_params["other"])
 
-            cur.execute(query, fc_params)
 
-            feature_collection_id = cur.fetchone()[0]
+            cur.execute(query, fc_params)
+            feature_collection_id = cur.fetchone()["id"]
 
             _insert_features(cur, feature_collection_id, feature_collection.features)
