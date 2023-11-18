@@ -73,14 +73,14 @@ if __name__ == "__main__":
     insert_dummy_data()
 
 
-from utils.conn import get_conn
+from utils.db.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
         cur.execute("""SELECT * FROM extract_tasks""").fetchall()
         cur.execute("""SELECT * FROM extract_data""").fetchall()
 
 
-from utils.conn import get_conn
+from utils.db.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
         x = cur.execute("""SELECT * FROM feature_collections""").fetchall()
@@ -90,7 +90,7 @@ with get_conn() as conn:
         print('features', len(y), y)
         print('feat_map', len(z), z)
 
-from utils.conn import get_conn
+from utils.db.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
         x = cur.execute("""SELECT * FROM datasets""").fetchall()
