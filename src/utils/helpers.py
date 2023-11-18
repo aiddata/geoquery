@@ -1,7 +1,7 @@
 
 import shapely
 
-from utils.conn import get_conn
+from utils.db.conn import get_conn
 
 
 def get_feat_by_id(fid):
