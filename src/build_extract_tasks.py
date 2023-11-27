@@ -48,14 +48,18 @@ def generate_tasks():
             if len(valid_coverage) == 0:
                 Warning("No valid coverage records found in database")
                 return
-            
+
     # TODO: add logic to generate potential extract tasks associated with coverage,
     # then check if they exist, and create/add if they do not
 
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            feature_query = ""
+    for item in valid_coverage:
 
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            resource_query = ""
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                feature_query = "SELECT * from feature WHERE id = %s"
+                cur.execute(feature_query, (item["geom_id"],))
+                feature = cur.fetchone()["??"]
+
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                resource_query = "SELECT * from resource WHERE id = %s"
