@@ -160,6 +160,7 @@ def create_table_processing_options(cur):
             short_name      varchar(100),
             description     varchar(500),
             function        varchar(100),
+            result_type     varchar(100),
             kwargs          jsonb,
             active          boolean DEFAULT FALSE,
             public          boolean DEFAULT FALSE,

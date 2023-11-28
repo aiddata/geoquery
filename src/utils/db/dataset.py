@@ -93,6 +93,7 @@ class ProcessingOption(BaseModel):
     public: bool = False
     short_name: str
     function: str
+    result_type: str
     kwargs: dict
 
     @field_validator("function")
@@ -103,6 +104,16 @@ class ProcessingOption(BaseModel):
                 "function must be a callable from the utils.processors module"
             )
         return f
+
+    @field_validator("result_type")
+    @classmethod
+    def validate_result_type(cls, s: str) -> str:
+        valid_result_types = ["float", "int", "str"]
+        if s not in valid_result_types:
+            raise ValueError(
+                "result_types must be one of the following: {}".format(valid_result_types)
+            )
+        return s
 
 
 class Dataset(BaseModel):
@@ -242,6 +253,7 @@ def _insert_processing_option(
             public,
             short_name,
             function,
+            result_type,
             kwargs
         ) VALUES (
             %(dataset_id)s,
@@ -249,6 +261,7 @@ def _insert_processing_option(
             %(public)s,
             %(short_name)s,
             %(function)s,
+            %(result_type)s,
             %(kwargs)s
         )
         ON CONFLICT (dataset_id, function, kwargs)
