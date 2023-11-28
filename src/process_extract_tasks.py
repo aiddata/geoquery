@@ -10,7 +10,7 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Json, ValidationInfo, field_validator
 
 from utils.db.conn import get_conn
-
+import utils.processors
 
 valid_status_dict = {
     -1: "error",
@@ -58,7 +58,6 @@ def run_extract():
     - receive and prepare results
     - export results
     """
-    version = "0.0.1"
     with get_conn() as conn:
         with conn.cursor() as cur:
             task = get_extract_task()
@@ -72,7 +71,7 @@ def run_extract():
             func = get_func(po["function"])
 
             method = po["short_name"]
-            # TODO: need to update this chunk to create the stat and category map (when needed)
+
             op_kwargs = {"stat": method}
             if dataset["mapped"] == True:
                 map = get_mappings(dataset["id"])
@@ -151,6 +150,7 @@ def update_extract_task(task_id, status, update_type):
                 (status, task_id),
             )
 
+
 def get_feat(fid):
     """GET FEATURE FROM FEATURE TABLE"""
     with get_conn() as conn:
@@ -162,6 +162,7 @@ def get_feat(fid):
 
     return geom
 
+
 def get_dataset_resource(resource_id):
     """GET DATASET RESOURCE FROM DATASET RESOURCE TABLE"""
     with get_conn() as conn:
@@ -171,6 +172,7 @@ def get_dataset_resource(resource_id):
             ).fetchone()
 
     return resource
+
 
 def get_dataset(did):
     """GET DATA META FROM DATA TABLE AND ASSOCIATED PATH/INFO FOR ACTUAL DATASET"""
@@ -182,6 +184,7 @@ def get_dataset(did):
 
     return data
 
+
 def get_processing_option(po_id):
     """Get processing option from processing options table."""
     with get_conn() as conn:
@@ -192,6 +195,7 @@ def get_processing_option(po_id):
 
     return po
 
+
 def get_mappings(dataset_id):
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -199,9 +203,6 @@ def get_mappings(dataset_id):
                 """SELECT * FROM mappings WHERE dataset_id = %s""", (dataset_id,)
             ).fetchall()
     return mappings
-
-
-
 
 
 def run_op(feat, data, func, **kwargs):
@@ -212,7 +213,7 @@ def run_op(feat, data, func, **kwargs):
 def format_output(result, **kwargs):
     """Format output data to be exported to extract_data table."""
     if kwargs["stat"] == "categorical":
-        formatted_result = [(f"categorical_{k}", v) for k, v in result.items()]
+        formatted_result = [(f"categorical_{k}", v) for k, v in result]
     else:
         formatted_result = [(kwargs["stat"], result)]
     return formatted_result
@@ -236,28 +237,10 @@ def insert_result(cur, result):
     )
 
 
-
-
 def get_func(op):
     """Get appropriate function for operation."""
-    if op == "zonal_stat_default":
-        func = zonal_stat_default
-    elif op == "rasterstats_default_categorical":
-        func = zonal_stat_categorical
+    if hasattr(utils.processors, op):
+        func = getattr(utils.processors, op)
     else:
         raise ValueError(f"Operation {op} not supportedx.")
     return func
-
-
-def zonal_stat_default(feat, raster, stat, **kwargs):
-    """Default zonal stat function."""
-    zs_output = rs.zonal_stats(feat, raster, stats=stat)
-    return zs_output[0][stat]
-
-
-def zonal_stat_categorical(feat, raster, category_map, **kwargs):
-    """Default zonal stat function."""
-    zs_output = rs.zonal_stats(
-        feat, raster, categorical=True, category_map=category_map
-    )
-    return zs_output[0]
