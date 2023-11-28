@@ -7,7 +7,7 @@ with get_conn() as conn:
         query = """
         UPDATE extract_tasks
         SET    status = 0
-        WHERE   status = 2
+        WHERE   status = 2 OR status = 1;
         """
         cur.execute(query)
 
@@ -15,14 +15,31 @@ with get_conn() as conn:
 from utils.db.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
-        cur.execute("""SELECT * FROM coverage""").fetchall()
+        cur.execute("TRUNCATE TABLE extract_data;")
+
+
+from process_extract_tasks import run_extract
+run_extract()
 
 
 from utils.db.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
-        cur.execute("""SELECT * FROM extract_tasks""").fetchall()
-        cur.execute("""SELECT * FROM extract_data""").fetchall()
+        a = cur.execute("""SELECT * FROM extract_tasks""").fetchall()
+        b = cur.execute("""SELECT * FROM extract_data""").fetchall()
+        print('tasks', len(a), a)
+        print('---')
+        print('data', len(b), b)
+
+
+
+
+
+
+from utils.db.conn import get_conn
+with get_conn() as conn:
+    with conn.cursor() as cur:
+        cur.execute("""SELECT * FROM coverage""").fetchall()
 
 
 from utils.db.conn import get_conn
