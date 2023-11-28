@@ -8,10 +8,6 @@ def _rasterstats_default(feat, raster, stat):
     return [(stat, output)]
 
 
-def exists(self, name):
-    return hasattr(self, name) and callable(getattr(self, name))
-
-
 def rasterstats_default_min(feat, raster):
     output = _rasterstats_default(feat, raster, "min")
     return output
