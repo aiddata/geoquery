@@ -188,7 +188,7 @@ def create_table_extract_tasks(cur):
             id              int UNIQUE generated always as identity,
             resource_id     int REFERENCES dataset_resources(id),
             fm_id           int REFERENCES feat_map(id),
-            op              int REFERENCES processing_options(id),
+            po_id           int REFERENCES processing_options(id),
             status          integer DEFAULT 0,
             priority        integer DEFAULT 0,
             submit_time     timestamp DEFAULT CURRENT_TIMESTAMP,
@@ -198,7 +198,7 @@ def create_table_extract_tasks(cur):
             attempts        integer DEFAULT 0,
             error           varchar(100) DEFAULT NULL,
             kwargs          jsonb DEFAULT NULL,
-            PRIMARY KEY (resource_id, fm_id, op)
+            PRIMARY KEY (resource_id, fm_id, po_id)
         );
         """
     )
