@@ -19,13 +19,13 @@ To init db (overwrite is optional):
 `python src/init_db.py --overwrite`
 
 To add feature data:
-`python prepare_gB.py`
+`python src/prepare_gB.py`
 
 To add datasets:
-`python ingest_dataset.py`
+`python src/ingest_dataset.py`
 
 To build coverage checks between features and datasets:
-`python build_coverage_records.py`
+`python src/build_coverage_records.py`
 
 To create extract tasks:
-`python build_extract_tasks.py`
+`python src/build_extract_tasks.py`
