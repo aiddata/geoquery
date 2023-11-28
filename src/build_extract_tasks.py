@@ -18,18 +18,18 @@ valid_status_dict = {
 class ExtractTask(BaseModel):
     resource_id: int
     fm_id: int
-    processing_options_id: int
-    status: int
-    priority: int
-    submit_time: datetime
-    start_time: datetime
-    update_time: datetime
-    complete_time: datetime
-    attempts: int
-    error: str
+    po_id: int
+    status: Optional[int]
+    priority: Optional[int]
+    submit_time: Optional[datetime] = datetime.now()
+    # start_time: Optional[datetime]
+    # update_time: Optional[datetime]
+    # complete_time: Optional[datetime]
+    # attempts: Optional[int]
+    # error: Optional[str]
     kwargs: Optional[dict] = None
 
-    @field_validator("function")
+    @field_validator("status")
     @classmethod
     def validate_status(cls, s: int) -> int:
         if s not in valid_status_dict:
@@ -39,7 +39,7 @@ class ExtractTask(BaseModel):
         return s
 
 
-def generate_tasks():
+def generate_tasks(overwrite: bool = False):
     with get_conn() as conn:
         with conn.cursor() as cur:
             get_valid_coverage_records = "SELECT * FROM coverage WHERE status = 1"
@@ -54,12 +54,62 @@ def generate_tasks():
 
     for item in valid_coverage:
 
+        geom_id = item["geom_id"]
+        # with get_conn() as conn:
+        #     with conn.cursor() as cur:
+        #         feature_query = "SELECT * from features WHERE id = %s"
+        #         cur.execute(feature_query, (item["geom_id"],))
+        #         feature = cur.fetchone()["??"]
+
+        dataset_id = item["dataset_id"]
         with get_conn() as conn:
             with conn.cursor() as cur:
-                feature_query = "SELECT * from feature WHERE id = %s"
-                cur.execute(feature_query, (item["geom_id"],))
-                feature = cur.fetchone()["??"]
+                resource_query = "SELECT * from dataset_resources WHERE dataset_id = %s"
+                cur.execute(resource_query, (dataset_id,))
+                dataset_info = cur.fetchall()
 
         with get_conn() as conn:
             with conn.cursor() as cur:
-                resource_query = "SELECT * from resource WHERE id = %s"
+                resource_query = "SELECT * from processing_options WHERE dataset_id = %s"
+                cur.execute(resource_query, (dataset_id,))
+                po_info = cur.fetchall()
+
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                for resource in dataset_info:
+                    resource_id = resource["id"]
+                    for po in po_info:
+                        task = ExtractTask(
+                            resource_id=resource_id,
+                            fm_id=geom_id,
+                            po_id=po["id"],
+                            status=0,
+                            priority=0
+                        )
+                        if overwrite:
+                            conflict_str = "DO UPDATE SET status = excluded.status, priority = excluded.priority, submit_time = excluded.submit_time, kwargs = excluded.kwargs"
+                        else:
+                            conflict_str = "DO NOTHING"
+
+                        insert = """
+                            INSERT INTO extract_tasks (resource_id, fm_id, po_id, status, priority, submit_time, kwargs)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (resource_id, fm_id, po_id)
+                            """
+                        insert += conflict_str
+                        cur.execute(insert, (
+                            task.resource_id,
+                            task.fm_id,
+                            task.po_id,
+                            task.status,
+                            task.priority,
+                            task.submit_time,
+                            task.kwargs
+                        ))
+                conn.commit()
+
+
+
+
+if __name__ == "__main__":
+    generate_tasks(overwrite=True)
