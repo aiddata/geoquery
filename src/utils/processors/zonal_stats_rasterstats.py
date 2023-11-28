@@ -42,4 +42,10 @@ def rasterstats_default_categorical(feat, raster, **kwargs):
     mapping = kwargs["category_map"]
     stats = rs.zonal_stats(feat, raster, categorical=True, category_map=mapping)
     output = [(f"categorical_{k}", v) for k, v in stats[0].items()]
+
+    for v, k in mapping.items():
+        field = f"categorical_{k}"
+        if field not in [i[0] for i in output]:
+            output.append((field, 0))
+
     return output

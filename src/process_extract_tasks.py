@@ -74,8 +74,7 @@ def run_extract():
 
             float_val, int_val, str_val = None, None, None
 
-            formatted_results = format_output(result, **op_kwargs)
-            for method, val in formatted_results:
+            for method, val in result:
 
                 if po["result_type"] == "float":
                     float_val = float(val)
@@ -201,15 +200,6 @@ def get_mappings(dataset_id):
 def run_op(feat, data, func, **kwargs):
     results = func(feat, data, **kwargs)
     return results
-
-
-def format_output(result, **kwargs):
-    """Format output data to be exported to extract_data table."""
-    if kwargs["stat"] == "categorical":
-        formatted_result = [(f"categorical_{k}", v) for k, v in result]
-    else:
-        formatted_result = [(kwargs["stat"], result)]
-    return formatted_result
 
 
 def export_result(result):
