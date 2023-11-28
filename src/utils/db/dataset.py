@@ -426,6 +426,9 @@ def identify_dataset_resources(
     if file_mask is None and len(file_list) != 1:
         raise ValueError("Multiple files found, but no file mask specified")
 
+    if not file_list:
+        raise ValueError("No files found")
+    
     # list of spatial exten bboxes for each resource that can be used to get total extent for dataset
     spatial_extent_bbox_list = []
     temporal_info_list = []
