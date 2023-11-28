@@ -1,36 +1,15 @@
+
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 import psycopg
 import rasterstats as rs
 import shapely
 from psycopg.types.json import Jsonb
+from pydantic import BaseModel, Json, ValidationInfo, field_validator
 
+from utils.db.conn import get_conn
 
-def build_extract_tasks():
-    with psycopg.connect(
-        "postgresql://postgres:mysecretpassword@localhost:5432"
-    ) as conn:
-        with conn.cursor() as cur:
-            cur.execute("""SELECT fid FROM feature_geom""")
-            fid_list = [i[0] for i in cur.fetchall()]
-            cur.execute("""SELECT * FROM datasets""")
-            datasets = cur.fetchall()
-            for fid in fid_list:
-                for data in datasets:
-                    if data[2] == "raster":
-                        op = "zonal_stat_default"
-                        method_list = ["min", "max", "mean", "count"]
-                        params = {}
-                    elif data[2] == "categorical":
-                        op = "zonal_stat_categorical"
-                        method_list = ["categorical"]
-                        params = data[5]
-
-                    for method in method_list:
-                        cur.execute(
-                            """
-                            INSERT INTO extract_tasks (fid, did, op, method, params)
-                            VALUES (%s, %s, %s, %s, %s)""",
-                            (fid, data[0], op, method, Jsonb(params)),
-                        )
 
 
 def run_extract():
@@ -43,9 +22,7 @@ def run_extract():
     - export results
     """
     version = "0.0.1"
-    with psycopg.connect(
-        "postgresql://postgres:mysecretpassword@localhost:5432"
-    ) as conn:
+    with get_conn as conn:
         with conn.cursor() as cur:
             task = get_extract_task()
             feat = get_feat(task[1])
@@ -76,27 +53,6 @@ def run_extract():
             return status
 
 
-def update_extract_task(task_id, status, update_type):
-    """Update the status of an extract task"""
-    if update_type not in ["update", "complete"]:
-        raise ValueError(f"Update type {update_type} not supported.")
-    update_str = f"{update_type}_time"
-    with psycopg.connect(
-        "postgresql://postgres:mysecretpassword@localhost:5432"
-    ) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                psycopg.sql.SQL(
-                    """
-                UPDATE extract_tasks
-                SET    status = %s, {} = CURRENT_TIMESTAMP
-                WHERE  task_id = %s;
-                """
-                ).format(psycopg.sql.Identifier(update_str)),
-                (status, task_id),
-            )
-
-
 def get_extract_task():
     """Retrieve an extract task"""
     with psycopg.connect(
@@ -124,6 +80,28 @@ def get_extract_task():
             if task_result is None:
                 raise ValueError("No available tasks.")
             return task_result
+
+
+def update_extract_task(task_id, status, update_type):
+    """Update the status of an extract task"""
+    if update_type not in ["update", "complete"]:
+        raise ValueError(f"Update type {update_type} not supported.")
+    update_str = f"{update_type}_time"
+    with psycopg.connect(
+        "postgresql://postgres:mysecretpassword@localhost:5432"
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                psycopg.sql.SQL(
+                    """
+                UPDATE extract_tasks
+                SET    status = %s, {} = CURRENT_TIMESTAMP
+                WHERE  task_id = %s;
+                """
+                ).format(psycopg.sql.Identifier(update_str)),
+                (status, task_id),
+            )
+
 
 
 def get_feat(fid):
