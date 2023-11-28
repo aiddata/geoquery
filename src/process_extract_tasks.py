@@ -1,6 +1,7 @@
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+import builtins
 
 import psycopg
 import rasterstats as rs
@@ -10,6 +11,42 @@ from pydantic import BaseModel, Json, ValidationInfo, field_validator
 
 from utils.db.conn import get_conn
 
+
+valid_status_dict = {
+    -1: "error",
+    0: "not started",
+    1: "complete",
+    2: "started",
+}
+
+
+class ExtractData(BaseModel):
+    id: int
+    name: str
+    data_column: str
+    float_value: Optional[float] = None
+    int_value: Optional[int] = None
+    str_value: Optional[str] = None
+
+
+    @field_validator("data_column")
+    @classmethod
+    def validate_data_column(cls, s: str) -> str:
+        valid_data_columns = ["float", "int", "str"]
+        if s not in valid_data_columns:
+            raise ValueError(
+                "data_columns must be one of the following: {}".format(valid_data_columns)
+            )
+        return s
+
+    @field_validator("float_value", "int_value", "str_value")
+    @classmethod
+    def validate_data_value(cls, v: Any, data: Dict[str, Any]) -> Any:
+        if data.data["data_column"] == data.field_name.split("_")[0]:
+            if not isinstance(v, getattr(builtins, data.data["data_column"])):
+                raise ValueError("data_value must be a {}".format(data.data["data_column"]))
+
+        return v
 
 
 def run_extract():
@@ -22,42 +59,56 @@ def run_extract():
     - export results
     """
     version = "0.0.1"
-    with get_conn as conn:
+    with get_conn() as conn:
         with conn.cursor() as cur:
             task = get_extract_task()
-            feat = get_feat(task[1])
-            data_path, data_type, data_info = get_data(task[2])
-            func = get_func(task[3])
-            method = task[4]
 
+            feat = get_feat(task["fm_id"])
+            resource = get_dataset_resource(task["resource_id"])
+            dataset = get_dataset(resource["dataset_id"])
+            path = dataset["path"] +"/"+ resource["path"]
+            po = get_processing_option(task["po_id"])
+
+            func = get_func(po["function"])
+
+            method = po["short_name"]
+            # TODO: need to update this chunk to create the stat and category map (when needed)
             op_kwargs = {"stat": method}
-            if method == "categorical":
-                op_kwargs["category_map"] = dict(
-                    zip(data_info.values(), data_info.keys())
-                )
+            if dataset["mapped"] == True:
+                map = get_mappings(dataset["id"])
+                op_kwargs["category_map"] = {i["map_val"]: i["map_name"] for i in map}
 
-            result = run_op(feat, data_path, func, **op_kwargs)
+            result = run_op(feat, path, func, **op_kwargs)
+
+            float_val, int_val, str_val = None, None, None
 
             formatted_results = format_output(result, **op_kwargs)
             for method, val in formatted_results:
-                status = export_result(
-                    fid=task[1],
-                    did=task[2],
-                    op=task[3],
-                    method=method,
-                    clean_result=val,
-                    version=version,
-                )
 
-            update_extract_task(task[0], 1, "complete")
+                if po["result_type"] == "float":
+                    float_val = float(val)
+                elif po["result_type"] == "int":
+                    int_val = int(val)
+                elif po["result_type"] == "str":
+                    str_val = str(val)
+
+                result = ExtractData(
+                    id=task["id"],
+                    name=method,
+                    data_column=po["result_type"],
+                    float_value=float_val,
+                    int_value=int_val,
+                    str_value=str_val,
+                )
+                status = export_result(result)
+
+            update_extract_task(task["id"], 1, "complete")
             return status
 
 
 def get_extract_task():
     """Retrieve an extract task"""
-    with psycopg.connect(
-        "postgresql://postgres:mysecretpassword@localhost:5432"
-    ) as conn:
+    with get_conn() as conn:
         with conn.cursor() as cur:
             # GET TASK FROM EXTRACT TASK TABLE
             # task = cur.execute("""SELECT * FROM extract_tasks LIMIT 1""").fetchall()[0]
@@ -65,8 +116,8 @@ def get_extract_task():
             query = """
             UPDATE extract_tasks
             SET    status = 2
-            WHERE  task_id = (
-                    SELECT task_id
+            WHERE  id = (
+                    SELECT id
                     FROM extract_tasks
                     WHERE status = 0
                     ORDER BY priority DESC, submit_time ASC
@@ -87,59 +138,70 @@ def update_extract_task(task_id, status, update_type):
     if update_type not in ["update", "complete"]:
         raise ValueError(f"Update type {update_type} not supported.")
     update_str = f"{update_type}_time"
-    with psycopg.connect(
-        "postgresql://postgres:mysecretpassword@localhost:5432"
-    ) as conn:
+    with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 psycopg.sql.SQL(
                     """
                 UPDATE extract_tasks
                 SET    status = %s, {} = CURRENT_TIMESTAMP
-                WHERE  task_id = %s;
+                WHERE  id = %s;
                 """
                 ).format(psycopg.sql.Identifier(update_str)),
                 (status, task_id),
             )
 
-
-
 def get_feat(fid):
     """GET FEATURE FROM FEATURE TABLE"""
-    with psycopg.connect(
-        "postgresql://postgres:mysecretpassword@localhost:5432"
-    ) as conn:
+    with get_conn() as conn:
         with conn.cursor() as cur:
             feat = cur.execute(
-                """SELECT * FROM feature_geom WHERE fid = %s""", (fid,)
-            ).fetchall()[0]
-    geom = shapely.wkb.loads(feat[1], hex=True)
+                """SELECT * FROM features WHERE id = %s""", (fid,)
+            ).fetchone()
+    geom = shapely.wkb.loads(feat["shape"], hex=True)
 
     return geom
 
+def get_dataset_resource(resource_id):
+    """GET DATASET RESOURCE FROM DATASET RESOURCE TABLE"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            resource = cur.execute(
+                """SELECT * FROM dataset_resources WHERE id = %s""", (resource_id,)
+            ).fetchone()
 
-def get_data(did):
+    return resource
+
+def get_dataset(did):
     """GET DATA META FROM DATA TABLE AND ASSOCIATED PATH/INFO FOR ACTUAL DATASET"""
-    with psycopg.connect(
-        "postgresql://postgres:mysecretpassword@localhost:5432"
-    ) as conn:
+    with get_conn() as conn:
         with conn.cursor() as cur:
             data = cur.execute(
-                """SELECT * FROM datasets WHERE did = %s""", (did,)
-            ).fetchall()[0]
-    path, type, info = data[1], data[2], data[3]
-    return path, type, info
+                """SELECT * FROM datasets WHERE id = %s""", (did,)
+            ).fetchone()
+
+    return data
+
+def get_processing_option(po_id):
+    """Get processing option from processing options table."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            po = cur.execute(
+                """SELECT * FROM processing_options WHERE id = %s""", (po_id,)
+            ).fetchone()
+
+    return po
+
+def get_mappings(dataset_id):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            mappings = cur.execute(
+                """SELECT * FROM mappings WHERE dataset_id = %s""", (dataset_id,)
+            ).fetchall()
+    return mappings
 
 
-def get_func(op):
-    """Get appropriate function for operation."""
-    if op == "zonal_stat_default":
-        func = zonal_stat_default
-    elif op == "zonal_stat_categorical":
-        func = zonal_stat_categorical
-    else:
-        raise ValueError(f"Operation {op} not supportedx.")
-    return func
+
 
 
 def run_op(feat, data, func, **kwargs):
@@ -156,24 +218,35 @@ def format_output(result, **kwargs):
     return formatted_result
 
 
-def export_result(fid, did, op, method, clean_result, version, **kwargs):
+def export_result(result):
     """EXPORT RESULT TO EXTRACT RESULT TABLE"""
-    with psycopg.connect(
-        "postgresql://postgres:mysecretpassword@localhost:5432"
-    ) as conn:
+    with get_conn() as conn:
         with conn.cursor() as cur:
-            status = insert_result(cur, version, fid, did, op, method, clean_result)
+            status = insert_result(cur, result)
     return status
 
 
-def insert_result(cur, version, fid, did, op, method, result):
+def insert_result(cur, result):
     cur.execute(
         """
-        INSERT INTO extract_data (fid, did, op, method, value, version)
+        INSERT INTO extract_data (id, name, data_column, float_value, int_value, str_value)
         VALUES (%s, %s, %s, %s, %s, %s);
         """,
-        (fid, did, op, method, result, version),
+        (result.id, result.name, result.data_column, result.float_value, result.int_value, result.str_value),
     )
+
+
+
+
+def get_func(op):
+    """Get appropriate function for operation."""
+    if op == "zonal_stat_default":
+        func = zonal_stat_default
+    elif op == "rasterstats_default_categorical":
+        func = zonal_stat_categorical
+    else:
+        raise ValueError(f"Operation {op} not supportedx.")
+    return func
 
 
 def zonal_stat_default(feat, raster, stat, **kwargs):
