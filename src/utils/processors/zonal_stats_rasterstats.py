@@ -1,6 +1,5 @@
 # module for processor functions
 import rasterstats as rs
-from utils.helpers import get_dataset_resource_path_by_id, get_feat_by_id
 
 
 def _rasterstats_default(feat, raster, stat):
