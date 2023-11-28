@@ -80,50 +80,50 @@ def test_coverage():
             cur.execute("SELECT * FROM coverage WHERE status = -1")
             coverage_items = cur.fetchall()
 
-        for c in coverage_items:
-            feature_id = c["geom_id"]
-            dataset_id = c["dataset_id"]
+    for c in coverage_items:
+        feature_id = c["geom_id"]
+        dataset_id = c["dataset_id"]
 
-            with get_conn() as conn:
-                with conn.cursor() as cur:
-                    feature_data = cur.execute(
-                        "SELECT * FROM features WHERE id = %s", (feature_id,)
-                    ).fetchone()
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                feature_data = cur.execute(
+                    "SELECT * FROM features WHERE id = %s", (feature_id,)
+                ).fetchone()
 
-            with get_conn() as conn:
-                with conn.cursor() as cur:
-                    dataset_data = cur.execute(
-                        "SELECT * FROM datasets WHERE id = %s", (dataset_id,)
-                    ).fetchone()
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                dataset_data = cur.execute(
+                    "SELECT * FROM datasets WHERE id = %s", (dataset_id,)
+                ).fetchone()
 
 
-            # load geoms as wkbs
-            feature_geom_wkb = feature_data["shape"]
-            dataset_spatial_extent_wkb = dataset_data["spatial_extent"]
+        # load geoms as wkbs
+        feature_geom_wkb = feature_data["shape"]
+        dataset_spatial_extent_wkb = dataset_data["spatial_extent"]
 
-            # convert wkb to shapely geometry
-            feature_geom = wkb.loads(feature_geom_wkb, hex=True)
-            dataset_spatial_extent = wkb.loads(dataset_spatial_extent_wkb, hex=True)
+        # convert wkb to shapely geometry
+        feature_geom = wkb.loads(feature_geom_wkb, hex=True)
+        dataset_spatial_extent = wkb.loads(dataset_spatial_extent_wkb, hex=True)
 
-            # compare feature geom to dataset spatial_extent
-            # if feature geom is within dataset spatial_extent, set coverage to 1
-            # else set coverage to 0
+        # compare feature geom to dataset spatial_extent
+        # if feature geom is within dataset spatial_extent, set coverage to 1
+        # else set coverage to 0
 
-            if feature_geom.within(dataset_spatial_extent):
-                new_status = 1
-            else:
-                new_status = 0
+        if feature_geom.within(dataset_spatial_extent):
+            new_status = 1
+        else:
+            new_status = 0
 
-            with get_conn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        UPDATE coverage
-                        SET status = %s
-                        WHERE geom_id = %s AND dataset_id = %s;
-                        """,
-                        (new_status, feature_id, dataset_id)
-                    )
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE coverage
+                    SET status = %s
+                    WHERE geom_id = %s AND dataset_id = %s;
+                    """,
+                    (new_status, feature_id, dataset_id)
+                )
 
 if __name__ == "__main__":
     generate_coverage_records()
