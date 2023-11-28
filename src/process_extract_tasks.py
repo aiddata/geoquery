@@ -12,13 +12,6 @@ from pydantic import BaseModel, Json, ValidationInfo, field_validator
 from utils.db.conn import get_conn
 import utils.processors
 
-valid_status_dict = {
-    -1: "error",
-    0: "not started",
-    1: "complete",
-    2: "started",
-}
-
 
 class ExtractData(BaseModel):
     id: int
