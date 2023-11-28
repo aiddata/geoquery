@@ -124,3 +124,7 @@ def test_coverage():
                         """,
                         (new_status, feature_id, dataset_id)
                     )
+
+if __name__ == "__main__":
+    generate_coverage_records()
+    test_coverage()
