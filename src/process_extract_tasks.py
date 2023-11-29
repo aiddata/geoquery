@@ -10,7 +10,7 @@ from pydantic import BaseModel, Json, ValidationInfo, field_validator
 
 import utils.processors
 from utils.db.conn import get_conn
-from utils.db.extract_tasks import ExtractData, LockTask
+from utils.db.extract_task_processing import ExtractData, LockTask
 
 
 def run_extract():
