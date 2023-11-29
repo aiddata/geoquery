@@ -5,15 +5,15 @@ from utils.db.conn import get_conn
 from utils.db import ExtractTask
 
 
-def _get_dataset_resource_path_by_id(drid):
+def _get_dataset_resource_path_by_id(id: int) -> str:
     with get_conn() as conn:
         with conn.cursor() as cur:
-            query = """SELECT path FROM dataset_resources WHERE drid = %s""", (drid,)
+            query = """SELECT path FROM dataset_resources WHERE id = %s""", (id,)
             path = cur.execute(query).fetchone()
     return path
 
 
-def _get_feat_geom_by_id(id):
+def _get_feat_geom_by_id(id: int) -> shapely.geometry.base.BaseGeometry:
     with get_conn() as conn:
         with conn.cursor() as cur:
             query = """SELECT shape FROM features WHERE id = %s"""
@@ -23,7 +23,7 @@ def _get_feat_geom_by_id(id):
     return feat
 
 
-def _get_dataset_extent_by_id(id):
+def _get_dataset_extent_by_id(id: int) -> shapely.geometry.base.BaseGeometry:
     with get_conn() as conn:
         with conn.cursor() as cur:
             query = """SELECT spatial_extent FROM datasets WHERE id = %s"""
@@ -33,7 +33,7 @@ def _get_dataset_extent_by_id(id):
     return feat
 
 
-def _get_coverage_records(status=None):
+def _get_coverage_records(status=None) -> list:
     with get_conn() as conn:
         with conn.cursor() as cur:
             coverage_query = "SELECT * FROM coverage"
@@ -44,7 +44,7 @@ def _get_coverage_records(status=None):
             return coverage
 
 
-def _update_coverage_status(geom_id, dataset_id, status):
+def _update_coverage_status(geom_id: int, dataset_id: int, status: int) -> None:
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -58,7 +58,7 @@ def _update_coverage_status(geom_id, dataset_id, status):
             conn.commit()
 
 
-def _get_feature_ids():
+def _get_feature_ids() -> list:
     with get_conn() as conn:
         with conn.cursor() as cur:
             feature_query = "SELECT id FROM features"
@@ -67,7 +67,7 @@ def _get_feature_ids():
             return feature_ids
 
 
-def _get_dataset_ids():
+def _get_dataset_ids() -> list:
     with get_conn() as conn:
         with conn.cursor() as cur:
             dataset_query = "SELECT id FROM datasets"
@@ -75,7 +75,8 @@ def _get_dataset_ids():
             dataset_ids = cur.fetchall()
             return dataset_ids
 
-def _insert_coverage_records(coverage_list):
+
+def _insert_coverage_records(coverage_list) -> None:
     with get_conn() as conn:
         with conn.cursor() as cur:
             for c in coverage_list:
@@ -88,7 +89,8 @@ def _insert_coverage_records(coverage_list):
                 )
             conn.commit()
 
-def _get_dataset_by_id(dataset_id: int):
+
+def _get_dataset_by_id(dataset_id: int) -> list:
     with get_conn() as conn:
         with conn.cursor() as cur:
             resource_query = "SELECT * from dataset_resources WHERE dataset_id = %s"
@@ -97,7 +99,7 @@ def _get_dataset_by_id(dataset_id: int):
             return dataset_info
 
 
-def _get_processing_options_by_dataset(dataset_id: int):
+def _get_processing_options_by_dataset(dataset_id: int) -> list:
     with get_conn() as conn:
         with conn.cursor() as cur:
             resource_query = "SELECT * from processing_options WHERE dataset_id = %s"
@@ -106,7 +108,7 @@ def _get_processing_options_by_dataset(dataset_id: int):
             return po_info
 
 
-def _insert_extract_task(task: ExtractTask, overwrite: bool = False):
+def _insert_extract_task(task: ExtractTask, overwrite: bool = False) -> None:
     with get_conn() as conn:
         with conn.cursor() as cur:
             if overwrite:
