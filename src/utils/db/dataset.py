@@ -387,10 +387,10 @@ def update_dataset_from_resources(cur, dataset_id: int, dset_params: dict) -> No
     )
 
 
-def start_dataset_resources_check(dataset_name: str) -> None:
+def start_dataset_resources_check(name: str) -> None:
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM datasets WHERE name = %s ;", (dataset_name,))
+            cur.execute("SELECT * FROM datasets WHERE name = %s ;", (name,))
 
             dataset_info = cur.fetchone()
 
