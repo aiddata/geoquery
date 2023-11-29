@@ -4,17 +4,19 @@ import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from dateutil.relativedelta import relativedelta
 
 import rasterio
 import shapely
-import utils.processors
-from dateutil.relativedelta import relativedelta
 from psycopg import Cursor
 from psycopg.types.json import Json, Jsonb
 from pydantic import BaseModel, Json, ValidationInfo, field_validator
 from shapely.geometry import box
 from shapely.geometry.polygon import Polygon
+
+import utils.processors
 from utils.db.conn import get_conn
+from utils.helpers import _insert_dataset_resource, _insert_processing_option, _insert_mappings, _get_dataset_by_name, _deactivate_processing_options, _update_dataset_from_resources, _insert_dataset, _update_dataset
 
 
 def run_file_mask(fmask, fname):
@@ -190,192 +192,31 @@ class Dataset(BaseModel):
     #     return f
 
 
-def _insert_mappings(cur: Cursor, dataset_id: int, mappings: Dict[str, int]) -> None:
-    cur.execute("DELETE FROM mappings WHERE dataset_id = %s ;", (dataset_id,))
-
-    for key, value in mappings.items():
-        cur.execute(
-            """
-            INSERT INTO mappings (
-                dataset_id,
-                map_name,
-                map_val
-            ) VALUES (
-                %s,
-                %s,
-                %s
-            )
-            """,
-            (dataset_id, key, value),
-        )
-
-
-def _insert_dataset_resource(cur: Cursor, dataset_id: int, resource: DatasetResource):
-    query = """
-        INSERT INTO dataset_resources (
-            dataset_id,
-            name,
-            path,
-            temporal,
-            label,
-            spatial_extent
-        ) VALUES (
-            %(dataset_id)s,
-            %(name)s,
-            %(path)s,
-            %(temporal)s,
-            %(label)s,
-            %(spatial_extent)s
-        )
-        ON CONFLICT (name)
-        DO UPDATE SET (path, temporal, label, spatial_extent) = (%(path)s, %(temporal)s, %(label)s, %(spatial_extent)s)
-        ;
-    """
-
-    params = dict(resource)
-    params.update({"dataset_id": dataset_id})
-
-    cur.execute(query, params)
-
-
-
-def insert_dataset_resource(dataset_id: int, resource: DatasetResource):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            _insert_dataset_resource(cur, dataset_id, resource)
-
-
-def _insert_processing_option(
-    cur: Cursor, dataset_id: int, processing_option: ProcessingOption
-) -> None:
-    query = """
-        INSERT INTO processing_options (
-            dataset_id,
-            active,
-            public,
-            short_name,
-            function,
-            result_type,
-            kwargs
-        ) VALUES (
-            %(dataset_id)s,
-            %(active)s,
-            %(public)s,
-            %(short_name)s,
-            %(function)s,
-            %(result_type)s,
-            %(kwargs)s
-        )
-        ON CONFLICT (dataset_id, function, kwargs)
-        DO UPDATE SET (active, public, short_name) = (%(active)s, %(public)s, %(short_name)s)
-        ;
-    """
-    params = processing_option.dict()
-    params.update({"dataset_id": dataset_id})
-    params["kwargs"] = Jsonb(params["kwargs"])
-    cur.execute(query, params)
-
-
-def _update_dataset_from_resources(cur, dataset_id: int, dset_params: dict) -> None:
-    dset_params["dataset_id"] = dataset_id
-    cur.execute(
-        """
-        UPDATE datasets SET (
-            temporal_start,
-            temporal_end,
-            temporal_name,
-            temporal_type,
-            spatial_extent
-        ) = (
-            %(temporal_start)s,
-            %(temporal_end)s,
-            %(temporal_name)s,
-            %(temporal_type)s,
-            %(spatial_extent)s
-        ) WHERE id = %(dataset_id)s
-    """,
-        dset_params,
-    )
-
-
 
 def insert_dataset(dataset: Dataset) -> None:
     params = dict(dataset)
     if params["mapped"]:
         params["mapped"] = params["mappings"] is not None
 
+    params["other"] = Jsonb(params["other"])
+
     with get_conn() as conn:
         with conn.cursor() as cur:
-            query = """
-                INSERT INTO datasets (
-                    active,
-                    public,
-                    mapped,
-                    name,
-                    type,
-                    path,
-                    file_extension,
-                    file_mask,
-                    title,
-                    description,
-                    details,
-                    tags,
-                    citation,
-                    source_name,
-                    source_url,
-                    variable_description,
-                    variable_factor,
-                    other,
-                    temporal_start,
-                    temporal_end,
-                    temporal_name,
-                    temporal_type,
-                    ingest_src
-                ) VALUES (
-                    %(active)s,
-                    %(public)s,
-                    %(mapped)s,
-                    %(name)s,
-                    %(type)s,
-                    %(path)s,
-                    %(file_extension)s,
-                    %(file_mask)s,
-                    %(title)s,
-                    %(description)s,
-                    %(details)s,
-                    %(tags)s,
-                    %(citation)s,
-                    %(source_name)s,
-                    %(source_url)s,
-                    %(variable_description)s,
-                    %(variable_factor)s,
-                    %(other)s,
-                    %(temporal_start)s,
-                    %(temporal_end)s,
-                    %(temporal_name)s,
-                    %(temporal_type)s,
-                    %(ingest_src)s
-                ) RETURNING id;
-            """
-            params["other"] = Jsonb(params["other"])
 
-            cur.execute(query, params)
-
-            dataset_id = cur.fetchone()["id"]
+            dataset_id = _insert_dataset(cur, params)
 
             if params["mapped"]:
                 _insert_mappings(cur, dataset_id, params["mappings"])
 
             # if processing options were passed, insert those in the same transaction
             if params["processing_options"]:
-                cur.execute(
-                    "UPDATE processing_options SET active = False WHERE dataset_id = %s ;",
-                    (dataset_id,),
-                )
+
+                _deactivate_processing_options(cur, dataset_id)
+
                 for processing_option in params["processing_options"]:
                     _insert_processing_option(cur, dataset_id, processing_option)
 
-            dset_params = identify_dataset_resources(
+            dset_params = _identify_dataset_resources(
                 cur,
                 dataset_id,
                 params["name"],
@@ -389,12 +230,11 @@ def insert_dataset(dataset: Dataset) -> None:
             conn.commit()
 
 
-
 def start_dataset_resources_check(name: str) -> None:
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM datasets WHERE name = %s ;", (name,))
-            dataset_info = cur.fetchone()
+
+            dataset_info = _get_dataset_by_name(cur, name)
 
             dataset_id = dataset_info["id"]
             dataset_name = dataset_info["name"]
@@ -402,14 +242,14 @@ def start_dataset_resources_check(name: str) -> None:
             file_extension = dataset_info["file_extension"]
             dataset_path = Path(dataset_info["path"])
 
-            dset_params = identify_dataset_resources(
+            dset_params = _identify_dataset_resources(
                 cur, dataset_id, dataset_name, file_mask, file_extension, dataset_path
             )
 
             _update_dataset_from_resources(cur, dataset_id, dset_params)
 
 
-def identify_dataset_resources(
+def _identify_dataset_resources(
     cur,
     dataset_id: int,
     dataset_name: str,
@@ -516,79 +356,23 @@ def update_dataset(dataset: Dataset) -> None:
     if params["mapped"]:
         params["mapped"] = params["mappings"] is not None
 
+    params["other"] = Jsonb(params["other"])
+
     with get_conn() as conn:
         with conn.cursor() as cur:
-            query = """
-                UPDATE datasets SET (
-                    active,
-                    public,
-                    mapped,
-                    name,
-                    type,
-                    path,
-                    file_extension,
-                    file_mask,
-                    title,
-                    description,
-                    details,
-                    tags,
-                    citation,
-                    source_name,
-                    source_url,
-                    variable_description,
-                    variable_factor,
-                    other,
-                    temporal_start,
-                    temporal_end,
-                    temporal_name,
-                    temporal_type,
-                    ingest_src
-                ) = (
-                    %(active)s,
-                    %(public)s,
-                    %(mapped)s,
-                    %(name)s,
-                    %(type)s,
-                    %(path)s,
-                    %(file_extension)s,
-                    %(file_mask)s,
-                    %(title)s,
-                    %(description)s,
-                    %(details)s,
-                    %(tags)s,
-                    %(citation)s,
-                    %(source_name)s,
-                    %(source_url)s,
-                    %(variable_description)s,
-                    %(variable_factor)s,
-                    %(other)s,
-                    %(temporal_start)s,
-                    %(temporal_end)s,
-                    %(temporal_name)s,
-                    %(temporal_type)s,
-                    %(ingest_src)s
-                ) WHERE name = %(name)s
-                RETURNING id;
-            """
-            params["other"] = Jsonb(params["other"])
 
-            cur.execute(query, params)
-
-            dataset_id = cur.fetchone()["id"]
+            dataset_id = _update_dataset(cur, params)
 
             if params["mapped"]:
                 _insert_mappings(cur, dataset_id, params["mappings"])
 
             # if processing options were passed, insert those in the same transaction
             if params["processing_options"]:
-                cur.execute(
-                    "UPDATE processing_options SET active = False WHERE dataset_id = %s ;",
-                    (dataset_id,),
-                )
+                _deactivate_processing_options(cur, dataset_id)
                 for processing_option in params["processing_options"]:
                     _insert_processing_option(cur, dataset_id, processing_option)
 
-            dset_params = identify_dataset_resources(
+            dset_params = _identify_dataset_resources(
                 cur,
                 dataset_id,
                 params["name"],

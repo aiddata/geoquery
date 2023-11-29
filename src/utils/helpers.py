@@ -1,9 +1,26 @@
 
 import shapely
 from psycopg import Cursor
+from psycopg.types.json import Json, Jsonb
+from typing import Dict
+
 
 from utils.db.conn import get_conn
 from utils.db.extract_task_generation import ExtractTask
+from utils.db.dataset import DatasetResource, ProcessingOption
+
+
+def get_dataset_by_name(name: str) -> dict:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            dataset_info = _get_dataset_by_name(cur, name)
+            return dataset_info
+
+def _get_dataset_by_name(cur: Cursor, name: str) -> dict:
+    query = "SELECT * from datasets WHERE name = %s"
+    cur.execute(query, (name,))
+    dataset_info = cur.fetchone()
+    return dataset_info
 
 
 def get_dataset_resource_path_by_id(id: int) -> str:
@@ -11,6 +28,7 @@ def get_dataset_resource_path_by_id(id: int) -> str:
         with conn.cursor() as cur:
             path = _get_dataset_resource_path_by_id(cur, id)
     return path
+
 
 def _get_dataset_resource_path_by_id(cur: Cursor, id: int) -> str:
     query = """SELECT path FROM dataset_resources WHERE id = %s""", (id,)
@@ -176,3 +194,252 @@ def _insert_extract_task(cur: Cursor, task: ExtractTask, overwrite: bool = False
             task.kwargs,
         ),
     )
+
+
+
+def insert_dataset_resource(dataset_id: int, resource: DatasetResource):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            _insert_dataset_resource(cur, dataset_id, resource)
+
+
+def _insert_dataset_resource(cur: Cursor, dataset_id: int, resource: DatasetResource):
+    query = """
+        INSERT INTO dataset_resources (
+            dataset_id,
+            name,
+            path,
+            temporal,
+            label,
+            spatial_extent
+        ) VALUES (
+            %(dataset_id)s,
+            %(name)s,
+            %(path)s,
+            %(temporal)s,
+            %(label)s,
+            %(spatial_extent)s
+        )
+        ON CONFLICT (name)
+        DO UPDATE SET (path, temporal, label, spatial_extent) = (%(path)s, %(temporal)s, %(label)s, %(spatial_extent)s)
+        ;
+    """
+
+    params = dict(resource)
+    params.update({"dataset_id": dataset_id})
+
+    cur.execute(query, params)
+
+
+
+def insert_processing_option(dataset_id: int, processing_option: ProcessingOption) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            _insert_processing_option(cur, dataset_id, processing_option)
+
+
+def _insert_processing_option(
+    cur: Cursor, dataset_id: int, processing_option: ProcessingOption
+) -> None:
+    query = """
+        INSERT INTO processing_options (
+            dataset_id,
+            active,
+            public,
+            short_name,
+            function,
+            result_type,
+            kwargs
+        ) VALUES (
+            %(dataset_id)s,
+            %(active)s,
+            %(public)s,
+            %(short_name)s,
+            %(function)s,
+            %(result_type)s,
+            %(kwargs)s
+        )
+        ON CONFLICT (dataset_id, function, kwargs)
+        DO UPDATE SET (active, public, short_name) = (%(active)s, %(public)s, %(short_name)s)
+        ;
+    """
+    params = processing_option.dict()
+    params.update({"dataset_id": dataset_id})
+    params["kwargs"] = Jsonb(params["kwargs"])
+    cur.execute(query, params)
+
+
+def insert_mappings(dataset_id: int, mappings: Dict[str, int]) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            _insert_mappings(cur, dataset_id, mappings)
+
+
+def _insert_mappings(cur: Cursor, dataset_id: int, mappings: Dict[str, int]) -> None:
+    cur.execute("DELETE FROM mappings WHERE dataset_id = %s ;", (dataset_id,))
+
+    for key, value in mappings.items():
+        cur.execute(
+            """
+            INSERT INTO mappings (
+                dataset_id,
+                map_name,
+                map_val
+            ) VALUES (
+                %s,
+                %s,
+                %s
+            )
+            """,
+            (dataset_id, key, value),
+        )
+
+def deactivate_processing_options(dataset_id: int) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            _deactivate_processing_options(cur, dataset_id)
+
+def _deactivate_processing_options(cur: Cursor, dataset_id: int) -> None:
+    cur.execute(
+        "UPDATE processing_options SET active = False WHERE dataset_id = %s ;",
+        (dataset_id,),
+    )
+
+def _update_dataset_from_resources(cur, dataset_id: int, dset_params: dict) -> None:
+    dset_params["dataset_id"] = dataset_id
+    cur.execute(
+        """
+        UPDATE datasets SET (
+            temporal_start,
+            temporal_end,
+            temporal_name,
+            temporal_type,
+            spatial_extent
+        ) = (
+            %(temporal_start)s,
+            %(temporal_end)s,
+            %(temporal_name)s,
+            %(temporal_type)s,
+            %(spatial_extent)s
+        ) WHERE id = %(dataset_id)s
+    """,
+        dset_params,
+    )
+
+
+def _insert_dataset(cur: Cursor, params: dict) -> int:
+    query = """
+        INSERT INTO datasets (
+            active,
+            public,
+            mapped,
+            name,
+            type,
+            path,
+            file_extension,
+            file_mask,
+            title,
+            description,
+            details,
+            tags,
+            citation,
+            source_name,
+            source_url,
+            variable_description,
+            variable_factor,
+            other,
+            temporal_start,
+            temporal_end,
+            temporal_name,
+            temporal_type,
+            ingest_src
+        ) VALUES (
+            %(active)s,
+            %(public)s,
+            %(mapped)s,
+            %(name)s,
+            %(type)s,
+            %(path)s,
+            %(file_extension)s,
+            %(file_mask)s,
+            %(title)s,
+            %(description)s,
+            %(details)s,
+            %(tags)s,
+            %(citation)s,
+            %(source_name)s,
+            %(source_url)s,
+            %(variable_description)s,
+            %(variable_factor)s,
+            %(other)s,
+            %(temporal_start)s,
+            %(temporal_end)s,
+            %(temporal_name)s,
+            %(temporal_type)s,
+            %(ingest_src)s
+        ) RETURNING id;
+    """
+    cur.execute(query, params)
+    dataset_id = cur.fetchone()["id"]
+    return dataset_id
+
+
+
+def _update_dataset(cur, params):
+    query = """
+        UPDATE datasets SET (
+            active,
+            public,
+            mapped,
+            name,
+            type,
+            path,
+            file_extension,
+            file_mask,
+            title,
+            description,
+            details,
+            tags,
+            citation,
+            source_name,
+            source_url,
+            variable_description,
+            variable_factor,
+            other,
+            temporal_start,
+            temporal_end,
+            temporal_name,
+            temporal_type,
+            ingest_src
+        ) = (
+            %(active)s,
+            %(public)s,
+            %(mapped)s,
+            %(name)s,
+            %(type)s,
+            %(path)s,
+            %(file_extension)s,
+            %(file_mask)s,
+            %(title)s,
+            %(description)s,
+            %(details)s,
+            %(tags)s,
+            %(citation)s,
+            %(source_name)s,
+            %(source_url)s,
+            %(variable_description)s,
+            %(variable_factor)s,
+            %(other)s,
+            %(temporal_start)s,
+            %(temporal_end)s,
+            %(temporal_name)s,
+            %(temporal_type)s,
+            %(ingest_src)s
+        ) WHERE name = %(name)s
+        RETURNING id;
+    """
+
+    cur.execute(query, params)
+
+    dataset_id = cur.fetchone()["id"]
+    return dataset_id
