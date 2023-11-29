@@ -239,6 +239,12 @@ def _insert_dataset_resource(cur: Cursor, dataset_id: int, resource: DatasetReso
 
 
 
+def insert_dataset_resource(dataset_id: int, resource: DatasetResource):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            _insert_dataset_resource(cur, dataset_id, resource)
+
+
 def _insert_processing_option(
     cur: Cursor, dataset_id: int, processing_option: ProcessingOption
 ) -> None:

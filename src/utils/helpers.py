@@ -3,7 +3,7 @@ import shapely
 from psycopg import Cursor
 
 from utils.db.conn import get_conn
-from utils.db import ExtractTask
+from utils.db.extract_task_generation import ExtractTask
 
 
 def get_dataset_resource_path_by_id(id: int) -> str:
