@@ -117,7 +117,8 @@ class LockTask:
 
             select_task_query = """
                 UPDATE extract_tasks
-                SET status = 2
+                SET status = 2,
+                    update_time = CURRENT_TIMESTAMP
                 FROM (
                     SELECT
                         task_id,
@@ -164,6 +165,18 @@ class LockTask:
                 self.data = task_result
 
             return self
+
+    def found_task(self) -> bool:
+        return self.data is not None
+
+    def keep_alive(self) -> None:
+        with self.conn.cursor() as cur:
+            keep_alive_query = """
+                UPDATE extract_tasks
+                SET update_time = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """
+            cur.execute(keep_alive_query, (self.data.id,))
 
     def submit_result(self, data: ExtractData) -> None:
         # TODO: either assert that data.id == self.data.id,

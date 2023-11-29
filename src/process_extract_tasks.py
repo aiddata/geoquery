@@ -35,7 +35,7 @@ def run_extract():
 
     # get a task, locked just for us!
     with LockTask() as task:
-        if task.data is not None:
+        if task.found_task():
             path = Path(task.data.dataset_path) / task.data.resource_path
             func = get_func(task.data.po_func)
             op_kwargs = {"stat": task.data.po_short_name}
