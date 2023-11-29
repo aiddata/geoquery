@@ -305,6 +305,12 @@ def _deactivate_processing_options(cur: Cursor, dataset_id: int) -> None:
         (dataset_id,),
     )
 
+def update_dataset_from_resources(dataset_id: int, dset_params: dict) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            _update_dataset_from_resources(cur, dataset_id, dset_params)
+
+
 def _update_dataset_from_resources(cur, dataset_id: int, dset_params: dict) -> None:
     dset_params["dataset_id"] = dataset_id
     cur.execute(
@@ -326,6 +332,12 @@ def _update_dataset_from_resources(cur, dataset_id: int, dset_params: dict) -> N
         dset_params,
     )
 
+
+def insert_dataset(params: dict) -> int:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            dataset_id = _insert_dataset(cur, params)
+            return dataset_id
 
 def _insert_dataset(cur: Cursor, params: dict) -> int:
     query = """
@@ -384,8 +396,13 @@ def _insert_dataset(cur: Cursor, params: dict) -> int:
     return dataset_id
 
 
+def update_dataset(params: dict) -> int:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            dataset_id = _update_dataset(cur, params)
+            return dataset_id
 
-def _update_dataset(cur, params):
+def _update_dataset(cur: Cursor, params: dict) -> int:
     query = """
         UPDATE datasets SET (
             active,
