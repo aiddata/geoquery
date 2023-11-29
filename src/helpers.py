@@ -39,7 +39,8 @@ with get_conn() as conn:
 from utils.db.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
-        cur.execute("""SELECT * FROM coverage""").fetchall()
+        z = cur.execute("""SELECT * FROM coverage""").fetchall()
+        print('coverage', len(z), z)
 
 
 from utils.db.conn import get_conn
