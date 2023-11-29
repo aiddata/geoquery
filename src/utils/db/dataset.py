@@ -238,11 +238,6 @@ def _insert_dataset_resource(cur: Cursor, dataset_id: int, resource: DatasetReso
     cur.execute(query, params)
 
 
-def insert_dataset_resource(cur, dataset_id: int, resource: DatasetResource):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            _insert_dataset_resource(cur, dataset_id, resource)
-
 
 def _insert_processing_option(
     cur: Cursor, dataset_id: int, processing_option: ProcessingOption
@@ -273,6 +268,29 @@ def _insert_processing_option(
     params.update({"dataset_id": dataset_id})
     params["kwargs"] = Jsonb(params["kwargs"])
     cur.execute(query, params)
+
+
+def _update_dataset_from_resources(cur, dataset_id: int, dset_params: dict) -> None:
+    dset_params["dataset_id"] = dataset_id
+    cur.execute(
+        """
+        UPDATE datasets SET (
+            temporal_start,
+            temporal_end,
+            temporal_name,
+            temporal_type,
+            spatial_extent
+        ) = (
+            %(temporal_start)s,
+            %(temporal_end)s,
+            %(temporal_name)s,
+            %(temporal_type)s,
+            %(spatial_extent)s
+        ) WHERE id = %(dataset_id)s
+    """,
+        dset_params,
+    )
+
 
 
 def insert_dataset(dataset: Dataset) -> None:
@@ -360,38 +378,16 @@ def insert_dataset(dataset: Dataset) -> None:
                 params["path"],
             )
 
-            update_dataset_from_resources(cur, dataset_id, dset_params)
+            _update_dataset_from_resources(cur, dataset_id, dset_params)
 
             conn.commit()
 
-
-def update_dataset_from_resources(cur, dataset_id: int, dset_params: dict) -> None:
-    dset_params["dataset_id"] = dataset_id
-    cur.execute(
-        """
-        UPDATE datasets SET (
-            temporal_start,
-            temporal_end,
-            temporal_name,
-            temporal_type,
-            spatial_extent
-        ) = (
-            %(temporal_start)s,
-            %(temporal_end)s,
-            %(temporal_name)s,
-            %(temporal_type)s,
-            %(spatial_extent)s
-        ) WHERE id = %(dataset_id)s
-    """,
-        dset_params,
-    )
 
 
 def start_dataset_resources_check(name: str) -> None:
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM datasets WHERE name = %s ;", (name,))
-
             dataset_info = cur.fetchone()
 
             dataset_id = dataset_info["id"]
@@ -404,7 +400,7 @@ def start_dataset_resources_check(name: str) -> None:
                 cur, dataset_id, dataset_name, file_mask, file_extension, dataset_path
             )
 
-            update_dataset_from_resources(cur, dataset_id, dset_params)
+            _update_dataset_from_resources(cur, dataset_id, dset_params)
 
 
 def identify_dataset_resources(
@@ -595,6 +591,6 @@ def update_dataset(dataset: Dataset) -> None:
                 params["path"],
             )
 
-            update_dataset_from_resources(cur, dataset_id, dset_params)
+            _update_dataset_from_resources(cur, dataset_id, dset_params)
 
             conn.commit()

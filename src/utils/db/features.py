@@ -7,6 +7,7 @@ from psycopg.types.json import Json, Jsonb
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Json, field_validator
 from shapely.geometry import shape
+
 from utils.db.conn import get_conn
 
 
