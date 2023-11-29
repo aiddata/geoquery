@@ -6,6 +6,8 @@ from pydantic import BaseModel, Json, ValidationInfo, field_validator
 from shapely import wkb
 
 from utils.db.conn import get_conn
+from utils.helpers import _get_coverage_records, _get_dataset_ids, _get_feature_ids, _get_feat_geom_by_id, _get_dataset_extent_by_id, _update_coverage_status, _insert_coverage_records
+
 
 valid_status_dict = {
     -1: "not checked",
@@ -28,29 +30,6 @@ class CoverageRecord(BaseModel):
             )
         return s
 
-def _get_coverage_records():
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            existing_coverage_query = "SELECT * FROM coverage"
-            cur.execute(existing_coverage_query)
-            existing_coverage = cur.fetchall()
-            return existing_coverage
-
-def _get_feature_ids():
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            feature_query = "SELECT id FROM features"
-            cur.execute(feature_query)
-            feature_ids = cur.fetchall()
-            return feature_ids
-
-def _get_dataset_ids():
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            dataset_query = "SELECT id FROM datasets"
-            cur.execute(dataset_query)
-            dataset_ids = cur.fetchall()
-            return dataset_ids
 
 def generate_coverage_records():
 
@@ -71,50 +50,20 @@ def generate_coverage_records():
         if (x[0]["id"], x[1]["id"]) not in existing_items
     ]
 
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            for c in new_coverage:
-                cur.execute(
-                    """
-                    INSERT INTO coverage (geom_id, dataset_id, status)
-                    VALUES (%s, %s, %s);
-                    """,
-                    (c.geom_id, c.dataset_id, c.status)
-                )
-
-            conn.commit()
+    _insert_coverage_records(new_coverage)
 
 
 def test_coverage():
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM coverage WHERE status = -1")
-            coverage_items = cur.fetchall()
+
+    coverage_items = _get_coverage_records(status=-1)
 
     for c in coverage_items:
         feature_id = c["geom_id"]
         dataset_id = c["dataset_id"]
 
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                feature_data = cur.execute(
-                    "SELECT * FROM features WHERE id = %s", (feature_id,)
-                ).fetchone()
+        feature_geom = _get_feat_geom_by_id(feature_id)
 
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                dataset_data = cur.execute(
-                    "SELECT * FROM datasets WHERE id = %s", (dataset_id,)
-                ).fetchone()
-
-
-        # load geoms as wkbs
-        feature_geom_wkb = feature_data["shape"]
-        dataset_spatial_extent_wkb = dataset_data["spatial_extent"]
-
-        # convert wkb to shapely geometry
-        feature_geom = wkb.loads(feature_geom_wkb, hex=True)
-        dataset_spatial_extent = wkb.loads(dataset_spatial_extent_wkb, hex=True)
+        dataset_spatial_extent = _get_dataset_extent_by_id(dataset_id)
 
         # compare feature geom to dataset spatial_extent
         # if feature geom is within dataset spatial_extent, set coverage to 1
@@ -125,16 +74,8 @@ def test_coverage():
         else:
             new_status = 0
 
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    UPDATE coverage
-                    SET status = %s
-                    WHERE geom_id = %s AND dataset_id = %s;
-                    """,
-                    (new_status, feature_id, dataset_id)
-                )
+        _update_coverage_status(feature_id, dataset_id, new_status)
+
 
 if __name__ == "__main__":
     generate_coverage_records()
