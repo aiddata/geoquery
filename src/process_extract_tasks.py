@@ -10,40 +10,13 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Json, ValidationInfo, field_validator
 
 from utils.db.conn import get_conn
+from utils.db.extract_tasks import ExtractData, LockTask
 import utils.processors
 
 
-class ExtractData(BaseModel):
-    id: int
-    name: str
-    data_column: str
-    float_value: Optional[float] = None
-    int_value: Optional[int] = None
-    str_value: Optional[str] = None
-
-
-    @field_validator("data_column")
-    @classmethod
-    def validate_data_column(cls, s: str) -> str:
-        valid_data_columns = ["float", "int", "str"]
-        if s not in valid_data_columns:
-            raise ValueError(
-                "data_columns must be one of the following: {}".format(valid_data_columns)
-            )
-        return s
-
-    @field_validator("float_value", "int_value", "str_value")
-    @classmethod
-    def validate_data_value(cls, v: Any, data: Dict[str, Any]) -> Any:
-        if data.data["data_column"] == data.field_name.split("_")[0]:
-            if not isinstance(v, getattr(builtins, data.data["data_column"])):
-                raise ValueError("data_value must be a {}".format(data.data["data_column"]))
-
-        return v
-
-
 def run_extract():
-    """Main function to run an extraction of a dataset to a feature
+    """
+    Main function to run an extraction of a dataset to a feature
     Contains the following steps:
     - get an extract task
     - prepare task components
@@ -51,15 +24,15 @@ def run_extract():
     - receive and prepare results
     - export results
     """
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            task = get_extract_task()
 
-            feat = get_feat(task["fm_id"])
-            resource = get_dataset_resource(task["resource_id"])
+    # get a task, locked just for us!
+    with LockTask() as task:
+        if task.data is not None:
+            feat = get_feat(task.data.fm_id)
+            resource = get_dataset_resource(task.data.resource_id)
             dataset = get_dataset(resource["dataset_id"])
             path = dataset["path"] +"/"+ resource["path"]
-            po = get_processing_option(task["po_id"])
+            po = get_processing_option(task.data.po_id)
 
             func = get_func(po["function"])
 
@@ -84,44 +57,18 @@ def run_extract():
                     str_val = str(val)
 
                 result = ExtractData(
-                    id=task["id"],
+                    id=task.data.id,
                     name=method,
                     data_column=po["result_type"],
                     float_value=float_val,
                     int_value=int_val,
                     str_value=str_val,
                 )
-                status = export_result(result)
 
-            update_extract_task(task["id"], 1, "complete")
-            return status
-
-
-def get_extract_task():
-    """Retrieve an extract task"""
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            # GET TASK FROM EXTRACT TASK TABLE
-            # task = cur.execute("""SELECT * FROM extract_tasks LIMIT 1""").fetchall()[0]
-
-            query = """
-            UPDATE extract_tasks
-            SET    status = 2
-            WHERE  id = (
-                    SELECT id
-                    FROM extract_tasks
-                    WHERE status = 0
-                    ORDER BY priority DESC, submit_time ASC
-                    LIMIT  1
-                    FOR UPDATE SKIP LOCKED
-                    )
-            RETURNING *;
-            """
-            task = cur.execute(query)
-            task_result = task.fetchone()
-            if task_result is None:
-                raise ValueError("No available tasks.")
-            return task_result
+                # submit our ExtractData object for insertion
+                task.submit_result(result)
+            else:
+                Warning("No available tasks to complete!")
 
 
 def update_extract_task(task_id, status, update_type):
