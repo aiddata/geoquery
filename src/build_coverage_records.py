@@ -27,33 +27,44 @@ class CoverageRecord(BaseModel):
             )
         return s
 
-
-def generate_coverage_records():
+def _get_coverage_records():
     with get_conn() as conn:
         with conn.cursor() as cur:
             existing_coverage_query = "SELECT * FROM coverage"
             cur.execute(existing_coverage_query)
             existing_coverage = cur.fetchall()
-            existing_items = [(x["geom_id"], x["dataset_id"]) for x in existing_coverage]
+            return existing_coverage
 
+def _get_feature_ids():
     with get_conn() as conn:
         with conn.cursor() as cur:
             feature_query = "SELECT id FROM features"
             cur.execute(feature_query)
-            features = cur.fetchall()
-            if len(features) == 0:
-                raise ValueError("No features found in database")
+            feature_ids = cur.fetchall()
+            return feature_ids
 
+def _get_dataset_ids():
     with get_conn() as conn:
         with conn.cursor() as cur:
             dataset_query = "SELECT id FROM datasets"
             cur.execute(dataset_query)
-            datasets = cur.fetchall()
-            if len(datasets) == 0:
-                raise ValueError("No datasets found in database")
+            dataset_ids = cur.fetchall()
+            return dataset_ids
 
+def generate_coverage_records():
 
-    potential_coverage = list(zip(features, datasets))
+    existing_coverage = _get_coverage_records()
+    existing_items = [(x["geom_id"], x["dataset_id"]) for x in existing_coverage]
+
+    feature_ids = _get_feature_ids()
+    if len(feature_ids) == 0:
+        raise ValueError("No features found in database")
+
+    dataset_ids = _get_dataset_ids()
+    if len(dataset_ids) == 0:
+        raise ValueError("No datasets found in database")
+
+    potential_coverage = list(zip(feature_ids, dataset_ids))
 
     new_coverage = [
         CoverageRecord(**{"geom_id":x[0]["id"], "dataset_id":x[1]["id"]}) for x in potential_coverage
