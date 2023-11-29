@@ -2,7 +2,7 @@
 import shapely
 
 from utils.db.conn import get_conn
-
+from utils.db import ExtractTask
 
 
 def _get_dataset_resource_path_by_id(drid):
@@ -87,3 +87,48 @@ def _insert_coverage_records(coverage_list):
                     (c.geom_id, c.dataset_id, c.status)
                 )
             conn.commit()
+
+def _get_dataset_by_id(dataset_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            resource_query = "SELECT * from dataset_resources WHERE dataset_id = %s"
+            cur.execute(resource_query, (dataset_id,))
+            dataset_info = cur.fetchall()
+            return dataset_info
+
+
+def _get_processing_options_by_dataset(dataset_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            resource_query = "SELECT * from processing_options WHERE dataset_id = %s"
+            cur.execute(resource_query, (dataset_id,))
+            po_info = cur.fetchall()
+            return po_info
+
+
+def _insert_extract_task(task: ExtractTask, overwrite: bool = False):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            if overwrite:
+                conflict_str = "DO UPDATE SET status = excluded.status, priority = excluded.priority, submit_time = excluded.submit_time, kwargs = excluded.kwargs"
+            else:
+                conflict_str = "DO NOTHING"
+
+            insert = """
+                INSERT INTO extract_tasks (resource_id, fm_id, po_id, status, priority, submit_time, kwargs)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (resource_id, fm_id, po_id)
+                """
+            insert += conflict_str
+            cur.execute(
+                insert,
+                (
+                    task.resource_id,
+                    task.fm_id,
+                    task.po_id,
+                    task.status,
+                    task.priority,
+                    task.submit_time,
+                    task.kwargs,
+                ),
+            )
