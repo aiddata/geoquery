@@ -1,12 +1,10 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-# from psycopg import Connection, Cursor
-# from psycopg.rows import class_row
 from pydantic import BaseModel, Json, ValidationInfo, field_validator
-# from typing_extensions import Self
-
-from utils.helpers import _get_dataset_by_id, _get_coverage_records, _get_processing_options_by_dataset, _insert_extract_task
+from utils.helpers import (_get_coverage_records, _get_dataset_by_id,
+                           _get_processing_options_by_dataset,
+                           _insert_extract_task)
 
 valid_status_dict = {
     -1: "error",
