@@ -44,23 +44,17 @@ def run_extract():
 
             result = run_op(feat, path, func, **op_kwargs)
 
-            float_val, int_val, str_val = None, None, None
-
             for method, val in result:
-                if po["result_type"] == "float":
-                    float_val = float(val)
-                elif po["result_type"] == "int":
-                    int_val = int(val)
-                elif po["result_type"] == "str":
-                    str_val = str(val)
+                # FIXME: this likely doesn't need to exist. At the end of the day,
+                #        it should be Postgres that checks result type on insert
+                #        and raise an error if there was a bad insertion.
+                #        At the very least, our context manager should check for us.
+                val = getattr(builtins, po["result_type"])(val)
 
                 result = ExtractData(
                     id=task.data.id,
                     name=method,
-                    data_column=po["result_type"],
-                    float_value=float_val,
-                    int_value=int_val,
-                    str_value=str_val,
+                    value=val,
                 )
 
                 # submit our ExtractData object for insertion

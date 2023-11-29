@@ -1,4 +1,3 @@
-import builtins
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
@@ -6,13 +5,14 @@ from psycopg import Connection, Cursor
 from psycopg.rows import class_row
 from pydantic import BaseModel, Json, ValidationInfo, field_validator
 from typing_extensions import Self
+
 from utils.db.conn import get_conn
 
 valid_status_dict = {
     -1: "error",
     0: "not started",
     1: "complete",
-    2: "started",
+    # 2: "started",
 }
 
 
@@ -47,33 +47,7 @@ class ExtractTaskFromDB(ExtractTask):
 class ExtractData(BaseModel):
     id: int
     name: str
-    data_column: str
-    float_value: Optional[float] = None
-    int_value: Optional[int] = None
-    str_value: Optional[str] = None
-
-    @field_validator("data_column")
-    @classmethod
-    def validate_data_column(cls, s: str) -> str:
-        valid_data_columns = ["float", "int", "str"]
-        if s not in valid_data_columns:
-            raise ValueError(
-                "data_columns must be one of the following: {}".format(
-                    valid_data_columns
-                )
-            )
-        return s
-
-    @field_validator("float_value", "int_value", "str_value")
-    @classmethod
-    def validate_data_value(cls, v: Any, data: Dict[str, Any]) -> Any:
-        if data.data["data_column"] == data.field_name.split("_")[0]:
-            if not isinstance(v, getattr(builtins, data.data["data_column"])):
-                raise ValueError(
-                    "data_value must be a {}".format(data.data["data_column"])
-                )
-
-        return v
+    value: Union[int, float, str]
 
 
 def _get_valid_coverage_records():
@@ -150,9 +124,21 @@ def _insert_extract_data(cur: Cursor, data: ExtractData) -> None:
         );
     """
 
-    print(dict(data))
+    params = dict(data)
 
-    cur.execute(add_result_query, dict(data))
+    params["float_value"], params["int_value"], params["str_value"] = None, None, None
+
+    if isinstance(params["value"], int):
+        params["data_column"] = "int"
+        params["int_value"] = params["value"]
+    elif isinstance(params["value"], float):
+        params["data_column"] = "float"
+        params["float_value"] = params["value"]
+    elif isinstance(params["value"], str):
+        params["data_column"] = "str"
+        params["str_value"] = params["value"]
+
+    cur.execute(add_result_query, params)
 
 
 def generate_tasks(overwrite: bool = False):
@@ -185,7 +171,7 @@ def generate_tasks(overwrite: bool = False):
 class LockTask:
     conn: Connection
     cur: Cursor
-    data: Optional[ExtractTask]
+    data: Optional[ExtractTaskFromDB]
 
     def __enter__(self) -> Self:
         # open connection to database
@@ -193,21 +179,16 @@ class LockTask:
         self.conn = self.conn_context.__enter__()
         self.cur = self.conn.cursor(row_factory=class_row(ExtractTaskFromDB))
 
-        # select an unlocked task from extract_tasks, marking it as in-progress and locking it
+        # select an unlocked task from extract_tasks, locking it
         # TODO: only select tasks that have fewer than X number of previous errors?
         #       ...this would require better error tracking, see comment in self.__exit__() below
         select_task_query = """
-        UPDATE extract_tasks
-        SET    status = 2
-        WHERE  id = (
-                SELECT id
-                FROM extract_tasks
-                WHERE status = 0
-                ORDER BY priority DESC, submit_time ASC
-                LIMIT  1
-                FOR UPDATE SKIP LOCKED
-                )
-        RETURNING *;
+            SELECT *
+            FROM extract_tasks
+            WHERE status = 0
+            ORDER BY priority DESC, submit_time ASC
+            LIMIT  1
+            FOR UPDATE SKIP LOCKED
         """
         task = self.cur.execute(select_task_query)
         task_result = task.fetchone()
@@ -232,7 +213,16 @@ class LockTask:
         # TODO: log error somewhere, if there was one? check if a result was submitted?
         #       we might want to create an extract tasks error table
 
-        # commit any changes we've made (submitted results inserted)
+        # if no error was thrown, and we were working on a real task, task is complete!
+        if exc_type is None and self.data is not None:
+            mark_as_complete_query = """
+                UPDATE extract_tasks
+                SET status = 1
+                WHERE id = %s
+            """
+            self.cur.execute(mark_as_complete_query, (self.data.id,))
+
+        # commit our changes, including all extract data insertions and marking as complete
         self.conn.commit()
 
         # closing connection closes transaction, releasing lock
