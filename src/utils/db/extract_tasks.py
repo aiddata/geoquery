@@ -1,15 +1,12 @@
+import builtins
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
-from typing_extensions import Self
 
-from pydantic import BaseModel, Json, ValidationInfo, field_validator
-
-from utils.db.conn import get_conn
 from psycopg import Connection, Cursor
 from psycopg.rows import class_row
-
-import builtins
-
+from pydantic import BaseModel, Json, ValidationInfo, field_validator
+from typing_extensions import Self
+from utils.db.conn import get_conn
 
 valid_status_dict = {
     -1: "error",
@@ -44,7 +41,7 @@ class ExtractTask(BaseModel):
 
 
 class ExtractTaskFromDB(ExtractTask):
-    id: int    
+    id: int
 
 
 class ExtractData(BaseModel):
@@ -55,14 +52,15 @@ class ExtractData(BaseModel):
     int_value: Optional[int] = None
     str_value: Optional[str] = None
 
-
     @field_validator("data_column")
     @classmethod
     def validate_data_column(cls, s: str) -> str:
         valid_data_columns = ["float", "int", "str"]
         if s not in valid_data_columns:
             raise ValueError(
-                "data_columns must be one of the following: {}".format(valid_data_columns)
+                "data_columns must be one of the following: {}".format(
+                    valid_data_columns
+                )
             )
         return s
 
@@ -71,7 +69,9 @@ class ExtractData(BaseModel):
     def validate_data_value(cls, v: Any, data: Dict[str, Any]) -> Any:
         if data.data["data_column"] == data.field_name.split("_")[0]:
             if not isinstance(v, getattr(builtins, data.data["data_column"])):
-                raise ValueError("data_value must be a {}".format(data.data["data_column"]))
+                raise ValueError(
+                    "data_value must be a {}".format(data.data["data_column"])
+                )
 
         return v
 
@@ -84,6 +84,7 @@ def _get_valid_coverage_records():
             valid_coverage = cur.fetchall()
     return valid_coverage
 
+
 def _get_dataset_info(dataset_id: int):
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -92,6 +93,7 @@ def _get_dataset_info(dataset_id: int):
             dataset_info = cur.fetchall()
             return dataset_info
 
+
 def _get_processing_options(dataset_id: int):
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -99,6 +101,7 @@ def _get_processing_options(dataset_id: int):
             cur.execute(resource_query, (dataset_id,))
             po_info = cur.fetchall()
             return po_info
+
 
 def _add_extract_task(task: ExtractTask, overwrite: bool = False):
     with get_conn() as conn:
@@ -114,18 +117,21 @@ def _add_extract_task(task: ExtractTask, overwrite: bool = False):
                 ON CONFLICT (resource_id, fm_id, po_id)
                 """
             insert += conflict_str
-            cur.execute(insert, (
-                task.resource_id,
-                task.fm_id,
-                task.po_id,
-                task.status,
-                task.priority,
-                task.submit_time,
-                task.kwargs
-            ))
+            cur.execute(
+                insert,
+                (
+                    task.resource_id,
+                    task.fm_id,
+                    task.po_id,
+                    task.status,
+                    task.priority,
+                    task.submit_time,
+                    task.kwargs,
+                ),
+            )
 
 
-def _insert_extract_data(cur: Cursor, data: ExtractData) -> None: 
+def _insert_extract_data(cur: Cursor, data: ExtractData) -> None:
     add_result_query = """
         INSERT INTO extract_data (
             id,
@@ -147,8 +153,6 @@ def _insert_extract_data(cur: Cursor, data: ExtractData) -> None:
     print(dict(data))
 
     cur.execute(add_result_query, dict(data))
-    
-    
 
 
 def generate_tasks(overwrite: bool = False):
@@ -160,7 +164,6 @@ def generate_tasks(overwrite: bool = False):
     # generate potential extract tasks associated with coverage,
     # then check if they exist, and create/add if they do not
     for item in valid_coverage:
-
         geom_id = item["geom_id"]
         dataset_id = item["dataset_id"]
         dataset_info = _get_dataset_info(dataset_id)
@@ -174,7 +177,7 @@ def generate_tasks(overwrite: bool = False):
                     fm_id=geom_id,
                     po_id=po["id"],
                     status=0,
-                    priority=0
+                    priority=0,
                 )
                 _add_extract_task(task, overwrite=overwrite)
 
@@ -231,7 +234,7 @@ class LockTask:
 
         # commit any changes we've made (submitted results inserted)
         self.conn.commit()
-        
+
         # closing connection closes transaction, releasing lock
         self.conn.close()
 

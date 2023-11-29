@@ -1,7 +1,6 @@
-
+import builtins
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-import builtins
 
 import psycopg
 import rasterstats as rs
@@ -9,9 +8,9 @@ import shapely
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Json, ValidationInfo, field_validator
 
+import utils.processors
 from utils.db.conn import get_conn
 from utils.db.extract_tasks import ExtractData, LockTask
-import utils.processors
 
 
 def run_extract():
@@ -31,7 +30,7 @@ def run_extract():
             feat = get_feat(task.data.fm_id)
             resource = get_dataset_resource(task.data.resource_id)
             dataset = get_dataset(resource["dataset_id"])
-            path = dataset["path"] +"/"+ resource["path"]
+            path = dataset["path"] + "/" + resource["path"]
             po = get_processing_option(task.data.po_id)
 
             func = get_func(po["function"])
@@ -48,7 +47,6 @@ def run_extract():
             float_val, int_val, str_val = None, None, None
 
             for method, val in result:
-
                 if po["result_type"] == "float":
                     float_val = float(val)
                 elif po["result_type"] == "int":
@@ -163,7 +161,14 @@ def insert_result(cur, result):
         INSERT INTO extract_data (id, name, data_column, float_value, int_value, str_value)
         VALUES (%s, %s, %s, %s, %s, %s);
         """,
-        (result.id, result.name, result.data_column, result.float_value, result.int_value, result.str_value),
+        (
+            result.id,
+            result.name,
+            result.data_column,
+            result.float_value,
+            result.int_value,
+            result.str_value,
+        ),
     )
 
 

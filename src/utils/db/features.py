@@ -7,7 +7,6 @@ from psycopg.types.json import Json, Jsonb
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Json, field_validator
 from shapely.geometry import shape
-
 from utils.db.conn import get_conn
 
 
@@ -172,7 +171,6 @@ def insert_feature_collection(feature_collection: FeatureCollection) -> None:
 
             fc_params = feature_collection.dict()
             fc_params["other"] = Jsonb(fc_params["other"])
-
 
             cur.execute(query, fc_params)
             feature_collection_id = cur.fetchone()["id"]

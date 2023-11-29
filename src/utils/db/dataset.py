@@ -14,7 +14,6 @@ from psycopg.types.json import Json, Jsonb
 from pydantic import BaseModel, Json, ValidationInfo, field_validator
 from shapely.geometry import box
 from shapely.geometry.polygon import Polygon
-
 from utils.db.conn import get_conn
 
 
@@ -88,7 +87,7 @@ class DatasetResource(BaseModel):
 
 
 class ProcessingOption(BaseModel):
-    dataset_id: int = None # this needs to be None in the model because dataset id is not known at the time of validation
+    dataset_id: int = None  # this needs to be None in the model because dataset id is not known at the time of validation
     active: bool = False
     public: bool = False
     short_name: str
@@ -111,7 +110,9 @@ class ProcessingOption(BaseModel):
         valid_result_types = ["float", "int", "str"]
         if s not in valid_result_types:
             raise ValueError(
-                "result_types must be one of the following: {}".format(valid_result_types)
+                "result_types must be one of the following: {}".format(
+                    valid_result_types
+                )
             )
         return s
 
@@ -414,7 +415,6 @@ def identify_dataset_resources(
     file_extension: str,
     dataset_path: Path,
 ) -> Dict[str, Any]:
-
     # dataset_path is read directly from an ingest json, so it won't actually be enforced as a Path yet
     dataset_path = Path(dataset_path)
 
@@ -428,7 +428,7 @@ def identify_dataset_resources(
 
     if not file_list:
         raise ValueError("No files found")
-    
+
     # list of spatial exten bboxes for each resource that can be used to get total extent for dataset
     spatial_extent_bbox_list = []
     temporal_info_list = []
