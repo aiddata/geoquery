@@ -1,4 +1,5 @@
 
+import itertools
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Json, ValidationInfo, field_validator
@@ -59,12 +60,11 @@ def generate_coverage_records():
     feature_ids = _get_feature_ids()
     if len(feature_ids) == 0:
         raise ValueError("No features found in database")
-
     dataset_ids = _get_dataset_ids()
     if len(dataset_ids) == 0:
         raise ValueError("No datasets found in database")
 
-    potential_coverage = list(zip(feature_ids, dataset_ids))
+    potential_coverage = list(itertools.product(feature_ids, dataset_ids))
 
     new_coverage = [
         CoverageRecord(**{"geom_id":x[0]["id"], "dataset_id":x[1]["id"]}) for x in potential_coverage
