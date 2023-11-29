@@ -1,12 +1,13 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from psycopg import Connection, Cursor
-from psycopg.rows import class_row
+# from psycopg import Connection, Cursor
+# from psycopg.rows import class_row
 from pydantic import BaseModel, Json, ValidationInfo, field_validator
-from typing_extensions import Self
+# from typing_extensions import Self
 
-from utils.db.conn import get_conn
+from utils.helpers import _get_dataset_by_id, _get_coverage_records, _get_processing_options_by_dataset, _insert_extract_task
+
 
 valid_status_dict = {
     -1: "error",
@@ -40,63 +41,8 @@ class ExtractTask(BaseModel):
         return s
 
 
-def _get_valid_coverage_records():
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            get_valid_coverage_records = "SELECT * FROM coverage WHERE status = 1"
-            cur.execute(get_valid_coverage_records)
-            valid_coverage = cur.fetchall()
-    return valid_coverage
-
-
-def _get_dataset_info(dataset_id: int):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            resource_query = "SELECT * from dataset_resources WHERE dataset_id = %s"
-            cur.execute(resource_query, (dataset_id,))
-            dataset_info = cur.fetchall()
-            return dataset_info
-
-
-def _get_processing_options(dataset_id: int):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            resource_query = "SELECT * from processing_options WHERE dataset_id = %s"
-            cur.execute(resource_query, (dataset_id,))
-            po_info = cur.fetchall()
-            return po_info
-
-
-def _add_extract_task(task: ExtractTask, overwrite: bool = False):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            if overwrite:
-                conflict_str = "DO UPDATE SET status = excluded.status, priority = excluded.priority, submit_time = excluded.submit_time, kwargs = excluded.kwargs"
-            else:
-                conflict_str = "DO NOTHING"
-
-            insert = """
-                INSERT INTO extract_tasks (resource_id, fm_id, po_id, status, priority, submit_time, kwargs)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (resource_id, fm_id, po_id)
-                """
-            insert += conflict_str
-            cur.execute(
-                insert,
-                (
-                    task.resource_id,
-                    task.fm_id,
-                    task.po_id,
-                    task.status,
-                    task.priority,
-                    task.submit_time,
-                    task.kwargs,
-                ),
-            )
-
-
 def generate_tasks(overwrite: bool = False):
-    valid_coverage = _get_valid_coverage_records()
+    valid_coverage = _get_coverage_records(status=1)
     if len(valid_coverage) == 0:
         Warning("No valid coverage records found in database")
         return
@@ -106,8 +52,8 @@ def generate_tasks(overwrite: bool = False):
     for item in valid_coverage:
         geom_id = item["geom_id"]
         dataset_id = item["dataset_id"]
-        dataset_info = _get_dataset_info(dataset_id)
-        po_info = _get_processing_options(dataset_id)
+        dataset_info = _get_dataset_by_id(dataset_id)
+        po_info = _get_processing_options_by_dataset(dataset_id)
 
         for resource in dataset_info:
             resource_id = resource["id"]
@@ -119,4 +65,4 @@ def generate_tasks(overwrite: bool = False):
                     status=0,
                     priority=0,
                 )
-                _add_extract_task(task, overwrite=overwrite)
+                _insert_extract_task(task, overwrite=overwrite)
