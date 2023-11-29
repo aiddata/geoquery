@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Json, ValidationInfo, field_validator
 # from typing_extensions import Self
 
-from utils.helpers import _get_dataset_by_id, _get_coverage_records, _get_processing_options_by_dataset, _insert_extract_task
+from utils.helpers import get_dataset_by_id, get_coverage_records, get_processing_options_by_dataset, insert_extract_task
 
 
 valid_status_dict = {
@@ -42,7 +42,7 @@ class ExtractTask(BaseModel):
 
 
 def generate_tasks(overwrite: bool = False):
-    valid_coverage = _get_coverage_records(status=1)
+    valid_coverage = get_coverage_records(status=1)
     if len(valid_coverage) == 0:
         Warning("No valid coverage records found in database")
         return
@@ -52,8 +52,8 @@ def generate_tasks(overwrite: bool = False):
     for item in valid_coverage:
         geom_id = item["geom_id"]
         dataset_id = item["dataset_id"]
-        dataset_info = _get_dataset_by_id(dataset_id)
-        po_info = _get_processing_options_by_dataset(dataset_id)
+        dataset_info = get_dataset_by_id(dataset_id)
+        po_info = get_processing_options_by_dataset(dataset_id)
 
         for resource in dataset_info:
             resource_id = resource["id"]
@@ -65,4 +65,4 @@ def generate_tasks(overwrite: bool = False):
                     status=0,
                     priority=0,
                 )
-                _insert_extract_task(task, overwrite=overwrite)
+                insert_extract_task(task, overwrite=overwrite)
