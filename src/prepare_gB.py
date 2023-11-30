@@ -8,6 +8,7 @@ import geopandas as gpd
 from psycopg.types.json import Jsonb, Json
 
 from utils.db import features as futils
+from ingest_feature_collection import ingest_feature_collection
 
 dl_iso3_list = ["AFG"]
 
@@ -61,7 +62,7 @@ for iso3 in set(gb_iso3_list).intersection(set(dl_iso3_list)):
         adm_meta["name"] = f"gB_v6_{iso3}_{item['boundaryType']}"
 
         print(f"Processing {adm_meta['name']}")
-        
+
         adm_meta["title"] = f"geoBoundaries v6 - {item['boundaryName']} {item['boundaryType']}"
         adm_meta["description"] = f"This feature collection represents the {item['boundaryType']} level boundaries for {item['boundaryName']} ({iso3}) from geoBoundaries v6."
         adm_meta["details"] = ""
@@ -107,8 +108,8 @@ for iso3 in set(gb_iso3_list).intersection(set(dl_iso3_list)):
             json.dump(export_adm_meta, file, indent=4)
 
 
-        FC = futils.FeatureCollection(**adm_meta)
+        # FC = futils.FeatureCollection(**adm_meta)
+        # futils.insert_feature_collection(FC)
+        # # futils.update_feature_collection(FC)
 
-        futils.insert_feature_collection(FC)
-
-        # futils.update_feature_collection(FC)
+        ingest_feature_collection(json_data=adm_meta, update=True)

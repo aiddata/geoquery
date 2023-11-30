@@ -18,6 +18,59 @@ def insert_feature_collection(feature_collection: FeatureCollection) -> None:
             for feature in feature_collection.features:
                 _insert_feature(cur, feature_collection_id, feature)
 
+def update_feature_collection(feature_collection: FeatureCollection) -> None:
+
+    fc_params = feature_collection.dict()
+    fc_params["other"] = Jsonb(fc_params["other"])
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            feature_collection_id = _update_feature_collection(cur, fc_params)
+            if feature_collection_id is None:
+                raise ValueError("No feature collection found with that name")
+            for feature in feature_collection.features:
+                _insert_feature(cur, feature_collection_id, feature)
+
+
+def _update_feature_collection(cur: Cursor, params: dict) -> int:
+
+    query = """
+        UPDATE feature_collections SET
+            active = %(active)s,
+            public = %(public)s,
+            name = %(name)s,
+            path = %(path)s,
+            file_extension = %(file_extension)s,
+            title = %(title)s,
+            description = %(description)s,
+            details = %(details)s,
+            tags = %(tags)s,
+            citation = %(citation)s,
+            source_name = %(source_name)s,
+            source_url = %(source_url)s,
+            other = %(other)s,
+            temporal_start = %(temporal_start)s,
+            temporal_end = %(temporal_end)s,
+            temporal_step = %(temporal_step)s,
+            spatial_extent = %(spatial_extent)s,
+            is_global = %(is_global)s,
+            ingest_src = %(ingest_src)s,
+            group_name = %(group_name)s,
+            group_title = %(group_title)s,
+            group_class = %(group_class)s,
+            group_level = %(group_level)s
+        WHERE name = %(name)s
+        RETURNING id;
+    """
+
+    cur.execute(query, params)
+    result = cur.fetchone()
+    if result is None:
+        feature_collection_id = None
+    else:
+        feature_collection_id = result["id"]
+    return feature_collection_id
+
 
 def _insert_feature_collection(cur: Cursor, params: dict) -> int:
 
@@ -101,7 +154,7 @@ def _insert_feature(cur: Cursor, feature_collection_id: int, feature: Feature) -
         result = cur.fetchone()["id"]
     else:
         # print("Found a matching geometry!")
-        result = result[0]
+        result = result["id"]
 
     fm_params = {
         "fc_id": feature_collection_id,
@@ -126,7 +179,11 @@ def _insert_feature(cur: Cursor, feature_collection_id: int, feature: Feature) -
             %(name)s,
             %(attr)s,
             %(parent)s
-        );
+        )
+        ON CONFLICT (fc_id, geom_id) DO UPDATE SET
+            name = %(name)s,
+            attr = %(attr)s,
+            parent = %(parent)s
         """,
         fm_params,
     )

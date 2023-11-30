@@ -75,8 +75,9 @@ def create_table_feat_map(cur):
             geom_id         int NOT NULL REFERENCES features(id),
             name            varchar(200),
             attr            jsonb,
-            parent          int REFERENCES feat_map(id)
-        );
+            parent          int REFERENCES feat_map(id),
+            UNIQUE          (fc_id, geom_id)
+        )
         """
     )
 
