@@ -18,7 +18,7 @@ with get_conn() as conn:
         cur.execute("TRUNCATE TABLE extract_data;")
 
 
-from process_extract_tasks import run_extract
+from gqcore.process_extract_tasks import run_extract
 run_extract()
 
 

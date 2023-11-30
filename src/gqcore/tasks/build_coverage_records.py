@@ -1,14 +1,8 @@
 
 import itertools
-from typing import Any, Dict, List, Optional
-
-from pydantic import BaseModel, Json, ValidationInfo, field_validator
-from shapely import wkb
-
-from gqcore.utils.db.conn import get_conn
-from gqcore.utils.db.helpers import get_coverage_records, get_dataset_ids, get_feature_ids, get_feat_geom_by_id, get_dataset_extent_by_id, update_coverage_status, insert_coverage_records
 
 from gqcore.utils.models import CoverageRecord
+from gqcore.utils.db.helpers import get_coverage_records, get_dataset_ids, get_feature_ids, get_feat_geom_by_id, get_dataset_extent_by_id, update_coverage_status, insert_coverage_records
 
 
 def generate_coverage_records():

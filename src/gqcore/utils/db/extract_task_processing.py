@@ -1,4 +1,3 @@
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -220,4 +219,3 @@ class LockTask:
         self.conn.close()
 
         self.conn_context.__exit__(None, None, None)
-
