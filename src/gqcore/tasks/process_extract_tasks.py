@@ -53,7 +53,7 @@ def task_generator() -> Iterator[LockTask]:
         if task.found_task():
             yield task
         else:
-            raise StopIteration("No available tasks in queue.")
+            return
 
 
 def process_tasks_sequentially() -> None:
