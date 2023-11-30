@@ -6,20 +6,20 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, Tuple
 
 from shapely import Geometry
-from utils.db.extract_task_processing import (
+from gqcore.utils.db.extract_task_processing import (
     ExtractData,
     ExtractTaskToRun,
     LockTask,
     get_mappings,
 )
 
-import utils.processors
+import gqcore.utils.processors
 
 
 def get_func(op: str) -> Callable:
     """Get appropriate function for operation."""
-    if hasattr(utils.processors, op):
-        func = getattr(utils.processors, op)
+    if hasattr(gqcore.utils.processors, op):
+        func = getattr(gqcore.utils.processors, op)
     else:
         raise ValueError(f"Operation {op} not supported.")
     return func
@@ -72,15 +72,15 @@ def process_tasks_concurrently(max_workers: int=5) -> None:
                 # push task's __exit__ function onto ExitStack
                 stack.push(task)
 
-                # 
+                #
 
-            
+
             # this doesn't work, unfortunately.
             # I think I need to find a new approach to generating
             # available tasks, and figuring out when to lock them
             # in a multiprocessing context.
             pool.imap(process_task, task_generator(), chunksize=1)
- 
+
 """
 
 if __name__ == "__main__":
