@@ -9,53 +9,7 @@ from pydantic import Json, field_validator
 from shapely.geometry import shape
 
 from utils.db.conn import get_conn
-
-
-class BaseModel(PydanticBaseModel):
-    class Config:
-        arbitrary_types_allowed = True
-
-
-class Feature(BaseModel):
-    geometry: str  # this is a wkt str. TODO: this does not include CRS info. We should verify (or be reasonably certain) it is EPSG:4326
-    name: Optional[str]
-    attr: Optional[dict]
-    parent: Optional[int]
-
-    @field_validator("geometry")
-    @classmethod
-    def validate_geometry(cls, g: str) -> str:
-        geom = shapely.wkt.loads(g)
-        if not geom.is_valid:
-            raise ValueError("the geometry of a feature must be well-formed.")
-        return g
-
-
-class FeatureCollection(BaseModel):
-    features: List[Feature]
-    active: bool = False
-    public: bool = False
-    name: str
-    path: str
-    file_extension: str
-    title: str
-    description: str
-    details: Optional[str] = None
-    tags: List[str]
-    citation: Optional[str] = None
-    source_name: Optional[str] = None
-    source_url: Optional[str] = None
-    other: Optional[dict] = None
-    temporal_start: Optional[datetime] = None
-    temporal_end: Optional[datetime] = None
-    temporal_step: Optional[timedelta] = None
-    spatial_extent: str
-    is_global: bool
-    ingest_src: Optional[str] = None
-    group_name: Optional[str] = None
-    group_title: Optional[str] = None
-    group_class: Optional[str] = None
-    group_level: Optional[int] = None
+from utils.db.models import Feature, FeatureCollection
 
 
 def _insert_features(

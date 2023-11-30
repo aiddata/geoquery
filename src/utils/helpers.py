@@ -6,8 +6,8 @@ from typing import Dict
 
 
 from utils.db.conn import get_conn
-from utils.db.extract_task_generation import ExtractTask
-from utils.db.dataset import DatasetResource, ProcessingOption
+from utils.db.models import ExtractTask as ExtractTask
+from utils.db.models import DatasetResource, ProcessingOption
 
 
 def get_dataset_by_name(name: str) -> dict:
@@ -108,7 +108,7 @@ def _get_feature_ids(cur: Cursor) -> list:
 def get_dataset_ids() -> list:
     with get_conn() as conn:
         with conn.cursor() as cur:
-            dataset_ids = _get_dataset_ids
+            dataset_ids = _get_dataset_ids(cur)
             return dataset_ids
 
 

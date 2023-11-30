@@ -5,38 +5,8 @@ from pydantic import BaseModel, Json, ValidationInfo, field_validator
 
 from utils.helpers import get_dataset_by_id, get_coverage_records, get_processing_options_by_dataset, insert_extract_task
 
+from utils.db.models import ExtractTask
 
-
-valid_status_dict = {
-    -1: "error",
-    0: "not started",
-    1: "complete",
-    # 2: "started",
-}
-
-
-class ExtractTask(BaseModel):
-    resource_id: int
-    fm_id: int
-    po_id: int
-    status: Optional[int]
-    priority: Optional[int]
-    submit_time: Optional[datetime] = datetime.now()
-    # start_time: Optional[datetime]
-    # update_time: Optional[datetime]
-    # complete_time: Optional[datetime]
-    # attempts: Optional[int]
-    # error: Optional[str]
-    kwargs: Optional[dict] = None
-
-    @field_validator("status")
-    @classmethod
-    def validate_status(cls, s: int) -> int:
-        if s not in valid_status_dict:
-            raise ValueError(
-                "status must be one of the following: {}".format(valid_status_dict)
-            )
-        return s
 
 
 def generate_tasks(overwrite: bool = False):

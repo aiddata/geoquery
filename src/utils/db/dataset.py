@@ -17,7 +17,7 @@ from shapely.geometry.polygon import Polygon
 import utils.processors
 from utils.db.conn import get_conn
 from utils.helpers import _insert_dataset_resource, _insert_processing_option, _insert_mappings, _get_dataset_by_name, _deactivate_processing_options, _update_dataset_from_resources, _insert_dataset, _update_dataset
-
+from utils.db.models import Dataset, DatasetResource, ProcessingOption
 
 def run_file_mask(fmask, fname):
     """extract temporal data from file name"""
@@ -78,118 +78,6 @@ def get_raster_bbox(path):
         # bounds = (xmin, ymin, xmax, ymax)
         b = raster.bounds
         return box(*b)
-
-
-class DatasetResource(BaseModel):
-    name: str
-    path: str
-    temporal: Optional[datetime]
-    label: Optional[str]
-    spatial_extent: Optional[str]
-
-
-class ProcessingOption(BaseModel):
-    dataset_id: int = None  # this needs to be None in the model because dataset id is not known at the time of validation
-    active: bool = False
-    public: bool = False
-    short_name: str
-    function: str
-    result_type: str
-    kwargs: dict
-
-    @field_validator("function")
-    @classmethod
-    def validate_function(cls, f: str) -> str:
-        if not hasattr(utils.processors, f) and callable(getattr(utils.processors, f)):
-            raise ValueError(
-                "function must be a callable from the utils.processors module"
-            )
-        return f
-
-    @field_validator("result_type")
-    @classmethod
-    def validate_result_type(cls, s: str) -> str:
-        valid_result_types = ["float", "int", "str"]
-        if s not in valid_result_types:
-            raise ValueError(
-                "result_types must be one of the following: {}".format(
-                    valid_result_types
-                )
-            )
-        return s
-
-
-class Dataset(BaseModel):
-    active: bool = False
-    public: bool = False
-    mapped: bool = False
-    mappings: Optional[Dict[str, int]] = None  # categorial data mappings
-    name: str
-    type: str
-    path: Path
-    file_extension: str
-    file_mask: str
-    title: str
-    description: str
-    details: str
-    tags: Optional[List[str]] = None
-    citation: Optional[str] = None
-    source_name: Optional[str] = None
-    source_url: Optional[str] = None
-    variable_description: Optional[str] = None
-    variable_factor: Optional[float] = None
-    processing_options: Optional[List[ProcessingOption]] = None
-    other: Optional[dict] = None
-    temporal_start: Optional[datetime] = None
-    temporal_end: Optional[datetime] = None
-    temporal_name: Optional[str] = None
-    temporal_type: Optional[str] = None
-    is_global: bool
-    coverage_dependency: Optional[str] = None
-    ingest_src: Optional[str] = None
-
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, f: str, info: ValidationInfo) -> str:
-        if f != f.lower():
-            raise ValueError("name must be lowercase")
-
-        if f != re.sub(" ", "_", f):
-            raise ValueError("name must not have spaces")
-
-        if f != re.sub("[^0-9a-zA-Z._-]+", "", f):
-            raise ValueError(
-                "name must be alphanumeric with only underscores, dashes, or periods"
-            )
-        return f
-
-    @field_validator("path")
-    @classmethod
-    def validate_path(cls, fp: str, info: ValidationInfo) -> str:
-        if not Path(fp).exists():
-            raise ValueError("path must exist")
-        fs = str(fp)
-        if fs.endswith("/"):
-            Warning("path must not end with a slash, correcting for you")
-            fs = fs[:-1]
-        return fs
-
-    # @field_validator("name")
-    # @classmethod
-    # def name_is_unique(cls, f: str, info: ValidationInfo) -> str:
-    #     with get_conn() as conn:
-    #         with conn.cursor() as cur:
-    #             if not info["update_meta"]:
-    #                 query = "SELECT * FROM datasets WHERE name = %s;", (f,)
-    #                 result = cur.execute(query)
-    #                 if result:
-    #                     raise ValueError("name not unique")
-    #             else:
-    #                 query = "SELECT * FROM datasets WHERE name = %s;", (f,)
-    #                 result = cur.execute(query)
-    #                 if not result:
-    #                     raise ValueError("existing dataset not found")
-    #     return f
 
 
 

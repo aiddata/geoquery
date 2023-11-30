@@ -8,27 +8,7 @@ from shapely import wkb
 from utils.db.conn import get_conn
 from utils.helpers import get_coverage_records, get_dataset_ids, get_feature_ids, get_feat_geom_by_id, get_dataset_extent_by_id, update_coverage_status, insert_coverage_records
 
-
-valid_status_dict = {
-    -1: "not checked",
-    0: "no coverage",
-    1: "coverage",
-}
-
-
-class CoverageRecord(BaseModel):
-    geom_id: int
-    dataset_id: int
-    status: Optional[int] = -1
-
-    @field_validator("status")
-    @classmethod
-    def validate_statusn(cls, s: int) -> int:
-        if s not in valid_status_dict:
-            raise ValueError(
-                "status must be one of the following: {}".format(valid_status_dict)
-            )
-        return s
+from utils.db.models import CoverageRecord
 
 
 def generate_coverage_records():
