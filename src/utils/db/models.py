@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 
 import shapely
 from pydantic import BaseModel as PydanticBaseModel
-from pydantic import Json
 from pydantic import ValidationInfo, field_validator
 
 import utils.processors

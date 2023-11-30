@@ -1,13 +1,12 @@
 
 import shapely
 from psycopg import Cursor
-from psycopg.types.json import Json, Jsonb
+from psycopg.types.json import Jsonb
 from typing import Dict
 
 
 from utils.db.conn import get_conn
-from utils.db.models import ExtractTask as ExtractTask
-from utils.db.models import DatasetResource, ProcessingOption
+from utils.db.models import ExtractTask, DatasetResource, ProcessingOption
 
 
 def get_dataset_by_name(name: str) -> dict:
