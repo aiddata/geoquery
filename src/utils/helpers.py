@@ -5,7 +5,7 @@ from psycopg.types.json import Jsonb
 from typing import Dict
 
 from utils.db.conn import get_conn
-from utils.db.models import ExtractTask, DatasetResource, ProcessingOption
+from utils.models import ExtractTask, DatasetResource, ProcessingOption
 
 
 def get_dataset_by_name(name: str) -> dict:
