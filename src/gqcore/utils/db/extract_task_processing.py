@@ -19,6 +19,7 @@ class ExtractTaskToRun(BaseModel):
     dataset_id: int
     dataset_path: Union[str, Path]
     mapped_dataset: bool
+    mappings: Optional[Dict[str, str]] = None
     resource_path: Path
     po_func: str
     po_short_name: str
@@ -162,6 +163,8 @@ class LockTask:
                 # there were no unlocked tasks!
                 self.data = None
             else:
+                if task_result.mapped_dataset:
+                    task_result.mappings = get_mappings(task_result.dataset_id)
                 self.data = task_result
 
             return self
