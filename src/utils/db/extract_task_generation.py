@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Json, ValidationInfo, field_validator
 
-from utils.helpers import get_dataset_by_id, get_coverage_records, get_processing_options_by_dataset, insert_extract_task
+from utils.db.helpers import get_dataset_by_id, get_coverage_records, get_processing_options_by_dataset, insert_extract_task
 
 from utils.models import ExtractTask
 

@@ -16,7 +16,7 @@ from shapely.geometry.polygon import Polygon
 
 import utils.processors
 from utils.db.conn import get_conn
-from utils.helpers import _insert_dataset_resource, _insert_processing_option, _insert_mappings, _get_dataset_by_name, _deactivate_processing_options, _update_dataset_from_resources, _insert_dataset, _update_dataset
+from utils.db.helpers import _insert_dataset_resource, _insert_processing_option, _insert_mappings, _get_dataset_by_name, _deactivate_processing_options, _update_dataset_from_resources, _insert_dataset, _update_dataset
 from utils.models import Dataset, DatasetResource, ProcessingOption
 
 def run_file_mask(fmask, fname):
