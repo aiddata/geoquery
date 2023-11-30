@@ -168,11 +168,12 @@ class Dataset(BaseModel):
     #                     raise ValueError("existing dataset not found")
     #     return f
 
-valid_status_dict = {
+
+extract_task_valid_status_dict = {
     -1: "error",
     0: "not started",
     1: "complete",
-    # 2: "started",
+    2: "started",
 }
 
 
@@ -193,14 +194,14 @@ class ExtractTask(BaseModel):
     @field_validator("status")
     @classmethod
     def validate_status(cls, s: int) -> int:
-        if s not in valid_status_dict:
+        if s not in extract_task_valid_status_dict:
             raise ValueError(
-                "status must be one of the following: {}".format(valid_status_dict)
+                "status must be one of the following: {}".format(extract_task_valid_status_dict)
             )
         return s
 
 
-valid_status_dict = {
+coverage_record_valid_status_dict = {
     -1: "not checked",
     0: "no coverage",
     1: "coverage",
@@ -215,8 +216,8 @@ class CoverageRecord(BaseModel):
     @field_validator("status")
     @classmethod
     def validate_statusn(cls, s: int) -> int:
-        if s not in valid_status_dict:
+        if s not in coverage_record_valid_status_dict:
             raise ValueError(
-                "status must be one of the following: {}".format(valid_status_dict)
+                "status must be one of the following: {}".format(coverage_record_valid_status_dict)
             )
         return s
