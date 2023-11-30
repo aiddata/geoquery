@@ -4,7 +4,6 @@ from psycopg import Cursor
 from psycopg.types.json import Jsonb
 from typing import Dict
 
-
 from utils.db.conn import get_conn
 from utils.db.models import ExtractTask, DatasetResource, ProcessingOption
 
@@ -14,6 +13,7 @@ def get_dataset_by_name(name: str) -> dict:
         with conn.cursor() as cur:
             dataset_info = _get_dataset_by_name(cur, name)
             return dataset_info
+
 
 def _get_dataset_by_name(cur: Cursor, name: str) -> dict:
     query = "SELECT * from datasets WHERE name = %s"
@@ -41,6 +41,7 @@ def get_feat_geom_by_id(id: int) -> shapely.geometry.base.BaseGeometry:
             feat = _get_feat_geom_by_id(cur, id)
     return feat
 
+
 def _get_feat_geom_by_id(cur: Cursor, id: int) -> shapely.geometry.base.BaseGeometry:
     query = """SELECT shape FROM features WHERE id = %s"""
     geom = cur.execute(query, (id,)).fetchone()
@@ -54,17 +55,20 @@ def get_dataset_extent_by_id(id: int) -> shapely.geometry.base.BaseGeometry:
             feat = _get_dataset_extent_by_id(cur, id)
     return feat
 
+
 def _get_dataset_extent_by_id(cur: Cursor, id: int) -> shapely.geometry.base.BaseGeometry:
     query = """SELECT spatial_extent FROM datasets WHERE id = %s"""
     extent = cur.execute(query, (id,)).fetchone()
     feat = shapely.wkb.loads(extent["spatial_extent"], hex=True)
     return feat
 
+
 def get_coverage_records(status=None) -> list:
     with get_conn() as conn:
         with conn.cursor() as cur:
             coverage = _get_coverage_records(cur, status)
             return coverage
+
 
 def _get_coverage_records(cur: Cursor, status=None) -> list:
     coverage_query = "SELECT * FROM coverage"
@@ -74,10 +78,12 @@ def _get_coverage_records(cur: Cursor, status=None) -> list:
     coverage = cur.fetchall()
     return coverage
 
+
 def update_coverage_status(geom_id: int, dataset_id: int, status: int) -> None:
     with get_conn() as conn:
         with conn.cursor() as cur:
             _update_coverage_status(cur, geom_id, dataset_id, status)
+
 
 def _update_coverage_status(cur: Cursor, geom_id: int, dataset_id: int, status: int) -> None:
     cur.execute(
@@ -195,7 +201,6 @@ def _insert_extract_task(cur: Cursor, task: ExtractTask, overwrite: bool = False
     )
 
 
-
 def insert_dataset_resource(dataset_id: int, resource: DatasetResource):
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -228,7 +233,6 @@ def _insert_dataset_resource(cur: Cursor, dataset_id: int, resource: DatasetReso
     params.update({"dataset_id": dataset_id})
 
     cur.execute(query, params)
-
 
 
 def insert_processing_option(dataset_id: int, processing_option: ProcessingOption) -> None:
@@ -298,6 +302,7 @@ def deactivate_processing_options(dataset_id: int) -> None:
         with conn.cursor() as cur:
             _deactivate_processing_options(cur, dataset_id)
 
+
 def _deactivate_processing_options(cur: Cursor, dataset_id: int) -> None:
     cur.execute(
         "UPDATE processing_options SET active = False WHERE dataset_id = %s ;",
@@ -337,6 +342,7 @@ def insert_dataset(params: dict) -> int:
         with conn.cursor() as cur:
             dataset_id = _insert_dataset(cur, params)
             return dataset_id
+
 
 def _insert_dataset(cur: Cursor, params: dict) -> int:
     query = """
@@ -400,6 +406,7 @@ def update_dataset(params: dict) -> int:
         with conn.cursor() as cur:
             dataset_id = _update_dataset(cur, params)
             return dataset_id
+
 
 def _update_dataset(cur: Cursor, params: dict) -> int:
     query = """
