@@ -44,7 +44,7 @@ def prepare_task(data: ExtractTaskToRun) -> Tuple[Callable, int, Geometry, Any, 
     op_kwargs = {"stat": data.po_short_name}
     if data.mappings:
         op_kwargs["category_map"] = {i["map_val"]: i["map_name"] for i in data.mappings}
-
+    op_kwargs.update(data.po_kwargs)
     return (func, data.id, data.feature, path, op_kwargs)
 
 

@@ -22,6 +22,7 @@ class ExtractTaskToRun(BaseModel):
     resource_path: Path
     po_func: str
     po_short_name: str
+    po_kwargs: dict
     feature: Union[str, Geometry]
 
     @field_validator("dataset_path")
@@ -128,6 +129,7 @@ class LockTask:
                         dataset_resources.path AS resource_path,
                         processing_options.function AS po_func,
                         processing_options.short_name AS po_short_name,
+                        processing_options.kwargs AS po_kwargs,
                         features.shape AS feature
                     FROM (
                         SELECT
@@ -157,7 +159,6 @@ class LockTask:
             """
             task = cur.execute(select_task_query)
             task_result = task.fetchone()
-
             if task_result is None:
                 # there were no unlocked tasks!
                 self.data = None
