@@ -217,6 +217,3 @@ class LockTask:
 
         self.conn_context.__exit__(None, None, None)
 
-
-if __name__ == "__main__":
-    generate_tasks(overwrite=True)
