@@ -7,7 +7,7 @@ import shapely
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import ValidationInfo, field_validator
 
-import utils.processors
+import gqcore.utils.processors
 
 
 class BaseModel(PydanticBaseModel):

@@ -14,10 +14,10 @@ from pydantic import BaseModel, Json, ValidationInfo, field_validator
 from shapely.geometry import box
 from shapely.geometry.polygon import Polygon
 
-import utils.processors
-from utils.db.conn import get_conn
-from utils.db.helpers import _insert_dataset_resource, _insert_processing_option, _insert_mappings, _get_dataset_by_name, _deactivate_processing_options, _update_dataset_from_resources, _insert_dataset, _update_dataset
-from utils.models import Dataset, DatasetResource, ProcessingOption
+import gqcore.utils.processors
+from gqcore.utils.db.conn import get_conn
+from gqcore.utils.db.helpers import _insert_dataset_resource, _insert_processing_option, _insert_mappings, _get_dataset_by_name, _deactivate_processing_options, _update_dataset_from_resources, _insert_dataset, _update_dataset
+from gqcore.utils.models import Dataset, DatasetResource, ProcessingOption
 
 def run_file_mask(fmask, fname):
     """extract temporal data from file name"""
@@ -252,7 +252,7 @@ def update_dataset(dataset: Dataset) -> None:
             dataset_id = _update_dataset(cur, params)
             if dataset_id is None:
                 raise ValueError("Dataset not found")
-            
+
             if params["mapped"]:
                 _insert_mappings(cur, dataset_id, params["mappings"])
 

@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-from utils.db import dataset as dutils
+from gqcore.utils.db import dataset as dutils
 
 
 def ingest_dataset(json_path: str = None, json_data: dict = None, update: bool = False) -> None:

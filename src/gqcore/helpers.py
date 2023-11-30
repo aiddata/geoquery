@@ -1,7 +1,7 @@
 
 
 
-from utils.db.conn import get_conn
+from gqcore.utils.db.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
         query = """
@@ -12,7 +12,7 @@ with get_conn() as conn:
         cur.execute(query)
 
 
-from utils.db.conn import get_conn
+from gqcore.utils.db.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
         cur.execute("TRUNCATE TABLE extract_data;")
@@ -22,7 +22,7 @@ from process_extract_tasks import run_extract
 run_extract()
 
 
-from utils.db.conn import get_conn
+from gqcore.utils.db.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
         a = cur.execute("""SELECT * FROM extract_tasks""").fetchall()
@@ -35,20 +35,20 @@ with get_conn() as conn:
 
 
 
-from utils.db.conn import get_conn
+from gqcore.utils.db.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
         cur.execute("TRUNCATE TABLE coverage;")
 
 
-from utils.db.conn import get_conn
+from gqcore.utils.db.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
         z = cur.execute("""SELECT * FROM coverage""").fetchall()
         print('coverage', len(z), z)
 
 
-from utils.db.conn import get_conn
+from gqcore.utils.db.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
         x = cur.execute("""SELECT * FROM feature_collections""").fetchall()
@@ -59,7 +59,7 @@ with get_conn() as conn:
         print('feat_map', len(z), z)
 
 
-from utils.db.conn import get_conn
+from gqcore.utils.db.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
         x = cur.execute("""SELECT * FROM datasets""").fetchall()

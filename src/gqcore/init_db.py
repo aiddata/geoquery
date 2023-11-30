@@ -2,7 +2,7 @@ import click
 import psycopg
 from psycopg.errors import DuplicateTable
 
-from utils.db.conn import get_conn
+from gqcore.utils.db.conn import get_conn
 
 
 

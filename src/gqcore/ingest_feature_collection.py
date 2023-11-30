@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-from utils.db import features as futils
+from gqcore.utils.db import features as futils
 
 
 def ingest_feature_collection(json_path: str = None, json_data: dict = None, update: bool = False) -> None:

@@ -3,8 +3,8 @@ from typing import List
 from psycopg import Cursor
 from psycopg.types.json import Jsonb
 
-from utils.db.conn import get_conn
-from utils.models import Feature, FeatureCollection
+from gqcore.utils.db.conn import get_conn
+from gqcore.utils.models import Feature, FeatureCollection
 
 
 def insert_feature_collection(feature_collection: FeatureCollection) -> None:

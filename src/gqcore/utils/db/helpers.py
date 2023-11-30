@@ -4,8 +4,8 @@ from psycopg import Cursor
 from psycopg.types.json import Jsonb
 from typing import Dict
 
-from utils.db.conn import get_conn
-from utils.models import ExtractTask, DatasetResource, ProcessingOption
+from gqcore.utils.db.conn import get_conn
+from gqcore.utils.models import ExtractTask, DatasetResource, ProcessingOption
 
 
 def get_dataset_by_name(name: str) -> dict:

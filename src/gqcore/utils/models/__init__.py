@@ -1,1 +1,1 @@
-from utils.models.models import *
+from gqcore.utils.models.models import *
