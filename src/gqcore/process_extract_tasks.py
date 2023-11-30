@@ -1,16 +1,15 @@
 import builtins
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
+from multiprocessing import Pool
+from contextlib import ExitStack
 
 import utils.processors
 from utils.db.extract_task_processing import (ExtractData, LockTask,
-                                              get_mappings)
+                                              get_mappings, ExtractTaskToRun)
 
 
-def run_op(feat, data, func, **kwargs):
-    results = func(feat, data, **kwargs)
-    return results
 
 
 def get_func(op):
@@ -21,52 +20,61 @@ def get_func(op):
         raise ValueError(f"Operation {op} not supported.")
     return func
 
+def run_task(func, feat, data, **op_kwargs) -> Iterator[ExtractData]:
+    result = func(feat, data, **kwargs)
 
-def run_extract():
-    """
-    Main function to run an extraction of a dataset to a feature
-    Contains the following steps:
-    - get an extract task
-    - prepare task components
-    - send task to function to run necessary operation
-    - receive and prepare results
-    - export results
-    """
+    for method, val in result:
+        yield ExtractData(
+            id=task.data.id,
+            name=method,
+            value=val,
+        )
 
-    # get a task, locked just for us!
-    with LockTask() as task:
+
+def prepare_task(data: ExtractTaskToRun) -> Iterator[ExtractData] :
+    path = Path(data.dataset_path) / data.resource_path
+    func = get_func(data.po_func)
+    op_kwargs = {"stat": data.po_short_name}
+    if data.mappings:
+        op_kwargs["category_map"] = {i["map_val"]: i["map_name"] for i in data.mappings}
+
+    return [r for r in run_task(func, task.data.feature, path, **op_kwargs)]
+
+
+def task_generator() -> Iterator[LockTask]:
+    with LockTask() as task:    
         if task.found_task():
-            path = Path(task.data.dataset_path) / task.data.resource_path
-            func = get_func(task.data.po_func)
-            op_kwargs = {"stat": task.data.po_short_name}
+            yield task
+        else:
+            raise StopIteration("No available tasks in queue.")
+    
 
-            # TODO: I'd prefer if get_mappings was done internally by LockTask,
-            #       and exposed within ExtractTaskToRun
-            if task.data.mapped_dataset:
-                map = get_mappings(task.data.dataset_id)
-                op_kwargs["category_map"] = {i["map_val"]: i["map_name"] for i in map}
+def process_tasks_sequentially() -> None:
+    for task in task_generator():
+        for result in process_task(task):
+            task.submit_result(result)
 
-            result = run_op(task.data.feature, path, func, **op_kwargs)
 
-            for method, val in result:
-                # FIXME: the following (commented) line doesn't need to exist.
-                #        At the end of the day, it should be Postgres that
-                #        checks result type on insert and raise an error if
-                #        there was a bad insertion. At the very least, our
-                #        context manager should check for us.
-                # val = getattr(builtins, po["result_type"])(val)
+"""
+def process_tasks_concurrently(max_workers: int=5) -> None:
+    with Pool(processes=max_workers) as pool:
+        # add max_size limit to the queue?
+        breakpoint()
+        with ExitStack() as stack:
+            for task in task_generator():
+                # push task's __exit__ function onto ExitStack
+                stack.push(task)
 
-                result = ExtractData(
-                    id=task.data.id,
-                    name=method,
-                    value=val,
-                )
+                # 
 
-                # submit our ExtractData object for insertion
-                task.submit_result(result)
-            else:
-                Warning("No available tasks to complete!")
-
+            
+            # this doesn't work, unfortunately.
+            # I think I need to find a new approach to generating
+            # available tasks, and figuring out when to lock them
+            # in a multiprocessing context.
+            pool.imap(process_task, task_generator(), chunksize=1)
+ 
+"""
 
 if __name__ == "__main__":
-    run_extract()
+    process_tasks_sequentially()

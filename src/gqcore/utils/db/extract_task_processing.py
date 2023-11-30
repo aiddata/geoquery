@@ -207,6 +207,7 @@ class LockTask:
                         WHERE id = %s
                     """
                     cur.execute(mark_as_error_query, (self.data.id,))
+                    raise exc_type(exc_value).with_traceback(traceback)
 
         # commit our changes, including all extract data
         # insertions and marking as complete
