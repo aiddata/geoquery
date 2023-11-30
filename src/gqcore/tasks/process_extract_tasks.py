@@ -2,18 +2,20 @@ import builtins
 from contextlib import ExitStack
 from datetime import datetime
 from multiprocessing import Pool
+from multiprocessing.pool import AsyncResult
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, Tuple
+from time import sleep
+from typing import Any, Callable, Dict, Iterator, List, Tuple
 
 from shapely import Geometry
+
+import gqcore.utils.processors
 from gqcore.utils.db.extract_task_processing import (
     ExtractData,
     ExtractTaskToRun,
     LockTask,
     get_mappings,
 )
-
-import gqcore.utils.processors
 
 
 def get_func(op: str) -> Callable:
@@ -27,15 +29,17 @@ def get_func(op: str) -> Callable:
 
 def run_task(
     func: Callable, task_id: int, feat: Geometry, data: Any, op_kwargs
-) -> Iterator[ExtractData]:
+) -> List[ExtractData]:
     result = func(feat, data, **op_kwargs)
 
-    for method, val in result:
-        yield ExtractData(
+    return [
+        ExtractData(
             id=task_id,
             name=method,
             value=val,
         )
+        for method, val in result
+    ]
 
 
 def prepare_task(data: ExtractTaskToRun) -> Tuple[Callable, int, Geometry, Any, Dict]:
@@ -62,26 +66,44 @@ def process_tasks_sequentially() -> None:
             task.submit_result(result)
 
 
-"""
-def process_tasks_concurrently(max_workers: int=5) -> None:
+def process_tasks_concurrently(max_workers: int = 5) -> None:
     with Pool(processes=max_workers) as pool:
-        # add max_size limit to the queue?
-        breakpoint()
         with ExitStack() as stack:
-            for task in task_generator():
-                # push task's __exit__ function onto ExitStack
-                stack.push(task)
+            task_results: List[Tuple[LockTask, AsyncResult]] = []
+            while True:
+                # submit any completed results
+                for i, task_result in enumerate(task_results):
+                    if task_result[1].ready():
+                        task, results = task_results.pop(i)
+                        for result in results.get():
+                            task.submit_result(result)
 
-                #
+                # if queued tasks have completed, submit their results
+                # if the queue needs new tasks, add one
+                if pool._taskqueue.empty():
+                    try:
+                        # is there another task available?
+                        task = next(task_generator())
+                        # have our ExitStack exit the task context later
+                        stack.push(task)
+                    except StopIteration:
+                        # there was not another task available
+                        pass
+                    else:
+                        # there was another task available
+                        run_task_args = prepare_task(task.data)
+                        # submit task to pool
+                        results_future = pool.apply_async(run_task, run_task_args)
+                        # add task and its future to task_results
+                        task_results.append((task, results_future))
 
+                # are there no result futures in our list anymore?
+                # this means there is nothing more to do
+                if len(task_results) == 0:
+                    break
 
-            # this doesn't work, unfortunately.
-            # I think I need to find a new approach to generating
-            # available tasks, and figuring out when to lock them
-            # in a multiprocessing context.
-            pool.imap(process_task, task_generator(), chunksize=1)
+                sleep(0.5)
 
-"""
 
 if __name__ == "__main__":
-    process_tasks_sequentially()
+    process_tasks_concurrently()
