@@ -5,6 +5,8 @@ Development of source code for an updated version of [GeoQuery](https://geoquery
 The database [schema](schema.aml) can be loaded using the free web based databse exploration tool [Azimutt](https://azimutt.app/).
 
 
+To install base geoquery files as package (run from repo root):
+`pip install -e .`
 
 To start postgis:
 `podman run --name geoquery-postgis -p 5432:5432 -e POSTGRES_PASSWORD=mysecretpassword -d docker.io/postgis/postgis:16-3.4-alpine`
