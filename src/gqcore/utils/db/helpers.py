@@ -163,7 +163,7 @@ def get_processing_options_by_dataset(dataset_id: int) -> list:
 
 
 def _get_processing_options_by_dataset(cur: Cursor, dataset_id: int) -> list:
-    resource_query = "SELECT * from processing_options WHERE dataset_id = %s"
+    resource_query = "SELECT * from processing_options WHERE dataset_id = %s AND active = True"
     cur.execute(resource_query, (dataset_id,))
     po_info = cur.fetchall()
     return po_info
