@@ -1,18 +1,22 @@
 import builtins
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
-from multiprocessing import Pool
 from contextlib import ExitStack
+from datetime import datetime
+from multiprocessing import Pool
+from pathlib import Path
+from typing import Any, Callable, Dict, Iterator, Tuple
+
+from shapely import Geometry
+from utils.db.extract_task_processing import (
+    ExtractData,
+    ExtractTaskToRun,
+    LockTask,
+    get_mappings,
+)
 
 import utils.processors
-from utils.db.extract_task_processing import (ExtractData, LockTask,
-                                              get_mappings, ExtractTaskToRun)
 
 
-
-
-def get_func(op):
+def get_func(op: str) -> Callable:
     """Get appropriate function for operation."""
     if hasattr(utils.processors, op):
         func = getattr(utils.processors, op)
@@ -20,38 +24,41 @@ def get_func(op):
         raise ValueError(f"Operation {op} not supported.")
     return func
 
-def run_task(func, feat, data, **op_kwargs) -> Iterator[ExtractData]:
-    result = func(feat, data, **kwargs)
+
+def run_task(
+    func: Callable, task_id: int, feat: Geometry, data: Any, op_kwargs
+) -> Iterator[ExtractData]:
+    result = func(feat, data, **op_kwargs)
 
     for method, val in result:
         yield ExtractData(
-            id=task.data.id,
+            id=task_id,
             name=method,
             value=val,
         )
 
 
-def prepare_task(data: ExtractTaskToRun) -> Iterator[ExtractData] :
+def prepare_task(data: ExtractTaskToRun) -> Tuple[Callable, int, Geometry, Any, Dict]:
     path = Path(data.dataset_path) / data.resource_path
     func = get_func(data.po_func)
     op_kwargs = {"stat": data.po_short_name}
     if data.mappings:
         op_kwargs["category_map"] = {i["map_val"]: i["map_name"] for i in data.mappings}
 
-    return [r for r in run_task(func, task.data.feature, path, **op_kwargs)]
+    return (func, data.id, data.feature, path, op_kwargs)
 
 
 def task_generator() -> Iterator[LockTask]:
-    with LockTask() as task:    
+    with LockTask() as task:
         if task.found_task():
             yield task
         else:
             raise StopIteration("No available tasks in queue.")
-    
+
 
 def process_tasks_sequentially() -> None:
     for task in task_generator():
-        for result in process_task(task):
+        for result in run_task(*prepare_task(task.data)):
             task.submit_result(result)
 
 
