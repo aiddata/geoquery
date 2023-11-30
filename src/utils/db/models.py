@@ -9,6 +9,7 @@ from pydantic import ValidationInfo, field_validator
 
 import utils.processors
 
+
 class BaseModel(PydanticBaseModel):
     class Config:
         arbitrary_types_allowed = True
@@ -54,7 +55,6 @@ class FeatureCollection(BaseModel):
     group_title: Optional[str] = None
     group_class: Optional[str] = None
     group_level: Optional[int] = None
-
 
 
 class DatasetResource(BaseModel):
