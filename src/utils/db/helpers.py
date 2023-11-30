@@ -463,6 +463,9 @@ def _update_dataset(cur: Cursor, params: dict) -> int:
     """
 
     cur.execute(query, params)
-
-    dataset_id = cur.fetchone()["id"]
+    result = cur.fetchone()
+    if result:
+        dataset_id = result["id"]
+    else:
+        dataset_id = None
     return dataset_id
