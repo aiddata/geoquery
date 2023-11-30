@@ -18,16 +18,19 @@ Then to stop/start/restart (replace restart with desired command):
 `podman restart <ID>`
 
 To init db (overwrite is optional):
-`python src/init_db.py --overwrite`
+`python src/gqcore/tasks/init_db.py --overwrite`
 
 To add feature data:
-`python src/prepare_gB.py`
+`python ingest/prepare_gB.py`
 
 To add datasets:
-`python src/ingest_dataset.py`
+`python ingest/ingest_dataset.py`
 
 To build coverage checks between features and datasets:
-`python src/build_coverage_records.py`
+`python src/gqcore/tasks/build_coverage_records.py`
 
 To create extract tasks:
-`python src/build_extract_tasks.py`
+`python src/gqcore/tasks/build_extract_tasks.py`
+
+To process extract tasks:
+`python src/gqcore/tasks/process_extract_tasks.py`
