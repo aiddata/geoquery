@@ -78,3 +78,22 @@ with get_conn() as conn:
         print('processing_options', len(z), z)
         w = cur.execute("""SELECT * FROM dataset_resources""").fetchall()
         print('dataset_resources', len(w), w)
+
+
+
+
+from gqcore.utils.db.conn import get_conn
+with get_conn() as conn:
+    with conn.cursor() as cur:
+        cur.execute("TRUNCATE TABLE requests CASCADE;")
+        cur.execute("TRUNCATE TABLE request_map CASCADE;")
+
+
+
+from gqcore.utils.db.conn import get_conn
+with get_conn() as conn:
+    with conn.cursor() as cur:
+        za = cur.execute("""SELECT * FROM requests""").fetchall()
+        zb = cur.execute("""SELECT * FROM request_map""").fetchall()
+        print('requests', len(za), za)
+        print('request_map', len(zb), zb)
