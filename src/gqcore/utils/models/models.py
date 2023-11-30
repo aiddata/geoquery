@@ -77,9 +77,9 @@ class ProcessingOption(BaseModel):
     @field_validator("function")
     @classmethod
     def validate_function(cls, f: str) -> str:
-        if not hasattr(utils.processors, f) and callable(getattr(utils.processors, f)):
+        if not hasattr(gqcore.utils.processors, f) and callable(getattr(gqcore.utils.processors, f)):
             raise ValueError(
-                "function must be a callable from the utils.processors module"
+                "function must be a callable from the gqcore.utils.processors module"
             )
         return f
 
