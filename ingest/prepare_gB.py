@@ -7,8 +7,8 @@ import requests
 import geopandas as gpd
 from psycopg.types.json import Jsonb, Json
 
-from utils.db import features as futils
-from ingest_feature_collection import ingest_feature_collection
+from gqcore.utils.db import features as futils
+from gqcore.ingest_feature_collection import ingest_feature_collection
 
 dl_iso3_list = ["AFG"]
 
