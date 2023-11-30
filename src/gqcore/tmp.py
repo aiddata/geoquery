@@ -18,7 +18,7 @@ with get_conn() as conn:
         cur.execute("TRUNCATE TABLE extract_data;")
 
 
-from gqcore.process_extract_tasks import run_extract
+from gqcore.tasks.process_extract_tasks import run_extract
 run_extract()
 
 
@@ -30,9 +30,17 @@ with get_conn() as conn:
         print('tasks', len(a), a)
         print('---')
         print('data', len(b), b)
+        c = cur.execute("""SELECT * FROM extract_tasks WHERE status != 1""").fetchall()
 
 
-
+# from gqcore.utils.db.conn import get_conn
+# with get_conn() as conn:
+#     with conn.cursor() as cur:
+#         cur.execute("""
+#         UPDATE extract_tasks
+#         SET status = 0
+#         WHERE id IN (SELECT id FROM extract_tasks WHERE status = 1 LIMIT 3)
+#         """)
 
 
 from gqcore.utils.db.conn import get_conn

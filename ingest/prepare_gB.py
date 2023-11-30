@@ -112,4 +112,4 @@ for iso3 in set(gb_iso3_list).intersection(set(dl_iso3_list)):
         # futils.insert_feature_collection(FC)
         # # futils.update_feature_collection(FC)
 
-        ingest_feature_collection(json_data=adm_meta, update=True)
+        ingest_feature_collection(json_data=adm_meta, update=False)
