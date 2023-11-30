@@ -1,4 +1,3 @@
-from typing import List
 
 from psycopg import Cursor
 from psycopg.types.json import Jsonb

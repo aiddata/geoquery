@@ -1,6 +1,4 @@
-import calendar
 import os
-import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -8,13 +6,9 @@ from dateutil.relativedelta import relativedelta
 
 import rasterio
 import shapely
-from psycopg import Cursor
 from psycopg.types.json import Json, Jsonb
-from pydantic import BaseModel, Json, ValidationInfo, field_validator
 from shapely.geometry import box
-from shapely.geometry.polygon import Polygon
 
-import gqcore.utils.processors
 from gqcore.utils.db.conn import get_conn
 from gqcore.utils.db.helpers import _insert_dataset_resource, _insert_processing_option, _insert_mappings, _get_dataset_by_name, _deactivate_processing_options, _update_dataset_from_resources, _insert_dataset, _update_dataset
 from gqcore.utils.models import Dataset, DatasetResource, ProcessingOption

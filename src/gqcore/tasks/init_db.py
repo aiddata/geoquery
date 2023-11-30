@@ -1,10 +1,7 @@
 import click
-import psycopg
 from psycopg.errors import DuplicateTable
 
 from gqcore.utils.db.conn import get_conn
-
-
 
 
 def create_table_feature_collections(cur):

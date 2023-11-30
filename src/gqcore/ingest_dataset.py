@@ -21,9 +21,3 @@ def ingest_dataset(json_path: str = None, json_data: dict = None, update: bool =
         dutils.update_dataset(DS)
     else:
         dutils.insert_dataset(DS)
-
-
-if __name__ == "__main__":
-    # test dataset
-    ingest_dataset(json_path="../data/esa_lc/raster_ingest.json", update=True)
-    # ingest_dataset(json_data=json.loads(Path("../data/esa_lc/raster_ingest.json").read_text()), update=True)
