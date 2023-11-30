@@ -250,7 +250,9 @@ def update_dataset(dataset: Dataset) -> None:
         with conn.cursor() as cur:
 
             dataset_id = _update_dataset(cur, params)
-
+            if dataset_id is None:
+                raise ValueError("Dataset not found")
+            
             if params["mapped"]:
                 _insert_mappings(cur, dataset_id, params["mappings"])
 
