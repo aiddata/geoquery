@@ -30,6 +30,20 @@ def pg(text, pg_type):
         raise Exception("invalid paragraph type")
 
 
+def get_request(request_id):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT * FROM requests WHERE id = %s""", (request_id,))
+            return cur.fetchone()
+
+# TODO: this needs to be updated to reflect how meta attributes are used
+def get_dataset_meta(dataset_name):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT * FROM datasets WHERE name = %s""", (dataset_name,))
+            return cur.fetchone()
+
+
 class DocBuilder():
 
     def __init__(self, request_id, request_df, output_path):
@@ -44,8 +58,8 @@ class DocBuilder():
 
         self.download_server = self.config["other"]["request_url"]
 
-        # TODO: main thing that gets referenced in this class
-        self.request = self.request_df
+        self.request = get_request(self.request_id)
+        # TODO: format request / update usage of request
 
         self.doc = 0
 
@@ -55,14 +69,6 @@ class DocBuilder():
         self.styles = getSampleStyleSheet()
         self.styles.add(ParagraphStyle(name='Justify', alignment=TA_JUSTIFY))
         self.styles.add(ParagraphStyle(name='Center', alignment=TA_CENTER))
-
-
-    # TODO: this needs to be updated to reflect how meta attributes are used
-    def get_dataset_meta(self, dataset_name):
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""SELECT * FROM datasets WHERE name = %s""", (dataset_name,))
-                return cur.fetchone()
 
 
     def time_str(self, timestamp=None):
@@ -136,11 +142,11 @@ class DocBuilder():
 
         data = [
             ['Request Name', self.request['custom_name'].encode('utf8', 'replace')],
-            ['Request Id', str(self.request['_id'])],
-            ['Email', self.request['email']],
+            ['Request Id', str(self.request_id)],
+            ['Email', self.request['contact']],
             ['Generated on', self.time_str()],
             ['Download Link', '<a href="http://{0}/query/#!/status/{1}">{0}/query/#!/status/{1}</a>'.format(
-                self.download_server, self.request['_id'])]
+                self.download_server, self.request_id)]
         ]
 
         data = [[i[0], pg(i[1], 1)] for i in data]
@@ -163,11 +169,10 @@ class DocBuilder():
         self.Story.append(Spacer(1, 0.1*inch))
 
         data = [
-            [self.request['stage'][0]['name'], self.time_str(self.request['stage'][0]['time'])],
-            [self.request['stage'][1]['name'], self.time_str(self.request['stage'][1]['time'])],
-            [self.request['stage'][2]['name'], self.time_str(self.request['stage'][2]['time'])],
-            [self.request['stage'][3]['name'], self.time_str(int(time.time()))]
-            # ['complete', self.time_str(self.request['stage'][3]['time'])]
+            ["submit_time", self.time_str(self.request['submit_time'])],
+            ["prepare_time", self.time_str(self.request['prepare_time'])],
+            ["process_time", self.time_str(self.request['process_time'])],
+            ["complete_time", self.time_str(int(time.time()))]
         ]
 
         data = [[i[0], pg(i[1], 1)] for i in data]
@@ -215,7 +220,7 @@ class DocBuilder():
     def build_meta(self, name, item_type, dset):
 
         # get metadata for dataset from asdf->data collection
-        meta = self.get_dataset_meta(name)
+        meta = get_dataset_meta(name)
 
         if meta is None:
             msg = ('Could not lookup dataset ({0}, {1}) for '
