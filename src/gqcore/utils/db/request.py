@@ -167,8 +167,23 @@ def process_completed_requests():
 
         build_request_zip(request_id, output_dir)
 
+        # update with complete time
+        update_request_time(request_id, "complete_time")
+
         update_request_status(request_id, 1)
+
         notify_completed(request_id, request_contact)
+
+
+def update_request_time(request_id, time_type):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            update_time_query = """
+                UPDATE requests
+                SET {0} = %s
+                WHERE id = %s
+            """.format(time_type)
+            cur.execute(update_time_query, (datetime.now(), request_id))
 
 
 def get_next_completed_request():
