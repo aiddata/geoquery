@@ -14,6 +14,7 @@ from gqcore.utils.db.extract_task_processing import (
     ExtractData,
     ExtractTaskToRun,
     LockTask,
+    NoTaskAvailableError,
     get_mappings,
 )
 
@@ -53,11 +54,11 @@ def prepare_task(data: ExtractTaskToRun) -> Tuple[Callable, int, Geometry, Any, 
 
 
 def task_generator() -> Iterator[LockTask]:
-    with LockTask() as task:
-        if task.found_task():
+    try:
+        with LockTask() as task:
             yield task
-        else:
-            return
+    except NoTaskAvailableError:
+        return
 
 
 def process_tasks_sequentially() -> None:

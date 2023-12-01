@@ -101,9 +101,13 @@ def get_mappings(dataset_id):
     return mappings
 
 
+class NoTaskAvailableError(RuntimeError):
+    pass
+
+
 class LockTask:
     conn: Connection
-    data: Optional[ExtractTaskToRun]
+    data: ExtractTaskToRun
     results: List[ExtractData] = []
 
     def __enter__(self) -> Self:
@@ -161,7 +165,7 @@ class LockTask:
             task_result = task.fetchone()
             if task_result is None:
                 # there were no unlocked tasks!
-                self.data = None
+                raise NoTaskAvailableError
             else:
                 if task_result.mapped_dataset:
                     task_result.mappings = get_mappings(task_result.dataset_id)
