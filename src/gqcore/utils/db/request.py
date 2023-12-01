@@ -121,6 +121,7 @@ def process_new_requests():
             break
         request_id = request_info["request_id"]
         request_contact = request_info["contact"]
+        update_request_time(request_id, "prepare_time")
         update_request_status(request_id, 0)
         notify_received(request_id, request_contact)
 
@@ -149,6 +150,8 @@ def process_completed_requests():
         request_id, request_contact, request_df = get_next_completed_request()
         if not request_df:
             break
+
+        update_request_time(request_id, "process_time")
 
         output_df = build_output_df(request_df)
 
