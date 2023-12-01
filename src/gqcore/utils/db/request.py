@@ -14,7 +14,7 @@ import geopandas as gpd
 from gqcore.utils.db.conn import get_conn
 from gqcore.utils.email import GeoEmail
 from gqcore import get_config
-from gqcore.utils.geoquery_documentation import DocBuilder
+from gqcore.utils.documentation import DocBuilder
 
 
 class Request(BaseModel):
@@ -159,7 +159,7 @@ def process_completed_requests():
         output_df.to_csv(output_path, index=False)
 
         doc_output =  output_dir / "documentation.pdf"
-        build_request_documentation(request_id, request_df, doc_output)
+        # build_request_documentation(request_id, request_df, doc_output)
 
         fc_gdf = build_feature_collection(request_df[["geom", "geom_id"]].drop_duplicates("geom_id").copy())
         for geomtype in fc_gdf.geom_type.unique():
