@@ -1,0 +1,23 @@
+[main]
+active = 1
+name = "test"
+data_root = "/path/to/geoquery-update"
+
+[database]
+type = "postgresql"
+address = "localhost"
+port = "1234"
+user = "postgres"
+password = "your_postgres_password"
+
+[other]
+devtag = ""
+request_url = "geoquery.org"
+
+[email]
+reply_to = "AidData GeoQuery <example@gmail.com>"
+sender = "noreply@gmail.com"
+password = "your_email_password"
+server = "smtp.gmail.com"
+port = 587
+backup_server = "localhost"

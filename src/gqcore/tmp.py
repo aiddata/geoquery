@@ -31,6 +31,7 @@ with get_conn() as conn:
         print('---')
         print('data', len(b), b)
         c = cur.execute("""SELECT * FROM extract_tasks WHERE status != 1""").fetchall()
+        d = cur.execute("""SELECT * FROM extract_tasks WHERE status = 1""").fetchall()
 
 
 # from gqcore.utils.db.conn import get_conn
@@ -97,3 +98,9 @@ with get_conn() as conn:
         zb = cur.execute("""SELECT * FROM request_map""").fetchall()
         print('requests', len(za), za)
         print('request_map', len(zb), zb)
+
+
+from gqcore.utils.db.conn import get_conn
+with get_conn() as conn:
+    with conn.cursor() as cur:
+        cur.execute("""UPDATE extract_tasks SET status = 0 WHERE id = 19 """)
