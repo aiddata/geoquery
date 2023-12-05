@@ -235,7 +235,6 @@ class DocBuilder():
         data = [
             ['Title', meta['title']],
             ['Name', meta['name']],
-            ['Version', str(meta['version'])],
         ]
 
 
