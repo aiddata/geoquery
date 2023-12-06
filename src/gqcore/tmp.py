@@ -100,6 +100,19 @@ with get_conn() as conn:
         print('request_map', len(zb), zb)
 
 
+
+from gqcore.utils.db.conn import get_conn
+with get_conn() as conn:
+    with conn.cursor() as cur:
+        query = """
+        UPDATE requests
+        SET    status = 0
+        WHERE  status = 1;
+        """
+        cur.execute(query)
+
+
+
 from gqcore.utils.db.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
