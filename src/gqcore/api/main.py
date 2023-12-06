@@ -27,7 +27,7 @@ async def root():
 async def get_datasets():
     with get_conn() as conn:
         with conn.cursor() as cur:
-            x = cur.execute("""SELECT * FROM datasets WHERE active = 1 AND public = 1""").fetchall()
+            x = cur.execute("""SELECT * FROM datasets WHERE active = true AND public = true""").fetchall()
             dataset_list = [{"id": i["id"], "name": i["name"], "title": i["title"], "description": i["description"]} for i in x]
             return dataset_list
 
@@ -35,7 +35,7 @@ async def get_datasets():
 async def get_dataset(dataset_id: int):
     with get_conn() as conn:
         with conn.cursor() as cur:
-            x = cur.execute("""SELECT * FROM datasets WHERE active = 1 AND public = 1 AND id = %s""", (dataset_id,)).fetchone()
+            x = cur.execute("""SELECT * FROM datasets WHERE active = true AND public = true AND id = %s""", (dataset_id,)).fetchone()
             return x
 
 @app.get("/dataset_resources/{dataset_id}")
@@ -49,7 +49,7 @@ async def get_dataset_resources(dataset_id: int):
 async def get_feature_collections():
     with get_conn() as conn:
         with conn.cursor() as cur:
-            x = cur.execute("""SELECT * FROM feature_collections WHERE active = 1 AND public = 1""").fetchall()
+            x = cur.execute("""SELECT * FROM feature_collections WHERE active = false AND public = false""").fetchall()
             feature_collection_list = [{"id": i["id"], "name": i["name"], "title": i["title"], "description": i["description"]} for i in x]
             return feature_collection_list
 
@@ -57,7 +57,7 @@ async def get_feature_collections():
 async def get_feature_collection(feature_collection_id: int):
     with get_conn() as conn:
         with conn.cursor() as cur:
-            x = cur.execute("""SELECT * FROM feature_collections WHERE active = 1 AND public = 1 AND id = %s""", (feature_collection_id,)).fetchone()
+            x = cur.execute("""SELECT * FROM feature_collections WHERE active = true AND public = true AND id = %s""", (feature_collection_id,)).fetchone()
             return x
 
 @app.get("/feat_map/{fc_id}")
