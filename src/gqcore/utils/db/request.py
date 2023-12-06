@@ -417,22 +417,45 @@ def notify_completed(request_id, request_contact):
 
 
 
-# if __name__ == "__main__":
-#     request = Request(**{
-#         "source": "script",
-#         "contact": "sgoodman@aiddata.wm.edu",
-#         "custom_name": "test1",
-#         "info": "Nothing1",
-#         "data": [[1, 1, 1], [1, 2, 1], [1, 3, 1], [1, 4, 1],
-#                  [2, 1, 1], [2, 2, 1], [2, 3, 1], [2, 4, 1]],
-#     })
-#     insert_request(request)
+if __name__ == "__main__":
+    # request = Request(**{
+    #     "source": "script",
+    #     "contact": "sgoodman@aiddata.wm.edu",
+    #     "custom_name": "test1",
+    #     "info": "Nothing1",
+    #     "data": [[1, 1, 1], [1, 2, 1], [1, 3, 1], [1, 4, 1],
+    #              [2, 1, 1], [2, 2, 1], [2, 3, 1], [2, 4, 1]],
+    # })
+    # insert_request(request)
 
-#     request = Request(**{
-#         "source": "script",
-#         "contact": "sgoodman@aiddata.wm.edu",
-#         "custom_name": "test2",
-#         "info": "Nothing2",
-#         "data": [[1, 11, 1], [1, 12, 1]],
-#     })
-#     insert_request(request)
+    # request = Request(**{
+    #     "source": "script",
+    #     "contact": "sgoodman@aiddata.wm.edu",
+    #     "custom_name": "test2",
+    #     "info": "Nothing2",
+    #     "data": [[1, 11, 1], [1, 12, 1]],
+    # })
+    # insert_request(request)
+
+    # from gqcore.utils.db.conn import get_conn
+    # with get_conn() as conn:
+    #     with conn.cursor() as cur:
+    #         cur.execute("""UPDATE extract_tasks SET status = 0 WHERE id = 19 """)
+
+    config = get_config()
+    data_root = Path(config["main"]["data_root"])
+
+    request_id, request_contact, request_df = get_next_completed_request()
+
+    update_request_time(request_id, "process_time")
+
+    output_df = build_output_df(request_df)
+
+    output_dir = data_root / "data" / "outputs" / str(request_id)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    output_path = output_dir / "data.csv"
+    output_df.to_csv(output_path, index=False)
+
+    doc_output =  output_dir / "documentation.pdf"
+    build_request_documentation(request_id, request_df, doc_output)

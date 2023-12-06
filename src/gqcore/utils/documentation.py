@@ -11,6 +11,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER
+import shapely
 
 from gqcore.utils.db.conn import get_conn
 from gqcore import get_config
@@ -30,6 +31,22 @@ def pg(text, pg_type):
         raise Exception("invalid paragraph type")
 
 
+def enforce_max_word_length(string, max_chars=80):
+    raw_word_list = string.split(" ")
+    short_word_list = []
+    for word in raw_word_list:
+        if len(word) > max_chars:
+            split_word = [
+                word[i:i+max_chars]
+                for i in range(0, len(word), max_chars)
+            ]
+            fixed_word = "\n".join(split_word)
+        else:
+            fixed_word = word
+        short_word_list += [fixed_word]
+    return " ".join(short_word_list)
+
+
 def get_request(request_id):
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -44,9 +61,90 @@ def get_dataset_meta(dataset_name):
             cur.execute("""SELECT * FROM datasets WHERE name = %s""", (dataset_name,))
             dataset = cur.fetchone()
 
+            if dataset is None:
+                return None, None
+
             cur.execute("""SELECT * FROM dataset_resources WHERE dataset_id = %s""", (dataset['id'],))
             dataset_resources = cur.fetchall()
             return dataset, dataset_resources
+
+
+def get_dummy_request():
+    import pandas as pd
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            id_query = """
+            SELECT *
+            FROM (
+                SELECT
+                    requests.id as request_id,
+                    sum(CASE WHEN (extract_tasks.status = 1) THEN 1 ELSE 0 END) AS completed,
+                    count(extract_tasks.status) AS total
+                FROM requests
+                JOIN request_map
+                    ON requests.id = request_map.req_id
+                JOIN extract_tasks
+                    ON request_map.task_id = extract_tasks.id
+                WHERE requests.id = 1
+                GROUP BY requests.id
+            )
+            JOIN requests ON request_id = requests.id
+            JOIN request_map ON requests.id = request_map.req_id
+            JOIN extract_tasks ON request_map.task_id = extract_tasks.id
+            WHERE completed = total
+            ORDER BY requests.priority DESC, requests.submit_time ASC
+            LIMIT 1
+            """
+            cur.execute(id_query)
+            result = cur.fetchone()
+            if not result:
+                return None, None, None
+            request_id = result["request_id"]
+            request_contact = result["contact"]
+            data_query = """
+                SELECT
+                    extract_tasks.fm_id as fm_id,
+                    extract_tasks.resource_id as resource_id,
+                    extract_tasks.po_id as po_id,
+                    extract_data.name as data_name,
+                    extract_data.data_column as data_column,
+                    extract_data.int_value as int_value,
+                    extract_data.str_value as str_value,
+                    extract_data.float_value as float_value,
+                    feat_map.name as name,
+                    feat_map.attr as attr,
+                    features.shape as geom,
+                    features.id as geom_id,
+                    dataset_resources.name as resource_name,
+                    dataset_resources.label as resource_label,
+                    datasets.name as dataset_name,
+                    processing_options.short_name as po_name,
+                    processing_options.description as po_description,
+                    processing_options.result_type as po_result_type
+                FROM (
+                    SELECT * FROM request_map
+                    WHERE req_id = %s
+                )
+                AS request_map
+                LEFT OUTER JOIN extract_tasks
+                    ON task_id = extract_tasks.id
+                LEFT OUTER JOIN extract_data
+                    ON task_id = extract_data.id
+                LEFT OUTER JOIN feat_map
+                    ON extract_tasks.fm_id = feat_map.id
+                LEFT OUTER JOIN features
+                    ON feat_map.geom_id = features.id
+                LEFT OUTER JOIN dataset_resources
+                    ON extract_tasks.resource_id = dataset_resources.id
+                LEFT OUTER JOIN datasets
+                    ON dataset_resources.dataset_id = datasets.id
+                LEFT OUTER JOIN processing_options
+                    ON extract_tasks.po_id = processing_options.id
+            """
+            cur.execute(data_query, (request_id,))
+            request_info = cur.fetchall()
+            request_df = pd.DataFrame(request_info)
+            return request_id, request_contact, request_df
 
 
 class DocBuilder():
@@ -57,6 +155,13 @@ class DocBuilder():
 
         self.assets_dir = Path(self.config["main"]["data_root"]) / "src/gqcore/assets"
 
+        request_id, request_contact, request_df = get_dummy_request()
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT * FROM requests WHERE id = %s""", (request_id,))
+                request = cur.fetchone()
+
+        self.request = request
         self.request_id = str(request_id)
         self.request_df = request_df
         self.output_path = str(output_path)
@@ -93,8 +198,6 @@ class DocBuilder():
         rid = self.request_id
         print('build_doc: ' + rid)
 
-        # try:
-
         self.doc = SimpleDocTemplate(self.output_path, pagesize=letter)
 
         # build doc call all functions
@@ -108,7 +211,7 @@ class DocBuilder():
         self.add_cite_and_contents()
         self.Story.append(PageBreak())
 
-        # self.add_meta()
+        self.add_meta()
         self.Story.append(PageBreak())
 
         self.add_notes()
@@ -119,8 +222,6 @@ class DocBuilder():
         self.output_doc()
 
         return True
-        # except:
-        #     return False
 
 
     # write the document to disk
@@ -235,98 +336,35 @@ class DocBuilder():
                 self.Story.append(p)
 
 
+# =============================================================================
+# =============================================================================
+# =============================================================================
+# =============================================================================
+# =============================================================================
 
-
-
-# =============================================================================
-# =============================================================================
-# =============================================================================
-# =============================================================================
-# =============================================================================
 
     def add_meta(self):
-        self.meta_log = []
-        pass
-
-    def build_base_meta(self):
-        pass
-
-    def build_fc_meta(self):
-        pass
-
-
-
-    def build_dataset_meta(self, dset):
-
-        # if dset['dataset'] not in meta_log:
-        self.meta_log.append(dset['dataset'])
-
-        ptext = '<font size=10><b>Selection {0} - {1}</b></font>'.format(
-            len(self.meta_log), dset['custom_name'].encode('utf8', 'replace'))
-
-        self.Story.append(Paragraph(ptext, self.styles['Normal']))
-        self.Story.append(Spacer(1, 0.05*inch))
-
-        # build dataset meta table array
-        data = self.build_meta(dset['dataset'], 'release', dset)
-
-        data = [[i[0], pg(i[1], 2)] for i in data]
-        t = Table(data)
-        t.setStyle(TableStyle([
-            ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
-            ('BOX', (0,0), (-1,-1), 0.25, colors.black)
-        ]))
-
-        self.Story.append(KeepTogether(t))
-        self.Story.append(Spacer(1, 0.1*inch))
-
-
-
-
-    def OLD_add_meta(self):
 
         ptext = '<b><font size=14>Meta Information</font></b>'
         self.Story.append(Paragraph(ptext, self.styles['Normal']))
         self.Story.append(Spacer(1, 0.25*inch))
 
-        # full boundary meta
-        ptext = '<font size=10><b>Boundary</b></font>'
-        self.Story.append(Paragraph(ptext, self.styles['Normal']))
-        self.Story.append(Spacer(1, 0.05*inch))
+        datasets = self.request_df["dataset_name"].unique()
 
-        # build boundary meta table array
-        data = self.build_meta(self.request['boundary']['name'], 'boundary', None)
+        self.dataset_meta_log = []
 
-        data = [[i[0], pg(i[1], 2)] for i in data]
-        t = Table(data)
-        t.setStyle(TableStyle([
-            ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
-            ('BOX', (0,0), (-1,-1), 0.25, colors.black)
-        ]))
-
-        self.Story.append(t)
-        self.Story.append(Spacer(1, 0.1*inch))
-
-
-        # full dataset meta
-
-        meta_log = []
-        for dset in self.request['release_data']:
-
-            if not dset:
-                continue
-
-            # if dset['dataset'] not in meta_log:
-            meta_log.append(dset['dataset'])
-
-            ptext = '<font size=10><b>Selection {0} - {1}</b></font>'.format(
-                len(meta_log), dset['custom_name'].encode('utf8', 'replace'))
-
-            self.Story.append(Paragraph(ptext, self.styles['Normal']))
-            self.Story.append(Spacer(1, 0.05*inch))
+        for d in datasets:
 
             # build dataset meta table array
-            data = self.build_meta(dset['dataset'], 'release', dset)
+            data, display_name = self.build_dataset_meta(d)
+
+              # if d['name'] not in dataset_meta_log:
+            self.dataset_meta_log.append(d)
+
+            ptext = '<font size=10><b>Selection {0} - {1}</b></font>'.format(
+                len(self.dataset_meta_log), display_name)
+            self.Story.append(Paragraph(ptext, self.styles['Normal']))
+            self.Story.append(Spacer(1, 0.05*inch))
 
             data = [[i[0], pg(i[1], 2)] for i in data]
             t = Table(data)
@@ -339,202 +377,97 @@ class DocBuilder():
             self.Story.append(Spacer(1, 0.1*inch))
 
 
-        for dset in self.request['raster_data']:
 
-            if not dset:
-                continue
-
-            # if dset['name'] not in meta_log:
-            meta_log.append(dset['name'])
-
-            ptext = '<font size=10><b>Selection {0} - {1}</b></font>'.format(
-                len(meta_log), dset['custom_name'].encode('utf8', 'replace'))
-            self.Story.append(Paragraph(ptext, self.styles['Normal']))
-            self.Story.append(Spacer(1, 0.05*inch))
-
-            # build dataset meta table array
-            data = self.build_meta(dset['name'], dset['type'], dset)
-
-            data = [[i[0], pg(i[1], 2)] for i in data]
-            t = Table(data)
-            t.setStyle(TableStyle([
-                ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
-                ('BOX', (0,0), (-1,-1), 0.25, colors.black)
-            ]))
-
-            self.Story.append(KeepTogether(t))
-            self.Story.append(Spacer(1, 0.1*inch))
+    def build_fc_meta(self):
+        pass
 
 
-    def OLD_build_meta(self, name, item_type, dset):
+    def build_dataset_meta(self, dataset_name):
 
-        # get metadata for dataset from asdf->data collection
-        meta = get_dataset_meta(name)
+        # get metadata for dataset
+        dataset_meta, dataset_resources = get_dataset_meta(dataset_name)
 
-        if meta is None:
-            msg = ('Could not lookup dataset ({0}, {1}) for '
-                   'build_meta').format(name, item_type)
+        if dataset_meta is None:
+            msg = f'Could not lookup dataset ({dataset_name}) for build_dataset_meta'
             raise Exception(msg)
 
-        details = "(no additional details)"
-        if "details" in meta:
-            details = meta["details"]
-
-        # build generic meta
+        # build generic dataset_meta
         data = [
-            ['Title', meta['title']],
-            ['Name', meta['name']],
+            ['Title', dataset_meta['title']],
+            ['Name', dataset_name],
         ]
 
+        request_dataset_df = self.request_df.loc[self.request_df['dataset_name'] == dataset_name]
+        request_fields = ['dataset_name', 'resource_label', 'data_name']
+        data_cols = request_dataset_df[request_fields].sort_values(by=request_fields).apply(lambda x: '.'.join(x), axis=1).unique()
 
-        if item_type == 'raster':
+        colnames_list =  data_cols
 
-            colnames_list =  [
-                '{0}.{1}.{2}'.format(dset['name'], i, j)
-                for i in [f['name'].split('_')[-1] for f in dset['files']]
-                for j in dset['options']['extract_types']
-            ]
+        colnames = ('Format: "{0}.&lt;temporal&gt;.&lt;method&gt;" <br /> '
+                    'for all combinations of &lt;temporal&gt; and &lt;method&gt; '
+                    'which can be found in the "Temporal Selection" and '
+                    '"Extract Types Selected" fields below '
+                    '({1} columns total)').format(
+                        dataset_name, len(colnames_list)
+                    )
 
-            colnames = ('Format: "{0}.&lt;temporal&gt;.&lt;method&gt;" <br /> '
-                        'for all combinations of &lt;temporal&gt; and &lt;method&gt; '
-                        'which can be found in the "Temporal Selection" and '
-                        '"Extract Types Selected" fields below '
-                        '({1} columns total)').format(
-                            dset['name'], len(colnames_list)
-                        )
+        data.append(['Column Names ', colnames])
 
-            data.append(['Column Names ', colnames])
+        temporal_raw = request_dataset_df["resource_label"].unique()
 
-            # data.append(['Temporal Type', dset['temporal_type']])
+        if any([i in temporal_raw for i in ['none', None]]):
+            temporal_str = temporal_raw
+        else:
+            temporal_int = [int(s) for s in temporal_raw]
+            temporal_sorted = sorted(temporal_int, reverse=True)
+            temporal_str = [str(ts) for ts in temporal_sorted]
 
-            temporal_raw = [f['name'].split('_')[-1] for f in dset['files']]
+        max_temporal_str_len = 25
 
-            if 'none' in temporal_raw:
-                temporal_str = temporal_raw
-            else:
-                temporal_int = [int(s) for s in temporal_raw]
-                temporal_sorted = sorted(temporal_int, reverse=True)
-                temporal_str = [str(ts) for ts in temporal_sorted]
+        temporal_str_sub = temporal_str
+        if len(temporal_str) > max_temporal_str_len:
+            temporal_str_sub = temporal_str[:max_temporal_str_len]
 
-            max_temporal_str_len = 25
-            for ix, i in enumerate(range(0, len(temporal_str), max_temporal_str_len)):
-                temporal_str_sub = temporal_str[i:i + max_temporal_str_len]
-                data.append(['Temporal Selection (' + str(ix) + ')', ', '.join(temporal_str_sub)])
+        temporal_text = ', '.join(temporal_str_sub)
+        if len(temporal_str) > max_temporal_str_len:
+            temporal_text += ', ...'
+        data.append(['Temporal Selection (' + str(len(temporal_str)) + ')', temporal_text])
 
-            # prevent issue due to missing extract_types_info field
-            for i in dset['options']['extract_types']:
-                if i not in meta['options']['extract_types_info']:
-                    meta['options']['extract_types_info'][i] = ""
+        # prevent issue due to missing extract_types_info field
 
-            data.append(['Extract Types Selected', ', '.join([
-                "{0} ({1})".format(i, meta['options']['extract_types_info'][i])
-                for i in dset['options']['extract_types']
-            ])])
-
-
-        elif item_type == 'release':
-
-            # colnames = ', '.join([
-            #     '{0}.<br />    {1}.<br />    {2}'.format(dset['dataset'], dset['hash'][0:7], i)
-            #     for i in ['sum', 'potential', 'reliability']
-            # ])
-
-            # ###
-            # if dset['dataset'].startswith(('worldbank', 'globalenvironmentfacility')):
-            #     colnames = '{0}.<br />    {1}.<br />    {2}'.format(dset['dataset'], dset['hash'][0:7], 'sum')
-            # ###
-            colnames = '{0}.<br />    {1}.<br />    {2}'.format(dset['dataset'], dset['hash'][0:7], 'sum')
-
-            data.append(['Column Names ', colnames])
-            data.append([pg('<b>Filters</b>', 1), 'hash: {0}'.format(dset['hash'])])
-
-            for f in dset['filters']:
-                try:
-                    val = ', '.join([str(i) for i in dset['filters'][f]])
-                except:
-                    val = ', '.join([i.encode('ascii', 'ignore') for i in dset['filters'][f]])
-
-                vlimit = 500
-                if len(val) > vlimit:
-                    vbreaks = int(math.ceil(len(val) / float(vlimit)))
-                    for i in range(vbreaks):
-                        vstart = i * vlimit
-                        vend = (i+1) * vlimit
-                        tmp_val = val[vstart:vend]
-                        tmp_f = f + " ({0}/{1})".format(i+1, vbreaks)
-                        data.append([tmp_f, tmp_val])
-                else:
-                    data.append([f, val])
-
-
+        unique_po = request_dataset_df.groupby(['po_name']).agg('first').reset_index()
+        data.append(['Extract Types Selected', ', '.join([
+            "{0} [{1}] - {2}".format(i["po_name"], i["po_result_type"], i["po_description"])
+            for _, i in unique_po.iterrows()
+        ])])
 
         data.append(['',''])
-        data.append(['Description', meta['description']])
+        data.append(['Description', dataset_meta['description']])
+
+        details = "(no additional details)"
+        if "details" in dataset_meta:
+            details = dataset_meta["details"]
         data.append(['Details', details])
 
-        # data.append(['Type', meta['type']])
-        # data.append(['File Format', meta['file_format']])
-        # data.append(['File Extension', meta['file_extension']])
-        # data.append(['Scale', meta['scale']])
-        # data.append(['Temporal', ''])
+        data.append(['Bounding Box', shapely.wkb.loads(dataset_meta['spatial_extent']).wkt])
 
+        data.append(['Date Added', str(dataset_meta['date_added'])])
+        data.append(['Date Updated', str(dataset_meta['date_updated'])])
 
-        # data.append(['Temporal Type', meta['temporal']['name']])
+        if 'sources_name' in dataset_meta and dataset_meta['sources_name']:
+            data.append(['Source Name', dataset_meta['sources_name']])
 
-        # if meta['temporal']['format'] != 'None':
-        #     data.append(['Temporal Format', meta['temporal']['format']])
-        #     data.append(['Temporal Start', str(meta['temporal']['start'])])
-        #     data.append(['Temporal End', str(meta['temporal']['end'])])
+        if 'sources_web' in dataset_meta and dataset_meta['sources_web']:
+            data.append(['Source URL', enforce_max_word_length(dataset_meta['source_url'])])
 
-        data.append(['Bounding Box', str(meta['spatial']['coordinates'])])
+        if 'citation' in dataset_meta and dataset_meta['citation']:
+            data.append(['Citation', enforce_max_word_length(dataset_meta['citation'])])
 
-        data.append(['Date Added', str(meta['asdf']['date_added'])])
-        data.append(['Date Updated', str(meta['asdf']['date_updated'])])
+        if 'variable_description' in dataset_meta and dataset_meta['variable_description']:
+            data.append(['Variable Description', dataset_meta['variable_description']])
+        if 'resolution' in dataset_meta and dataset_meta['resolution']:
+            data.append(['Resolution', str(dataset_meta['resolution'])])
+        if 'factor' in dataset_meta and dataset_meta['factor']:
+            data.append(['Factor', str(dataset_meta['factor'])])
 
-        if 'sources_name' in meta['extras']:
-            data.append(['Source Name', meta['extras']['sources_name']])
-
-        def enforce_max_word_length(string, max_chars=80):
-            raw_word_list = string.split(" ")
-            short_word_list = []
-            for word in raw_word_list:
-                if len(word) > max_chars:
-                    split_word = [
-                        word[i:i+max_chars]
-                        for i in range(0, len(word), max_chars)
-                    ]
-                    fixed_word = "\n".join(split_word)
-                else:
-                    fixed_word = word
-                short_word_list += [fixed_word]
-            return " ".join(short_word_list)
-
-        if 'sources_web' in meta['extras']:
-            tmp_sources_web = meta['extras']['sources_web']
-            tmp_sources_web = enforce_max_word_length(tmp_sources_web)
-            data.append(['Source Link', tmp_sources_web])
-
-        if 'citation' in meta['extras']:
-            tmp_citation = meta['extras']['citation']
-            tmp_citation = enforce_max_word_length(tmp_citation)
-            data.append(['Citation', tmp_citation])
-
-
-        if item_type == 'boundary':
-            pass
-            # data.append(['Group', meta['options']['group']])
-            # data.append(['Group Class', meta['options']['group_class']])
-            # data.append(['Group Title', meta['options']['group_title']])
-
-        elif item_type == 'raster':
-            data.append(['Variable Description', meta['options']['variable_description']])
-            data.append(['Resolution', str(meta['options']['resolution'])])
-            # data.append(['Extract Types', ', '.join(meta['options']['extract_types'])])
-            data.append(['Factor', str(meta['options']['factor'])])
-
-        elif item_type == 'release':
-            download_link = 'http://aiddata.org/datasets'
-            # download_link = 'https://github.com/AidData-WM/public_datasets/tree/master/geocoded' #+ meta['data_set_preamble'] +'_'+ meta['data_type'] +'_v'+ str(meta['version']) + '.zip'
-            data.append(['Download Link', download_link])
-
-        return data
+        return data, dataset_meta['title']
