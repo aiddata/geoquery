@@ -31,12 +31,12 @@ class Feature(BaseModel):
 
 
 class FeatureCollection(BaseModel):
-    features: List[Feature]
     active: bool = False
     public: bool = False
     name: str
     path: str
     file_extension: str
+    file_mask: str
     title: str
     description: str
     details: Optional[str] = None
@@ -56,6 +56,7 @@ class FeatureCollection(BaseModel):
     group_title: Optional[str] = None
     group_class: Optional[str] = None
     group_level: Optional[int] = None
+    features: List[Feature]
 
 
 class DatasetResource(BaseModel):
@@ -100,10 +101,7 @@ class ProcessingOption(BaseModel):
 class Dataset(BaseModel):
     active: bool = False
     public: bool = False
-    mapped: bool = False
-    mappings: Optional[Dict[str, int]] = None  # categorial data mappings
     name: str
-    type: str
     path: Path
     file_extension: str
     file_mask: str
@@ -114,17 +112,21 @@ class Dataset(BaseModel):
     citation: Optional[str] = None
     source_name: Optional[str] = None
     source_url: Optional[str] = None
-    variable_description: Optional[str] = None
-    variable_factor: Optional[float] = None
-    processing_options: Optional[List[ProcessingOption]] = None
     other: Optional[dict] = None
     temporal_start: Optional[datetime] = None
     temporal_end: Optional[datetime] = None
     temporal_name: Optional[str] = None
     temporal_type: Optional[str] = None
     is_global: bool
-    coverage_dependency: Optional[str] = None
     ingest_src: Optional[str] = None
+    mapped: bool = False
+    mappings: Optional[Dict[str, int]] = None  # categorial data mappings
+    type: str
+    variable_description: Optional[str] = None
+    variable_factor: Optional[float] = None
+    processing_options: Optional[List[ProcessingOption]] = None
+    coverage_dependency: Optional[str] = None
+
 
     @field_validator("name")
     @classmethod
