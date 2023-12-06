@@ -47,7 +47,8 @@ class FeatureCollection(BaseModel):
     other: Optional[dict] = None
     temporal_start: Optional[datetime] = None
     temporal_end: Optional[datetime] = None
-    temporal_step: Optional[timedelta] = None
+    temporal_name: Optional[str] = None
+    temporal_type: Optional[str] = None
     spatial_extent: str
     is_global: bool
     ingest_src: Optional[str] = None
