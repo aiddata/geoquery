@@ -123,6 +123,11 @@ class DocBuilder():
         #     return False
 
 
+    # write the document to disk
+    def output_doc(self):
+        self.doc.build(self.Story)
+
+
     # documentation header
     def add_header(self):
         # # aiddata logo
@@ -165,7 +170,6 @@ class DocBuilder():
         self.Story.append(t)
 
 
-
     # full request timeline / other processing info
     def add_timeline(self):
 
@@ -189,6 +193,7 @@ class DocBuilder():
         ]))
 
         self.Story.append(t)
+
 
     def add_cite_and_contents(self):
 
@@ -221,8 +226,147 @@ class DocBuilder():
                 self.Story.append(p)
 
 
+    # license stuff
+    def add_additional(self):
 
-    def build_meta(self, name, item_type, dset):
+        with open(self.assets_dir / 'templates/additional.txt') as license:
+            for line in license:
+                p = Paragraph(line, self.styles['BodyText'])
+                self.Story.append(p)
+
+
+
+
+
+# =============================================================================
+# =============================================================================
+# =============================================================================
+# =============================================================================
+# =============================================================================
+
+    def add_meta(self):
+        self.meta_log = []
+        pass
+
+    def build_base_meta(self):
+        pass
+
+    def build_fc_meta(self):
+        pass
+
+
+
+    def build_dataset_meta(self, dset):
+
+        # if dset['dataset'] not in meta_log:
+        self.meta_log.append(dset['dataset'])
+
+        ptext = '<font size=10><b>Selection {0} - {1}</b></font>'.format(
+            len(self.meta_log), dset['custom_name'].encode('utf8', 'replace'))
+
+        self.Story.append(Paragraph(ptext, self.styles['Normal']))
+        self.Story.append(Spacer(1, 0.05*inch))
+
+        # build dataset meta table array
+        data = self.build_meta(dset['dataset'], 'release', dset)
+
+        data = [[i[0], pg(i[1], 2)] for i in data]
+        t = Table(data)
+        t.setStyle(TableStyle([
+            ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
+            ('BOX', (0,0), (-1,-1), 0.25, colors.black)
+        ]))
+
+        self.Story.append(KeepTogether(t))
+        self.Story.append(Spacer(1, 0.1*inch))
+
+
+
+
+    def OLD_add_meta(self):
+
+        ptext = '<b><font size=14>Meta Information</font></b>'
+        self.Story.append(Paragraph(ptext, self.styles['Normal']))
+        self.Story.append(Spacer(1, 0.25*inch))
+
+        # full boundary meta
+        ptext = '<font size=10><b>Boundary</b></font>'
+        self.Story.append(Paragraph(ptext, self.styles['Normal']))
+        self.Story.append(Spacer(1, 0.05*inch))
+
+        # build boundary meta table array
+        data = self.build_meta(self.request['boundary']['name'], 'boundary', None)
+
+        data = [[i[0], pg(i[1], 2)] for i in data]
+        t = Table(data)
+        t.setStyle(TableStyle([
+            ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
+            ('BOX', (0,0), (-1,-1), 0.25, colors.black)
+        ]))
+
+        self.Story.append(t)
+        self.Story.append(Spacer(1, 0.1*inch))
+
+
+        # full dataset meta
+
+        meta_log = []
+        for dset in self.request['release_data']:
+
+            if not dset:
+                continue
+
+            # if dset['dataset'] not in meta_log:
+            meta_log.append(dset['dataset'])
+
+            ptext = '<font size=10><b>Selection {0} - {1}</b></font>'.format(
+                len(meta_log), dset['custom_name'].encode('utf8', 'replace'))
+
+            self.Story.append(Paragraph(ptext, self.styles['Normal']))
+            self.Story.append(Spacer(1, 0.05*inch))
+
+            # build dataset meta table array
+            data = self.build_meta(dset['dataset'], 'release', dset)
+
+            data = [[i[0], pg(i[1], 2)] for i in data]
+            t = Table(data)
+            t.setStyle(TableStyle([
+                ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
+                ('BOX', (0,0), (-1,-1), 0.25, colors.black)
+            ]))
+
+            self.Story.append(KeepTogether(t))
+            self.Story.append(Spacer(1, 0.1*inch))
+
+
+        for dset in self.request['raster_data']:
+
+            if not dset:
+                continue
+
+            # if dset['name'] not in meta_log:
+            meta_log.append(dset['name'])
+
+            ptext = '<font size=10><b>Selection {0} - {1}</b></font>'.format(
+                len(meta_log), dset['custom_name'].encode('utf8', 'replace'))
+            self.Story.append(Paragraph(ptext, self.styles['Normal']))
+            self.Story.append(Spacer(1, 0.05*inch))
+
+            # build dataset meta table array
+            data = self.build_meta(dset['name'], dset['type'], dset)
+
+            data = [[i[0], pg(i[1], 2)] for i in data]
+            t = Table(data)
+            t.setStyle(TableStyle([
+                ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
+                ('BOX', (0,0), (-1,-1), 0.25, colors.black)
+            ]))
+
+            self.Story.append(KeepTogether(t))
+            self.Story.append(Spacer(1, 0.1*inch))
+
+
+    def OLD_build_meta(self, name, item_type, dset):
 
         # get metadata for dataset from asdf->data collection
         meta = get_dataset_meta(name)
@@ -394,105 +538,3 @@ class DocBuilder():
             data.append(['Download Link', download_link])
 
         return data
-
-
-    def add_meta(self):
-
-        ptext = '<b><font size=14>Meta Information</font></b>'
-        self.Story.append(Paragraph(ptext, self.styles['Normal']))
-        self.Story.append(Spacer(1, 0.25*inch))
-
-        # full boundary meta
-        ptext = '<font size=10><b>Boundary</b></font>'
-        self.Story.append(Paragraph(ptext, self.styles['Normal']))
-        self.Story.append(Spacer(1, 0.05*inch))
-
-        # build boundary meta table array
-        data = self.build_meta(self.request['boundary']['name'], 'boundary', None)
-
-        data = [[i[0], pg(i[1], 2)] for i in data]
-        t = Table(data)
-        t.setStyle(TableStyle([
-            ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
-            ('BOX', (0,0), (-1,-1), 0.25, colors.black)
-        ]))
-
-        self.Story.append(t)
-        self.Story.append(Spacer(1, 0.1*inch))
-
-
-        # full dataset meta
-
-        meta_log = []
-        for dset in self.request['release_data']:
-
-            if not dset:
-                continue
-
-            # if dset['dataset'] not in meta_log:
-            meta_log.append(dset['dataset'])
-
-            ptext = '<font size=10><b>Selection {0} - {1}</b></font>'.format(
-                len(meta_log), dset['custom_name'].encode('utf8', 'replace'))
-
-            self.Story.append(Paragraph(ptext, self.styles['Normal']))
-            self.Story.append(Spacer(1, 0.05*inch))
-
-            # build dataset meta table array
-            data = self.build_meta(dset['dataset'], 'release', dset)
-
-            data = [[i[0], pg(i[1], 2)] for i in data]
-            t = Table(data)
-            t.setStyle(TableStyle([
-                ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
-                ('BOX', (0,0), (-1,-1), 0.25, colors.black)
-            ]))
-
-            self.Story.append(KeepTogether(t))
-            self.Story.append(Spacer(1, 0.1*inch))
-
-
-        for dset in self.request['raster_data']:
-
-            if not dset:
-                continue
-
-            # if dset['name'] not in meta_log:
-            meta_log.append(dset['name'])
-
-            ptext = '<font size=10><b>Selection {0} - {1}</b></font>'.format(
-                len(meta_log), dset['custom_name'].encode('utf8', 'replace'))
-            self.Story.append(Paragraph(ptext, self.styles['Normal']))
-            self.Story.append(Spacer(1, 0.05*inch))
-
-            # build dataset meta table array
-            data = self.build_meta(dset['name'], dset['type'], dset)
-
-            data = [[i[0], pg(i[1], 2)] for i in data]
-            t = Table(data)
-            t.setStyle(TableStyle([
-                ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
-                ('BOX', (0,0), (-1,-1), 0.25, colors.black)
-            ]))
-
-            self.Story.append(KeepTogether(t))
-            self.Story.append(Spacer(1, 0.1*inch))
-
-
-
-
-
-    # license stuff
-    def add_additional(self):
-
-        with open(self.assets_dir / 'templates/additional.txt') as license:
-            for line in license:
-                p = Paragraph(line, self.styles['BodyText'])
-                self.Story.append(p)
-
-
-
-
-    # write the document to disk
-    def output_doc(self):
-        self.doc.build(self.Story)
