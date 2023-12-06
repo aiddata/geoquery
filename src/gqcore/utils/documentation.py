@@ -34,14 +34,19 @@ def get_request(request_id):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""SELECT * FROM requests WHERE id = %s""", (request_id,))
-            return cur.fetchone()
+            request = cur.fetchone()
+            return request
 
 # TODO: this needs to be updated to reflect how meta attributes are used
 def get_dataset_meta(dataset_name):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""SELECT * FROM datasets WHERE name = %s""", (dataset_name,))
-            return cur.fetchone()
+            dataset = cur.fetchone()
+
+            cur.execute("""SELECT * FROM dataset_resources WHERE dataset_id = %s""", (dataset['id'],))
+            dataset_resources = cur.fetchall()
+            return dataset, dataset_resources
 
 
 class DocBuilder():
@@ -50,11 +55,11 @@ class DocBuilder():
 
         self.config = get_config()
 
-        self.assets_dir = Path(self.config["main"]["data_root"]).parent.parent.parent / "src/gqcore/assets"
+        self.assets_dir = Path(self.config["main"]["data_root"]) / "src/gqcore/assets"
 
-        self.request_id = request_id
+        self.request_id = str(request_id)
         self.request_df = request_df
-        self.output_path = output_path
+        self.output_path = str(output_path)
 
         self.download_server = self.config["other"]["request_url"]
 
@@ -103,7 +108,7 @@ class DocBuilder():
         self.add_cite_and_contents()
         self.Story.append(PageBreak())
 
-        self.add_meta()
+        # self.add_meta()
         self.Story.append(PageBreak())
 
         self.add_notes()
@@ -121,7 +126,7 @@ class DocBuilder():
     # documentation header
     def add_header(self):
         # # aiddata logo
-        # logo = self.assets_dir + '/templates/aid_data.png'
+        # logo = self.assets_dir / 'templates/aid_data.png'
 
         # im = Image(logo, 2.188*inch, 0.5*inch)
         # im.hAlign = 'LEFT'
@@ -187,7 +192,7 @@ class DocBuilder():
 
     def add_cite_and_contents(self):
 
-        with open(self.assets_dir + '/templates/general.txt') as general:
+        with open(self.assets_dir / 'templates/general.txt') as general:
             for line in general:
                 p = Paragraph(line, self.styles['BodyText'])
                 self.Story.append(p)
@@ -196,21 +201,21 @@ class DocBuilder():
     # intro paragraphs
     def add_notes(self):
 
-        with open(self.assets_dir + '/templates/field_names.txt') as field_names:
+        with open(self.assets_dir / 'templates/field_names.txt') as field_names:
             for line in field_names:
                 p = Paragraph(line, self.styles['BodyText'])
                 self.Story.append(p)
 
         self.Story.append(PageBreak())
 
-        with open(self.assets_dir + '/templates/notes.txt') as field_names:
+        with open(self.assets_dir / 'templates/notes.txt') as field_names:
             for line in field_names:
                 p = Paragraph(line, self.styles['BodyText'])
                 self.Story.append(p)
 
         self.Story.append(PageBreak())
 
-        with open(self.assets_dir + '/templates/aid_data.txt') as field_names:
+        with open(self.assets_dir / 'templates/aid_data.txt') as field_names:
             for line in field_names:
                 p = Paragraph(line, self.styles['BodyText'])
                 self.Story.append(p)
@@ -402,7 +407,6 @@ class DocBuilder():
         self.Story.append(Paragraph(ptext, self.styles['Normal']))
         self.Story.append(Spacer(1, 0.05*inch))
 
-
         # build boundary meta table array
         data = self.build_meta(self.request['boundary']['name'], 'boundary', None)
 
@@ -481,7 +485,7 @@ class DocBuilder():
     # license stuff
     def add_additional(self):
 
-        with open(self.assets_dir + '/templates/additional.txt') as license:
+        with open(self.assets_dir / 'templates/additional.txt') as license:
             for line in license:
                 p = Paragraph(line, self.styles['BodyText'])
                 self.Story.append(p)

@@ -162,7 +162,7 @@ def process_completed_requests():
         output_df.to_csv(output_path, index=False)
 
         doc_output =  output_dir / "documentation.pdf"
-        # build_request_documentation(request_id, request_df, doc_output)
+        build_request_documentation(request_id, request_df, doc_output)
 
         fc_gdf = build_feature_collection(request_df[["geom", "geom_id"]].drop_duplicates("geom_id").copy())
         for geomtype in fc_gdf.geom_type.unique():
@@ -217,7 +217,7 @@ def get_next_completed_request():
             cur.execute(id_query)
             result = cur.fetchone()
             if not result:
-                return None
+                return None, None, None
             request_id = result["request_id"]
             request_contact = result["contact"]
             data_query = """
@@ -417,22 +417,22 @@ def notify_completed(request_id, request_contact):
 
 
 
-if __name__ == "__main__":
-    request = Request(**{
-        "source": "script",
-        "contact": "sgoodman@aiddata.wm.edu",
-        "custom_name": "test1",
-        "info": "Nothing1",
-        "data": [[1, 1, 1], [1, 2, 1], [1, 3, 1], [1, 4, 1],
-                 [2, 1, 1], [2, 2, 1], [2, 3, 1], [2, 4, 1]],
-    })
-    insert_request(request)
+# if __name__ == "__main__":
+#     request = Request(**{
+#         "source": "script",
+#         "contact": "sgoodman@aiddata.wm.edu",
+#         "custom_name": "test1",
+#         "info": "Nothing1",
+#         "data": [[1, 1, 1], [1, 2, 1], [1, 3, 1], [1, 4, 1],
+#                  [2, 1, 1], [2, 2, 1], [2, 3, 1], [2, 4, 1]],
+#     })
+#     insert_request(request)
 
-    request = Request(**{
-        "source": "script",
-        "contact": "sgoodman@aiddata.wm.edu",
-        "custom_name": "test2",
-        "info": "Nothing2",
-        "data": [[1, 11, 1], [1, 12, 1]],
-    })
-    insert_request(request)
+#     request = Request(**{
+#         "source": "script",
+#         "contact": "sgoodman@aiddata.wm.edu",
+#         "custom_name": "test2",
+#         "info": "Nothing2",
+#         "data": [[1, 11, 1], [1, 12, 1]],
+#     })
+#     insert_request(request)
