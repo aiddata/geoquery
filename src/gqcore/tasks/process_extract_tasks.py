@@ -1,8 +1,6 @@
 import builtins
-from contextlib import ExitStack
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
-from multiprocessing import Pool
-from multiprocessing.pool import AsyncResult
 from pathlib import Path
 from time import sleep
 from typing import Any, Callable, Dict, Iterator, List, Tuple
@@ -67,7 +65,21 @@ def process_tasks_sequentially() -> None:
             task.submit_result(result)
 
 
-def process_tasks_concurrently(max_workers: int = 5) -> None:
+def run_one_task() -> None:
+    try:
+        with LockTask() as task:
+            for result in run_task(*prepare_task(task.data)):
+                task.submit_result(result)
+    except NoTaskAvailableError:
+        return
+
+
+def process_tasks_concurrently(max_workers: int = 10) -> None:
+    with ProcessPoolExecutor(max_workers = max_workers) as executor:
+        for i in range(50):
+            executor.submit(run_one_task)
+
+    """
     with Pool(processes=max_workers) as pool:
         with ExitStack() as stack:
             task_results: List[Tuple[LockTask, AsyncResult]] = []
@@ -78,6 +90,7 @@ def process_tasks_concurrently(max_workers: int = 5) -> None:
                         task, results = task_results.pop(i)
                         for result in results.get():
                             task.submit_result(result)
+                        task.__exit__(None, None, None)
 
                 # if queued tasks have completed, submit their results
                 # if the queue needs new tasks, add one
@@ -104,6 +117,7 @@ def process_tasks_concurrently(max_workers: int = 5) -> None:
                     break
 
                 sleep(0.5)
+    """
 
 
 if __name__ == "__main__":
