@@ -1,9 +1,8 @@
 # accepts request object and creates pdf documentation
 
-import os
 import time
-import math
 from pathlib import Path
+from datetime import datetime
 
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, TableStyle, KeepTogether
@@ -12,6 +11,7 @@ from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER
 import shapely
+import pandas as pd
 
 from gqcore.utils.db.conn import get_conn
 from gqcore import get_config
@@ -23,10 +23,13 @@ styles = getSampleStyleSheet()
 def pg(text, pg_type):
     """return paragraph of specified type for given text
     """
+    text = str(text)
     if pg_type == 1:
-        return Paragraph(text, styles['Normal'])
+        para = Paragraph(text, styles['Normal'])
+        return para
     elif pg_type == 2:
-        return Paragraph(text, styles['BodyText'])
+        para = Paragraph(text, styles['BodyText'])
+        return para
     else:
         raise Exception("invalid paragraph type")
 
@@ -50,7 +53,7 @@ def enforce_max_word_length(string, max_chars=80):
 def get_request(request_id):
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("""SELECT * FROM requests WHERE id = %s""", (request_id,))
+            cur.execute("""SELECT * FROM requests WHERE id::text = %s""", (request_id,))
             request = cur.fetchone()
             return request
 
@@ -85,7 +88,7 @@ def get_dummy_request():
                     ON requests.id = request_map.req_id
                 JOIN extract_tasks
                     ON request_map.task_id = extract_tasks.id
-                WHERE requests.id = 1
+                WHERE requests.id::text = 'cae5aa10-eeb9-41a3-9395-f8226983092a'
                 GROUP BY requests.id
             )
             JOIN requests ON request_id = requests.id
@@ -156,12 +159,8 @@ class DocBuilder():
         self.assets_dir = Path(self.config["main"]["data_root"]) / "src/gqcore/assets"
 
         request_id, request_contact, request_df = get_dummy_request()
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""SELECT * FROM requests WHERE id = %s""", (request_id,))
-                request = cur.fetchone()
 
-        self.request = request
+
         self.request_id = str(request_id)
         self.request_df = request_df
         self.output_path = str(output_path)
@@ -169,7 +168,6 @@ class DocBuilder():
         self.download_server = self.config["other"]["request_url"]
 
         self.request = get_request(self.request_id)
-        # TODO: format request / update usage of request
 
         self.doc = 0
 
@@ -182,7 +180,10 @@ class DocBuilder():
 
 
     def time_str(self, timestamp=None):
-        if timestamp != None:
+        if isinstance(timestamp, datetime):
+            return str(timestamp)
+
+        elif timestamp != None:
             try:
                 timestamp = int(timestamp)
                 if timestamp == 0:
@@ -196,7 +197,7 @@ class DocBuilder():
     def build_doc(self):
 
         rid = self.request_id
-        print('build_doc: ' + rid)
+        # print('build_doc: ' + rid)
 
         self.doc = SimpleDocTemplate(self.output_path, pagesize=letter)
 
@@ -345,7 +346,35 @@ class DocBuilder():
 
     def add_meta(self):
 
-        ptext = '<b><font size=14>Meta Information</font></b>'
+
+        ptext = '<b><font size=14>Feature Meta Information</font></b>'
+        self.Story.append(Paragraph(ptext, self.styles['Normal']))
+        self.Story.append(Spacer(1, 0.25*inch))
+
+
+        fdata = self.build_fc_meta()
+
+
+        for ix, (fc_data, display_name) in enumerate(fdata):
+
+            ptext = '<font size=10><b>Feature Collection {0} - {1}</b></font>'.format(
+                ix, display_name)
+            self.Story.append(Paragraph(ptext, self.styles['Normal']))
+            self.Story.append(Spacer(1, 0.05*inch))
+
+            fc_data = [[i[0], pg(i[1], 2)] for i in fc_data]
+            t = Table(fc_data)
+            t.setStyle(TableStyle([
+                ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
+                ('BOX', (0,0), (-1,-1), 0.25, colors.black)
+            ]))
+
+            self.Story.append(KeepTogether(t))
+            self.Story.append(Spacer(1, 0.1*inch))
+
+
+
+        ptext = '<b><font size=14>Dataset Meta Information</font></b>'
         self.Story.append(Paragraph(ptext, self.styles['Normal']))
         self.Story.append(Spacer(1, 0.25*inch))
 
@@ -353,7 +382,7 @@ class DocBuilder():
 
         self.dataset_meta_log = []
 
-        for d in datasets:
+        for ix, d in enumerate(datasets):
 
             # build dataset meta table array
             data, display_name = self.build_dataset_meta(d)
@@ -379,7 +408,63 @@ class DocBuilder():
 
 
     def build_fc_meta(self):
-        pass
+
+        feature_maps = self.request_df["fm_id"].unique()
+
+        fm_query = """
+        SELECT
+            feat_map.id as fm_id,
+            feat_map.name as name,
+            feat_map.attr as attr,
+            feat_map.geom_id as geom_id,
+            fc.id as fc_id,
+            fc.name as fc_name
+        FROM feat_map
+        JOIN feature_collections as fc
+            ON feat_map.fc_id = fc.id
+        WHERE feat_map.id IN ({0})
+        """.format(",".join([str(i) for i in feature_maps]))
+
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(fm_query)
+                fm_results = cur.fetchall()
+
+        fm_results = pd.DataFrame(fm_results)
+
+
+        fc_query = """
+        SELECT *
+        FROM feature_collections
+        WHERE id IN ({0})
+        """.format(",".join([str(i) for i in fm_results["fc_id"].unique()]))
+
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(fc_query)
+                fc_results = cur.fetchall()
+
+        fc_results = pd.DataFrame(fc_results)
+
+        data = []
+        for ix, fc in fc_results.iterrows():
+
+            fc_data = [
+                ['Title', fc["title"]],
+                ['Name', fc["name"]],
+                ['Description', fc["description"]],
+                ['Source', fc["source_name"]],
+                ['Source URL', fc["source_url"]],
+                ['Citation', fc["citation"]],
+                ['Bounding Box', shapely.wkb.loads(fc["spatial_extent"]).wkt],
+                ['Feature Count', fm_results.loc[fm_results["fc_id"] == fc["id"]].shape[0]],
+                ['Feature Names', ", ".join(fm_results.loc[fm_results["fc_id"] == fc["id"]]["name"])],
+                ['Feature IDs', ", ".join(fm_results.loc[fm_results["fc_id"] == fc["id"]]["geom_id"].astype(str))],
+            ]
+            data.append((fc_data, fc["title"]))
+
+
+        return data
 
 
     def build_dataset_meta(self, dataset_name):
