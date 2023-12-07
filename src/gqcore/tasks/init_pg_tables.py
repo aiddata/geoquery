@@ -222,7 +222,7 @@ def create_table_requests(cur):
     cur.execute(
         """
         CREATE TABLE requests (
-            id              int PRIMARY KEY generated always as identity,
+            id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
             date            timestamp,
             source          varchar(100),
             contact         varchar(100),
@@ -243,7 +243,7 @@ def create_table_request_map(cur):
     cur.execute(
         """
         CREATE TABLE request_map (
-            req_id      int REFERENCES requests(id),
+            req_id      uuid REFERENCES requests(id),
             task_id     int REFERENCES extract_tasks(id)
         );
         """
