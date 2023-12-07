@@ -34,6 +34,15 @@ with get_conn() as conn:
         d = cur.execute("""SELECT * FROM extract_tasks WHERE status = 1""").fetchall()
 
 
+
+# from gqcore.utils.db.conn import get_conn
+# with get_conn() as conn:
+#     with conn.cursor() as cur:
+#         cur.execute("TRUNCATE TABLE extract_tasks CASCADE;")
+#         cur.execute("TRUNCATE TABLE extract_data CASCADE;")
+
+
+
 # from gqcore.utils.db.conn import get_conn
 # with get_conn() as conn:
 #     with conn.cursor() as cur:
@@ -89,6 +98,15 @@ with get_conn() as conn:
         cur.execute("TRUNCATE TABLE requests CASCADE;")
         cur.execute("TRUNCATE TABLE request_map CASCADE;")
 
+
+# from gqcore.utils.db.conn import get_conn
+# from gqcore.tasks.init_pg_tables import create_table_requests, create_table_request_map
+# with get_conn() as conn:
+#     with conn.cursor() as cur:
+#         cur.execute("DROP TABLE requests CASCADE;")
+#         cur.execute("DROP TABLE request_map CASCADE;")
+#         create_table_requests(cur)
+#         create_table_request_map(cur)
 
 
 from gqcore.utils.db.conn import get_conn
