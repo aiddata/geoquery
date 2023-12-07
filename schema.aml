@@ -122,7 +122,7 @@ extract_data
   str_value varchar
 
 requests
-  id "serial integer"
+  id uuid
   date datetime
   source varchar
   contact varchar
@@ -137,5 +137,5 @@ requests
   data jsonb
 
 request_map
-  req_id integer fk requests.id
+  req_id uuid fk requests.id
   task_id integer fk extract_tasks.id
