@@ -5,7 +5,7 @@ Placeholder for code to generate request from some user input source (e.g., GeoQ
 """
 
 
-from gqcore.tasks.create_request import insert_request, Request, RequestItem
+from gqcore.utils.db.request_generation import insert_request, Request, RequestItem
 
 
 request = Request(**{
@@ -14,14 +14,14 @@ request = Request(**{
     "custom_name": "test1",
     "info": "Nothing1",
     "data": [
-        RequestItem({"dr_id": 1, "fm_id": 1, "po_id": 1}),
-        RequestItem({"dr_id": 1, "fm_id": 2, "po_id": 1}),
-        RequestItem({"dr_id": 1, "fm_id": 3, "po_id": 1}),
-        RequestItem({"dr_id": 1, "fm_id": 4, "po_id": 1}),
-        RequestItem({"dr_id": 2, "fm_id": 1, "po_id": 1}),
-        RequestItem({"dr_id": 2, "fm_id": 2, "po_id": 1}),
-        RequestItem({"dr_id": 2, "fm_id": 3, "po_id": 1}),
-        RequestItem({"dr_id": 2, "fm_id": 4, "po_id": 1}),
+        RequestItem(**{"dr_id": 1, "fm_id": 1, "po_id": 1}),
+        RequestItem(**{"dr_id": 1, "fm_id": 2, "po_id": 1}),
+        RequestItem(**{"dr_id": 1, "fm_id": 3, "po_id": 1}),
+        RequestItem(**{"dr_id": 1, "fm_id": 4, "po_id": 1}),
+        RequestItem(**{"dr_id": 2, "fm_id": 1, "po_id": 1}),
+        RequestItem(**{"dr_id": 2, "fm_id": 2, "po_id": 1}),
+        RequestItem(**{"dr_id": 2, "fm_id": 3, "po_id": 1}),
+        RequestItem(**{"dr_id": 2, "fm_id": 4, "po_id": 1}),
     ],
 })
 insert_request(request)
@@ -32,8 +32,8 @@ request = Request(**{
     "custom_name": "test2",
     "info": "Nothing2",
     "data": [
-        RequestItem({"dr_id": 1, "fm_id": 11, "po_id": 1}),
-        RequestItem({"dr_id": 1, "fm_id": 12, "po_id": 1}),
+        RequestItem(**{"dr_id": 1, "fm_id": 11, "po_id": 1}),
+        RequestItem(**{"dr_id": 1, "fm_id": 12, "po_id": 1}),
     ],
 })
 insert_request(request)

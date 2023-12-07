@@ -21,6 +21,9 @@ def process_new_requests():
         if not request_info:
             break
         request_id = request_info["request_id"]
+
+        print(f"Processing new request: {request_id}...")
+
         request_contact = request_info["contact"]
         update_request_time(request_id, "prepare_time")
         update_request_status(request_id, 0)
@@ -49,8 +52,10 @@ def process_completed_requests():
 
     while True:
         request_id, request_contact, request_df = get_next_completed_request()
-        if not request_df:
+        if request_df is None:
             break
+
+        print(f"Processing completed request: {request_id}...")
 
         update_request_time(request_id, "process_time")
 
@@ -74,7 +79,8 @@ def process_completed_requests():
         # update with complete time
         update_request_time(request_id, "complete_time")
 
-        update_request_status(request_id, 1)
+        # TODO: uncomment this line once done testing
+        # update_request_status(request_id, 1)
 
         notify_completed(request_id, request_contact)
 
@@ -315,4 +321,3 @@ def notify_completed(request_id, request_contact):
         print(e)
         update_request_status(request_id, -2)
         raise e
-

@@ -1,5 +1,5 @@
 from datetime import datetime
-from pathlib import Path
+from typing import List, Optional
 
 from pydantic import BaseModel, Json, field_validator
 
@@ -10,7 +10,7 @@ class RequestItem(BaseModel):
     dr_id: int
     fm_id: int
     po_id: int
-    priority: int = 0
+    priority: Optional[int] = 0
 
 
 class Request(BaseModel):
@@ -68,8 +68,16 @@ def insert_request(request: Request):
 
             params_list = []
             for i in request.data:
-                extract_task_item = i.model_dump()
-                extract_task_item["priority"] = request.priority
+                request_data_item = i.model_dump()
+                fid_query = """SELECT geom_id FROM feat_map WHERE id = %s"""
+                cur.execute(fid_query, (request_data_item["fm_id"],))
+                fid = cur.fetchone()["geom_id"]
+                extract_task_item = {
+                    "resource_id": request_data_item["dr_id"],
+                    "feature_id": fid,
+                    "processing_option_id": request_data_item["po_id"],
+                    "priority": request.priority
+                }
                 params_list.append(extract_task_item)
 
 
