@@ -1,12 +1,9 @@
-import itertools
 from datetime import datetime
-from typing import List, Tuple
 import textwrap
 import os
 from pathlib import Path
 import shutil
 
-from pydantic import BaseModel, Json, field_validator
 import pandas as pd
 import shapely
 import geopandas as gpd
@@ -17,102 +14,6 @@ from gqcore import get_config
 from gqcore.utils.documentation import DocBuilder
 
 
-class Request(BaseModel):
-    source: str
-    contact: str
-    custom_name: str
-    info: str
-    priority: int = 1
-    data: List[List[int]] # each item in list is a list containing resource_id, feature_id, processing_option_id
-
-    @field_validator("priority")
-    @classmethod
-    def function_must_exist(cls, p: int) -> int:
-        if p < 0:
-            raise ValueError("request priority must be at least 1")
-        return p
-
-
-
-def insert_request(request: Request):
-    params = request.model_dump()
-    params["date"] = datetime.now()
-    params["status"] = -1
-
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            # build request query and insert it
-
-            insert_request_query = """
-                INSERT INTO requests (
-                    date,
-                    source,
-                    contact,
-                    custom_name,
-                    info,
-                    priority,
-                    status
-                ) VALUES (
-                    %(date)s,
-                    %(source)s,
-                    %(contact)s,
-                    %(custom_name)s,
-                    %(info)s,
-                    %(priority)s,
-                    %(status)s
-
-                ) RETURNING id;
-            """
-
-            cur.execute(insert_request_query, params)
-
-            # get request id that was just inserted
-
-            request_id = cur.fetchone()["id"]
-
-            params_list = []
-            for i in request.data:
-                extract_task_item = dict(zip(["resource_id", "feature_id", "processing_option_id"], i))
-                extract_task_item["priority"] = request.priority
-                params_list.append(extract_task_item)
-
-
-            insert_extract_task_query = """
-                INSERT INTO extract_tasks (
-                    resource_id,
-                    fm_id,
-                    po_id,
-                    priority
-                ) VALUES (
-                    %(resource_id)s,
-                    %(feature_id)s,
-                    %(processing_option_id)s,
-                    %(priority)s
-                )
-                ON CONFLICT (resource_id, fm_id, po_id)
-                DO UPDATE SET priority = %(priority)s
-                RETURNING id;
-            """
-
-            cur.executemany(insert_extract_task_query, params_list, returning=True)
-            extract_task_ids = []
-            while True:
-                extract_task_ids.append(cur.fetchone()["id"])
-                if not cur.nextset():
-                    break
-
-            insert_request_map_query = """
-                INSERT INTO request_map (
-                    req_id,
-                    task_id
-                ) VALUES (
-                    %s,
-                    %s
-                );
-            """
-            cur.executemany(
-                insert_request_map_query, [(request_id, i) for i in extract_task_ids], returning=True
-            )
 
 def process_new_requests():
     while True:
@@ -415,47 +316,3 @@ def notify_completed(request_id, request_contact):
         update_request_status(request_id, -2)
         raise e
 
-
-
-if __name__ == "__main__":
-    # request = Request(**{
-    #     "source": "script",
-    #     "contact": "sgoodman@aiddata.wm.edu",
-    #     "custom_name": "test1",
-    #     "info": "Nothing1",
-    #     "data": [[1, 1, 1], [1, 2, 1], [1, 3, 1], [1, 4, 1],
-    #              [2, 1, 1], [2, 2, 1], [2, 3, 1], [2, 4, 1]],
-    # })
-    # insert_request(request)
-
-    # request = Request(**{
-    #     "source": "script",
-    #     "contact": "sgoodman@aiddata.wm.edu",
-    #     "custom_name": "test2",
-    #     "info": "Nothing2",
-    #     "data": [[1, 11, 1], [1, 12, 1]],
-    # })
-    # insert_request(request)
-
-    # from gqcore.utils.db.conn import get_conn
-    # with get_conn() as conn:
-    #     with conn.cursor() as cur:
-    #         cur.execute("""UPDATE extract_tasks SET status = 0 WHERE id = 19 """)
-
-    config = get_config()
-    data_root = Path(config["main"]["data_root"])
-
-    request_id, request_contact, request_df = get_next_completed_request()
-
-    update_request_time(request_id, "process_time")
-
-    output_df = build_output_df(request_df)
-
-    output_dir = data_root / "data" / "outputs" / str(request_id)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    output_path = output_dir / "data.csv"
-    output_df.to_csv(output_path, index=False)
-
-    doc_output =  output_dir / "documentation.pdf"
-    build_request_documentation(request_id, request_df, doc_output)
