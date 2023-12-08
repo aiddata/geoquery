@@ -111,7 +111,7 @@ def create_table_datasets(cur):
             ingest_src              varchar(200),
             variable_description    varchar(500),
             variable_factor         float,
-            coverage_dependency     varchar(100) REFERENCES datasets(name) DEFAULT NULL,
+            coverage_dependency     int REFERENCES datasets(id) DEFAULT NULL,
             mapped                  boolean DEFAULT FALSE,
             type                    varchar(100) NOT NULL
         );
@@ -120,7 +120,7 @@ def create_table_datasets(cur):
 
 
 def create_table_dataset_resources(cur):
-    # create datasets table
+    # create dataset resources table
     cur.execute(
         """
         CREATE TABLE dataset_resources (
