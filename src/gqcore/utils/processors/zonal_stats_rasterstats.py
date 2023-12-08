@@ -2,9 +2,15 @@
 import rasterstats as rs
 
 
+
 def _rasterstats_default(feat, raster, stat, **kwargs):
     nodata = kwargs["nodata"] if "nodata" in kwargs else None
-    stats = rs.zonal_stats(feat, raster, stats=stat, nodata=nodata)
+    stats = rs.zonal_stats(
+        feat, raster,
+        stats=stat,
+        nodata=nodata,
+        **kwargs
+    )
     output = stats[0][stat]
     return [(stat, output)]
 
