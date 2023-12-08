@@ -162,7 +162,8 @@ def create_table_processing_options(cur):
             kwargs          jsonb,
             active          boolean DEFAULT FALSE,
             public          boolean DEFAULT FALSE,
-            UNIQUE (dataset_id, function, kwargs)
+            UNIQUE (dataset_id, function, kwargs),
+            UNIQUE (dataset_id, short_name, active)
         );
         """
     )
