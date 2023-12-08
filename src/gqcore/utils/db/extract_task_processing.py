@@ -209,10 +209,15 @@ class LockTask:
                         """
                         cur.execute(mark_as_complete_query, (self.data.id,))
                     else:
+                        # FIXME: If this query fails, it will do so silently. Not ideal!
                         mark_as_error_query = """
                             UPDATE extract_tasks
-                            SET status = -1
-                            WHERE id = %s
+                            SET
+                                status = -1,
+                                error = %(error)s
+                            WHERE id = %(id)s
                         """
-                        cur.execute(mark_as_error_query, (self.data.id,))
-                        raise exc_type(exc_value).with_traceback(traceback)
+                        cur.execute(
+                            mark_as_error_query,
+                            {"error": repr(exc_value), "id": self.data.id},
+                        )
