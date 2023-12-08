@@ -36,7 +36,7 @@ class FeatureCollection(BaseModel):
     name: str
     path: str
     file_extension: str
-    file_mask: str
+    file_mask: Optional[str] = None
     title: str
     description: str
     details: Optional[str] = None
