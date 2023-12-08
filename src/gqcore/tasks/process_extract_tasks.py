@@ -2,9 +2,9 @@ import builtins
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from time import sleep
 from typing import Any, Callable, Dict, Iterator, List, Tuple
 
+from dask.distributed import Client, LocalCluster, wait
 from shapely import Geometry
 
 import gqcore.utils.processors
@@ -13,6 +13,7 @@ from gqcore.utils.db.extract_task_processing import (
     ExtractTaskToRun,
     LockTask,
     NoTaskAvailableError,
+    count_available_tasks,
     get_mappings,
 )
 
@@ -66,7 +67,7 @@ def process_tasks_sequentially() -> None:
             task.submit_result(result)
 
 
-def run_one_task() -> None:
+def run_one_task(*args) -> None:
     try:
         with LockTask() as task:
             for result in run_task(*prepare_task(task.data)):
@@ -75,52 +76,39 @@ def run_one_task() -> None:
         return
 
 
+<<<<<<< HEAD
+def process_tasks_concurrently(max_workers: int = 10, max_tasks=10000) -> None:
+    tasks_available: int = count_available_tasks()
+    if tasks_available < max_tasks:
+        run_count = tasks_available
+    else:
+        run_count = tasks_available
+
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        for i in range(run_count):
+=======
 def process_tasks_concurrently(max_workers: int = 10) -> None:
     with ProcessPoolExecutor(max_workers = max_workers) as executor:
         for i in range(1000):
+>>>>>>> 8b14db59858c4b199e86ab65a1499b49086cfc52
             executor.submit(run_one_task)
 
-    """
-    with Pool(processes=max_workers) as pool:
-        with ExitStack() as stack:
-            task_results: List[Tuple[LockTask, AsyncResult]] = []
-            while True:
-                # submit any completed results
-                for i, task_result in enumerate(task_results):
-                    if task_result[1].ready():
-                        task, results = task_results.pop(i)
-                        for result in results.get():
-                            task.submit_result(result)
-                        task.__exit__(None, None, None)
 
-                # if queued tasks have completed, submit their results
-                # if the queue needs new tasks, add one
-                if pool._taskqueue.empty():
-                    try:
-                        # is there another task available?
-                        task = next(task_generator())
-                        # have our ExitStack exit the task context later
-                        stack.push(task)
-                    except StopIteration:
-                        # there was not another task available
-                        pass
-                    else:
-                        # there was another task available
-                        run_task_args = prepare_task(task.data)
-                        # submit task to pool
-                        results_future = pool.apply_async(run_task, run_task_args)
-                        # add task and its future to task_results
-                        task_results.append((task, results_future))
+def process_tasks_using_dask(max_tasks=10000) -> None:
+    cluster = LocalCluster(n_workers=16)
+    client = Client(cluster)
+    print(f"Dashboard for dask: {cluster.dashboard_link}")
 
-                # are there no result futures in our list anymore?
-                # this means there is nothing more to do
-                if len(task_results) == 0:
-                    break
+    tasks_available: int = count_available_tasks()
+    if tasks_available < max_tasks:
+        run_count = tasks_available
+    else:
+        run_count = tasks_available
 
-                sleep(0.5)
-    """
+    futures = client.map(run_one_task, range(run_count))
+
+    wait(futures)
 
 
 if __name__ == "__main__":
-    process_tasks_concurrently()
-    # process_tasks_sequentially()
+    process_tasks_using_dask()
