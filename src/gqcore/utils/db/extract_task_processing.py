@@ -102,6 +102,13 @@ def get_mappings(dataset_id):
     return mappings
 
 
+def count_available_tasks() -> int:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            result = cur.execute("SELECT COUNT(*) FROM extract_tasks WHERE status = 0;")
+            return result.fetchone()["count"]
+
+
 class NoTaskAvailableError(RuntimeError):
     pass
 
@@ -212,10 +219,15 @@ class LockTask:
                     else:
                         # tb.print_tb(traceback)
                         print(exc_value)
+                        # FIXME: If this query fails, it will do so silently. Not ideal!
                         mark_as_error_query = """
                             UPDATE extract_tasks
-                            SET status = -1
-                            WHERE id = %s
+                            SET
+                                status = -1,
+                                error = %(error)s
+                            WHERE id = %(id)s
                         """
-                        cur.execute(mark_as_error_query, (self.data.id,))
-                        # raise exc_type(exc_value).with_traceback(traceback)
+                        cur.execute(
+                            mark_as_error_query,
+                            {"error": repr(exc_value), "id": self.data.id},
+                        )
