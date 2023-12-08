@@ -2,7 +2,7 @@
 import itertools
 
 from gqcore.utils.models import CoverageRecord
-from gqcore.utils.db.helpers import get_coverage_records, get_dataset_ids_without_coverage_dependancies, get_feature_ids, get_feat_geom_by_id, get_dataset_extent_by_id, update_coverage_status, insert_coverage_records
+from gqcore.utils.db.helpers import get_coverage_records, get_dataset_ids_without_coverage_dependencies, get_feature_ids, get_feat_geom_by_id, get_dataset_extent_by_id, update_coverage_status, insert_coverage_records
 
 
 def generate_coverage_records():
@@ -13,7 +13,7 @@ def generate_coverage_records():
     feature_ids = get_feature_ids()
     if len(feature_ids) == 0:
         raise ValueError("No features found in database")
-    dataset_ids = get_dataset_ids_without_coverage_dependancies()
+    dataset_ids = get_dataset_ids_without_coverage_dependencies()
     if len(dataset_ids) == 0:
         raise ValueError("No datasets found in database")
 
