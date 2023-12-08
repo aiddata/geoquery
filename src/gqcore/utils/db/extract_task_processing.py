@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+import traceback as tb
 
 import shapely
 from psycopg import Connection, Cursor
@@ -209,10 +210,12 @@ class LockTask:
                         """
                         cur.execute(mark_as_complete_query, (self.data.id,))
                     else:
+                        # tb.print_tb(traceback)
+                        print(exc_value)
                         mark_as_error_query = """
                             UPDATE extract_tasks
                             SET status = -1
                             WHERE id = %s
                         """
                         cur.execute(mark_as_error_query, (self.data.id,))
-                        raise exc_type(exc_value).with_traceback(traceback)
+                        # raise exc_type(exc_value).with_traceback(traceback)

@@ -29,6 +29,7 @@ def get_func(op: str) -> Callable:
 def run_task(
     func: Callable, task_id: int, feat: Geometry, data: Any, op_kwargs
 ) -> List[ExtractData]:
+
     result = func(feat, data, **op_kwargs)
 
     return [
@@ -44,7 +45,7 @@ def run_task(
 def prepare_task(data: ExtractTaskToRun) -> Tuple[Callable, int, Geometry, Any, Dict]:
     path = Path(data.dataset_path) / data.resource_path
     func = get_func(data.po_func)
-    op_kwargs = {"stat": data.po_short_name}
+    op_kwargs = {"name": data.po_short_name}
     if data.mappings:
         op_kwargs["category_map"] = {i["map_val"]: i["map_name"] for i in data.mappings}
     op_kwargs.update(data.po_kwargs)
@@ -76,7 +77,7 @@ def run_one_task() -> None:
 
 def process_tasks_concurrently(max_workers: int = 10) -> None:
     with ProcessPoolExecutor(max_workers = max_workers) as executor:
-        for i in range(50):
+        for i in range(1000):
             executor.submit(run_one_task)
 
     """
@@ -122,3 +123,4 @@ def process_tasks_concurrently(max_workers: int = 10) -> None:
 
 if __name__ == "__main__":
     process_tasks_concurrently()
+    # process_tasks_sequentially()
