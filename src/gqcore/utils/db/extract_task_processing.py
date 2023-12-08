@@ -101,6 +101,13 @@ def get_mappings(dataset_id):
     return mappings
 
 
+def count_available_tasks() -> int:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            result = cur.execute("SELECT COUNT(*) FROM extract_tasks WHERE status = 0;")
+            return result.fetchone()["count"]
+
+
 class NoTaskAvailableError(RuntimeError):
     pass
 
