@@ -110,6 +110,15 @@ def _get_feature_ids(cur: Cursor) -> list:
     return feature_ids
 
 
+def get_dataset_ids_without_coverage_dependancies() -> list:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            dataset_query = "SELECT id FROM datasets WHERE coverage_dependancy IS null"
+            cur.execute(dataset_query)
+            dataset_ids = cur.fetchall()
+            return dataset_ids
+
+
 def get_dataset_ids() -> list:
     with get_conn() as conn:
         with conn.cursor() as cur:
