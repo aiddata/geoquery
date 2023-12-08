@@ -27,12 +27,25 @@ with get_conn() as conn:
     with conn.cursor() as cur:
         a = cur.execute("""SELECT * FROM extract_tasks""").fetchall()
         b = cur.execute("""SELECT * FROM extract_data""").fetchall()
-        print('tasks', len(a), a)
-        print('---')
-        print('data', len(b), b)
-        c = cur.execute("""SELECT * FROM extract_tasks WHERE status != 1""").fetchall()
+        # print('tasks', len(a), a)
+        # print('---')
+        # print('data', len(b), b)
+        c = cur.execute("""SELECT * FROM extract_tasks WHERE status = -1""").fetchall()
         d = cur.execute("""SELECT * FROM extract_tasks WHERE status = 1""").fetchall()
+        e = cur.execute("""SELECT * FROM extract_tasks WHERE status = 2""").fetchall()
+        print(len(a), len(b), len(c), len(d), len(e))
 
+
+
+
+from gqcore.utils.db.conn import get_conn
+with get_conn() as conn:
+    with conn.cursor() as cur:
+        query = """
+        UPDATE extract_tasks
+        SET    status = 0;
+        """
+        cur.execute(query)
 
 
 # from gqcore.utils.db.conn import get_conn
@@ -128,7 +141,6 @@ with get_conn() as conn:
         WHERE  status = 1;
         """
         cur.execute(query)
-
 
 
 from gqcore.utils.db.conn import get_conn
