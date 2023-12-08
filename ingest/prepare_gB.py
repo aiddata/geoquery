@@ -55,7 +55,11 @@ gb_iso3_list = [i["ISO"] for i in base_api_data if "openAvailable" in i and i["o
 for iso3 in set(gb_iso3_list).intersection(set(dl_iso3_list)):
     api_url = f"{gb_url}/current/gbOpen/{iso3}/ALL/"
     iso3_items = get_api_url(api_url)
+
     for item in iso3_items:
+
+        if item['boundaryType'] != "ADM0":
+            continue
 
         adm_meta = default_meta.copy()
 

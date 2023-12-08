@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+import traceback as tb
 
 import shapely
 from psycopg import Connection, Cursor
@@ -216,6 +217,8 @@ class LockTask:
                         """
                         cur.execute(mark_as_complete_query, (self.data.id,))
                     else:
+                        # tb.print_tb(traceback)
+                        print(exc_value)
                         # FIXME: If this query fails, it will do so silently. Not ideal!
                         mark_as_error_query = """
                             UPDATE extract_tasks
