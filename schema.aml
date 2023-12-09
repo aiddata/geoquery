@@ -64,7 +64,7 @@ datasets
   date_added datetime
   date_updated datetime
   is_global boolean
-  coverage_dependency varchar fk datasets.name
+  coverage_dependency int fk datasets.id
   ingest_src varchar
 
 dataset_resources
