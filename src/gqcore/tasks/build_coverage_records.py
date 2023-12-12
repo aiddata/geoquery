@@ -1,12 +1,15 @@
-import sys
+
 import itertools
 
 from loguru import logger
 
 from gqcore.utils.models import CoverageRecord
 from gqcore.utils.db.helpers import get_coverage_records, get_dataset_ids_without_coverage_dependencies, get_feature_ids, get_feat_geom_by_id, get_dataset_extent_by_id, update_coverage_status, insert_coverage_records
+from gqcore import get_config
 
-logger.add("/home/userx/Desktop/geoquery-update/logs/main.log",
+config = get_config()
+
+logger.add(config["logs"]["log_dir"] + "/main.log",
            format="{time} {level} {message}",
            rotation="1 week",
            level="DEBUG",
@@ -24,7 +27,7 @@ def generate_coverage_records():
 
     # TODO: replace query to get feature/dataset ids with single query that only
     # returns ids for which the pair does not exist in coverage table
-    
+
     feature_ids = get_feature_ids()
     if len(feature_ids) == 0:
         logger.info("No features found in database")
