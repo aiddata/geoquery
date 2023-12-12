@@ -88,7 +88,7 @@ def get_dummy_request():
                     ON requests.id = request_map.req_id
                 JOIN extract_tasks
                     ON request_map.task_id = extract_tasks.id
-                WHERE requests.id::text = 'cae5aa10-eeb9-41a3-9395-f8226983092a'
+                WHERE requests.id::text = '11fe9104-d94a-4df3-9dc2-e89a9af485f9'
                 GROUP BY requests.id
             )
             JOIN requests ON request_id = requests.id
@@ -158,8 +158,8 @@ class DocBuilder():
 
         self.assets_dir = Path(self.config["main"]["data_root"]) / "src/gqcore/assets"
 
-        request_id, request_contact, request_df = get_dummy_request()
-
+        # request_idx, request_contact, request_dfx = get_dummy_request()
+        # breakpoint()
 
         self.request_id = str(request_id)
         self.request_df = request_df
@@ -252,8 +252,14 @@ class DocBuilder():
         self.Story.append(Paragraph(ptext, self.styles['BodyText']))
         self.Story.append(Spacer(1, 0.1*inch))
 
+        custom_name = self.request['custom_name']
+        if custom_name:
+            custom_name = custom_name.encode('utf8', 'replace')
+        else:
+            custom_name = "Request {0}".format(self.request_id[:8])
+
         data = [
-            ['Request Name', self.request['custom_name'].encode('utf8', 'replace')],
+            ['Request Name', custom_name],
             ['Request Id', str(self.request_id)],
             ['Email', self.request['contact']],
             ['Generated on', self.time_str()],

@@ -79,8 +79,7 @@ def process_completed_requests():
         # update with complete time
         update_request_time(request_id, "complete_time")
 
-        # TODO: uncomment this line once done testing
-        # update_request_status(request_id, 1)
+        update_request_status(request_id, 1)
 
         notify_completed(request_id, request_contact)
 
@@ -143,7 +142,10 @@ def get_next_completed_request():
                     features.id as geom_id,
                     dataset_resources.name as resource_name,
                     dataset_resources.label as resource_label,
-                    datasets.name as dataset_name
+                    datasets.name as dataset_name,
+                    processing_options.short_name as po_name,
+                    processing_options.description as po_description,
+                    processing_options.result_type as po_result_type
                 FROM (
                     SELECT * FROM request_map
                     WHERE req_id = %s
@@ -161,6 +163,8 @@ def get_next_completed_request():
                     ON extract_tasks.resource_id = dataset_resources.id
                 LEFT OUTER JOIN datasets
                     ON dataset_resources.dataset_id = datasets.id
+                LEFT OUTER JOIN processing_options
+                    ON extract_tasks.po_id = processing_options.id
             """
             cur.execute(data_query, (request_id,))
             request_info = cur.fetchall()
