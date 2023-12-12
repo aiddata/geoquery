@@ -1,13 +1,14 @@
+from loguru import logger
 
 from gqcore.utils.db.helpers import get_dataset_by_id, get_coverage_records, get_processing_options_by_dataset, insert_extract_task
 from gqcore.utils.models import ExtractTask
 
 
-
+@logger.catch(reraise=True)
 def generate_tasks(overwrite: bool = False):
     valid_coverage = get_coverage_records(status=1)
     if len(valid_coverage) == 0:
-        Warning("No valid coverage records found in database")
+        logger.warning("No valid coverage records found in database")
         return
 
     # generate potential extract tasks associated with coverage,
