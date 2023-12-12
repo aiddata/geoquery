@@ -1,23 +1,17 @@
 
 import itertools
+import time
 
 from loguru import logger
 
 from gqcore.utils.logs import get_logger
 from gqcore.utils.models import CoverageRecord
-from gqcore.utils.db.helpers import get_coverage_records, get_dataset_ids_without_coverage_dependencies, get_feature_ids, get_feat_geom_by_id, get_dataset_extent_by_id, update_coverage_status, insert_coverage_records
-
+from gqcore.utils.db.helpers import get_coverage_records, get_dataset_ids_without_coverage_dependencies, get_feature_ids, get_feat_geom_by_id, get_dataset_extent_by_id, update_coverage_status, insert_coverage_records, find_missing_coverage_id_pairs
 
 
 def generate_coverage_records():
 
     logger.info("Generating coverage records")
-
-    existing_coverage = get_coverage_records()
-    existing_items = [(x["geom_id"], x["dataset_id"]) for x in existing_coverage]
-
-    # TODO: replace query to get feature/dataset ids with single query that only
-    # returns ids for which the pair does not exist in coverage table
 
     feature_ids = get_feature_ids()
     if len(feature_ids) == 0:
@@ -26,17 +20,26 @@ def generate_coverage_records():
 
     dataset_ids = get_dataset_ids_without_coverage_dependencies()
     if len(dataset_ids) == 0:
-        logger.info("No datasets found in database")
+        logger.info("No datasets without dependencies found in database")
         return
 
-    potential_coverage = list(itertools.product(feature_ids, dataset_ids))
+    t_start = time.perf_counter()
+
+    potential_coverage = find_missing_coverage_id_pairs()
+
+    if len(potential_coverage) == 0:
+        logger.success("No coverage records to generate")
+        return
 
     new_coverage = [
-        CoverageRecord(**{"geom_id":x[0]["id"], "dataset_id":x[1]["id"]}) for x in potential_coverage
-        if (x[0]["id"], x[1]["id"]) not in existing_items
+        CoverageRecord(**{"geom_id":x["geom_id"], "dataset_id":x["dataset_id"]}) for x in potential_coverage
     ]
 
     insert_coverage_records(new_coverage)
+
+    t_end = time.perf_counter()
+
+    logger.info(f"Time to generate and insert {len(new_coverage)} coverage records: {t_end - t_start:0.4f} seconds")
 
     logger.success("Coverage records generated")
 
@@ -46,6 +49,12 @@ def test_coverage():
     logger.info("Testing coverage for untested records")
 
     coverage_items = get_coverage_records(status=-1)
+
+    if len(coverage_items) == 0:
+        logger.success("No coverage records to test")
+        return
+
+    t_start = time.perf_counter()
 
     for c in coverage_items:
         feature_id = c["geom_id"]
@@ -67,6 +76,11 @@ def test_coverage():
             new_status = 0
 
         update_coverage_status(feature_id, dataset_id, new_status)
+
+    t_end = time.perf_counter()
+
+    logger.info(f"Time to test and update coverage for {len(coverage_items)} records: {t_end - t_start:0.4f} seconds")
+    logger.info(f"Avg time to test and update coverage: {(t_end - t_start)/len(coverage_items):0.4f} seconds")
 
     logger.success("Coverage testing complete")
 

@@ -127,6 +127,36 @@ def get_dataset_ids_without_coverage_dependencies() -> list:
             return dataset_ids
 
 
+def find_missing_coverage_id_pairs() -> list:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            results = _find_missing_coverage_id_pairs(cur)
+            return results
+
+
+@logger.catch(reraise=True)
+def _find_missing_coverage_id_pairs(cur: Cursor) -> list:
+    # get all ids from datasets table and ids from features table where the pair does not yet exist in the coverage table
+    coverage_query = """
+        SELECT
+            f.geom_id,
+            d.dataset_id
+        FROM (
+            SELECT id AS geom_id FROM features
+        ) AS f
+        CROSS JOIN (
+            SELECT id AS dataset_id FROM datasets WHERE coverage_dependency IS null
+        ) AS d
+        WHERE (f.geom_id, d.dataset_id) NOT IN (
+            SELECT geom_id, dataset_id FROM coverage
+        );
+    """
+    cur.execute(coverage_query)
+    results = cur.fetchall()
+    return results
+
+
+
 def get_dataset_ids() -> list:
     with get_conn() as conn:
         with conn.cursor() as cur:
