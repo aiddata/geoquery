@@ -10,7 +10,7 @@ get_logger("clear_dangling_tasks")
 
 delay = timedelta(minutes=1)
 
-logger.info("Clearing dangling tasks older than: {delay}")
+logger.info(f"Clearing dangling tasks older than: {delay}")
 
 number_of_cleared_tasks = free_dangling_tasks(delay)
 
