@@ -11,7 +11,7 @@ from gqcore.ingest_feature_collection import ingest_feature_collection
 from gqcore.utils.db import features as futils
 
 # set this to None to download all ISO3 boundaries
-dl_iso3_list: Optional[List[str]] = None
+dl_iso3_list: Optional[List[str]] = ["AFG"]
 
 target_gb_commit = "ff0d953b5aa2"
 
@@ -69,7 +69,7 @@ for iso3 in iso3_list:
     iso3_items = get_api_url(api_url)
 
     for item in iso3_items:
-        if item["boundaryType"] != "ADM0":
+        if item["boundaryType"] == "ADM2":
             continue
 
         adm_meta = default_meta.copy()
