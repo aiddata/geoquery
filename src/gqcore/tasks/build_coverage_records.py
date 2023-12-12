@@ -3,9 +3,9 @@ import itertools
 
 from loguru import logger
 
+from gqcore.utils.logs import get_logger
 from gqcore.utils.models import CoverageRecord
 from gqcore.utils.db.helpers import get_coverage_records, get_dataset_ids_without_coverage_dependencies, get_feature_ids, get_feat_geom_by_id, get_dataset_extent_by_id, update_coverage_status, insert_coverage_records
-from gqcore.utils.logs import get_logger
 
 
 

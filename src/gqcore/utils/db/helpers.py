@@ -3,6 +3,7 @@ import shapely
 from psycopg import Cursor
 from psycopg.types.json import Jsonb
 from typing import Dict
+from loguru import logger
 
 from gqcore.utils.db.conn import get_conn
 from gqcore.utils.models import ExtractTask, DatasetResource, ProcessingOption
@@ -15,6 +16,7 @@ def get_dataset_by_name(name: str) -> dict:
             return dataset_info
 
 
+@logger.catch
 def _get_dataset_by_name(cur: Cursor, name: str) -> dict:
     query = "SELECT * from datasets WHERE name = %s"
     cur.execute(query, (name,))
@@ -29,6 +31,7 @@ def get_dataset_resource_path_by_id(id: int) -> str:
     return path
 
 
+@logger.catch
 def _get_dataset_resource_path_by_id(cur: Cursor, id: int) -> str:
     query = """SELECT path FROM dataset_resources WHERE id = %s""", (id,)
     path = cur.execute(query).fetchone()
@@ -42,6 +45,7 @@ def get_feat_geom_by_id(id: int) -> shapely.geometry.base.BaseGeometry:
     return feat
 
 
+@logger.catch
 def _get_feat_geom_by_id(cur: Cursor, id: int) -> shapely.geometry.base.BaseGeometry:
     query = """SELECT shape FROM features WHERE id = %s"""
     geom = cur.execute(query, (id,)).fetchone()
@@ -56,6 +60,7 @@ def get_dataset_extent_by_id(id: int) -> shapely.geometry.base.BaseGeometry:
     return feat
 
 
+@logger.catch
 def _get_dataset_extent_by_id(cur: Cursor, id: int) -> shapely.geometry.base.BaseGeometry:
     query = """SELECT spatial_extent FROM datasets WHERE id = %s"""
     extent = cur.execute(query, (id,)).fetchone()
@@ -70,6 +75,7 @@ def get_coverage_records(status=None) -> list:
             return coverage
 
 
+@logger.catch
 def _get_coverage_records(cur: Cursor, status=None) -> list:
     coverage_query = "SELECT * FROM coverage"
     if status is not None:
@@ -85,6 +91,7 @@ def update_coverage_status(geom_id: int, dataset_id: int, status: int) -> None:
             _update_coverage_status(cur, geom_id, dataset_id, status)
 
 
+@logger.catch
 def _update_coverage_status(cur: Cursor, geom_id: int, dataset_id: int, status: int) -> None:
     cur.execute(
         """
@@ -103,6 +110,7 @@ def get_feature_ids() -> list:
             return feature_ids
 
 
+@logger.catch
 def _get_feature_ids(cur: Cursor) -> list:
     feature_query = "SELECT id FROM features"
     cur.execute(feature_query)
@@ -126,6 +134,7 @@ def get_dataset_ids() -> list:
             return dataset_ids
 
 
+@logger.catch
 def _get_dataset_ids(cur: Cursor) -> list:
     dataset_query = "SELECT id FROM datasets"
     cur.execute(dataset_query)
@@ -139,6 +148,7 @@ def insert_coverage_records(coverage_list: list) -> None:
             _insert_coverage_records(cur, coverage_list)
 
 
+@logger.catch
 def _insert_coverage_records(cur: Cursor, coverage_list: list) -> None:
     for c in coverage_list:
         cur.execute(
@@ -157,6 +167,7 @@ def get_dataset_by_id(dataset_id: int) -> list:
             return dataset_info
 
 
+@logger.catch
 def _get_dataset_by_id(cur: Cursor, dataset_id: int) -> list:
     resource_query = "SELECT * from dataset_resources WHERE dataset_id = %s"
     cur.execute(resource_query, (dataset_id,))
@@ -171,6 +182,7 @@ def get_processing_options_by_dataset(dataset_id: int) -> list:
             return po_info
 
 
+@logger.catch
 def _get_processing_options_by_dataset(cur: Cursor, dataset_id: int) -> list:
     resource_query = "SELECT * from processing_options WHERE dataset_id = %s AND active = True"
     cur.execute(resource_query, (dataset_id,))
@@ -184,6 +196,7 @@ def insert_extract_task(task: ExtractTask, overwrite: bool = False) -> None:
             _insert_extract_task(cur, task, overwrite)
 
 
+@logger.catch
 def _insert_extract_task(cur: Cursor, task: ExtractTask, overwrite: bool = False) -> None:
     if overwrite:
         conflict_str = "DO UPDATE SET status = excluded.status, priority = excluded.priority, submit_time = excluded.submit_time, kwargs = excluded.kwargs"
@@ -216,6 +229,7 @@ def insert_dataset_resource(dataset_id: int, resource: DatasetResource):
             _insert_dataset_resource(cur, dataset_id, resource)
 
 
+@logger.catch
 def _insert_dataset_resource(cur: Cursor, dataset_id: int, resource: DatasetResource):
     query = """
         INSERT INTO dataset_resources (
@@ -250,6 +264,7 @@ def insert_processing_option(dataset_id: int, processing_option: ProcessingOptio
             _insert_processing_option(cur, dataset_id, processing_option)
 
 
+@logger.catch
 def _insert_processing_option(
     cur: Cursor, dataset_id: int, processing_option: ProcessingOption
 ) -> None:
@@ -287,6 +302,7 @@ def insert_mappings(dataset_id: int, mappings: Dict[str, int]) -> None:
             _insert_mappings(cur, dataset_id, mappings)
 
 
+@logger.catch
 def _insert_mappings(cur: Cursor, dataset_id: int, mappings: Dict[str, int]) -> None:
     cur.execute("DELETE FROM mappings WHERE dataset_id = %s ;", (dataset_id,))
 
@@ -312,6 +328,7 @@ def deactivate_processing_options(dataset_id: int) -> None:
             _deactivate_processing_options(cur, dataset_id)
 
 
+@logger.catch
 def _deactivate_processing_options(cur: Cursor, dataset_id: int) -> None:
     cur.execute(
         "UPDATE processing_options SET active = False WHERE dataset_id = %s ;",
@@ -324,6 +341,7 @@ def update_dataset_from_resources(dataset_id: int, dset_params: dict) -> None:
             _update_dataset_from_resources(cur, dataset_id, dset_params)
 
 
+@logger.catch
 def _update_dataset_from_resources(cur, dataset_id: int, dset_params: dict) -> None:
     dset_params["dataset_id"] = dataset_id
     cur.execute(
@@ -353,6 +371,7 @@ def insert_dataset(params: dict) -> int:
             return dataset_id
 
 
+@logger.catch
 def _insert_dataset(cur: Cursor, params: dict) -> int:
     query = """
         INSERT INTO datasets (
@@ -417,6 +436,7 @@ def update_dataset(params: dict) -> int:
             return dataset_id
 
 
+@logger.catch
 def _update_dataset(cur: Cursor, params: dict) -> int:
     query = """
         UPDATE datasets SET (
