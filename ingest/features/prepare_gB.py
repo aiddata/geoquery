@@ -7,7 +7,7 @@ import requests
 import shapely
 from psycopg.types.json import Json, Jsonb
 
-from gqcore.ingest_feature_collection import ingest_feature_collection
+from gqcore.utils.ingest.ingest_feature_collection import ingest_feature_collection
 from gqcore.utils.db import features as futils
 
 # set this to None to download all ISO3 boundaries
