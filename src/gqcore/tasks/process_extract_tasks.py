@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Iterator, List, Tuple
 
 from dask.distributed import Client, LocalCluster, wait
 from shapely import Geometry
+from loguru import logger
 
 import gqcore.utils.processors
 from gqcore.utils.db.extract_task_processing import (
@@ -16,6 +17,8 @@ from gqcore.utils.db.extract_task_processing import (
     count_available_tasks,
     get_mappings,
 )
+
+logger.add("/home/jacob/Documents/aiddata/geoquery-update/logs/process_extract_tasks.log")
 
 
 def get_func(op: str) -> Callable:
@@ -89,19 +92,23 @@ def process_tasks_concurrently(max_workers: int = 10, max_tasks=10000) -> None:
 
 
 def process_tasks_using_dask(max_tasks=10000) -> None:
-    cluster = LocalCluster(n_workers=16)
-    client = Client(cluster)
-    print(f"Dashboard for dask: {cluster.dashboard_link}")
-
     tasks_available: int = count_available_tasks()
-    if tasks_available < max_tasks:
-        run_count = tasks_available
-    else:
-        run_count = tasks_available
+    logger.debug(f"{tasks_available} tasks available in queue")
+    if tasks_available > 0:
+        if tasks_available < max_tasks:
+            run_count = tasks_available
+        else:
+            run_count = tasks_available
 
-    futures = client.map(run_one_task, range(run_count))
+        logger.info("Starting local dask cluster")
+        cluster = LocalCluster(n_workers=16)
+        client = Client(cluster)
+        logger.info(f"Link to Dask dashboard: {cluster.dashboard_link}")
 
-    wait(futures)
+        logger.info(f"Submitting {run_count} jobs to the dask cluster.")
+        futures = client.map(run_one_task, range(run_count))
+
+        wait(futures)
 
 
 if __name__ == "__main__":
