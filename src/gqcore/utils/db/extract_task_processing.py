@@ -1,8 +1,9 @@
+import traceback as tb
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-import traceback as tb
 
 import shapely
+from loguru import logger
 from psycopg import Connection, Cursor
 from psycopg.rows import class_row
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -57,6 +58,7 @@ class ExtractData(BaseModel):
     value: Union[int, float, str]
 
 
+@logger.catch(reraise=True)
 def _insert_extract_data(cur: Cursor, data: ExtractData) -> None:
     add_result_query = """
         INSERT INTO extract_data (
@@ -93,6 +95,7 @@ def _insert_extract_data(cur: Cursor, data: ExtractData) -> None:
     cur.execute(add_result_query, params)
 
 
+@logger.catch(reraise=True)
 def get_mappings(dataset_id):
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -102,6 +105,7 @@ def get_mappings(dataset_id):
     return mappings
 
 
+@logger.catch(reraise=True)
 def count_available_tasks() -> int:
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -117,16 +121,17 @@ class LockTask:
     data: ExtractTaskToRun
     results: List[ExtractData]
 
+    @logger.catch(reraise=True)
     def __init__(self) -> None:
         self.results = []
 
+    @logger.catch(exclude=NoTaskAvailableError, reraise=True)
     def __enter__(self) -> Self:
         # open connection to database
         with get_conn() as conn:
             with conn.cursor(row_factory=class_row(ExtractTaskToRun)) as cur:
                 # select an unlocked task from extract_tasks, locking it
                 # TODO: only select tasks that have fewer than X number of previous errors?
-                #       ...this would require better error tracking, see comment in self.__exit__() below
 
                 select_task_query = """
                     UPDATE extract_tasks
@@ -169,21 +174,23 @@ class LockTask:
                     WHERE extract_tasks.id = task_id
                     RETURNING *;
                 """
+                logger.debug("Searching for available tasks...")
                 task = cur.execute(select_task_query)
                 task_result = task.fetchone()
                 if task_result is None:
                     # there were no unlocked tasks!
+                    logger.info("There are no tasks available")
                     raise NoTaskAvailableError
                 else:
+                    logger.info("Available task found")
                     if task_result.mapped_dataset:
+                        logger.debug("Retrieving mappings for task...")
                         task_result.mappings = get_mappings(task_result.dataset_id)
                     self.data = task_result
 
                 return self
 
-    def found_task(self) -> bool:
-        return self.data is not None
-
+    @logger.catch(reraise=True)
     def keep_alive(self) -> None:
         with get_conn() as conn:
             with conn.cursor() as cur:
@@ -194,40 +201,40 @@ class LockTask:
                 """
                 cur.execute(keep_alive_query, (self.data.id,))
 
+    @logger.catch(reraise=True)
     def submit_result(self, data: ExtractData) -> None:
         # TODO: either assert that data.id == self.data.id,
         #       or build ExtractData here from parameters to enforce this
         self.results.append(data)
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-        # TODO: log error somewhere, if there was one? check if a result was submitted?
-        #       we might want to create an extract tasks error table
         with get_conn() as conn:
-            if self.data is not None:
-                with conn.cursor() as cur:
+            with conn.cursor() as cur:
+                if exc_type is None and len(self.results) > 0:
                     # if no error was thrown, and we got results, let's insert!
-                    if exc_type is None and len(self.results) > 0:
-                        for result in self.results:
-                            _insert_extract_data(cur, result)
+                    logger.debug(
+                        f"No error occured while processing task id {self.data.id}, inserting results..."
+                    )
+                    for result in self.results:
+                        _insert_extract_data(cur, result)
 
-                        mark_as_complete_query = """
-                            UPDATE extract_tasks
-                            SET status = 1
-                            WHERE id = %s
-                        """
-                        cur.execute(mark_as_complete_query, (self.data.id,))
-                    else:
-                        # tb.print_tb(traceback)
-                        print(exc_value)
-                        # FIXME: If this query fails, it will do so silently. Not ideal!
-                        mark_as_error_query = """
-                            UPDATE extract_tasks
-                            SET
-                                status = -1,
-                                error = %(error)s
-                            WHERE id = %(id)s
-                        """
-                        cur.execute(
-                            mark_as_error_query,
-                            {"error": repr(exc_value), "id": self.data.id},
-                        )
+                    mark_as_complete_query = """
+                        UPDATE extract_tasks
+                        SET status = 1
+                        WHERE id = %s
+                    """
+                    cur.execute(mark_as_complete_query, (self.data.id,))
+                else:
+                    # there was an error in this context, let's log it
+                    logger.error(exc_value)
+                    mark_as_error_query = """
+                        UPDATE extract_tasks
+                        SET
+                            status = -1,
+                            error = %(error)s
+                        WHERE id = %(id)s
+                    """
+                    cur.execute(
+                        mark_as_error_query,
+                        {"error": repr(exc_value), "id": self.data.id},
+                    )

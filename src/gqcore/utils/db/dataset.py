@@ -2,17 +2,29 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from dateutil.relativedelta import relativedelta
 
 import rasterio
 import shapely
+from dateutil.relativedelta import relativedelta
+from loguru import logger
 from psycopg.types.json import Json, Jsonb
 from shapely.geometry import box
 
 from gqcore.utils.db.conn import get_conn
-from gqcore.utils.db.helpers import _insert_dataset_resource, _insert_processing_option, _insert_mappings, _get_dataset_by_name, _deactivate_processing_options, _update_dataset_from_resources, _insert_dataset, _update_dataset
+from gqcore.utils.db.helpers import (
+    _deactivate_processing_options,
+    _get_dataset_by_name,
+    _insert_dataset,
+    _insert_dataset_resource,
+    _insert_mappings,
+    _insert_processing_option,
+    _update_dataset,
+    _update_dataset_from_resources,
+)
 from gqcore.utils.models import Dataset, DatasetResource, ProcessingOption
 
+
+@logger.catch
 def run_file_mask(fmask, fname):
     """extract temporal data from file name"""
 
@@ -22,23 +34,23 @@ def run_file_mask(fmask, fname):
 
     # check all potential issues
     if year == "":
-        raise Exception("No year found for data.")
+        raise ValueError("No year found for data.")
 
     # full 4 digit year required
     elif len(year) != 4:
-        raise Exception("Invalid year.")
+        raise ValueError("Invalid year.")
 
     # months must always use 2 digits
     elif month != "" and len(month) != 2:
-        raise Exception("Invalid month.")
+        raise ValueError("Invalid month.")
 
     # days of month (day when month is given) must always use 2 digits
     elif month != "" and day != "" and len(day) != 2:
-        raise Exception("Invalid day of month.")
+        raise ValueError("Invalid day of month.")
 
     # days of year (day when month is not given) must always use 3 digits
     elif month == "" and day != "" and len(day) != 3:
-        raise Exception("Invalid day of year.")
+        raise ValueError("Invalid day of year.")
 
     # prepare timestamp
     if month == "" and day != "":
@@ -67,14 +79,17 @@ def run_file_mask(fmask, fname):
     return timestamp, date_str, step, date_type
 
 
+@logger.catch
 def get_raster_bbox(path):
+    logger.debug("Retrieving bounds of raster at path {path}...")
     with rasterio.open(path, "r") as raster:
         # bounds = (xmin, ymin, xmax, ymax)
         b = raster.bounds
+        logger.debug("Raster bounds are {repr(b)}")
         return box(*b)
 
 
-
+@logger.catch
 def insert_dataset(dataset: Dataset) -> None:
     params = dict(dataset)
     if params["mapped"]:
@@ -112,6 +127,7 @@ def insert_dataset(dataset: Dataset) -> None:
             conn.commit()
 
 
+@logger.catch
 def start_dataset_resources_check(name: str) -> None:
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -131,6 +147,7 @@ def start_dataset_resources_check(name: str) -> None:
             _update_dataset_from_resources(cur, dataset_id, dset_params)
 
 
+@logger.catch
 def _identify_dataset_resources(
     cur,
     dataset_id: int,
@@ -153,7 +170,7 @@ def _identify_dataset_resources(
     if not file_list:
         raise ValueError("No files found")
 
-    # list of spatial exten bboxes for each resource that can be used to get total extent for dataset
+    # list of spatial extent bboxes for each resource that can be used to get total extent for dataset
     spatial_extent_bbox_list = []
     temporal_info_list = []
     # -------------------------------------
@@ -233,6 +250,7 @@ def _identify_dataset_resources(
     return dset_params
 
 
+@logger.catch
 def update_dataset(dataset: Dataset) -> None:
     params = dict(dataset)
     if params["mapped"]:
