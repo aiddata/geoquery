@@ -10,6 +10,9 @@ port = "1234"
 user = "postgres"
 password = "your_postgres_password"
 
+[logging]
+log_dir = "/path/to/geoquery-update/logs"
+
 [other]
 devtag = ""
 request_url = "geoquery.org"

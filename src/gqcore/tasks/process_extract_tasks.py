@@ -9,6 +9,7 @@ from shapely import Geometry
 from loguru import logger
 
 import gqcore.utils.processors
+from gqcore.utils.logs import add_handler
 from gqcore.utils.db.extract_task_processing import (
     ExtractData,
     ExtractTaskToRun,
@@ -17,9 +18,6 @@ from gqcore.utils.db.extract_task_processing import (
     count_available_tasks,
     get_mappings,
 )
-
-logger.add("/home/jacob/Documents/aiddata/geoquery-update/logs/process_extract_tasks.log")
-
 
 def get_func(op: str) -> Callable:
     """Get appropriate function for operation."""
@@ -112,4 +110,5 @@ def process_tasks_using_dask(max_tasks=10000) -> None:
 
 
 if __name__ == "__main__":
+    add_handler("process_extract_tasks")
     process_tasks_using_dask()
