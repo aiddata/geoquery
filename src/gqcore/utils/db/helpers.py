@@ -114,11 +114,10 @@ def get_feature_ids() -> list:
 def _get_feature_ids(cur: Cursor) -> list:
     feature_query = "SELECT id FROM features"
     cur.execute(feature_query)
-    raise Exception("This is a test")
     feature_ids = cur.fetchall()
     return feature_ids
 
-
+@logger.catch(reraise=True)
 def get_dataset_ids_without_coverage_dependencies() -> list:
     with get_conn() as conn:
         with conn.cursor() as cur:
