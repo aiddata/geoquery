@@ -4,3 +4,4 @@ load.py
 old/
 *egg*
 src/gqcore/config.toml
+logs
