@@ -20,7 +20,7 @@ def ingest_dataset(json_path: str = None, json_data: dict = None, update: bool =
     if update_or_insert:
         try:
             dutils.update_dataset(DS)
-        except:
+        except Exception as e:
             dutils.insert_dataset(DS)
     elif update:
         dutils.update_dataset(DS)

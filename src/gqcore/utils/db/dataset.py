@@ -24,7 +24,7 @@ from gqcore.utils.db.helpers import (
 from gqcore.utils.models import Dataset, DatasetResource, ProcessingOption
 
 
-@logger.catch
+@logger.catch(reraise=True)
 def run_file_mask(fmask, fname):
     """extract temporal data from file name"""
 
@@ -79,17 +79,17 @@ def run_file_mask(fmask, fname):
     return timestamp, date_str, step, date_type
 
 
-@logger.catch
+@logger.catch(reraise=True)
 def get_raster_bbox(path):
-    logger.debug("Retrieving bounds of raster at path {path}...")
+    logger.debug(f"Retrieving bounds of raster at path {path}...")
     with rasterio.open(path, "r") as raster:
         # bounds = (xmin, ymin, xmax, ymax)
         b = raster.bounds
-        logger.debug("Raster bounds are {repr(b)}")
+        logger.debug(f"Raster bounds are {repr(b)}")
         return box(*b)
 
 
-@logger.catch
+@logger.catch(reraise=True)
 def insert_dataset(dataset: Dataset) -> None:
     params = dict(dataset)
     if params["mapped"]:
@@ -127,7 +127,7 @@ def insert_dataset(dataset: Dataset) -> None:
             conn.commit()
 
 
-@logger.catch
+@logger.catch(reraise=True)
 def start_dataset_resources_check(name: str) -> None:
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -147,7 +147,7 @@ def start_dataset_resources_check(name: str) -> None:
             _update_dataset_from_resources(cur, dataset_id, dset_params)
 
 
-@logger.catch
+@logger.catch(reraise=True)
 def _identify_dataset_resources(
     cur,
     dataset_id: int,
@@ -250,7 +250,7 @@ def _identify_dataset_resources(
     return dset_params
 
 
-@logger.catch
+@logger.catch(reraise=True, exclude=ValueError)
 def update_dataset(dataset: Dataset) -> None:
     params = dict(dataset)
     if params["mapped"]:
