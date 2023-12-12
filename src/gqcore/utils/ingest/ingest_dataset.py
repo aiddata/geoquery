@@ -1,12 +1,18 @@
 import json
 from pathlib import Path
+
 from loguru import logger
 
 from gqcore.utils.db import dataset as dutils
 
 
 @logger.catch
-def ingest_dataset(json_path: str = None, json_data: dict = None, update: bool = False, update_or_insert: bool = False) -> None:
+def ingest_dataset(
+    json_path: str = None,
+    json_data: dict = None,
+    update: bool = False,
+    update_or_insert: bool = False,
+) -> None:
     if json_path is None and json_data is None:
         raise ValueError("Must provide either json_path or json_data")
     elif json_path is not None and json_data is not None:
