@@ -19,15 +19,17 @@ Here's how to get Grafana up-and-running locally with podman, alongside our usua
 8. Re-initialize the PostgreSQL server using the usual instructions at the root of this repo
 9. Navigate to http://localhost:3000 in your browser, and login with username admin, password admin
 10. Click on Add a Data Source, and scroll down to PostgreSQL. Here are the connection options for PostgreSQL:
-   - Host: localhost:5432
-   - Database: postgres
-   - User: postgres
-   - User: postgres Password: mysecretpassword
-   - TLS/SSL Mode: disable
-   At the bottom of the page, click Save and Test
+    - Host: localhost:5432
+    - Database: postgres
+    - User: postgres
+    - User: postgres Password: mysecretpassword
+    - TLS/SSL Mode: disable
+
+    At the bottom of the page, click Save and Test
 11. Add another Data Source: Loki
-   - Connection URL: http://localhost:3100
-   At the bottom of the page, click Save and Test
+    - Connection URL: http://localhost:3100
+
+    At the bottom of the page, click Save and Test
 12. Save and test the PostgreSQL connection, making sure it is successful
 13. Go back home, and click on New Dashboard
 14. Click on Import dashboard
