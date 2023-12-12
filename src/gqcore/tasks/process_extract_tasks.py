@@ -5,11 +5,10 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Tuple
 
 from dask.distributed import Client, LocalCluster, wait
-from shapely import Geometry
 from loguru import logger
+from shapely import Geometry
 
 import gqcore.utils.processors
-from gqcore.utils.logs import add_handler
 from gqcore.utils.db.extract_task_processing import (
     ExtractData,
     ExtractTaskToRun,
@@ -18,6 +17,8 @@ from gqcore.utils.db.extract_task_processing import (
     count_available_tasks,
     get_mappings,
 )
+from gqcore.utils.logs import add_handler
+
 
 def get_func(op: str) -> Callable:
     """Get appropriate function for operation."""
@@ -31,7 +32,6 @@ def get_func(op: str) -> Callable:
 def run_task(
     func: Callable, task_id: int, feat: Geometry, data: Any, op_kwargs
 ) -> List[ExtractData]:
-
     result = func(feat, data, **op_kwargs)
 
     return [
