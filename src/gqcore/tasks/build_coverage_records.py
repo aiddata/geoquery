@@ -9,7 +9,7 @@ from gqcore import get_config
 
 config = get_config()
 
-logger.add(config["logs"]["log_dir"] + "/main.log",
+logger.add(config["logging"]["log_dir"] + "/main.log",
            format="{time} {level} {message}",
            rotation="1 week",
            level="DEBUG",
