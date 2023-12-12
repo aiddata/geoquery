@@ -1,6 +1,6 @@
 from loguru import logger
 
-from gqcore.utils.log import get_logger
+from gqcore.utils.logs import get_logger
 from gqcore.utils.db.extract_task_generation import generate_tasks
 
 
