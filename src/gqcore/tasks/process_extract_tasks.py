@@ -3,6 +3,7 @@ from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Tuple
+from warnings import catch_warnings
 
 from dask.distributed import Client, LocalCluster, wait
 from loguru import logger
@@ -32,7 +33,17 @@ def get_func(op: str) -> Callable:
 def run_task(
     func: Callable, task_id: int, feat: Geometry, data: Any, op_kwargs
 ) -> List[ExtractData]:
-    result = func(feat, data, **op_kwargs)
+    # this re-import is necessary if this is running on a dask worker
+    from loguru import logger
+
+    logger.info(f"Running task with id {task_id}...")
+
+    with catch_warnings(record=True) as warnings:
+        result = func(feat, data, **op_kwargs)
+        for warning in warnings:
+            logger.warning(
+                f"Warning caught while running task {task_id}: {warning.message}"
+            )
 
     return [
         ExtractData(
@@ -56,12 +67,14 @@ def prepare_task(data: ExtractTaskToRun) -> Tuple[Callable, int, Geometry, Any, 
 
 def task_generator() -> Iterator[LockTask]:
     try:
-        with LockTask() as task:
-            yield task
+        while True:
+            with LockTask() as task:
+                yield task
     except NoTaskAvailableError:
         return
 
 
+@logger.catch(reraise=True)
 def process_tasks_sequentially() -> None:
     for task in task_generator():
         for result in run_task(*prepare_task(task.data)):
@@ -77,8 +90,10 @@ def run_one_task(*args) -> None:
         return
 
 
+@logger.catch(reraise=True)
 def process_tasks_concurrently(max_workers: int = 10, max_tasks=10000) -> None:
     tasks_available: int = count_available_tasks()
+    logger.debug(f"{tasks_available} tasks available in queue")
     if tasks_available < max_tasks:
         run_count = tasks_available
     else:
@@ -89,6 +104,7 @@ def process_tasks_concurrently(max_workers: int = 10, max_tasks=10000) -> None:
             executor.submit(run_one_task)
 
 
+@logger.catch(reraise=True)
 def process_tasks_using_dask(max_tasks=10000) -> None:
     tasks_available: int = count_available_tasks()
     logger.debug(f"{tasks_available} tasks available in queue")
@@ -107,6 +123,7 @@ def process_tasks_using_dask(max_tasks=10000) -> None:
         futures = client.map(run_one_task, range(run_count))
 
         wait(futures)
+        logger.info(f"Finished processing {run_count} jobs")
 
 
 if __name__ == "__main__":
