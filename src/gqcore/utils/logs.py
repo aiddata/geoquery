@@ -14,4 +14,5 @@ def get_logger(file_name: str) -> None:
         level="DEBUG",
         backtrace=True,
         diagnose=True,
+        enqueue=True,
     )
