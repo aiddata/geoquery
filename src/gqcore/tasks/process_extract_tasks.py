@@ -17,7 +17,7 @@ from gqcore.utils.db.extract_task_processing import (
     count_available_tasks,
     get_mappings,
 )
-from gqcore.utils.logs import add_handler
+from gqcore.utils.logs import get_logger
 
 
 def get_func(op: str) -> Callable:
@@ -110,5 +110,5 @@ def process_tasks_using_dask(max_tasks=10000) -> None:
 
 
 if __name__ == "__main__":
-    add_handler("process_extract_tasks")
+    get_logger("process_extract_tasks")
     process_tasks_using_dask()
