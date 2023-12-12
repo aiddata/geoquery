@@ -5,17 +5,8 @@ from loguru import logger
 
 from gqcore.utils.models import CoverageRecord
 from gqcore.utils.db.helpers import get_coverage_records, get_dataset_ids_without_coverage_dependencies, get_feature_ids, get_feat_geom_by_id, get_dataset_extent_by_id, update_coverage_status, insert_coverage_records
-from gqcore import get_config
+from gqcore.utils.logs import add_handler
 
-config = get_config()
-
-logger.add(config["logging"]["log_dir"] + "/main.log",
-           format="{time} {level} {message}",
-           rotation="1 week",
-           level="DEBUG",
-           backtrace=True,
-           diagnose=True,
-)
 
 
 def generate_coverage_records():
@@ -81,5 +72,6 @@ def test_coverage():
 
 
 if __name__ == "__main__":
+    add_handler("build_coverage_records")
     generate_coverage_records()
     test_coverage()
