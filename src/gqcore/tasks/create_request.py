@@ -3,10 +3,14 @@ Currently just code to create a dummy request for testing purposes.
 
 Placeholder for code to generate request from some user input source (e.g., GeoQuery / API)
 """
+from loguru import logger
 
-
+from gqcore.utils.logs import get_logger
 from gqcore.utils.db.request_generation import insert_request, Request, RequestItem
 
+get_logger("request_generation")
+
+logger.info("Creating dummy request 1")
 
 request = Request(**{
     "source": "script",
@@ -26,6 +30,10 @@ request = Request(**{
 })
 insert_request(request)
 
+logger.success("Created dummy request 1")
+
+logger.info("Creating dummy request 2")
+
 request = Request(**{
     "source": "script",
     "contact": "sgoodman@aiddata.wm.edu",
@@ -37,6 +45,9 @@ request = Request(**{
     ],
 })
 insert_request(request)
+
+logger.success("Created dummy request 2")
+
 
 
 from gqcore.utils.db.conn import get_conn

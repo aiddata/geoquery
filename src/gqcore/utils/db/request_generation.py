@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, Json, field_validator
+from loguru import logger
 
 from gqcore.utils.db.conn import get_conn
 
@@ -29,11 +30,14 @@ class Request(BaseModel):
         return p
 
 
-
+@logger.catch(reraise=True)
 def insert_request(request: Request):
+
     params = request.model_dump()
     params["date"] = datetime.now()
     params["status"] = -1
+
+    logger.info(f"Inserting new request {params['date']}")
 
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -65,6 +69,7 @@ def insert_request(request: Request):
             # get request id that was just inserted
 
             request_id = cur.fetchone()["id"]
+            logger.info(f"Inserted new request {request_id} and preparing associated tasks")
 
             params_list = []
             for i in request.data:
@@ -117,3 +122,5 @@ def insert_request(request: Request):
             cur.executemany(
                 insert_request_map_query, [(request_id, i) for i in extract_task_ids], returning=True
             )
+
+            logger.success(f"Inserted new request {request_id} and associated tasks {extract_task_ids}")
