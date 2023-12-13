@@ -53,4 +53,4 @@ logger.success("Created dummy request 2")
 from gqcore.utils.db.conn import get_conn
 with get_conn() as conn:
     with conn.cursor() as cur:
-        cur.execute("""UPDATE extract_tasks SET status = 0 WHERE id = 19 """)
+        cur.execute("""UPDATE extract_tasks SET status = 0 WHERE id = 21 """)

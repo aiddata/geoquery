@@ -7,6 +7,7 @@ import shutil
 import pandas as pd
 import shapely
 import geopandas as gpd
+from loguru import logger
 
 from gqcore.utils.db.conn import get_conn
 from gqcore.utils.email import GeoEmail
@@ -14,7 +15,7 @@ from gqcore import get_config
 from gqcore.utils.documentation import DocBuilder
 
 
-
+@logger.catch(reraise=True)
 def process_new_requests():
     while True:
         request_info = get_next_new_request()
@@ -22,12 +23,18 @@ def process_new_requests():
             break
         request_id = request_info["request_id"]
 
-        print(f"Processing new request: {request_id}...")
+        rlogger = logger.bind(request_id=str(request_id)[:8])
+        rlogger.info("Processing new request")
 
         request_contact = request_info["contact"]
         update_request_time(request_id, "prepare_time")
         update_request_status(request_id, 0)
+
+        rlogger.info("Sending email")
         notify_received(request_id, request_contact)
+
+        rlogger.success("New request processed")
+
 
 
 def get_next_new_request():
@@ -46,6 +53,7 @@ def get_next_new_request():
             return result
 
 
+@logger.catch(reraise=True)
 def process_completed_requests():
     config = get_config()
     data_root = Path(config["main"]["data_root"])
@@ -54,11 +62,12 @@ def process_completed_requests():
         request_id, request_contact, request_df = get_next_completed_request()
         if request_df is None:
             break
-
-        print(f"Processing completed request: {request_id}...")
+        rlogger = logger.bind(request_id=str(request_id)[:8])
+        logger.info("Processing completed request")
 
         update_request_time(request_id, "process_time")
 
+        rlogger.debug("Building output data")
         output_df = build_output_df(request_df)
 
         output_dir = data_root / "data" / "outputs" / str(request_id)
@@ -67,13 +76,16 @@ def process_completed_requests():
         output_path = output_dir / "data.csv"
         output_df.to_csv(output_path, index=False)
 
+        rlogger.debug("Building documentation")
         doc_output =  output_dir / "documentation.pdf"
         build_request_documentation(request_id, request_df, doc_output)
 
+        rlogger.debug("Building feature collection")
         fc_gdf = build_feature_collection(request_df[["geom", "geom_id"]].drop_duplicates("geom_id").copy())
         for geomtype in fc_gdf.geom_type.unique():
             fc_gdf[fc_gdf.geom_type == geomtype].to_file(output_dir / "features.gpkg", driver="GPKG", layer=geomtype)
 
+        rlogger.debug("Building zip")
         build_request_zip(request_id, output_dir)
 
         # update with complete time
@@ -81,7 +93,10 @@ def process_completed_requests():
 
         update_request_status(request_id, 1)
 
+        rlogger.debug("Sending email")
         notify_completed(request_id, request_contact)
+
+        rlogger.success("Completed request processed")
 
 
 def update_request_time(request_id, time_type):
