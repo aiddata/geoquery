@@ -8,7 +8,7 @@ from loguru import logger
 from gqcore.utils.logs import get_logger
 from gqcore.utils.db.request_generation import insert_request, Request, RequestItem
 
-get_logger("request_generation")
+get_logger("create_request")
 
 logger.info("Creating dummy request 1")
 
