@@ -17,7 +17,7 @@
   },
   "editable": true,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "id": 1,
   "links": [],
   "liveNow": false,
@@ -142,7 +142,7 @@
     {
       "datasource": {
         "type": "postgres",
-        "uid": "effa29e9-105a-4f9c-bf50-c79bfaedcc58"
+        "uid": "e56f7d62-8d91-4e37-a083-f1cbd4fecfae"
       },
       "description": "",
       "fieldConfig": {
@@ -169,7 +169,7 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 3,
+        "w": 4,
         "x": 3,
         "y": 0
       },
@@ -194,7 +194,7 @@
         {
           "datasource": {
             "type": "postgres",
-            "uid": "bdcd7202-248c-4048-81d1-9119f54daadb"
+            "uid": "e56f7d62-8d91-4e37-a083-f1cbd4fecfae"
           },
           "editorMode": "code",
           "format": "table",
@@ -204,56 +204,20 @@
           "sql": {
             "columns": [
               {
-                "name": "COUNT",
-                "parameters": [
-                  {
-                    "name": "*",
-                    "type": "functionParameter"
-                  }
-                ],
+                "parameters": [],
                 "type": "function"
               }
             ],
             "groupBy": [
               {
                 "property": {
-                  "name": "status",
                   "type": "string"
                 },
                 "type": "groupBy"
               }
             ],
-            "limit": 50,
-            "whereJsonTree": {
-              "children1": [
-                {
-                  "id": "8a99ba9a-89ab-4cde-b012-318c4b72a421",
-                  "properties": {
-                    "field": "status",
-                    "fieldSrc": "field",
-                    "operator": "equal",
-                    "value": [
-                      0
-                    ],
-                    "valueSrc": [
-                      "value"
-                    ],
-                    "valueType": [
-                      "number"
-                    ]
-                  },
-                  "type": "rule"
-                }
-              ],
-              "id": "b8889b88-89ab-4cde-b012-318c4b6f767a",
-              "properties": {
-                "conjunction": "AND"
-              },
-              "type": "group"
-            },
-            "whereString": "status = 0"
-          },
-          "table": "extract_tasks"
+            "limit": 50
+          }
         }
       ],
       "title": "Tasks Completed",
@@ -262,7 +226,7 @@
     {
       "datasource": {
         "type": "postgres",
-        "uid": "effa29e9-105a-4f9c-bf50-c79bfaedcc58"
+        "uid": "e56f7d62-8d91-4e37-a083-f1cbd4fecfae"
       },
       "description": "Age of oldest incomplete GeoQuery request",
       "fieldConfig": {
@@ -296,8 +260,8 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 4,
-        "x": 6,
+        "w": 5,
+        "x": 7,
         "y": 0
       },
       "id": 2,
@@ -320,7 +284,7 @@
         {
           "datasource": {
             "type": "postgres",
-            "uid": "bdcd7202-248c-4048-81d1-9119f54daadb"
+            "uid": "e56f7d62-8d91-4e37-a083-f1cbd4fecfae"
           },
           "editorMode": "code",
           "format": "table",
@@ -330,12 +294,7 @@
           "sql": {
             "columns": [
               {
-                "parameters": [
-                  {
-                    "name": "submit_time",
-                    "type": "functionParameter"
-                  }
-                ],
+                "parameters": [],
                 "type": "function"
               }
             ],
@@ -348,8 +307,7 @@
               }
             ],
             "limit": 50
-          },
-          "table": "requests"
+          }
         }
       ],
       "title": "Oldest Incomplete Request",
@@ -358,7 +316,7 @@
     {
       "datasource": {
         "type": "postgres",
-        "uid": "effa29e9-105a-4f9c-bf50-c79bfaedcc58"
+        "uid": "e56f7d62-8d91-4e37-a083-f1cbd4fecfae"
       },
       "description": "Number of requests submitted per day over the last 30 days",
       "fieldConfig": {
@@ -417,7 +375,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 7,
+        "w": 10,
         "x": 0,
         "y": 6
       },
@@ -442,7 +400,7 @@
         {
           "datasource": {
             "type": "postgres",
-            "uid": "bdcd7202-248c-4048-81d1-9119f54daadb"
+            "uid": "e56f7d62-8d91-4e37-a083-f1cbd4fecfae"
           },
           "editorMode": "code",
           "format": "table",
@@ -465,23 +423,74 @@
               }
             ],
             "limit": 50
-          },
-          "table": "requests"
+          }
         }
       ],
       "title": "Requests, last 30 days",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "d1ff70b9-e210-42a3-9c57-a235fa9354ec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 23,
+        "x": 0,
+        "y": 14
+      },
+      "id": 5,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": false,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "pluginVersion": "10.2.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "d1ff70b9-e210-42a3-9c57-a235fa9354ec"
+          },
+          "editorMode": "builder",
+          "expr": "{level=\"CRITICAL\"}",
+          "legendFormat": "",
+          "maxLines": 1000,
+          "queryType": "range",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "d1ff70b9-e210-42a3-9c57-a235fa9354ec"
+          },
+          "editorMode": "builder",
+          "expr": "{level=\"ERROR\"} |= ``",
+          "hide": false,
+          "maxLines": 1000,
+          "queryType": "range",
+          "refId": "B"
+        }
+      ],
+      "title": "Errors, Last 7 Days",
+      "type": "logs"
     }
   ],
-  "refresh": false,
+  "refresh": "",
   "schemaVersion": 38,
   "tags": [],
   "templating": {
     "list": []
   },
   "time": {
-    "from": "2023-10-28T14:12:39.946Z",
-    "to": "2023-12-27T14:12:39.946Z"
+    "from": "now-7d",
+    "to": "now"
   },
   "timepicker": {
     "refresh_intervals": [
@@ -500,6 +509,6 @@
   "timezone": "",
   "title": "GeoQuery Backend",
   "uid": "e0faee3c-e945-4c48-80a9-ae6114668d2c",
-  "version": 5,
+  "version": 4,
   "weekStart": ""
 }

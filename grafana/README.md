@@ -16,9 +16,10 @@ Here's how to get Grafana up-and-running locally with podman, alongside our usua
 5. Add the Grafana container to your pod with `podman run -d --pod geoquery grafana/grafana-oss`
 6. Add the Loki container to your pod with `podman run -d --pod geoquery -v ./loki-config.yaml:/etc/loki/local-config.yaml:Z grafana/loki:latest`
 7. Add the promtail container to your pod with `podman run -d --pod geoquery -v ../logs:/var/log:Z -v ./promtail-config.yaml:/etc/promtail/config.yml:Z grafana/promtail:latest`
-8. Re-initialize the PostgreSQL server using the usual instructions at the root of this repo
-9. Navigate to http://localhost:3000 in your browser, and login with username admin, password admin
-10. Click on Add a Data Source, and scroll down to PostgreSQL. Here are the connection options for PostgreSQL:
+   **change `../logs` above to point to the logs directory you specified in `config.toml`**
+9. Re-initialize the PostgreSQL server using the usual instructions at the root of this repo
+10. Navigate to http://localhost:3000 in your browser, and login with username admin, password admin
+11. Click on Add a Data Source, and scroll down to PostgreSQL. Here are the connection options for PostgreSQL:
     - Host: localhost:5432
     - Database: postgres
     - User: postgres
@@ -26,12 +27,12 @@ Here's how to get Grafana up-and-running locally with podman, alongside our usua
     - TLS/SSL Mode: disable
 
     At the bottom of the page, click Save and Test
-11. Add another Data Source: Loki
+12. Add another Data Source: Loki
     - Connection URL: http://localhost:3100
 
     At the bottom of the page, click Save and Test
-12. Save and test the PostgreSQL connection, making sure it is successful
-13. Go back home, and click on New Dashboard
-14. Click on Import dashboard
-15. Paste in the JSON found in `dashboard.json` in this directory
-16. Open the new dashboard and see it in action! If everything went well it should look like the screenshot above
+13. Save and test the PostgreSQL connection, making sure it is successful
+14. Go back home, and click on New Dashboard
+15. Click on Import dashboard
+16. Paste in the JSON found in `dashboard.json` in this directory
+17. Open the new dashboard and see it in action! If everything went well it should look like the screenshot above
