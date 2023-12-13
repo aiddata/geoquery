@@ -2,13 +2,19 @@ import json
 from pathlib import Path
 from typing import List, Optional
 
+from loguru import logger
 import geopandas as gpd
 import requests
 import shapely
 from psycopg.types.json import Json, Jsonb
 
+from gqcore.utils.logs import get_logger
 from gqcore.utils.ingest.ingest_feature_collection import ingest_feature_collection
 from gqcore.utils.db import features as futils
+
+get_logger("ingest")
+
+logger.info(f"Starting geoBoundaries bulk ingest")
 
 # set this to None to download all ISO3 boundaries
 dl_iso3_list: Optional[List[str]] = ["AFG"]
@@ -76,7 +82,7 @@ for iso3 in iso3_list:
 
         adm_meta["name"] = f"gB_v6_{iso3}_{item['boundaryType']}"
 
-        print(f"Processing {adm_meta['name']}")
+        logger.info(f"Processing geoBoundaries item: {adm_meta['name']}")
 
         adm_meta[
             "title"
@@ -103,12 +109,15 @@ for iso3 in iso3_list:
         gpkg_path = output_path / f"{Path(commit_dl_url).stem}.gpkg"
         adm_meta["path"] = str(gpkg_path)
 
+        logger.debug(f"Downloading {commit_dl_url}")
         gdf = gpd.read_file(commit_dl_url)
         gdf.to_file(gpkg_path, driver="GPKG")
 
+        logger.debug(f"Getting bounding box for {commit_dl_url}")
         spatial_extent = shapely.box(*gdf.total_bounds).wkt
         adm_meta["spatial_extent"] = spatial_extent
 
+        logger.debug(f"Preparing features for {commit_dl_url}")
         feature_list = []
         for ix, row in gdf.iterrows():
             feature_list.append(
@@ -132,4 +141,4 @@ for iso3 in iso3_list:
         # futils.insert_feature_collection(FC)
         # # futils.update_feature_collection(FC)
 
-        ingest_feature_collection(json_data=adm_meta, update=False)
+        ingest_feature_collection(json_data=adm_meta, update_or_insert=True)
