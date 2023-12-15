@@ -5,7 +5,8 @@ geopandas
 shapely
 rasterio
 rasterstats @ git+https://github.com/aiddata/geoquery-python-rasterstats@main
-dask[distributed]
+dask[array,distributed]
+dask_kubernetes
 reportlab
 fastapi
 loguru
