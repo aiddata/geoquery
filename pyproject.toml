@@ -34,6 +34,19 @@ requires-python = ">=3.8"
 dependencies = [
     "pyproj >=2.1.0",
     "shapely",
+    "pydantic",
+    "psycopg",
+    "pandas",
+    "geopandas",
+    "shapely",
+    "rasterio",
+    "rasterstats @ git+https://github.com/aiddata/geoquery-python-rasterstats@main",
+    "dask[array,distributed]",
+    "dask_kubernetes",
+    "reportlab",
+    "fastapi",
+    "loguru",
+    "toml",
 ]
 
 
