@@ -49,60 +49,23 @@ helm upgrade --install cnpg --namespace cnpg-system charts/charts/cloudnative-pg
 # helm upgrade --install cnpg --namespace cnpg-system cnpg/cloudnative-pg
 
 
-kubectl config set-context --current --namespace=geoquery
+# kubectl config set-context --current --namespace=geoquery
 
-kubectl apply -f ./helm_chart/templates/cnpg/postgis.yaml
+# kubectl apply -f ./helm_chart/templates/cnpg/postgis.yaml
 
-kubectl exec -ti postgis-cluster-1 -- psql geoquery
 
 
 # ------------------
 
+kubectl exec -ti postgis-cluster-1 -- psql geoquery
 
-
-
-# # pg operator
-# # https://github.com/zalando/postgres-operator/blob/master/docs/quickstart.md/
-
-# # add repo for postgres-operator
-# helm repo add postgres-operator-charts https://opensource.zalando.com/postgres-operator/charts/postgres-operator
-
-# # install the postgres-operator
-# helm install postgres-operator postgres-operator-charts/postgres-operator
-
-# # add repo for postgres-operator-ui
-# helm repo add postgres-operator-ui-charts https://opensource.zalando.com/postgres-operator/charts/postgres-operator-ui
-
-# # install the postgres-operator-ui
-# helm install postgres-operator-ui postgres-operator-ui-charts/postgres-operator-ui
-
-# kubectl apply -f ./helm_chart/templates/pg_op/manifest.yaml
-
-# kubectl exec -it acid-test-cluster-  --  psql -h localhost -U zolando --password -p 5432 postgresdb
-
-
-
-# # kubectl apply -f ./helm_chart/templates/pg/config_map.yaml
-# # kubectl apply -f ./helm_chart/templates/pg/vols.yaml
-# # kubectl apply -f ./helm_chart/templates/pg/deployment.yaml
-# # kubectl apply -f ./helm_chart/templates/pg/service.yaml
-# kubectl exec -it acid-minimal-cluster-0   --  psql -h localhost -U zolando -p 5432
-
-
-# kubectl exec -it postgis-6965f455df-pmr8k  --  psql -h localhost -U admin --password -p 5432 postgresdb
-# kubectl exec --stdin --tty postgis-6965f455df-pmr8k -- /bin/bash
-
-
-
-kubectl exec --stdin --tty python -- /bin/bash
+kubectl exec --stdin --tty python2 -- /bin/bash
 
 pip install -e /tmp/geoquery-update
 
-import psycopg
-x = psycopg.connect("postgresql://geoquery:dante@postgis-cluster3-rw.geoquery.svc.cluster.local:5432")
+kubectl get pods --all-namespaces -o jsonpath='{range .items[?(@.spec.serviceAccountName == "default")]}{.metadata.namespace} {.metadata.name}{"\n"}{end}' 2>/dev/null
 
-# helm install my-daskhub dask/daskhub --version 2023.1.0
 
-# helm install my-dask dask/dask --version 2023.1.0
-
-# kubectl logs <pod_name>
+# ------------------
+helm dependency update ./helm_chart/
+helm upgrade gq ./helm_chart/
