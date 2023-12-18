@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Tuple
 from warnings import catch_warnings
 
+
+from dask_kubernetes.operator import KubeCluster
 from dask.distributed import Client, LocalCluster, wait
 from loguru import logger
 from shapely import Geometry
@@ -114,9 +116,14 @@ def process_tasks_using_dask(max_tasks=10000) -> None:
         else:
             run_count = tasks_available
 
-        logger.info("Starting local dask cluster")
-        cluster = LocalCluster(n_workers=16)
+        # logger.info("Starting local dask cluster")
+        # cluster = LocalCluster(n_workers=16)
+        # client = Client(cluster)
+
+        logger.info("Connecting to k8s dask cluster (KubeCluster)")
+        cluster = KubeCluster.from_name("extract-dask-cluster")
         client = Client(cluster)
+
         logger.info(f"Link to Dask dashboard: {cluster.dashboard_link}")
 
         logger.info(f"Submitting {run_count} jobs to the dask cluster.")
