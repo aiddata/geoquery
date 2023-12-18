@@ -1,8 +1,10 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: python
+  name: python2
 spec:
+  serviceAccount: geoquery-super
+  serviceAccountName: geoquery-super
   volumes:
   - name: geoquery-pv
     hostPath:
