@@ -22,6 +22,8 @@ def get_conn(**kwargs):
     if secrets_dir.is_dir():
         logger.info("Secrets directory found, loading secrets...")
         for s in secrets_dir.iterdir():
+            if not s.is_file():
+                continue
             try:
                 with open(s) as src:
                     db_config[s.name] = src.read()
@@ -36,7 +38,7 @@ def get_conn(**kwargs):
     # make database connection and yield it
     with logger.catch(exception=psycopg.Error, level="CRITICAL"):
         with psycopg.connect(
-            f'{db_config["type"]}://{db_config["user"]}:{db_config["password"]}@{db_config["address"]}:{db_config["port"]}',
+            f'{db_config["type"]}://{db_config["username"]}:{db_config["password"]}@{db_config["address"]}:{db_config["port"]}/{db_config["db_name"]}',
             **kwargs,
         ) as conn:
             logger.trace("Successfully connected to database")
