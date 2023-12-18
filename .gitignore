@@ -5,3 +5,6 @@ old/
 *egg*
 src/gqcore/config.toml
 logs
+k8s/charts
+k8s/extra_templates
+k8s/Chart.lock

@@ -1,0 +1,12 @@
+namespace: "geoquery"
+agentContainer: "python:3.11.7"
+
+
+prod:
+  nfs:
+    address: 128.239.59.130
+    mountPath: /sciclone/nova/test
+
+dev:
+  enabled: false
+  localDir: /tmp/geoquery-update/

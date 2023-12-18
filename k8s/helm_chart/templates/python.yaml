@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: python
+spec:
+  volumes:
+  - name: geoquery-pv
+    hostPath:
+      path: /tmp/geoquery-update
+  - name: postgis-secret-vol
+    secret:
+      secretName: cluster-example-dante
+      optional: true
+  containers:
+  - name: python
+    image: python:3.11-bookworm
+    # Just spin & wait forever
+    command: [ "/bin/bash", "-c", "--" ]
+    args: [ "while true; do sleep 30; done;" ]
+    volumeMounts:
+    - name: geoquery-pv
+      mountPath: /tmp/geoquery-update
+    - name: postgis-secret-vol
+      mountPath: /secrets/db

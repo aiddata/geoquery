@@ -1,0 +1,53 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgis-cluster3
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgis:16-3.4
+  bootstrap:
+    initdb:
+      postInitTemplateSQL:
+        - CREATE EXTENSION postgis;
+        - CREATE EXTENSION postgis_topology;
+        - CREATE EXTENSION fuzzystrmatch;
+        - CREATE EXTENSION postgis_tiger_geocoder;
+      database: geoquery
+      owner: geoquery
+      secret:
+        name: cluster-example-dante
+
+  storage:
+    size: 10Gi
+
+  # managed:
+  #   roles:
+  #   - name: app
+  #     createdb: true
+  #     login: true
+  #   - name: dante
+  #     ensure: present
+  #     comment: my database-side comment
+  #     login: true
+  #     superuser: false
+  #     createdb: true
+  #     createrole: false
+  #     inherit: false
+  #     replication: false
+  #     bypassrls: false
+  #     connectionLimit: 4
+  #     validUntil: "2053-04-12T15:04:05Z"
+  #     inRoles:
+  #       - pg_monitor
+  #       - pg_signal_backend
+  #     passwordSecret:
+  #       name: cluster-example-dante
+---
+apiVersion: v1
+data:
+  username: Z2VvcXVlcnk=
+  password: ZGFudGU=
+kind: Secret
+metadata:
+  name: cluster-example-dante
+type: kubernetes.io/basic-auth
