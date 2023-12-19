@@ -12,5 +12,5 @@ data:
   data_root: "/tmp/geoquery-update"
   email_reply_to: "AidData GeoQuery <geo@aiddata.wm.edu>"
   email_server: "smtp.gmail.com"
-  email_port: 587
+  email_port: "587"
   email_backup_server: "localhost"
