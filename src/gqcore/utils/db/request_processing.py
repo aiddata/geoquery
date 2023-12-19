@@ -56,7 +56,7 @@ def get_next_new_request():
 @logger.catch(reraise=True)
 def process_completed_requests():
     config = get_config()
-    data_root = Path(config["main"]["data_root"])
+    data_root = Path(config["data_root"])
 
     while True:
         request_id, request_contact, request_df = get_next_completed_request()
@@ -251,8 +251,8 @@ def notify_received(request_id, request_contact):
     request_id = str(request_id)
 
     config = get_config()
-    devtag = config["other"]["devtag"]
-    request_url = config["other"]["request_url"]
+    devtag = config["devtag"]
+    request_url = config["request_url"]
 
     mail_to = request_contact
 
@@ -293,8 +293,8 @@ def notify_completed(request_id, request_contact):
     request_id = str(request_id)
 
     config = get_config()
-    devtag = config["other"]["devtag"]
-    request_url = config["other"]["request_url"]
+    devtag = config["devtag"]
+    request_url = config["request_url"]
 
     mail_to = request_contact
 

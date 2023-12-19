@@ -156,7 +156,7 @@ class DocBuilder():
 
         self.config = get_config()
 
-        self.assets_dir = Path(self.config["main"]["data_root"]) / "src/gqcore/assets"
+        self.assets_dir = Path(self.config["data_root"]) / "src/gqcore/assets"
 
         # request_idx, request_contact, request_dfx = get_dummy_request()
         # breakpoint()
@@ -165,7 +165,7 @@ class DocBuilder():
         self.request_df = request_df
         self.output_path = str(output_path)
 
-        self.download_server = self.config["other"]["request_url"]
+        self.download_server = self.config["request_url"]
 
         self.request = get_request(self.request_id)
 

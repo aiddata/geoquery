@@ -4,7 +4,7 @@ from loguru import logger
 
 from gqcore import get_config
 
-log_dir = Path(get_config()["logging"]["log_dir"])
+log_dir = Path(get_config()["log_dir"])
 
 
 def get_logger(file_name: str) -> None:

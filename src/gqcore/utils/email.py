@@ -16,7 +16,7 @@ class GeoEmail():
     def get_passwd(self, sender):
         try:
 
-            passwd = self.config["email"]["password"]
+            passwd = self.config["email_password"]
             return passwd
         except Exception as e:
             raise Exception("Error getting email env var", e)
@@ -39,9 +39,9 @@ class GeoEmail():
         receiver_str = ", ".join(receiver_list)
 
         if sender is None:
-            sender = self.config["email"]["sender"]
+            sender = self.config["email_sender"]
         if reply_to is None:
-            reply_to = self.config["email"]["reply_to"]
+            reply_to = self.config["email_reply_to"]
         if passwd is None:
             passwd = self.get_passwd(sender)
         try:
@@ -57,7 +57,7 @@ class GeoEmail():
             msg['Subject'] = subject
             msg.attach(MIMEText(message))
 
-            mailserver = smtplib.SMTP(self.config["email"]["server"], self.config["email"]["port"])
+            mailserver = smtplib.SMTP(self.config["email_server"], self.config["email_port"])
             # identify ourselves to smtp gmail client
             mailserver.ehlo()
             # secure our email with tls encryption
@@ -118,7 +118,7 @@ class GeoEmail():
             """ % (FROM, ', '.join(MAIN), ', '.join(CC), subject, message)
 
             # Send the mail
-            SERVER = self.config["email"]["backup_server"]
+            SERVER = self.config["email_backup_server"]
             server = smtplib.SMTP(SERVER)
             server.sendmail(FROM, TO, message)
             server.quit()
