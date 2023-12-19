@@ -12,7 +12,7 @@ spec:
       path: /tmp/geoquery-update
   - name: gq-config-vol
     configMap:
-      name: geoquery-postgis
+      name: gq-config
   - name: postgis-secret-vol
     secret:
       secretName: postgis
