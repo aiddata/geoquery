@@ -11,3 +11,9 @@ dev:
 
 postgis:
   name: "postgis-cluster"
+  username: "[POSTGIS USERNAME]"
+  password: "[POSTGIS PASSWORD]"
+
+email:
+  sender: "[EMAIL SENDER]"
+  password: "[EMAIL PASSWORD]"
