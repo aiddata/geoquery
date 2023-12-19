@@ -41,7 +41,7 @@ helm dependency build ./helm_chart
 
 # using --atomic is probably good for production startup script,
 # but not necessary if we run locally and confirm that everything should be expect to install/work
-helm install gq --namespace geoquery  ./helm_chart
+helm upgrade --install gq --namespace geoquery  ./helm_chart -f ./helm_chart/my_values.yaml
 
 
 # -------------------------------------
