@@ -21,7 +21,6 @@ def get_config():
             return local_config["main"]
 
 
-
     k8s_config = {}
 
     # try fetching secrets from k8s
@@ -33,7 +32,7 @@ def get_config():
                 continue
             try:
                 with open(s) as src:
-                    k8s_config[s.name] = src.read()
+                    k8s_config[f"postgis_{s.name}"] = src.read()
                     logger.debug(f"Loaded secret {s.name}")
             except Exception as e:
                 logger.warning(f"Error loading secret {s.name}: {e}")
@@ -47,7 +46,7 @@ def get_config():
                 continue
             try:
                 with open(s) as src:
-                    k8s_config[s.name] = src.read()
+                    k8s_config[f"email_{s.name}"] = src.read()
                     logger.debug(f"Loaded secret {s.name}")
             except Exception as e:
                 logger.warning(f"Error loading secret {s.name}: {e}")
