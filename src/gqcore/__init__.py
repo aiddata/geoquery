@@ -21,7 +21,6 @@ def get_config():
             return local_config["main"]
 
 
-
     k8s_config = {}
 
     # try fetching secrets from k8s
