@@ -50,7 +50,6 @@ spec:
             periodSeconds: 10
           resources: null
   worker:
-    cluster: extract-dask-cluster
     replicas: 3
     spec:
       containers:
