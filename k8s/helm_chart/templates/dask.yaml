@@ -28,7 +28,7 @@ spec:
           env:
             - name: FOO
               value: bar
-          image: jacobwhall/geoquery-backend:7e715f2
+          image: {{.Values.default_image}}
           livenessProbe:
             httpGet:
               path: /health
@@ -61,6 +61,6 @@ spec:
           env:
             - name: FOO
               value: bar
-          image: jacobwhall/geoquery-backend:7e715f2
+          image: {{.Values.default_image}}
           name: worker
           resources: null

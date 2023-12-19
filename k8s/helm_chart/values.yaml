@@ -9,6 +9,8 @@ dev:
   enabled: false
   localDir: /tmp/geoquery-update/
 
+default_image: "jacobwhall/geoquery-backend:e6c2041"
+
 postgis:
   name: "postgis-cluster"
   username: "[POSTGIS USERNAME]"
