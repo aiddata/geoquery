@@ -19,7 +19,7 @@ helm dependency build ./helm_chart
 
 # using --atomic is probably good for production startup script,
 # but not necessary if we run locally and confirm that everything should be expect to install/work
-helm install --atomic gq --namespace geoquery  ./helm_chart
+helm install gq --namespace geoquery  ./helm_chart
 
 
 # kubectl apply -f ./helm_chart/templates/pvc.yaml
@@ -59,7 +59,7 @@ helm upgrade --install cnpg --namespace cnpg-system charts/charts/cloudnative-pg
 
 # ------------------
 
-kubectl exec -ti postgis-cluster3-1 -- psql geoquery
+kubectl exec -ti postgis-cluster-1 -- psql geoquery
 
 kubectl exec --stdin --tty python -- /bin/bash
 
