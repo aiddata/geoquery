@@ -57,7 +57,7 @@ helm upgrade --install cnpg --namespace cnpg-system charts/charts/cloudnative-pg
 
 # ------------------
 
-kubectl exec -ti postgis-cluster-1 -- psql geoquery
+kubectl exec -ti postgis-cluster3-1 -- psql geoquery
 
 kubectl exec --stdin --tty python2 -- /bin/bash
 
