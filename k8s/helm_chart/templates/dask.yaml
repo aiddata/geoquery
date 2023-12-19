@@ -1,0 +1,66 @@
+apiVersion: kubernetes.dask.org/v1
+kind: DaskCluster
+metadata:
+  name: extract-dask-cluster
+spec:
+  scheduler:
+    service:
+      ports:
+        - name: tcp-comm
+          port: 8786
+          protocol: TCP
+          targetPort: tcp-comm
+        - name: http-dashboard
+          port: 8787
+          protocol: TCP
+          targetPort: http-dashboard
+      selector:
+        dask.org/cluster-name: extract-dask-cluster
+        dask.org/component: scheduler
+      type: ClusterIP
+    spec:
+      containers:
+        - args:
+            - dask-scheduler
+            - --host
+            - 0.0.0.0
+          env:
+            - name: FOO
+              value: bar
+          image: jacobwhall/geoquery-backend:7e715f2
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http-dashboard
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          name: scheduler
+          ports:
+            - containerPort: 8786
+              name: tcp-comm
+              protocol: TCP
+            - containerPort: 8787
+              name: http-dashboard
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http-dashboard
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources: null
+  worker:
+    cluster: extract-dask-cluster
+    replicas: 3
+    spec:
+      containers:
+        - args:
+            - dask-worker
+            - --name
+            - $(DASK_WORKER_NAME)
+          env:
+            - name: FOO
+              value: bar
+          image: jacobwhall/geoquery-backend:7e715f2
+          name: worker
+          resources: null
