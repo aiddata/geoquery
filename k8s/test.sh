@@ -59,7 +59,7 @@ helm upgrade --install cnpg --namespace cnpg-system charts/charts/cloudnative-pg
 
 kubectl exec -ti postgis-cluster3-1 -- psql geoquery
 
-kubectl exec --stdin --tty python2 -- /bin/bash
+kubectl exec --stdin --tty python -- /bin/bash
 
 pip install -e /tmp/geoquery-update
 
@@ -69,3 +69,8 @@ kubectl get pods --all-namespaces -o jsonpath='{range .items[?(@.spec.serviceAcc
 # ------------------
 helm dependency update ./helm_chart/
 helm upgrade gq ./helm_chart/
+
+
+# delete everything
+# default to current namespace
+kubectl delete all --all
