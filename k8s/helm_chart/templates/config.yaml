@@ -8,3 +8,9 @@ data:
   request_url: "geoquery.org"
   postgis_address: {{ printf "%s-rw.%s.svc.cluster.local" .Values.postgis.name .Release.Namespace }}
   postgis_port: "5432"
+  postgis_dbname: "geoquery"
+  data_root: "/tmp/geoquery-update"
+  email_reply_to: "AidData GeoQuery <geo@aiddata.wm.edu>"
+  email_server: "smtp.gmail.com"
+  email_port: 587
+  email_backup_server: "localhost"
