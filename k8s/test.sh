@@ -17,7 +17,9 @@ helm dependency build ./helm_chart
 # helm install - geoquery     dask-kubernetes-operator    ./helm_chart     -f ./dev/values.yaml
 # helm install -n geoquery --generate-name dask/dask-kubernetes-operator --set rbac.cluster=false --set kopfArgs="{--namespace=geoquery}"
 
-helm install gq --namespace geoquery  ./helm_chart
+# using --atomic is probably good for production startup script,
+# but not necessary if we run locally and confirm that everything should be expect to install/work
+helm install --atomic gq --namespace geoquery  ./helm_chart
 
 
 # kubectl apply -f ./helm_chart/templates/pvc.yaml
