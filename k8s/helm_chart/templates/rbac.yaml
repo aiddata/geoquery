@@ -3,7 +3,7 @@ kind: ServiceAccount
 apiVersion: v1
 metadata:
   name: geoquery-super
-  namespace: geoquery
+  namespace: {{.Release.namespace}}
 
 ---
 

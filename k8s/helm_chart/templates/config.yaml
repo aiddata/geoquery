@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gq-config
+  namespace: {{.Release.namespace}}
+data:
+  devtag: ""
+  request_url: "geoquery.org"
+  postgis_address: {{ printf "%s-rw.%s.svc.cluster.local" .Values.postgis.name .Release.Namespace }}
+  postgis_port: "5432"

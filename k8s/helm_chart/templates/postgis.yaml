@@ -1,7 +1,8 @@
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  name: postgis-cluster3
+  name: {{.Values.postgis.name}}
+  namespace: {{.Release.Namespace}}
 spec:
   instances: 3
   imageName: ghcr.io/cloudnative-pg/postgis:16-3.4

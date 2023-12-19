@@ -2,6 +2,7 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: python
+  namespace: {{.Release.Namespace}}
 spec:
   serviceAccount: geoquery-super
   serviceAccountName: geoquery-super
@@ -9,18 +10,28 @@ spec:
   - name: geoquery-pv
     hostPath:
       path: /tmp/geoquery-update
+  - name: gq-config-vol
+    configMap:
+      name: geoquery-postgis
   - name: postgis-secret-vol
     secret:
-      secretName: cluster-example-dante
+      secretName: postgis
+      optional: true
+  - name: email-secret-vol
+    secret:
+      secretName: geoquery-gmail
       optional: true
   containers:
   - name: python
     image: jacobwhall/geoquery-backend:7e715f2
-    # Just spin & wait forever
     command: [ "/bin/bash", "-c", "--" ]
     args: [ "while true; do sleep 30; done;" ]
     volumeMounts:
     - name: geoquery-pv
       mountPath: /tmp/geoquery-update
+    - name: gq-config-vol
+      mountPath: /config
     - name: postgis-secret-vol
       mountPath: /secrets/db
+    - name: email-secret-vol
+      mountPath: /secrets/email

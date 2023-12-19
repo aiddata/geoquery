@@ -2,6 +2,7 @@ apiVersion: kubernetes.dask.org/v1
 kind: DaskCluster
 metadata:
   name: extract-dask-cluster
+  namespace: {{.Release.namespace}}
 spec:
   scheduler:
     service:

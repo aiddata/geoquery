@@ -1,6 +1,4 @@
-namespace: "geoquery"
 agentContainer: "python:3.11.7"
-
 
 prod:
   nfs:
@@ -10,3 +8,6 @@ prod:
 dev:
   enabled: false
   localDir: /tmp/geoquery-update/
+
+postgis:
+  name: "postgis-cluster"
