@@ -10,3 +10,4 @@ k8s/extra_templates
 k8s/helm_chart/Chart.lock
 k8s/helm_chart/charts
 build/
+k8s/helm_chart/my_values.yaml
