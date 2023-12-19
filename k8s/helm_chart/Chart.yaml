@@ -4,7 +4,7 @@ version: 0.0.1
 description: A chart for GeoQuery's infrastructure
 dependencies:
 - name: dask-kubernetes-operator
-  version: "2023.3.0"
+  version: "2023.10.0"
   repository: "https://helm.dask.org/"
 maintainers:
   - name: AidData
