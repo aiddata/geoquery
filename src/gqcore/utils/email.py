@@ -39,7 +39,7 @@ class GeoEmail():
         receiver_str = ", ".join(receiver_list)
 
         if sender is None:
-            sender = self.config["email_sender"]
+            sender = self.config["email_username"]
         if reply_to is None:
             reply_to = self.config["email_reply_to"]
         if passwd is None:
