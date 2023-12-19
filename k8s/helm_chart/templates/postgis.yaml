@@ -42,12 +42,3 @@ spec:
   #       - pg_signal_backend
   #     passwordSecret:
   #       name: cluster-example-dante
----
-apiVersion: v1
-data:
-  username: Z2VvcXVlcnk=
-  password: ZGFudGU=
-kind: Secret
-metadata:
-  name: cluster-example-dante
-type: kubernetes.io/basic-auth

@@ -15,7 +15,7 @@ spec:
       optional: true
   containers:
   - name: python
-    image: python:3.10.12-bookworm
+    image: jacobwhall/geoquery-backend:7e715f2
     # Just spin & wait forever
     command: [ "/bin/bash", "-c", "--" ]
     args: [ "while true; do sleep 30; done;" ]
