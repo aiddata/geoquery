@@ -53,6 +53,21 @@ spec:
   worker:
     replicas: 3
     spec:
+      volumes:
+      - name: geoquery-pv
+        hostPath:
+          path: /tmp/geoquery-update
+      - name: gq-config-vol
+        configMap:
+          name: gq-config
+      - name: postgis-secret-vol
+        secret:
+          secretName: geoquery-postgis
+          optional: true
+      - name: email-secret-vol
+        secret:
+          secretName: geoquery-gmail
+          optional: true
       containers:
         - args:
             - dask-worker
@@ -64,3 +79,12 @@ spec:
           image: {{.Values.default_image}}
           name: worker
           resources: null
+          volumeMounts:
+          - name: geoquery-pv
+            mountPath: /tmp/geoquery-update
+          - name: gq-config-vol
+            mountPath: /config
+          - name: postgis-secret-vol
+            mountPath: /secrets/db
+          - name: email-secret-vol
+            mountPath: /secrets/email

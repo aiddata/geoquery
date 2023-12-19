@@ -9,7 +9,7 @@ dev:
   enabled: false
   localDir: /tmp/geoquery-update/
 
-default_image: "jacobwhall/geoquery-backend:e6c2041"
+default_image: "jacobwhall/geoquery-backend:6d4b544"
 
 postgis:
   name: "postgis-cluster"
