@@ -5,4 +5,4 @@ cluster = KubeCluster.from_name("extract-dask-cluster")
 
 cluster.scale(2)
 
-client = Client(cluster)
+# client = Client(cluster)

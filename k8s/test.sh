@@ -51,7 +51,7 @@ helm upgrade --install gq --namespace geoquery  ./helm_chart -f ./helm_chart/my_
 kubectl exec -ti postgis-cluster-1 -- psql geoquery
 
 kubectl exec --stdin --tty python -- /bin/bash
-kubectl exec --stdin --tty extract-dask-cluster- -- /bin/bash
+kubectl exec --stdin --tty extract-dask-cluster-default-worker-25fb20cd2d  -- /bin/bash
 
 pip install -e /tmp/geoquery-update
 
