@@ -20,6 +20,9 @@ kubectl config set-context --current --namespace=cnpg-system
 # install helm from local
 # based on helm chart from https://github.com/cloudnative-pg/charts/tree/main
 git clone git@github.com:cloudnative-pg/charts.git
+# TODO: add something to checkout/reset to specific commit? or download a release instead?
+# git ...
+
 helm upgrade --install cnpg --namespace cnpg-system charts/charts/cloudnative-pg
 
 # alternative: install helm from repo
