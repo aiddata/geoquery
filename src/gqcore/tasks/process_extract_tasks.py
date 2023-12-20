@@ -135,7 +135,7 @@ def process_tasks_using_dask(max_tasks=10000) -> None:
         logger.info(f"Finished processing {run_count} jobs")
 
 
-def manage_task_processing_for_k8s(max_tasks=10000, max_workers=100, time_sleep=5, scale_dict=None) -> None:
+def manage_task_processing_for_k8s(max_tasks=10000, max_workers=100, active_sleep=5, inactive_sleep=30, scale_dict=None) -> None:
 
     if max_workers % 2 != 0:
         logger.warning(f"max_workers ({max_workers}) should be an even number, but is not, reducing by 1")
@@ -154,23 +154,35 @@ def manage_task_processing_for_k8s(max_tasks=10000, max_workers=100, time_sleep=
     scale_dict = OrderedDict(scale_dict)
     scale_dict = OrderedDict(sorted(scale_dict.items(), key=lambda t: t[0]))
 
+    logger.info(f"Preparing to run extract tasks using dask on k8s cluster")
+
     cluster = KubeCluster.from_name("extract-dask-cluster")
     client = Client(cluster)
 
-    while tasks_available := count_available_tasks():
-        logger.debug(f"{tasks_available} tasks available in queue")
+    while True:
         current_scale = len(client.scheduler_info()['workers'])
-        for threshold, scale in scale_dict.items():
-            if tasks_available > threshold:
-                if current_scale % 2 == 0:
-                    cluster.scale(scale)
-                else:
-                    logger.debug(f"Current scale is {current_scale}, not scaling to {scale}")
-                    continue
 
-        process_tasks_using_dask(max_tasks=max_tasks)
+        tasks_available = count_available_tasks()
 
-        time.sleep(time_sleep)
+        if tasks_available == 0:
+            if current_scale > 1:
+                logger.debug(f"No tasks available, but {current_scale} workers running, scaling down to 1")
+                cluster.scale(1)
+            time.sleep(inactive_sleep)
+
+        else:
+            logger.debug(f"{tasks_available} tasks available in queue")
+            for threshold, scale in scale_dict.items():
+                if tasks_available > threshold:
+                    if current_scale % 2 == 0:
+                        cluster.scale(scale)
+                    else:
+                        logger.debug(f"Current scale is {current_scale}, not scaling to {scale}")
+                        continue
+
+            process_tasks_using_dask(max_tasks=max_tasks)
+
+            time.sleep(active_sleep)
 
 
 if __name__ == "__main__":
