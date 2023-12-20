@@ -1,10 +1,10 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: errors
+  name: extract-tasks
   namespace: {{.Release.Namespace}}
 spec:
-  schedule: "*/15 * * * *"
+  schedule: "45 */6 * * *"
   concurrencyPolicy: "Forbid"
   suspend: false
   successfulJobsHistoryLimit: 3
@@ -14,7 +14,6 @@ spec:
     spec:
       template:
         spec:
-          restartPolicy: OnFailure
           serviceAccount: geoquery-super
           serviceAccountName: geoquery-super
           volumes:
@@ -30,10 +29,10 @@ spec:
               secretName: geoquery-gmail
               optional: true
           containers:
-          - name: extracts
+          - name: extract-tasks
             image: {{.Values.default_image}}
             command: [ "/bin/bash", "-c", "--" ]
-            args: [ "python /geoquery/src/gqcore/tasks/manage_errors.py" ]
+            args: [ "python /geoquery/src/gqcore/tasks/create_extract_tasks.py" ]
             volumeMounts:
             - name: gq-config-vol
               mountPath: /config
