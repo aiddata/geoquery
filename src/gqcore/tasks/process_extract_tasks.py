@@ -163,8 +163,12 @@ def manage_task_processing_for_k8s(max_tasks=10000, max_workers=100, active_slee
     while True:
         current_scale = len(client.scheduler_info()['workers'])
 
-        tasks_available = count_available_tasks()
-
+        try:
+            tasks_available = count_available_tasks()
+        except Exception as e:
+            logger.error(f"Could not get task count: {e}")
+            tasks_available = 0
+            
         if tasks_available == 0:
             if current_scale > 1:
                 logger.debug(f"No tasks available, but {current_scale} workers running, scaling down to 1")
