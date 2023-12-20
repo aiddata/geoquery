@@ -22,6 +22,7 @@ from gqcore.utils.db.extract_task_processing import (
     count_available_tasks,
     get_mappings,
 )
+from gqcore import get_config
 from gqcore.utils.logs import get_logger
 
 
@@ -116,7 +117,7 @@ def process_tasks_using_dask(max_tasks=10000) -> None:
         if tasks_available < max_tasks:
             run_count = tasks_available
         else:
-            run_count = tasks_available
+            run_count = max_tasks
 
         # logger.info("Starting local dask cluster")
         # cluster = LocalCluster(n_workers=16)
@@ -187,4 +188,10 @@ def manage_task_processing_for_k8s(max_tasks=10000, max_workers=100, active_slee
 
 if __name__ == "__main__":
     get_logger("process_extract_tasks")
-    manage_task_processing_for_k8s()
+    config = get_config()
+    manage_task_processing_for_k8s(
+        max_tasks=config["extracts_max_tasks"],
+        max_workers=config["extracts_max_workers"],
+        active_sleep=config["extracts_active_sleep"],
+        inactive_sleep=config["extracts_inactive_sleep"]
+    )
