@@ -23,7 +23,7 @@ git clone git@github.com:cloudnative-pg/charts.git
 # TODO: add something to checkout/reset to specific commit? or download a release instead?
 # git ...
 
-helm upgrade --install cnpg --namespace cnpg-system charts/charts/cloudnative-pg
+helm upgrade --install cnpg --namespace cnpg-system charts/charts/cloudnative-pg --set-json='monitoring.podMonitorEnabled=true'
 
 # alternative: install helm from repo
 # helm repo add cnpg https://cloudnative-pg.github.io/charts
