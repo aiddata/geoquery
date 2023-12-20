@@ -136,7 +136,7 @@ def process_tasks_using_dask(max_tasks=10000) -> None:
         logger.info(f"Finished processing {run_count} jobs")
 
 
-def manage_task_processing_for_k8s(max_tasks=10000, max_workers=100, active_sleep=5, inactive_sleep=30, scale_dict=None) -> None:
+def manage_task_processing_for_k8s(max_tasks=1000, max_workers=20, active_sleep=5, inactive_sleep=30, scale_sleep=30, scale_dict=None) -> None:
 
     if max_workers % 2 != 0:
         logger.warning(f"max_workers ({max_workers}) should be an even number, but is not, reducing by 1")
@@ -168,7 +168,7 @@ def manage_task_processing_for_k8s(max_tasks=10000, max_workers=100, active_slee
         except Exception as e:
             logger.error(f"Could not get task count: {e}")
             tasks_available = 0
-            
+
         if tasks_available == 0:
             if current_scale > 1:
                 logger.debug(f"No tasks available, but {current_scale} workers running, scaling down to 1")
@@ -181,6 +181,7 @@ def manage_task_processing_for_k8s(max_tasks=10000, max_workers=100, active_slee
                 if tasks_available > threshold:
                     if current_scale % 2 == 0:
                         cluster.scale(scale)
+                        time.sleep(120)
                     else:
                         logger.debug(f"Current scale is {current_scale}, not scaling to {scale}")
                         continue
@@ -204,6 +205,7 @@ if __name__ == "__main__":
                 max_workers=int(config["extracts_max_workers"]),
                 active_sleep=int(config["extracts_active_sleep"]),
                 inactive_sleep=int(config["extracts_inactive_sleep"]),
+                scale_sleep=int(config["extracts_scale_sleep"]),
             )
         except Exception as e:
             print(e)

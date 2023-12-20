@@ -18,3 +18,4 @@ data:
   extracts_max_workers: "50"
   extracts_active_sleep: "5"
   extracts_inactive_sleep: "30"
+  extracts_scale_sleep: "30"
