@@ -7,9 +7,9 @@ spec:
   serviceAccount: geoquery-super
   serviceAccountName: geoquery-super
   volumes:
-  - name: geoquery-pv
-    hostPath:
-      path: /tmp/geoquery-update
+  # - name: geoquery-pv
+  #   hostPath:
+  #     path: /tmp/geoquery-update
   - name: gq-config-vol
     configMap:
       name: gq-config
@@ -27,8 +27,8 @@ spec:
     command: [ "/bin/bash", "-c", "--" ]
     args: [ "while true; do sleep 30; done;" ]
     volumeMounts:
-    - name: geoquery-pv
-      mountPath: /tmp/geoquery-update
+    # - name: geoquery-pv
+    #   mountPath: /tmp/geoquery-update
     - name: gq-config-vol
       mountPath: /config
     - name: postgis-secret-vol
