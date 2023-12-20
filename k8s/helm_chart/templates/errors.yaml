@@ -4,10 +4,16 @@ metadata:
   name: errors
 spec:
   schedule: "*/15 * * * *"
+  concurrencyPolicy: "Forbid"
+  suspend: false
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 180
   jobTemplate:
     spec:
       template:
         spec:
+          restartPolicy: OnFailure
           serviceAccount: geoquery-super
           serviceAccountName: geoquery-super
           volumes:
