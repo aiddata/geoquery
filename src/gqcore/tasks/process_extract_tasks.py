@@ -187,11 +187,19 @@ def manage_task_processing_for_k8s(max_tasks=10000, max_workers=100, active_slee
 
 
 if __name__ == "__main__":
-    get_logger("process_extract_tasks")
-    config = get_config()
-    manage_task_processing_for_k8s(
-        max_tasks=int(config["extracts_max_tasks"]),
-        max_workers=int(config["extracts_max_workers"]),
-        active_sleep=int(config["extracts_active_sleep"]),
-        inactive_sleep=int(config["extracts_inactive_sleep"]),
-    )
+
+    try:
+        get_logger("process_extract_tasks")
+        config = get_config()
+    except Exception as e:
+        print("Could not load logger or config")
+    else:
+        try:
+            manage_task_processing_for_k8s(
+                max_tasks=int(config["extracts_max_tasks"]),
+                max_workers=int(config["extracts_max_workers"]),
+                active_sleep=int(config["extracts_active_sleep"]),
+                inactive_sleep=int(config["extracts_inactive_sleep"]),
+            )
+        except Exception as e:
+            print(e)
