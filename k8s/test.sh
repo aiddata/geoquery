@@ -37,6 +37,7 @@ kubectl create namespace geoquery
 kubectl config set-context --current --namespace=geoquery
 
 helm repo add dask https://helm.dask.org/
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
 
 helm dependency build ./helm_chart
@@ -44,6 +45,7 @@ helm dependency build ./helm_chart
 # using --atomic is probably good for production startup script,
 # but not necessary if we run locally and confirm that everything should be expect to install/work
 helm upgrade --install gq --namespace geoquery  ./helm_chart -f ./helm_chart/my_values.yaml
+# helm install gq --namespace geoquery  ./helm_chart -f ./helm_chart/my_values.yaml
 
 # create dask operator and namespace
 # helm install - geoquery     dask-kubernetes-operator    ./helm_chart     -f ./dev/values.yaml
