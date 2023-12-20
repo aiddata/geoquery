@@ -21,3 +21,50 @@ email:
   password: "[EMAIL PASSWORD]"
 
 
+kube-prometheus-stack:
+  kubeControllerManager:
+    enabled: false
+  kubernetesServiceMonitors:
+    enabled: false
+  kubeApiServer:
+    enabled: false
+  kubelet:
+    enabled: false
+  coreDns:
+    enabled: false
+  kubeDns:
+    enabled: false
+  kubeEtcd:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeProxy:
+    enabled: false
+  kubeStateMetrics:
+    enabled: false
+  nodeExporter:
+    enabled: false
+
+  alertmanager:
+    enabled: true
+
+  prometheus:
+    enabled: true
+    prometheusSpec:
+      podMonitorSelectorNilUsesHelmValues: false
+      ruleSelectorNilUsesHelmValues: false
+      serviceMonitorSelectorNilUsesHelmValues: false
+      probeSelectorNilUsesHelmValues: false
+
+  grafana:
+    enabled: true
+    adminPassword: prom-operator
+    defaultDashboardsEnabled: false
+    sidecar:
+        dashboards:
+          enabled: true
+
+  prometheusOperator:
+    spec:
+      monitoring:
+        enablePodMonitor: true
