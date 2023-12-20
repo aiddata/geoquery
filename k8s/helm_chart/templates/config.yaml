@@ -4,18 +4,18 @@ metadata:
   name: gq-config
   namespace: {{.Release.namespace}}
 data:
-  devtag: {{ .Values.documentation.devtag }}
-  request_url: {{ .Values.documentation.request_url }}
-  postgis_address: {{ printf "%s-rw.%s.svc.cluster.local" .Values.postgis.name .Release.Namespace }}
-  postgis_port: {{ .Values.postgis.port }}
-  postgis_dbname: {{ .Values.postgis.dbname }}
-  data_root: {{ .Values.default.data_root }}
-  email_reply_to: {{ .Values.email.reply_to }}
-  email_server: {{ .Values.email.server }}
-  email_port: {{ .Values.email.port }}
-  email_backup_server: {{ .Values.email.backup_server }}
-  extracts_max_tasks: {{ .Values.extracts.max_tasks }}
-  extracts_max_workers: {{ .Values.extracts.max_workers }}
-  extracts_active_sleep: {{ .Values.extracts.active_sleep }}
-  extracts_inactive_sleep: {{ .Values.extracts.inactive_sleep }}
-  extracts_scale_sleep: {{ .Values.extracts.scale_sleep }}
+  data_root: "{{ .Values.data_root }}"
+  devtag: "{{ .Values.documentation.devtag }}"
+  request_url: "{{ .Values.documentation.request_url }}"
+  postgis_address: "{{ printf "%s-rw.%s.svc.cluster.local" .Values.postgis.name .Release.Namespace }}"
+  postgis_port: "{{ .Values.postgis.port }}"
+  postgis_dbname: "{{ .Values.postgis.dbname }}"
+  email_reply_to: "{{ .Values.email.reply_to }}"
+  email_server: "{{ .Values.email.server }}"
+  email_port: "{{ .Values.email.port }}"
+  email_backup_server: "{{ .Values.email.backup_server }}"
+  extracts_max_tasks: "{{ .Values.extracts.max_tasks }}"
+  extracts_max_workers: "{{ .Values.extracts.max_workers }}"
+  extracts_active_sleep: "{{ .Values.extracts.active_sleep }}"
+  extracts_inactive_sleep: "{{ .Values.extracts.inactive_sleep }}"
+  extracts_scale_sleep: "{{ .Values.extracts.scale_sleep }}"
