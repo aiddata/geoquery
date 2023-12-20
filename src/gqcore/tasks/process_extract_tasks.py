@@ -179,12 +179,12 @@ def manage_task_processing_for_k8s(max_tasks=1000, max_workers=20, active_sleep=
             logger.debug(f"{tasks_available} tasks available in queue")
             for threshold, scale in scale_dict.items():
                 if tasks_available > threshold:
-                    if current_scale != 1 and current_scale % 2 == 0:
+                    if current_scale == 1 or current_scale % 2 == 0:
                         cluster.scale(scale)
                         time.sleep(120)
                     else:
                         logger.debug(f"Current scale is {current_scale}, not scaling to {scale}")
-                        continue
+                    continue
 
             process_tasks_using_dask(max_tasks=max_tasks)
 
