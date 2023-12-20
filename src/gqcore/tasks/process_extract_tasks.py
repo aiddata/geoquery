@@ -1,9 +1,11 @@
 import builtins
+import time
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Tuple
 from warnings import catch_warnings
+from collections import OrderedDict
 
 
 from dask_kubernetes.operator import KubeCluster
@@ -133,6 +135,44 @@ def process_tasks_using_dask(max_tasks=10000) -> None:
         logger.info(f"Finished processing {run_count} jobs")
 
 
+def manage_task_processing_for_k8s(max_tasks=10000, max_workers=100, time_sleep=5, scale_dict=None) -> None:
+
+    if max_workers % 2 != 0:
+        logger.warning(f"max_workers ({max_workers}) should be an even number, but is not, reducing by 1")
+        max_workers -= 1
+
+    if scale_dict is None:
+        scale_dict = {
+            # 10000000: 20,
+            # 10000: 10,
+            # 100: 5,
+            # 10: 2,
+            1: max_workers,
+        }
+
+    # sort scale_dict by key
+    scale_dict = OrderedDict(scale_dict)
+    scale_dict = OrderedDict(sorted(scale_dict.items(), key=lambda t: t[0]))
+
+    cluster = KubeCluster.from_name("extract-dask-cluster")
+    client = Client(cluster)
+
+    while tasks_available := count_available_tasks():
+        logger.debug(f"{tasks_available} tasks available in queue")
+        current_scale = len(client.scheduler_info()['workers'])
+        for threshold, scale in scale_dict.items():
+            if tasks_available > threshold:
+                if current_scale % 2 == 0:
+                    cluster.scale(scale)
+                else:
+                    logger.debug(f"Current scale is {current_scale}, not scaling to {scale}")
+                    continue
+
+        process_tasks_using_dask(max_tasks=max_tasks)
+
+        time.sleep(time_sleep)
+
+
 if __name__ == "__main__":
     get_logger("process_extract_tasks")
-    process_tasks_using_dask()
+    manage_task_processing_for_k8s()
