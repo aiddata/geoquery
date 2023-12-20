@@ -3,6 +3,9 @@ cd k8s
 
 KIND_EXPERIMENTAL_PROVIDER=podman kind create cluster --config ./dev/kind-config.yaml
 
+# only need to setup persistent volumes once when setting up cluster
+kubectl apply -f ./helm_chart/static/pv.yaml
+
 
 # ------------------
 # postgis operator setup
