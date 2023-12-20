@@ -1,0 +1,11 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ .Values.postgis.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      "cnpg.io/cluster": {{ .Values.postgis.name }}
+  podMetricsEndpoints:
+  - port: metrics
