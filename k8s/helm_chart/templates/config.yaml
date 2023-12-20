@@ -14,7 +14,7 @@ data:
   email_server: "smtp.gmail.com"
   email_port: "587"
   email_backup_server: "localhost"
-  extracts_max_tasks: 1000
-  extracts_max_workers: 50
-  extracts_active_sleep: 5
-  extracts_inactive_sleep: 30
+  extracts_max_tasks: "1000"
+  extracts_max_workers: "50"
+  extracts_active_sleep: "5"
+  extracts_inactive_sleep: "30"

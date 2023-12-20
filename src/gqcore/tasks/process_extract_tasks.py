@@ -190,8 +190,8 @@ if __name__ == "__main__":
     get_logger("process_extract_tasks")
     config = get_config()
     manage_task_processing_for_k8s(
-        max_tasks=config["extracts_max_tasks"],
-        max_workers=config["extracts_max_workers"],
-        active_sleep=config["extracts_active_sleep"],
-        inactive_sleep=config["extracts_inactive_sleep"]
+        max_tasks=int(config["extracts_max_tasks"]),
+        max_workers=int(config["extracts_max_workers"]),
+        active_sleep=int(config["extracts_active_sleep"]),
+        inactive_sleep=int(config["extracts_inactive_sleep"]),
     )
