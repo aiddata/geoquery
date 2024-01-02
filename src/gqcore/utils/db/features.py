@@ -133,18 +133,21 @@ def _insert_feature_collection(cur: Cursor, params: dict) -> int:
     return feature_collection_id
 
 
-def _insert_feature(cur: Cursor, feature_collection_id: int, feature: Feature) -> None:
+def _insert_feature(cur: Cursor, feature_collection_id: int, feature: Feature, check_existing: bool = False) -> None:
     wkt = feature.geometry
 
-    # check if geom is already in features table, returning any matching ids
-    cur.execute(
-        """
-        SELECT id FROM features WHERE ST_Equals(ST_GeomFromText(%s), shape)
-    """,
-        (wkt,),
-    )
+    if check_existing:
+        # check if geom is already in features table, returning any matching ids
+        cur.execute(
+            """
+            SELECT id FROM features WHERE ST_Equals(ST_GeomFromText(%s), shape)
+        """,
+            (wkt,),
+        )
 
-    result = cur.fetchone()
+        result = cur.fetchone()
+    else:
+        result = None
 
     if result is None:
         cur.execute(
