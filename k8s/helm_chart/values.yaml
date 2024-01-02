@@ -9,16 +9,41 @@ dev:
   enabled: false
   localDir: /tmp/geoquery-update/
 
-default_image: "jacobwhall/geoquery-backend:6d4b544"
+
+
+
+default_image: "jacobwhall/geoquery-backend:78e47c8"
+data_rool: "/tmp/geoquery-update"
+
+
+---
 
 postgis:
   name: "postgis-cluster"
   username: "[POSTGIS USERNAME]"
   password: "[POSTGIS PASSWORD]"
+  port: "5432"
+  dbname: "geoquery"
 
 email:
   sender: "[EMAIL SENDER]"
   password: "[EMAIL PASSWORD]"
+  reply_to: "[EMAIL REPLYTO]"
+  server: "smtp.gmail.com"
+  port: "587"
+  backup_server: "localhost"
+
+
+documentation:
+  devtag: ""
+  request_url: "geoquery.org"
+
+extracts:
+  max_tasks: "1000"
+  max_workers: "50"
+  active_sleep: "5"
+  inactive_sleep: "30"
+  scale_sleep: "30"
 
 
 kube-prometheus-stack:
