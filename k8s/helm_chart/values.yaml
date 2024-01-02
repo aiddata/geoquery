@@ -10,13 +10,9 @@ dev:
   localDir: /tmp/geoquery-update/
 
 
-
-
 default_image: "jacobwhall/geoquery-backend:78e47c8"
 data_rool: "/tmp/geoquery-update"
 
-
----
 
 postgis:
   name: "postgis-cluster"
