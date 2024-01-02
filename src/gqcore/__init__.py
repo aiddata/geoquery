@@ -17,7 +17,7 @@ def get_config():
     if local_exists:
         local_config = toml.load(local_config_path)
         if local_config["main"]["use_local_config"]:
-            logger.info("Local config found and being used...")
+            logger.trace("Local config found and being used...")
             return local_config["main"]
 
 
@@ -26,48 +26,48 @@ def get_config():
     # try fetching secrets from k8s
     secrets_dir = Path("/secrets/db")
     if secrets_dir.is_dir():
-        logger.info("DB secrets directory found, loading secrets...")
+        logger.trace("DB secrets directory found, loading secrets...")
         for s in secrets_dir.iterdir():
             if not s.is_file():
                 continue
             try:
                 with open(s) as src:
                     k8s_config[f"postgis_{s.name}"] = src.read()
-                    logger.debug(f"Loaded secret {s.name}")
+                    logger.trace(f"Loaded secret {s.name}")
             except Exception as e:
                 logger.warning(f"Error loading secret {s.name}: {e}")
 
     # try fetching secrets from k8s
     secrets_dir = Path("/secrets/email")
     if secrets_dir.is_dir():
-        logger.info("Email secrets directory found, loading secrets...")
+        logger.trace("Email secrets directory found, loading secrets...")
         for s in secrets_dir.iterdir():
             if not s.is_file():
                 continue
             try:
                 with open(s) as src:
                     k8s_config[f"email_{s.name}"] = src.read()
-                    logger.debug(f"Loaded secret {s.name}")
+                    logger.trace(f"Loaded secret {s.name}")
             except Exception as e:
                 logger.warning(f"Error loading secret {s.name}: {e}")
 
     # try fetching config from k8s
     config_dir = Path("/config")
     if config_dir.is_dir():
-        logger.info("Config directory found, loading config...")
+        logger.trace("Config directory found, loading config...")
         for s in config_dir.iterdir():
             if not s.is_file():
                 continue
             try:
                 with open(s) as src:
                     k8s_config[s.name] = src.read()
-                    logger.debug(f"Loaded config item {s.name}")
+                    logger.trace(f"Loaded config item {s.name}")
             except Exception as e:
                 logger.warning(f"Error loading config item {s.name}: {e}")
 
 
     if k8s_config != {}:
-        logger.info("Kubernetes config found and being used...")
+        logger.trace("Kubernetes config found and being used...")
         return k8s_config
 
 
