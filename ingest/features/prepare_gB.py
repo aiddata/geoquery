@@ -17,7 +17,8 @@ get_logger("ingest")
 logger.info(f"Starting geoBoundaries bulk ingest")
 
 # set this to None to download all ISO3 boundaries
-dl_iso3_list: Optional[List[str]] = ["AFG"]
+dl_iso3_list: Optional[List[str]] = ["AUT"]
+# dl_iso3_list: Optional[List[str]] = None
 
 target_gb_commit = "ff0d953b5aa2"
 
@@ -70,13 +71,19 @@ if dl_iso3_list is None:
 else:
     iso3_list = set(gb_iso3_list).intersection(set(dl_iso3_list))
 
+iso3_list = sorted(list(iso3_list))
+
+breakpoint()
+
 for iso3 in iso3_list:
     api_url = f"{gb_url}/current/gbOpen/{iso3}/ALL/"
-    iso3_items = get_api_url(api_url)
-
+    try:
+        iso3_items = get_api_url(api_url)
+    except:
+        breakpoint()
     for item in iso3_items:
-        if item["boundaryType"] == "ADM2":
-            continue
+        #if item["boundaryType"] == "ADM2":
+            #continue
 
         adm_meta = default_meta.copy()
 
@@ -110,7 +117,11 @@ for iso3 in iso3_list:
         adm_meta["path"] = str(gpkg_path)
 
         logger.debug(f"Downloading {commit_dl_url}")
-        gdf = gpd.read_file(commit_dl_url)
+        try:
+            gdf = gpd.read_file(commit_dl_url)
+        except:
+            logger.error(f"Failed to download {commit_dl_url}")
+            continue
         gdf.to_file(gpkg_path, driver="GPKG")
 
         logger.debug(f"Getting bounding box for {commit_dl_url}")
