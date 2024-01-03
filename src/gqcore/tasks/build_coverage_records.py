@@ -1,12 +1,14 @@
 
 import itertools
 import time
+import concurrent.futures
 
 from loguru import logger
 
 from gqcore.utils.logs import get_logger
 from gqcore.utils.models import CoverageRecord
-from gqcore.utils.db.helpers import get_coverage_records, get_dataset_ids_without_coverage_dependencies, get_feature_ids, get_feat_geom_by_id, get_dataset_extent_by_id, update_coverage_status, insert_coverage_records, find_missing_coverage_id_pairs
+from gqcore.utils.db.helpers import get_coverage_records, get_dataset_ids_without_coverage_dependencies, get_feature_ids, get_feat_geom_by_id, get_dataset_extent_by_id, update_coverage_status, _update_coverage_status, insert_coverage_records, find_missing_coverage_id_pairs
+from gqcore.utils.db.conn import get_conn, get_static_conn
 
 
 def generate_coverage_records():
@@ -44,21 +46,9 @@ def generate_coverage_records():
     logger.success("Coverage records generated")
 
 
-def test_coverage():
+def process1(task):
 
-    logger.info("Testing coverage for untested records")
-
-    coverage_items = get_coverage_records(status=-1)
-
-    if len(coverage_items) == 0:
-        logger.success("No coverage records to test")
-        return
-
-    t_start = time.perf_counter()
-
-    for c in coverage_items:
-        feature_id = c["geom_id"]
-        dataset_id = c["dataset_id"]
+        feature_id, dataset_id = task
 
         logger.info(f"Testing coverage for feature {feature_id} and dataset {dataset_id}", extra={"feature_id": feature_id, "dataset_id": dataset_id})
 
@@ -69,18 +59,97 @@ def test_coverage():
         # compare feature geom to dataset spatial_extent
         # if feature geom is within dataset spatial_extent, set coverage to 1
         # else set coverage to 0
-
         if feature_geom.within(dataset_spatial_extent):
             new_status = 1
         else:
             new_status = 0
 
-        update_coverage_status(feature_id, dataset_id, new_status)
+        _update_coverage_status(cur, feature_id, dataset_id, new_status)
+        conn.commit()
+
+
+
+def process2(task):
+        feature_id, dataset_id = task
+
+        logger.info(f"Testing coverage for feature {feature_id} and dataset {dataset_id}", extra={"feature_id": feature_id, "dataset_id": dataset_id})
+
+        feature_geom = get_feat_geom_by_id(feature_id)
+
+        dataset_spatial_extent = get_dataset_extent_by_id(dataset_id)
+
+        # compare feature geom to dataset spatial_extent
+        # if feature geom is within dataset spatial_extent, set coverage to 1
+        # else set coverage to 0
+        if feature_geom.within(dataset_spatial_extent):
+            new_status = 1
+        else:
+            new_status = 0
+
+        return feature_id, dataset_id, new_status
+
+
+def test_coverage():
+
+    logger.info("Testing coverage for untested records")
+
+    coverage_items = get_coverage_records(status=-1)
+
+    if len(coverage_items) == 0:
+        logger.success("No coverage records to test")
+        return
+
+    task_list = [(x["geom_id"], x["dataset_id"]) for x in coverage_items]
+
+    # ============
+
+    t_start1 = time.perf_counter()
+
+    def processor_init():
+        global conn, cur
+        conn = get_static_conn()
+        cur = conn.cursor()
+
+    with concurrent.futures.ProcessPoolExecutor(initializer=processor_init, max_workers=None) as executor:
+
+        futures = [executor.submit(process1, t) for t in task_list]
+
+        e = []
+        for result in concurrent.futures.as_completed(futures):
+            if result.exception() is not None:
+                e.append(result.exception())
+
+        if len(e) > 0:
+            logger.debug(f"{len(e)} exceptions occurred")
+            unique_e = set([str(x) for x in e])
+            logger.debug(f"{len(unique_e)} unique exceptions occurred:")
+            logger.debug(f"Unique exceptions: {unique_e}")
+            raise e[0]
+
+
+    t_end1 = time.perf_counter()
+
+
+    # ============
+
+    t_start = time.perf_counter()
+    # with get_conn() as conn:
+    #     cur = conn.cursor()
+    #     with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
+    #         results2 = executor.map(process2, task_list)
+    #         for feature_id, dataset_id, new_status in results2:
+    #             _update_coverage_status(cur, feature_id, dataset_id, new_status)
+
 
     t_end = time.perf_counter()
 
+    logger.info(f"Time to test and update coverage for {len(coverage_items)} records: {t_end1 - t_start1:0.4f} seconds")
+    logger.info(f"Avg time to test and update coverage: {(t_end1 - t_start1)/len(coverage_items):0.4f} seconds")
+
     logger.info(f"Time to test and update coverage for {len(coverage_items)} records: {t_end - t_start:0.4f} seconds")
     logger.info(f"Avg time to test and update coverage: {(t_end - t_start)/len(coverage_items):0.4f} seconds")
+
+    # ============
 
     logger.success("Coverage testing complete")
 
