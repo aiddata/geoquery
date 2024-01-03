@@ -23,7 +23,7 @@ git clone git@github.com:cloudnative-pg/charts.git
 # TODO: add something to checkout/reset to specific commit? or download a release instead?
 # git ...
 
-helm upgrade --install cnpg --namespace cnpg-system charts/charts/cloudnative-pg --set-json='monitoring.podMonitorEnabled=true'
+helm upgrade --install cnpg --namespace cnpg-system charts/charts/cloudnative-pg #--set-json='monitoring.podMonitorEnabled=true'
 
 # alternative: install helm from repo
 # helm repo add cnpg https://cloudnative-pg.github.io/charts
@@ -59,9 +59,10 @@ helm upgrade --install gq --namespace geoquery  ./helm_chart -f ./helm_chart/my_
 kubectl exec -ti postgis-cluster-1 -- psql geoquery
 update extract_tasks set status=0;truncate extract_data;
 
-kubectl exec --stdin --tty python -- /bin/bash
 kubectl exec --stdin --tty extract-dask-cluster-default-worker-25fb20cd2d  -- /bin/bash
 
+# !! important to use this if running live tests with local code on python pod
+kubectl exec --stdin --tty python -- /bin/bash
 pip install -e /tmp/geoquery-update
 
 kubectl get pods --all-namespaces -o jsonpath='{range .items[?(@.spec.serviceAccountName == "default")]}{.metadata.namespace} {.metadata.name}{"\n"}{end}' 2>/dev/null

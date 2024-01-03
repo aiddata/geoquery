@@ -35,3 +35,6 @@ spec:
       mountPath: /secrets/db
     - name: email-secret-vol
       mountPath: /secrets/email
+    resources:
+      requests:
+        cpu: 6
