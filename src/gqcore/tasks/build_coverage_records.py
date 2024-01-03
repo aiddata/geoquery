@@ -10,7 +10,7 @@ from gqcore.utils.models import CoverageRecord
 from gqcore.utils.db.helpers import get_coverage_records, get_dataset_ids_without_coverage_dependencies, get_feature_ids, get_feat_geom_by_id, get_dataset_extent_by_id, update_coverage_status, _update_coverage_status, insert_coverage_records, find_missing_coverage_id_pairs
 from gqcore.utils.db.conn import get_conn, get_static_conn
 
-
+@logger.catch(reraise=False)
 def generate_coverage_records():
 
     logger.info("Generating coverage records")
@@ -68,6 +68,7 @@ def process(task):
         conn.commit()
 
 
+@logger.catch(reraise=False)
 def test_coverage():
 
     logger.info("Testing coverage for untested records")
@@ -103,7 +104,7 @@ def test_coverage():
             unique_e = set([str(x) for x in e])
             logger.error(f"{len(unique_e)} unique exceptions occurred:")
             logger.error(f"Unique exceptions: {unique_e}")
-            logger.exception(e[0])
+            raise e[0]
 
 
     t_end = time.perf_counter()

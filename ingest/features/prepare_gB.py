@@ -87,6 +87,7 @@ for iso3 in iso3_list:
         ingest_items.append(item)
 
 
+@logger.catch(reraise=False)
 def ingest_gb_item(item: dict):
 
     iso3 = item["boundaryISO"]

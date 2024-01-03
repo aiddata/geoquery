@@ -24,13 +24,11 @@ def process(input):
                 status=0,
                 priority=0,
             )
-            raise Exception("test")
             _insert_extract_task(cur, task, overwrite)
-            # insert_extract_task(task, overwrite)
 
     conn.commit()
 
-# @logger.catch(reraise=True)
+@logger.catch(reraise=False)
 def generate_tasks(overwrite: bool = False):
     valid_coverage = get_coverage_records(status=1)
     if len(valid_coverage) == 0:
@@ -62,6 +60,6 @@ def generate_tasks(overwrite: bool = False):
             unique_e = set([str(x) for x in e])
             logger.error(f"{len(unique_e)} unique exceptions occurred:")
             logger.error(f"Unique exceptions: {unique_e}")
-            logger.exception(e[0])
+            raise e[0]
 
     return len(valid_coverage)
