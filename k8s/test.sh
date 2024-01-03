@@ -6,6 +6,18 @@ KIND_EXPERIMENTAL_PROVIDER=podman kind create cluster --config ./dev/kind-config
 # only need to setup persistent volumes once when setting up cluster
 kubectl apply -f ./helm_chart/static/pv.yaml
 
+# ------------------
+# prometheus operator setup
+
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+# TODO: what namespace is best to install this in? geoquery, or maybe prometheus?
+helm install prometheus prometheus-community/kube-prometheus-stack --values prometheus-values.yaml
+
+# If you encounter CrashLoopBackOff errors when spinning up prometheus in kind/podman,
+# you likely need to increase inotify resource limits on your host computer:
+# https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files
 
 # ------------------
 # postgis operator setup
@@ -36,8 +48,7 @@ helm upgrade --install cnpg --namespace cnpg-system charts/charts/cloudnative-pg
 kubectl create namespace geoquery
 kubectl config set-context --current --namespace=geoquery
 
-helm repo add dask https://helm.dask.org/
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
 
 helm dependency build ./helm_chart

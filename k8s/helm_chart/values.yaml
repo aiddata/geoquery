@@ -11,7 +11,7 @@ dev:
 
 
 default_image: "jacobwhall/geoquery-backend:78e47c8"
-data_rool: "/tmp/geoquery-update"
+data_root: "/tmp/geoquery-update"
 
 
 postgis:
@@ -31,7 +31,7 @@ email:
 
 
 documentation:
-  devtag: ""
+  devtag: "test"
   request_url: "geoquery.org"
 
 extracts:
@@ -41,46 +41,11 @@ extracts:
   inactive_sleep: "30"
   scale_sleep: "30"
 
-
-kube-prometheus-stack:
-  kubeControllerManager:
-    enabled: false
-  kubernetesServiceMonitors:
-    enabled: false
-  kubeApiServer:
-    enabled: false
-  kubelet:
-    enabled: false
-  coreDns:
-    enabled: false
-  kubeDns:
-    enabled: false
-  kubeEtcd:
-    enabled: false
-  kubeScheduler:
-    enabled: false
-  kubeProxy:
-    enabled: false
-  kubeStateMetrics:
-    enabled: false
-  nodeExporter:
-    enabled: false
-
-  alertmanager:
-    enabled: true
-
-  prometheus:
-    enabled: true
-    prometheusSpec:
-      podMonitorSelectorNilUsesHelmValues: false
-      ruleSelectorNilUsesHelmValues: false
-      serviceMonitorSelectorNilUsesHelmValues: false
-      probeSelectorNilUsesHelmValues: false
-
-  grafana:
-    enabled: true
-    adminPassword: prom-operator
-    defaultDashboardsEnabled: false
-    sidecar:
-        dashboards:
-          enabled: true
+grafana:
+  loki:
+    commonConfig:
+      replication_factor: 1
+    storage:
+      type: "filesystem"
+  singleBinary:
+    replicas: 1

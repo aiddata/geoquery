@@ -7,7 +7,7 @@ data:
   data_root: "{{ .Values.data_root }}"
   devtag: "{{ .Values.documentation.devtag }}"
   request_url: "{{ .Values.documentation.request_url }}"
-  postgis_address: "{{ printf "%s-rw.%s.svc.cluster.local" .Values.postgis.name .Release.Namespace }}"
+  postgis_address: {{ printf "%s-rw.%s.svc.cluster.local" .Values.postgis.name .Release.Namespace }}
   postgis_port: "{{ .Values.postgis.port }}"
   postgis_dbname: "{{ .Values.postgis.dbname }}"
   email_reply_to: "{{ .Values.email.reply_to }}"
