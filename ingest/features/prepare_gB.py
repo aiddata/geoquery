@@ -191,8 +191,8 @@ if __name__ == "__main__":
                 e.append(result.exception())
 
         if len(e) > 0:
-            logger.debug(f"{len(e)} exceptions occurred")
+            logger.error(f"{len(e)} exceptions occurred")
             unique_e = set([str(x) for x in e])
-            logger.debug(f"{len(unique_e)} unique exceptions occurred:")
-            logger.debug(f"Unique exceptions: {unique_e}")
-            raise e[0]
+            logger.error(f"{len(unique_e)} unique exceptions occurred:")
+            logger.error(f"Unique exceptions: {unique_e}")
+            logger.exception(e[0])
