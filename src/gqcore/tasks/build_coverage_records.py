@@ -46,7 +46,7 @@ def generate_coverage_records():
     logger.success("Coverage records generated")
 
 
-def process1(task):
+def process(task):
 
         feature_id, dataset_id = task
 
@@ -68,27 +68,6 @@ def process1(task):
         conn.commit()
 
 
-
-def process2(task):
-        feature_id, dataset_id = task
-
-        logger.info(f"Testing coverage for feature {feature_id} and dataset {dataset_id}", extra={"feature_id": feature_id, "dataset_id": dataset_id})
-
-        feature_geom = get_feat_geom_by_id(feature_id)
-
-        dataset_spatial_extent = get_dataset_extent_by_id(dataset_id)
-
-        # compare feature geom to dataset spatial_extent
-        # if feature geom is within dataset spatial_extent, set coverage to 1
-        # else set coverage to 0
-        if feature_geom.within(dataset_spatial_extent):
-            new_status = 1
-        else:
-            new_status = 0
-
-        return feature_id, dataset_id, new_status
-
-
 def test_coverage():
 
     logger.info("Testing coverage for untested records")
@@ -103,7 +82,7 @@ def test_coverage():
 
     # ============
 
-    t_start1 = time.perf_counter()
+    t_start = time.perf_counter()
 
     def processor_init():
         global conn, cur
@@ -112,7 +91,7 @@ def test_coverage():
 
     with concurrent.futures.ProcessPoolExecutor(initializer=processor_init, max_workers=None) as executor:
 
-        futures = [executor.submit(process1, t) for t in task_list]
+        futures = [executor.submit(process, t) for t in task_list]
 
         e = []
         for result in concurrent.futures.as_completed(futures):
@@ -127,29 +106,11 @@ def test_coverage():
             raise e[0]
 
 
-    t_end1 = time.perf_counter()
-
-
-    # ============
-
-    t_start = time.perf_counter()
-    # with get_conn() as conn:
-    #     cur = conn.cursor()
-    #     with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
-    #         results2 = executor.map(process2, task_list)
-    #         for feature_id, dataset_id, new_status in results2:
-    #             _update_coverage_status(cur, feature_id, dataset_id, new_status)
-
-
     t_end = time.perf_counter()
-
-    logger.info(f"Time to test and update coverage for {len(coverage_items)} records: {t_end1 - t_start1:0.4f} seconds")
-    logger.info(f"Avg time to test and update coverage: {(t_end1 - t_start1)/len(coverage_items):0.4f} seconds")
 
     logger.info(f"Time to test and update coverage for {len(coverage_items)} records: {t_end - t_start:0.4f} seconds")
     logger.info(f"Avg time to test and update coverage: {(t_end - t_start)/len(coverage_items):0.4f} seconds")
 
-    # ============
 
     logger.success("Coverage testing complete")
 
