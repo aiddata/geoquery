@@ -41,11 +41,25 @@ extracts:
   inactive_sleep: "30"
   scale_sleep: "30"
 
-grafana:
+loki:
   loki:
-    commonConfig:
-      replication_factor: 1
-    storage:
-      type: "filesystem"
-  singleBinary:
-    replicas: 1
+    auth_enabled: false
+  minio:
+    enabled: true
+  serviceMonitor:
+    labels:
+      release: "prometheus"
+  rules:
+    labels:
+      release: "prometheus"
+
+grafana:
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: "loki"
+          type: "loki"
+          access: "proxy"
+          url: "http://loki-gateway.geoquery.svc.cluster.local"
+     
