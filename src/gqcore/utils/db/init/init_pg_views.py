@@ -35,6 +35,8 @@ def create_view_coverage():
         with conn.cursor() as cur:
             cur.execute(query)
 
+def init_views():
+    create_view_coverage()
 
 if __name__ == "__main__":
-    create_view_coverage()
+    init_view()
