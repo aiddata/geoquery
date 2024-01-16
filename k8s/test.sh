@@ -9,6 +9,9 @@ kubectl apply -f ./helm_chart/static/pv.yaml
 # ------------------
 # prometheus operator setup
 
+kubectl create namespace prometheus
+kubectl config set-context --current --namespace=prometheus
+
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
 

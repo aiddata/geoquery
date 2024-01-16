@@ -74,7 +74,7 @@
         {
           "datasource": {
             "type": "postgres",
-            "uid": "bdcd7202-248c-4048-81d1-9119f54daadb"
+            "uid": "P44368ADAD746BC27"
           },
           "editorMode": "code",
           "format": "table",
@@ -142,7 +142,7 @@
     {
       "datasource": {
         "type": "postgres",
-        "uid": "e56f7d62-8d91-4e37-a083-f1cbd4fecfae"
+        "uid": "P44368ADAD746BC27"
       },
       "description": "",
       "fieldConfig": {
@@ -194,7 +194,7 @@
         {
           "datasource": {
             "type": "postgres",
-            "uid": "e56f7d62-8d91-4e37-a083-f1cbd4fecfae"
+            "uid": "P44368ADAD746BC27"
           },
           "editorMode": "code",
           "format": "table",
@@ -226,7 +226,7 @@
     {
       "datasource": {
         "type": "postgres",
-        "uid": "e56f7d62-8d91-4e37-a083-f1cbd4fecfae"
+        "uid": "P44368ADAD746BC27"
       },
       "description": "Age of oldest incomplete GeoQuery request",
       "fieldConfig": {
@@ -284,7 +284,7 @@
         {
           "datasource": {
             "type": "postgres",
-            "uid": "e56f7d62-8d91-4e37-a083-f1cbd4fecfae"
+            "uid": "P44368ADAD746BC27"
           },
           "editorMode": "code",
           "format": "table",
@@ -316,7 +316,7 @@
     {
       "datasource": {
         "type": "postgres",
-        "uid": "e56f7d62-8d91-4e37-a083-f1cbd4fecfae"
+        "uid": "P44368ADAD746BC27"
       },
       "description": "Number of requests submitted per day over the last 30 days",
       "fieldConfig": {
@@ -400,7 +400,7 @@
         {
           "datasource": {
             "type": "postgres",
-            "uid": "e56f7d62-8d91-4e37-a083-f1cbd4fecfae"
+            "uid": "P44368ADAD746BC27"
           },
           "editorMode": "code",
           "format": "table",
@@ -432,7 +432,7 @@
     {
       "datasource": {
         "type": "loki",
-        "uid": "d1ff70b9-e210-42a3-9c57-a235fa9354ec"
+        "uid": "P982945308D3682D1"
       },
       "gridPos": {
         "h": 8,
@@ -456,7 +456,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "d1ff70b9-e210-42a3-9c57-a235fa9354ec"
+            "uid": "P982945308D3682D1"
           },
           "editorMode": "builder",
           "expr": "{level=\"CRITICAL\"}",
@@ -468,7 +468,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "d1ff70b9-e210-42a3-9c57-a235fa9354ec"
+            "uid": "P982945308D3682D1"
           },
           "editorMode": "builder",
           "expr": "{level=\"ERROR\"} |= ``",
