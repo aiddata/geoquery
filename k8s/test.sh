@@ -1,3 +1,10 @@
+# If you encounter CrashLoopBackOff errors when spinning up prometheus or cnpg in kind/podman,
+# you likely need to increase inotify resource limits on your host computer:
+# https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files
+sudo sysctl fs.inotify.max_user_watches=524288
+sudo sysctl fs.inotify.max_user_instances=512
+
+
 kind delete cluster
 cd k8s
 
@@ -16,11 +23,8 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 helm repo update
 
 # TODO: what namespace is best to install this in? geoquery, or maybe prometheus?
-helm install prometheus prometheus-community/kube-prometheus-stack --values prometheus-values.yaml
+helm upgrade --install prometheus prometheus-community/kube-prometheus-stack --values prometheus-values.yaml
 
-# If you encounter CrashLoopBackOff errors when spinning up prometheus in kind/podman,
-# you likely need to increase inotify resource limits on your host computer:
-# https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files
 
 # ------------------
 # postgis operator setup
@@ -38,7 +42,7 @@ git clone git@github.com:cloudnative-pg/charts.git
 # TODO: add something to checkout/reset to specific commit? or download a release instead?
 # git ...
 
-helm upgrade --install cnpg --namespace cnpg-system charts/charts/cloudnative-pg #--set-json='monitoring.podMonitorEnabled=true'
+helm upgrade --install cnpg --namespace cnpg-system charts/charts/cloudnative-pg  --set-json='monitoring.podMonitorEnabled=true'
 
 # alternative: install helm from repo
 # helm repo add cnpg https://cloudnative-pg.github.io/charts
