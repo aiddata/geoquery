@@ -18,7 +18,7 @@ get_logger("ingest")
 logger.info(f"Starting geoBoundaries bulk ingest")
 
 # set this to None to download all ISO3 boundaries
-dl_iso3_list: Optional[List[str]] = ["AFG"]
+dl_iso3_list: Optional[List[str]] = ["GHA"]
 # dl_iso3_list: Optional[List[str]] = None
 
 target_gb_commit = "ff0d953b5aa2"
@@ -53,7 +53,7 @@ default_meta = {
 }
 
 gb_url = "https://www.geoboundaries.org/api"
-
+all_url = "https://www.geoboundaries.org/api/current/gbOpen/ALL/ALL"
 
 def get_api_url(url):
     response = requests.get(url)
@@ -61,9 +61,9 @@ def get_api_url(url):
     return content
 
 
-base_api_data = get_api_url(gb_url)
+base_api_data = get_api_url(all_url)
 
-gb_iso3_list = [ i["ISO"] for i in base_api_data ]
+gb_iso3_list = [ i["boundaryISO"] for i in base_api_data ]
 
 if dl_iso3_list is None:
     iso3_list = set(gb_iso3_list)
@@ -176,7 +176,7 @@ def ingest_gb_item(item: dict):
     # futils.insert_feature_collection(FC)
     # # futils.update_feature_collection(FC)
 
-    ingest_feature_collection(json_data=adm_meta, update_or_insert=True)
+    ingest_feature_collection(json_data=adm_meta, skip_existing=True, update_meta=False, replace_features=False, update_features=False)
 
 
 if __name__ == "__main__":
