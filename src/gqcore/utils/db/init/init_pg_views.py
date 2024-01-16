@@ -39,4 +39,4 @@ def init_views():
     create_view_coverage()
 
 if __name__ == "__main__":
-    init_view()
+    init_views()
