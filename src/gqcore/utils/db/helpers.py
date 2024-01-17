@@ -1,5 +1,6 @@
 
 import shapely
+import psycopg
 from psycopg import Cursor
 from psycopg.types.json import Jsonb
 from typing import Dict
@@ -138,19 +139,22 @@ def find_missing_coverage_id_pairs() -> list:
 def _find_missing_coverage_id_pairs(cur: Cursor) -> list:
     # get all ids from datasets table and ids from features table where the pair does not yet exist in the coverage table
     coverage_query = """
-        SELECT
-            f.geom_id,
-            d.dataset_id
-        FROM (
-            SELECT id AS geom_id FROM features
-        ) AS f
-        CROSS JOIN (
-            SELECT id AS dataset_id FROM datasets WHERE coverage_dependency IS null
-        ) AS d
-        WHERE (f.geom_id, d.dataset_id) NOT IN (
-            SELECT geom_id, dataset_id FROM coverage
-        );
+        SELECT s.geom_id, s.dataset_id FROM (
+            SELECT
+                f.geom_id,
+                d.dataset_id
+            FROM (
+                SELECT id AS geom_id FROM features
+            ) AS f
+            CROSS JOIN (
+                SELECT id AS dataset_id FROM datasets WHERE coverage_dependency IS null
+            ) AS d
+        ) as s
+        LEFT OUTER JOIN coverage ON s.geom_id = coverage.geom_id AND s.dataset_id = coverage.dataset_id
+        WHERE coverage.geom_id IS NULL
+        ;
     """
+
     cur.execute(coverage_query)
     results = cur.fetchall()
     return results
@@ -172,19 +176,22 @@ def _get_dataset_ids(cur: Cursor) -> list:
     return dataset_ids
 
 
-def insert_coverage_records(coverage_list: list) -> None:
+def insert_coverage_records(coverage_list: list) -> int:
     with get_conn() as conn:
         with conn.cursor() as cur:
             _insert_coverage_records(cur, coverage_list)
 
 
 @logger.catch(reraise=True)
-def _insert_coverage_records(cur: Cursor, coverage_list: list) -> None:
+def _insert_coverage_records(cur: Cursor, coverage_list: list) -> int:
     for c in coverage_list:
         cur.execute(
             """
             INSERT INTO coverage (geom_id, dataset_id, status)
-            VALUES (%s, %s, %s);
+            VALUES (%s, %s, %s)
+            ON CONFLICT (geom_id, dataset_id)
+            DO NOTHING
+            ;
             """,
             (c.geom_id, c.dataset_id, c.status)
         )
