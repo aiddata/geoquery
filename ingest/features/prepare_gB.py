@@ -18,10 +18,10 @@ get_logger("ingest")
 logger.info(f"Starting geoBoundaries bulk ingest")
 
 # set this to None to download all ISO3 boundaries
-dl_iso3_list: Optional[List[str]] = ["AFG"]
+dl_iso3_list: Optional[List[str]] = ["GHA", "AFG"]
 # dl_iso3_list: Optional[List[str]] = None
 
-target_gb_commit = "ff0d953b5aa2"
+target_gb_commit = "0faed0c"
 
 gb_dir = Path("/home/userx/Desktop/geoquery-update/data/geoBoundaries")
 
@@ -52,39 +52,24 @@ default_meta = {
     "group_level": None,
 }
 
-gb_url = "https://www.geoboundaries.org/api"
 
+all_url = f"https://raw.githubusercontent.com/wmgeolab/gbWeb/{target_gb_commit}/api/current/gbOpen/ALL/ALL/index.json"
 
 def get_api_url(url):
     response = requests.get(url)
     content = response.json()
     return content
 
+api_data = get_api_url(all_url)
 
-base_api_data = get_api_url(gb_url)
-
-gb_iso3_list = [ i["ISO"] for i in base_api_data ]
 
 if dl_iso3_list is None:
-    iso3_list = set(gb_iso3_list)
+    ingest_items = api_data
 else:
-    iso3_list = set(gb_iso3_list).intersection(set(dl_iso3_list))
+    ingest_items = [i for i in api_data if i["boundaryISO"] in dl_iso3_list]
 
-iso3_list = sorted(list(iso3_list))
+ingest_items = sorted(ingest_items, key=lambda d: d['boundaryISO'])
 
-
-
-ingest_items = []
-for iso3 in iso3_list:
-    api_url = f"{gb_url}/current/gbOpen/{iso3}/ALL/"
-    try:
-        iso3_items = get_api_url(api_url)
-    except:
-        logger.debug(f"Failed to get {api_url}")
-    for item in iso3_items:
-        #if item["boundaryType"] == "ADM2":
-            #continue
-        ingest_items.append(item)
 
 
 @logger.catch(reraise=False)
@@ -115,10 +100,10 @@ def ingest_gb_item(item: dict):
     # save full metadata from geoboundaries api to the "other" field
     adm_meta["other"] = item.copy()
 
-    raw_dl_url = item["gjDownloadURL"]
+    commit_dl_url = item["gjDownloadURL"]
     # "https://github.com/wmgeolab/geoBoundaries/raw/c0ed7b8/releaseData/gbOpen/AFG/ADM0/geoBoundaries-AFG-ADM0.geojson",
 
-    commit_dl_url = raw_dl_url.replace(raw_dl_url.split("/")[6], target_gb_commit)
+    # commit_dl_url = raw_dl_url.replace(raw_dl_url.split("/")[6], target_gb_commit)
 
     gpkg_path = output_path / f"{Path(commit_dl_url).stem}.gpkg"
     adm_meta["path"] = str(gpkg_path)
@@ -176,7 +161,7 @@ def ingest_gb_item(item: dict):
     # futils.insert_feature_collection(FC)
     # # futils.update_feature_collection(FC)
 
-    ingest_feature_collection(json_data=adm_meta, update_or_insert=True)
+    ingest_feature_collection(json_data=adm_meta, skip_existing=True, update_meta=False, replace_features=False, update_features=False)
 
 
 if __name__ == "__main__":

@@ -6,8 +6,8 @@ from loguru import logger
 
 from gqcore.utils.db import features as futils
 
-@logger.catch(reraise=True)
-def ingest_feature_collection(json_path: str = None, json_data: dict = None, update: bool = False, update_or_insert: bool = False) -> None:
+@logger.catch(reraise=False)
+def ingest_feature_collection(json_path: str = None, json_data: dict = None, skip_existing:bool=False, update_meta:bool=False, replace_features:bool=False, update_features:bool=False) -> None:
 
     logger.info(f"Starting feature collection ingest")
 
@@ -26,18 +26,9 @@ def ingest_feature_collection(json_path: str = None, json_data: dict = None, upd
     logger.info(f"Creating feature collection: {data['name']}")
 
     FC = futils.FeatureCollection(**data)
-    if update_or_insert:
-        try:
-            logger.info(f"Trying to update feature collection before inserting")
-            futils.update_feature_collection(FC)
-        except Exception as e:
-            logger.info(f"Failed to update feature collection, inserting instead")
-            futils.insert_feature_collection(FC)
-    elif update:
-        logger.info(f"Updating feature collection")
-        futils.update_feature_collection(FC)
-    else:
-        logger.info(f"Inserting feature collection")
-        futils.insert_feature_collection(FC)
+
+
+    logger.info(f"Inserting feature collection (update_meta={update_meta}, replace_features={replace_features}, update_features={update_features}))")
+    futils.insert_feature_collection(FC, skip_existing=skip_existing, update_meta=update_meta, replace_features=replace_features, update_features=update_features)
 
     logger.success(f"Finished feature collection ingest")
