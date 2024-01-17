@@ -1,7 +1,8 @@
+{{ if .Values.dev.enabled -}}
 apiVersion: v1
 kind: Pod
 metadata:
-  name: python
+  name: workbench
   namespace: {{.Release.Namespace}}
 spec:
   serviceAccount: geoquery-super
@@ -38,3 +39,4 @@ spec:
     resources:
       requests:
         cpu: 6
+{{- end -}}
