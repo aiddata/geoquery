@@ -18,8 +18,8 @@ get_logger("ingest")
 logger.info(f"Starting geoBoundaries bulk ingest")
 
 # set this to None to download all ISO3 boundaries
-dl_iso3_list: Optional[List[str]] = ["GHA", "AFG"]
-# dl_iso3_list: Optional[List[str]] = None
+# dl_iso3_list: Optional[List[str]] = ["GHA", "AFG"]
+dl_iso3_list: Optional[List[str]] = None
 
 target_gb_commit = "0faed0c"
 
