@@ -10,7 +10,7 @@ dev:
   localDir: /tmp/geoquery-update/
 
 
-default_image: "jacobwhall/geoquery-backend:78e47c8"
+default_image: "jacobwhall/geoquery-backend:bca2756"
 data_root: "/tmp/geoquery-update"
 
 
