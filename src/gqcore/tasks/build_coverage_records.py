@@ -3,6 +3,7 @@ import itertools
 import time
 import concurrent.futures
 
+import psycopg
 from loguru import logger
 
 from gqcore.utils.logs import get_logger
@@ -28,6 +29,9 @@ def generate_coverage_records():
     t_start = time.perf_counter()
 
     potential_coverage = find_missing_coverage_id_pairs()
+    print(potential_coverage)
+    print(len(potential_coverage))
+
 
     if len(potential_coverage) == 0:
         logger.success("No coverage records to generate")
@@ -37,7 +41,9 @@ def generate_coverage_records():
         CoverageRecord(**{"geom_id":x["geom_id"], "dataset_id":x["dataset_id"]}) for x in potential_coverage
     ]
 
+
     insert_coverage_records(new_coverage)
+
 
     t_end = time.perf_counter()
 
@@ -45,27 +51,65 @@ def generate_coverage_records():
 
     logger.success("Coverage records generated")
 
+def process(dataset_id):
 
-def process(task):
+    logger.info(f"Testing coverage for feature dataset {dataset_id} across all features", extra={"dataset_id": dataset_id})
 
-        feature_id, dataset_id = task
+    # spatial_query = """
+    # SELECT
+    #     datasets.name AS dname,
+    #     datasets.id AS did,
+    #     features.id AS fid
+    # FROM datasets
+    # JOIN features
+    # ON ST_Contains(datasets.spatial_extent, features.shape)
+    # WHERE datasets.id = %s;
+    # """
 
-        logger.info(f"Testing coverage for feature {feature_id} and dataset {dataset_id}", extra={"feature_id": feature_id, "dataset_id": dataset_id})
+    # # set all matches to 1
+    # matches = cur.execute(spatial_query, (dataset_id, )).fetchall()
 
-        feature_geom = get_feat_geom_by_id(feature_id)
+    # logger.info(f"Updating matched coverage for feature dataset {dataset_id}", extra={"dataset_id": dataset_id})
 
-        dataset_spatial_extent = get_dataset_extent_by_id(dataset_id)
+    # if len(matches) > 0:
+    #     matched_fid_list = [x["fid"] for x in matches]
+    #     match_update_query = """
+    #     UPDATE coverage
+    #     SET status = 1
+    #     WHERE dataset_id = %s AND geom_id = ANY(%s);
+    #     """
+    #     print(match_update_query, (dataset_id, matched_fid_list))
+    #     cur.execute(match_update_query, (dataset_id, matched_fid_list))
 
-        # compare feature geom to dataset spatial_extent
-        # if feature geom is within dataset spatial_extent, set coverage to 1
-        # else set coverage to 0
-        if feature_geom.within(dataset_spatial_extent):
-            new_status = 1
-        else:
-            new_status = 0
+    logger.info(f"Updating matched coverage for feature dataset {dataset_id}", extra={"dataset_id": dataset_id})
 
-        _update_coverage_status(cur, feature_id, dataset_id, new_status)
-        conn.commit()
+    spatial_query = """
+    UPDATE coverage
+    SET status = 1
+    WHERE dataset_id = %s AND geom_id = ANY(
+        SELECT
+            features.id AS geom_id
+        FROM datasets
+        JOIN features
+        ON ST_Contains(datasets.spatial_extent, features.shape)
+        WHERE datasets.id = %s
+    );
+    """
+    cur.execute(spatial_query, (dataset_id, dataset_id))
+
+
+    logger.info(f"Updatimg unmatched coverage for feature dataset {dataset_id}", extra={"dataset_id": dataset_id})
+
+    # set non matches to 0
+    update_query = """
+    UPDATE coverage
+    SET status = 0
+    WHERE dataset_id = %s AND status = -1;
+    """
+    cur.execute(update_query, (dataset_id, ))
+
+    conn.commit()
+
 
 
 @logger.catch(reraise=False)
@@ -79,7 +123,8 @@ def test_coverage():
         logger.success("No coverage records to test")
         return
 
-    task_list = [(x["geom_id"], x["dataset_id"]) for x in coverage_items]
+    # task_list = [(x["geom_id"], x["dataset_id"]) for x in coverage_items]
+    task_list = list(set([x["dataset_id"] for x in coverage_items]))
 
     # ============
 

@@ -175,7 +175,8 @@ def create_table_coverage(cur):
         CREATE TABLE coverage (
             geom_id         int REFERENCES features(id),
             dataset_id      int REFERENCES datasets(id),
-            status          int
+            status          int,
+            UNIQUE(geom_id, dataset_id)
         );
         """
     )
