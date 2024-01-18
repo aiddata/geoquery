@@ -58,7 +58,7 @@ grafana:
     datasources.yaml:
       apiVersion: 1
       datasources:
-        - name: "loki"
+        - name: "Loki"
           type: "loki"
           access: "proxy"
           uid: "P982945308D3682D1"
@@ -73,4 +73,9 @@ grafana:
           jsonData:
             database: geoquery
             sslmode: "disable"
+        - name: "Prometheus"
+          type: "prometheus"
+          uid: "PBFA97CFB590B2093"
+          url: "http://prometheus-kube-prometheus-prometheus.prometheus.svc.cluster.local:9090"
+          
      
