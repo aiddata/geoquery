@@ -74,6 +74,14 @@ helm upgrade --install gq --namespace geoquery  ./helm_chart -f ./helm_chart/my_
 # -------------------------------------
 # CONVENIENCE COMMANDS
 
+
+# dump the grafana admin password
+# username is "admin"
+kubectl get secret gq-grafana -o jsonpath='{.data.admin-password}' | base64 --decode
+
+# forward grafana to http://localhost:3000
+kubectl port-forward service/gq-grafana 3000:80 & # that last & sends process to background
+
 kubectl exec -ti postgis-cluster-1 -- psql geoquery
 update extract_tasks set status=0;truncate extract_data;
 
