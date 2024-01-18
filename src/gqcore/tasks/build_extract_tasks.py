@@ -13,7 +13,7 @@ if __name__ == "__main__":
     logger.info("Starting generating extract tasks")
 
     t_start = time.perf_counter()
-    task_count = generate_tasks(overwrite=True)
+    task_count = generate_tasks(overwrite=False)
     t_end = time.perf_counter()
 
     logger.success("Finished generating extract tasks")
