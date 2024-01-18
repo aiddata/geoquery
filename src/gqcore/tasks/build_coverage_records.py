@@ -155,7 +155,9 @@ def test_coverage():
     t_end = time.perf_counter()
 
     logger.info(f"Time to test and update coverage for {len(coverage_items)} records: {t_end - t_start:0.4f} seconds")
-    logger.info(f"Avg time to test and update coverage: {(t_end - t_start)/len(coverage_items):0.4f} seconds")
+
+    if len(coverage_items) > 0:
+        logger.info(f"Avg time to test and update coverage: {(t_end - t_start)/len(coverage_items):0.4f} seconds")
 
 
     logger.success("Coverage testing complete")

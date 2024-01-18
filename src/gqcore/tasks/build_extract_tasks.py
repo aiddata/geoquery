@@ -21,4 +21,5 @@ if __name__ == "__main__":
 
     logger.info(f"Time to generate tasks for {task_count} records: {t_end - t_start:0.4f} seconds")
 
-    logger.info(f"Avg time to generate tasks: {(t_end - t_start)/task_count:0.4f} seconds")
+    if task_count > 0:
+        logger.info(f"Avg time to generate tasks: {(t_end - t_start)/task_count:0.4f} seconds")

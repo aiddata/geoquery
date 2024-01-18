@@ -23,13 +23,16 @@ def generate_tasks(overwrite: bool = False):
         WHERE coverage.status = 1
         ON CONFLICT (resource_id, fm_id, po_id)
         DO NOTHING
+        RETURNING id
         ;
     """
+    result = None
     with get_conn() as conn:
         with conn.cursor() as cur:
             # if overwrite:
             #     cur.execute("DELETE FROM extract_tasks;")
-            cur.execute(select_task_query)
+            result = cur.execute(select_task_query).fetchall()
+            return len(result)
 
 
 # def process(input):
