@@ -10,7 +10,7 @@ dev:
   localDir: /tmp/geoquery-update/
 
 
-default_image: "jacobwhall/geoquery-backend:bca2756"
+default_image: "jacobwhall/geoquery-backend:7136edb"
 data_root: "/tmp/geoquery-update"
 
 
@@ -62,11 +62,11 @@ grafana:
           type: "loki"
           access: "proxy"
           uid: "P982945308D3682D1"
-          url: "http://loki-gateway.geoquery.svc.cluster.local"
+          url: "http://loki-gateway.{{ .Release.Namespace }}.svc.cluster.local"
         - name: "Postgres"
           type: "postgres"
           uid: "P44368ADAD746BC27"
-          url: "postgis-cluster-r.geoquery.svc.cluster.local:5432"
+          url: "postgis-cluster-r.{{ .Release.Namespace }}.svc.cluster.local:5432"
           user: "geoquery"
           secureJsonData:
             password: "dante"
