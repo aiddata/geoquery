@@ -36,10 +36,9 @@ rules:
   
   - apiGroups:
     - "postgresql.cnpg.io"
-    resources: [clusters]
+    resources: [clusters/status]
     verbs:
     - "get"
-    - "list"
 
 ---
 

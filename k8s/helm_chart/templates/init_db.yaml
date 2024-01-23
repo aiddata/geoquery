@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: geoguery-init-db
+  namespace: {{ .Release.Namespace }}
+spec:
+  template:
+    spec:
+      volumes:
+      - name: gq-config-vol
+        configMap:
+          name: gq-config
+      - name: postgis-secret-vol
+        secret:
+          secretName: geoquery-postgis
+          optional: true
+      containers:
+      - name: geoquery-init-db
+        image: {{ .Values.default_image }}
+        command: [ "/bin/bash", "-c", "--" ]
+        args: [ "python /geoquery/src/gqcore/utils/db/init/main.py" ]
+        volumeMounts:
+        - name: gq-config-vol
+          mountPath: /config
+        - name: postgis-secret-vol
+          mountPath: /secrets/db
+      restartPolicy: Never
+  backoffLimit: 4
+
