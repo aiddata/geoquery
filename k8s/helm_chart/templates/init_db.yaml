@@ -1,3 +1,40 @@
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: init-db-acct
+  namespace: {{ .Release.namespace }}
+
+---
+
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: init-db-role
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups:
+    - "postgresql.cnpg.io"
+    resources: [clusters/status]
+    verbs:
+    - "get"
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: init-db-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: init-db-role
+subjects:
+  - kind: ServiceAccount
+    namespace: {{ .Release.Namespace }}
+    name: init-db-acct  # adjust name based on the service account you create
+
+---
+
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -6,6 +43,8 @@ metadata:
 spec:
   template:
     spec:
+      serviceAccount: init-db-acct
+      serviceAccountName: init-db-acct
       volumes:
       - name: gq-config-vol
         configMap:
