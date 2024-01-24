@@ -51,7 +51,8 @@ dependencies = [
     "msgpack == 1.0.6",
     "numpy == 1.26.0",
     "pandas == 2.1.2",
-    "tornado == 6.3.3"
+    "tornado == 6.3.3",
+    "kubernetes"
 ]
 
 
