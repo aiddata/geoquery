@@ -23,7 +23,10 @@
   "liveNow": false,
   "panels": [
     {
-      "datasource": {},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "P44368ADAD746BC27"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -69,7 +72,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "10.2.2",
+      "pluginVersion": "10.2.3",
       "targets": [
         {
           "datasource": {
@@ -189,7 +192,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "10.2.2",
+      "pluginVersion": "10.2.3",
       "targets": [
         {
           "datasource": {
@@ -225,7 +228,7 @@
     },
     {
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "P44368ADAD746BC27"
       },
       "description": "Age of oldest incomplete GeoQuery request",
@@ -277,9 +280,10 @@
           "values": false
         },
         "showThresholdLabels": true,
-        "showThresholdMarkers": true
+        "showThresholdMarkers": true,
+        "sizing": "auto"
       },
-      "pluginVersion": "10.2.2",
+      "pluginVersion": "10.2.3",
       "targets": [
         {
           "datasource": {
@@ -483,7 +487,7 @@
     }
   ],
   "refresh": "",
-  "schemaVersion": 38,
+  "schemaVersion": 39,
   "tags": [],
   "templating": {
     "list": []
@@ -509,6 +513,6 @@
   "timezone": "",
   "title": "GeoQuery Backend",
   "uid": "e0faee3c-e945-4c48-80a9-ae6114668d2c",
-  "version": 4,
+  "version": 2,
   "weekStart": ""
 }
