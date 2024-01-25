@@ -1,9 +1,9 @@
 import click
+from loguru import logger
 from psycopg.errors import DuplicateTable
 
 from gqcore.utils.db.conn import get_conn
 
-from loguru import logger
 
 def create_view_dataset_and_resources():
     query = """
@@ -41,9 +41,11 @@ def create_view_coverage():
             cur.execute(query)
             logger.info("created view coverage_with_dependencies")
 
+
 def init_views():
     logger.info("creating views...")
     create_view_coverage()
+
 
 if __name__ == "__main__":
     init_views()

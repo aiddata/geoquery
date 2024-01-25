@@ -1,9 +1,9 @@
 import click
+from loguru import logger
 from psycopg.errors import DuplicateTable
 
 from gqcore.utils.db.conn import get_conn
 
-from loguru import logger
 
 def create_table_feature_collections(cur):
     cur.execute(
@@ -270,7 +270,9 @@ def init_db(overwrite: bool) -> None:
     with get_conn() as conn:
         with conn.cursor() as cur:
             if overwrite:
-                logger.info("overwrite set to true, dropping existing tables (if they exist)...")
+                logger.info(
+                    "overwrite set to true, dropping existing tables (if they exist)..."
+                )
 
                 cur.execute("DROP TABLE IF EXISTS coverage;")
                 cur.execute("DROP TABLE IF EXISTS request_map;")
@@ -285,7 +287,9 @@ def init_db(overwrite: bool) -> None:
                 cur.execute("DROP TABLE IF EXISTS processing_options;")
                 cur.execute("DROP TABLE IF EXISTS datasets;")
             else:
-                logger.debug("overwrite set to false, existing tables will not be dropped")
+                logger.debug(
+                    "overwrite set to false, existing tables will not be dropped"
+                )
 
             logger.info("creating tables...")
 

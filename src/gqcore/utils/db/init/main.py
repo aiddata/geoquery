@@ -1,9 +1,8 @@
-from time import time, sleep
-from kubernetes import client, config
+from time import sleep, time
 
 from init_pg_tables import init_db
 from init_pg_views import init_views
-
+from kubernetes import client, config
 from loguru import logger
 
 
