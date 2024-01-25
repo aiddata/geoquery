@@ -3,6 +3,7 @@ from psycopg.errors import DuplicateTable
 
 from gqcore.utils.db.conn import get_conn
 
+from loguru import logger
 
 def create_table_feature_collections(cur):
     cur.execute(
@@ -39,6 +40,7 @@ def create_table_feature_collections(cur):
         );
         """
     )
+    logger.info("created table feature_collections")
 
 
 def create_table_features(cur):
@@ -51,6 +53,7 @@ def create_table_features(cur):
             );
         """
     )
+    logger.info("created table features")
 
 
 def create_index_features(cur):
@@ -61,6 +64,7 @@ def create_index_features(cur):
         USING GIST (shape);
         """
     )
+    logger.info("created index features_geom_idx on table features")
 
 
 def create_table_feat_map(cur):
@@ -78,6 +82,7 @@ def create_table_feat_map(cur):
         )
         """
     )
+    logger.info("created table feat_map")
 
 
 def create_table_datasets(cur):
@@ -117,6 +122,7 @@ def create_table_datasets(cur):
         );
         """
     )
+    logger.info("created table datasets")
 
 
 def create_table_dataset_resources(cur):
@@ -134,6 +140,7 @@ def create_table_dataset_resources(cur):
             );
         """
     )
+    logger.info("created table dataset_resources")
 
 
 def create_table_mappings(cur):
@@ -147,6 +154,7 @@ def create_table_mappings(cur):
         );
         """
     )
+    logger.info("created table mappings")
 
 
 def create_table_processing_options(cur):
@@ -167,6 +175,7 @@ def create_table_processing_options(cur):
         );
         """
     )
+    logger.info("created table processing_options")
 
 
 def create_table_coverage(cur):
@@ -180,6 +189,7 @@ def create_table_coverage(cur):
         );
         """
     )
+    logger.info("created table coverage")
 
 
 def create_table_extract_tasks(cur):
@@ -203,6 +213,7 @@ def create_table_extract_tasks(cur):
         );
         """
     )
+    logger.info("created table extract_tasks")
 
 
 def create_table_extract_data(cur):
@@ -218,6 +229,7 @@ def create_table_extract_data(cur):
         );
         """
     )
+    logger.info("created table extract_data")
 
 
 def create_table_requests(cur):
@@ -239,6 +251,7 @@ def create_table_requests(cur):
         );
         """
     )
+    logger.info("created table requests")
 
 
 def create_table_request_map(cur):
@@ -250,12 +263,15 @@ def create_table_request_map(cur):
         );
         """
     )
+    logger.info("created table request_map")
 
 
 def init_db(overwrite: bool) -> None:
     with get_conn() as conn:
         with conn.cursor() as cur:
             if overwrite:
+                logger.info("overwrite set to true, dropping existing tables (if they exist)...")
+
                 cur.execute("DROP TABLE IF EXISTS coverage;")
                 cur.execute("DROP TABLE IF EXISTS request_map;")
                 cur.execute("DROP TABLE IF EXISTS requests;")
@@ -268,6 +284,10 @@ def init_db(overwrite: bool) -> None:
                 cur.execute("DROP TABLE IF EXISTS mappings;")
                 cur.execute("DROP TABLE IF EXISTS processing_options;")
                 cur.execute("DROP TABLE IF EXISTS datasets;")
+            else:
+                logger.debug("overwrite set to false, existing tables will not be dropped")
+
+            logger.info("creating tables...")
 
             create_table_feature_collections(cur)
             create_table_features(cur)

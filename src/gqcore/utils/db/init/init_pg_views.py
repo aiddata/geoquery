@@ -3,6 +3,7 @@ from psycopg.errors import DuplicateTable
 
 from gqcore.utils.db.conn import get_conn
 
+from loguru import logger
 
 def create_view_dataset_and_resources():
     query = """
@@ -18,7 +19,11 @@ def create_view_dataset_and_resources():
             try:
                 cur.execute(query)
             except DuplicateTable:
-                click.echo("View dataset_and_resources already exists.")
+                # FIXME: this wouldn't ever run because the query includes
+                # "CREATE OR REPLACE...", right?
+                logger.info("View dataset_and_resources already exists.")
+            else:
+                logger.info("created view dataset_and_resources")
 
 
 def create_view_coverage():
@@ -34,8 +39,10 @@ def create_view_coverage():
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(query)
+            logger.info("created view coverage_with_dependencies")
 
 def init_views():
+    logger.info("creating views...")
     create_view_coverage()
 
 if __name__ == "__main__":
