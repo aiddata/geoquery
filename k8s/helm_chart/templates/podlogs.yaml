@@ -1,0 +1,152 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: geoquery-backend-grafana-agent
+  namespace: {{ .Release.Namespace }}
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: geoquery-backend-grafana-agent
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  - nodes/proxy
+  - nodes/metrics
+  - services
+  - endpoints
+  - pods
+  - events
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- nonResourceURLs:
+  - /metrics
+  - /metrics/cadvisor
+  verbs:
+  - get
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: geoquery-backend-grafana-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: geoquery-backend-grafana-agent
+subjects:
+- kind: ServiceAccount
+  name: geoquery-backend-grafana-agent
+  namespace: {{ .Release.Namespace }}
+
+---
+
+apiVersion: monitoring.grafana.com/v1alpha1
+kind: GrafanaAgent
+metadata:
+  name: geoquery-backend
+  namespace: {{ .Release.Namespace }}
+spec:
+  disableReporting: false
+  disableSupportBundle: false
+  enableConfigReadAPI: false
+  logs:
+    instanceSelector:
+      matchLabels:
+        geoquery.org/log-group: backend
+  serviceAccountName: geoquery-backend-grafana-agent
+
+---
+
+apiVersion: v1
+items:
+- apiVersion: monitoring.grafana.com/v1alpha1
+  kind: LogsInstance
+  metadata:
+    name: geoquery-logs
+    namespace: {{ .Release.Namespace }}
+    labels:
+      geoquery.org/log-group: backend
+  spec:
+    clients:
+    - externalLabels:
+        cluster: "{{ .Release.Name }}-loki"
+      url: "http://loki-gateway.{{ .Release.Namespace }}.svc.cluster.local/loki/api/v1/push"
+    podLogsSelector:
+      matchLabels:
+        instance: geoquery
+kind: List
+metadata:
+  resourceVersion: ""
+
+---
+
+apiVersion: v1
+apiVersion: monitoring.grafana.com/v1alpha1
+kind: PodLogs
+metadata:
+  name: gq-podlog
+  namespace: {{ .Release.Namespace }}
+  labels:
+    instance: geoquery
+spec:
+  namespaceSelector:
+    matchNames:
+    - {{ .Release.Namespace }}
+  pipelineStages:
+  - regex:
+      expression: "^(?P<timestamp>.+?) \\| (?P<level>[[:alpha:]]+?) +?\\| (?P<message>.+)"
+  - labels:
+      level: level
+  - timestamp:
+      source: timestamp
+      format: DateTime
+  - output:
+      source: message
+  relabelings:
+  - action: replace
+    sourceLabels:
+    - __meta_kubernetes_pod_node_name
+    targetLabel: __host__
+  - action: labelmap
+    regex: __meta_kubernetes_pod_label_(.+)
+  - action: replace
+    replacement: $1
+    separator: '-'
+    sourceLabels:
+    - __meta_kubernetes_pod_label_app_kubernetes_io_name
+    - __meta_kubernetes_pod_label_app_kubernetes_io_component
+    targetLabel: __service__
+  - action: replace
+    replacement: $1
+    separator: /
+    sourceLabels:
+    - __meta_kubernetes_namespace
+    - __service__
+    targetLabel: job
+  - action: replace
+    sourceLabels:
+    - __meta_kubernetes_pod_container_name
+    targetLabel: container
+  - action: replace
+    replacement: geoquery
+    targetLabel: cluster
+  selector:
+    matchLabels:
+      geoquery.org/log-group: backend
+

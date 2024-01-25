@@ -42,6 +42,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   template:
+    metadata:
+      labels:
+        geoquery.org/log-group: backend
     spec:
       serviceAccount: init-db-acct
       serviceAccountName: init-db-acct
