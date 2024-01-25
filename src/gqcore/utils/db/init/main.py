@@ -44,6 +44,7 @@ def init_db_when_ready() -> None:
     init_db(False)
     # create views
     init_views()
+    logger.info("finished initializing database.")
 
 
 if __name__ == "__main__":
