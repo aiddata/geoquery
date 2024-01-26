@@ -109,8 +109,10 @@ spec:
     matchNames:
     - {{ .Release.Namespace }}
   pipelineStages:
+  - multiline:
+      firstLine: "^.+? \\| [[:alpha:]]+? +?\\| .+:.+:\\d+ .+"
   - regex:
-      expression: "^(?P<timestamp>.+?) \\| (?P<level>[[:alpha:]]+?) +?\\| (?P<message>.+)"
+      expression: "^(?P<timestamp>.+?) \\| (?P<level>[[:alpha:]]+?) +?\\| .+:.+:\\d+ [-\\|] (?P<message>(?s:.*))$"
   - labels:
       level: level
   - timestamp:
