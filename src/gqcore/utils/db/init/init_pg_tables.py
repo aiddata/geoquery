@@ -1,8 +1,8 @@
 import click
-from loguru import logger
 from psycopg.errors import DuplicateTable
 
 from gqcore.utils.db.conn import get_conn
+from gqcore.utils.logs import get_logger
 
 
 def create_table_feature_collections(cur):
@@ -323,4 +323,5 @@ def main(overwrite: bool) -> None:
 
 
 if __name__ == "__main__":
+    get_logger("init_database")
     main()

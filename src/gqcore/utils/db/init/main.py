@@ -3,7 +3,8 @@ from time import sleep, time
 from init_pg_tables import init_db
 from init_pg_views import init_views
 from kubernetes import client, config
-from loguru import logger
+
+from gqcore.utils.logs import get_logger
 
 
 @logger.catch(reraise=True)
@@ -48,4 +49,5 @@ def init_db_when_ready() -> None:
 
 
 if __name__ == "__main__":
+    get_logger("init_database")
     init_db_when_ready()
