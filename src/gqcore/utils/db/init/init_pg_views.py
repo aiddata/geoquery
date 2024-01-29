@@ -5,6 +5,8 @@ from psycopg.errors import DuplicateTable
 from gqcore.utils.db.conn import get_conn
 from gqcore.utils.logs import get_logger
 
+get_logger("init_database")
+
 
 def create_view_dataset_and_resources():
     query = """
@@ -49,5 +51,4 @@ def init_views():
 
 
 if __name__ == "__main__":
-    get_logger("init_database")
     init_views()

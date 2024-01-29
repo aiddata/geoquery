@@ -1,14 +1,11 @@
 from time import sleep, time
 
-from init_pg_tables import init_db
-from init_pg_views import init_views
 from kubernetes import client, config
-
-from gqcore.utils.logs import get_logger
+from loguru import logger
 
 
 @logger.catch(reraise=True)
-def init_db_when_ready() -> None:
+def wait_for_db() -> None:
     # we will be connecting to the k8s API from within a container
     # which has been given a serviceaccount
     config.load_incluster_config()
@@ -30,24 +27,12 @@ def init_db_when_ready() -> None:
         # is the database (cnpg cluster) fully up and ready?
         # TODO: investigate better options for testing db readiness beyond a string comparison
         if cluster_phase == "Cluster in healthy state":
-            logger.info("database is ready to initialize")
+            logger.info("database is now ready")
             break
         else:
             logger.info(
-                f'database is not yet ready to initialize (phase is "{cluster_phase}")'
+                f'database is not yet ready (phase is "{cluster_phase}")'
             )
         # elif too much time has elapsed (make this configurable with values.yaml?)
         # logger.critical("database creation timeout exceeded, canceling db init")
         sleep(5)
-
-    logger.info("initializing database...")
-    # create tables
-    init_db(False)
-    # create views
-    init_views()
-    logger.info("finished initializing database.")
-
-
-if __name__ == "__main__":
-    get_logger("init_database")
-    init_db_when_ready()

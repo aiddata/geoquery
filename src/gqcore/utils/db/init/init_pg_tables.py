@@ -4,6 +4,8 @@ from psycopg.errors import DuplicateTable
 from gqcore.utils.db.conn import get_conn
 from gqcore.utils.logs import get_logger
 
+get_logger("init_database")
+
 
 def create_table_feature_collections(cur):
     cur.execute(
@@ -323,5 +325,4 @@ def main(overwrite: bool) -> None:
 
 
 if __name__ == "__main__":
-    get_logger("init_database")
     main()
