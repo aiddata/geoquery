@@ -6,14 +6,16 @@ prod:
     mountPath: /sciclone/nova/test
 
 dev:
+  # enables "workbench" container for testing out scripts
   enabled: false
   localDir: /tmp/geoquery-update/
 
-
+# image to use for all geoquery backend jobs
 default_image: "jacobwhall/geoquery-backend:6c4f1ef"
 data_root: "/tmp/geoquery-update"
 
-
+# config for primary geoquery database
+# make sure to override these in my_values.yaml
 postgis:
   name: "postgis-cluster"
   username: "[POSTGIS USERNAME]"
@@ -21,6 +23,9 @@ postgis:
   port: "5432"
   dbname: "geoquery"
 
+# login details for outgoing email server
+# used to send users info about their requests
+# make sure to override these in my_values.yaml
 email:
   sender: "[EMAIL SENDER]"
   password: "[EMAIL PASSWORD]"
@@ -28,7 +33,6 @@ email:
   server: "smtp.gmail.com"
   port: "587"
   backup_server: "localhost"
-
 
 documentation:
   devtag: "test"
@@ -41,11 +45,18 @@ extracts:
   inactive_sleep: "30"
   scale_sleep: "30"
 
+# configuration for loki subchart,
+# monitors logs across the cluster
 loki:
   loki:
     auth_enabled: false
+
+  # use a simple, containerized block storage solution
+  # TODO: use longhorn or similar one day?
   minio:
     enabled: true
+
+  # monitor loki with prometheus
   serviceMonitor:
     labels:
       release: "prometheus"
@@ -53,16 +64,27 @@ loki:
     labels:
       release: "prometheus"
 
+# configuration for grafana subchart,
+# dashboard that connects to various monitoring
+# solutions across cluster
 grafana:
   datasources:
     datasources.yaml:
       apiVersion: 1
+      # for more info on these, see documentation on how to provision
+      # data sources for grafana
+      # https://grafana.com/docs/grafana/latest/administration/provisioning/
+      # it's important that we set static UIDs for these data sources so that
+      # dashboards can always find them on install
       datasources:
+        # this should point to our loki log monitoring solution, configured above
         - name: "Loki"
           type: "loki"
           access: "proxy"
           uid: "P982945308D3682D1"
           url: "http://loki-gateway.{{ .Release.Namespace }}.svc.cluster.local"
+
+        # this should point to our postgres database, also configured above
         - name: "Postgres"
           type: "postgres"
           uid: "P44368ADAD746BC27"
@@ -73,10 +95,18 @@ grafana:
           jsonData:
             database: geoquery
             sslmode: "disable"
+
+        # point to prometheus, configured separately (see "test.sh" in parent directory)
         - name: "Prometheus"
           type: "prometheus"
           uid: "PBFA97CFB590B2093"
           url: "http://prometheus-kube-prometheus-prometheus.prometheus.svc.cluster.local:9090"
+
+  # provision dashboards
+  # these coincide with templates/grafana-dashboard-configmap.yaml, see that file for more context
+  # see the following grafana community thread for more info:
+  # https://community.grafana.com/t/how-to-provision-a-dashboard-from-grafana-com-dashboards-when-deploying-grafana-using-the-helm-chart/46341/4
+  # TODO: make it easier to add more than one dashboard in the future
   dashboardProviders:
    dashboardproviders.yaml:
      apiVersion: 1
