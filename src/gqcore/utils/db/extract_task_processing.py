@@ -170,8 +170,13 @@ class LockTask:
                             ON dataset_resources.dataset_id = datasets.id
                         LEFT OUTER JOIN processing_options
                             ON processing_option_id = processing_options.id
+                        LEFT OUTER JOIN feature_collections
+                            ON feat_map.fc_id = feature_collections.id
                     )
                     WHERE extract_tasks.id = task_id
+                    AND feature_collections.active
+                    AND datasets.active
+                    AND processing_options.active
                     RETURNING *;
                 """
                 logger.debug("Searching for available tasks...")
