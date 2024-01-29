@@ -41,6 +41,7 @@ feat_map
 
 datasets
   id "serial integer" pk
+  active boolean
   mapped boolean
   name varchar UNIQUE
   type varchar
