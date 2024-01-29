@@ -1,7 +1,6 @@
-
+from loguru import logger
 from psycopg import Cursor
 from psycopg.types.json import Jsonb
-from loguru import logger
 
 from gqcore.utils.db.conn import get_conn
 from gqcore.utils.models import Feature, FeatureCollection
@@ -9,30 +8,34 @@ from gqcore.utils.models import Feature, FeatureCollection
 
 @logger.catch(reraise=False)
 def insert_feature_collection(
-        feature_collection: FeatureCollection,
-        skip_existing:bool=False,
-        update_meta:bool=False,
-        replace_features:bool=False,
-        update_features:bool=False,
-    ) -> None:
-
+    feature_collection: FeatureCollection,
+    skip_existing: bool = False,
+    update_meta: bool = False,
+    replace_features: bool = False,
+    update_features: bool = False,
+) -> None:
     fc_params = feature_collection.dict()
     fc_params["other"] = Jsonb(fc_params["other"])
 
     if replace_features or update_features:
         if not update_meta:
-            logger.warning("update_meta will be set to True if replace_features or update_features is True")
+            logger.warning(
+                "update_meta will be set to True if replace_features or update_features is True"
+            )
             update_meta = True
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-
             feature_collection_id = None
 
             if skip_existing:
-                feature_collection_id = _get_feature_collection_id(cur, fc_params["name"])
+                feature_collection_id = _get_feature_collection_id(
+                    cur, fc_params["name"]
+                )
                 if feature_collection_id:
-                    logger.info(f"Skipping feature collection {fc_params['name']} because it already exists")
+                    logger.info(
+                        f"Skipping feature collection {fc_params['name']} because it already exists"
+                    )
                     return
 
             if update_meta:
@@ -59,7 +62,12 @@ def insert_feature_collection(
 
             if update_features or replace_features or not update_meta:
                 for feature in feature_collection.features:
-                    _insert_feature(cur, feature_collection_id, feature, check_existing=update_features)
+                    _insert_feature(
+                        cur,
+                        feature_collection_id,
+                        feature,
+                        check_existing=update_features,
+                    )
 
 
 def _get_feature_collection_id(cur: Cursor, name: str) -> int:
@@ -75,8 +83,8 @@ def _get_feature_collection_id(cur: Cursor, name: str) -> int:
     else:
         return result["id"]
 
-def _update_feature_collection(cur: Cursor, params: dict) -> int:
 
+def _update_feature_collection(cur: Cursor, params: dict) -> int:
     query = """
         UPDATE feature_collections SET
             active = %(active)s,
@@ -117,7 +125,6 @@ def _update_feature_collection(cur: Cursor, params: dict) -> int:
 
 
 def _insert_feature_collection(cur: Cursor, params: dict) -> int:
-
     query = """
         INSERT INTO feature_collections (
             active,
@@ -177,7 +184,12 @@ def _insert_feature_collection(cur: Cursor, params: dict) -> int:
     return feature_collection_id
 
 
-def _insert_feature(cur: Cursor, feature_collection_id: int, feature: Feature, check_existing: bool = False) -> None:
+def _insert_feature(
+    cur: Cursor,
+    feature_collection_id: int,
+    feature: Feature,
+    check_existing: bool = False,
+) -> None:
     wkt = feature.geometry
 
     if check_existing:
@@ -197,7 +209,13 @@ def _insert_feature(cur: Cursor, feature_collection_id: int, feature: Feature, c
             WHERE fc_id = %s AND ST_Equals(ST_GeomFromText(%s), shape)
             ;
         """
-        cur.execute(query, (feature_collection_id, wkt,), )
+        cur.execute(
+            query,
+            (
+                feature_collection_id,
+                wkt,
+            ),
+        )
         result = cur.fetchone()["geom_id"]
 
         # query = """
@@ -207,7 +225,6 @@ def _insert_feature(cur: Cursor, feature_collection_id: int, feature: Feature, c
         # result = cur.fetchone()
 
     else:
-
         cur.execute(
             """
             INSERT INTO features (shape) VALUES (ST_GeomFromText(%s)) RETURNING id;
@@ -215,7 +232,6 @@ def _insert_feature(cur: Cursor, feature_collection_id: int, feature: Feature, c
             (wkt,),
         )
         result = cur.fetchone()["id"]
-
 
     fm_params = {
         "fc_id": feature_collection_id,

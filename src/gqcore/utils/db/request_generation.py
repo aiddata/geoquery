@@ -1,8 +1,8 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, Json, field_validator
 from loguru import logger
+from pydantic import BaseModel, Json, field_validator
 
 from gqcore.utils.db.conn import get_conn
 
@@ -20,7 +20,9 @@ class Request(BaseModel):
     custom_name: str
     info: str
     priority: int = 1
-    data: List[RequestItem] # each item in list is a list containing resource_id, feat_map_id, processing_option_id
+    data: List[
+        RequestItem
+    ]  # each item in list is a list containing resource_id, feat_map_id, processing_option_id
 
     @field_validator("priority")
     @classmethod
@@ -32,7 +34,6 @@ class Request(BaseModel):
 
 @logger.catch(reraise=True)
 def insert_request(request: Request):
-
     params = request.model_dump()
     params["date"] = datetime.now()
     params["status"] = -1
@@ -69,7 +70,9 @@ def insert_request(request: Request):
             # get request id that was just inserted
 
             request_id = cur.fetchone()["id"]
-            logger.info(f"Inserted new request {request_id} and preparing associated tasks")
+            logger.info(
+                f"Inserted new request {request_id} and preparing associated tasks"
+            )
 
             params_list = []
             for i in request.data:
@@ -81,10 +84,9 @@ def insert_request(request: Request):
                     "resource_id": request_data_item["dr_id"],
                     "feature_id": fid,
                     "processing_option_id": request_data_item["po_id"],
-                    "priority": request.priority
+                    "priority": request.priority,
                 }
                 params_list.append(extract_task_item)
-
 
             insert_extract_task_query = """
                 INSERT INTO extract_tasks (
@@ -120,7 +122,11 @@ def insert_request(request: Request):
                 );
             """
             cur.executemany(
-                insert_request_map_query, [(request_id, i) for i in extract_task_ids], returning=True
+                insert_request_map_query,
+                [(request_id, i) for i in extract_task_ids],
+                returning=True,
             )
 
-            logger.success(f"Inserted new request {request_id} and associated tasks {extract_task_ids}")
+            logger.success(
+                f"Inserted new request {request_id} and associated tasks {extract_task_ids}"
+            )

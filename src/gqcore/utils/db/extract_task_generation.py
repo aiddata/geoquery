@@ -2,9 +2,15 @@ import concurrent.futures
 
 from loguru import logger
 
-from gqcore.utils.db.helpers import get_dataset_by_id, get_coverage_records, get_processing_options_by_dataset, _insert_extract_task, insert_extract_task
+from gqcore.utils.db.conn import get_conn, get_static_conn
+from gqcore.utils.db.helpers import (
+    _insert_extract_task,
+    get_coverage_records,
+    get_dataset_by_id,
+    get_processing_options_by_dataset,
+    insert_extract_task,
+)
 from gqcore.utils.models import ExtractTask
-from gqcore.utils.db.conn import get_static_conn, get_conn
 
 
 @logger.catch(reraise=False)

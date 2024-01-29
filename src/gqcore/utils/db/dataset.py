@@ -99,7 +99,6 @@ def insert_dataset(dataset: Dataset) -> None:
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-
             dataset_id = _insert_dataset(cur, params)
 
             if params["mapped"]:
@@ -107,7 +106,6 @@ def insert_dataset(dataset: Dataset) -> None:
 
             # if processing options were passed, insert those in the same transaction
             if params["processing_options"]:
-
                 _deactivate_processing_options(cur, dataset_id)
 
                 for processing_option in params["processing_options"]:
@@ -131,7 +129,6 @@ def insert_dataset(dataset: Dataset) -> None:
 def start_dataset_resources_check(name: str) -> None:
     with get_conn() as conn:
         with conn.cursor() as cur:
-
             dataset_info = _get_dataset_by_name(cur, name)
 
             dataset_id = dataset_info["id"]
@@ -260,7 +257,6 @@ def update_dataset(dataset: Dataset) -> None:
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-
             dataset_id = _update_dataset(cur, params)
             if dataset_id is None:
                 raise ValueError("Dataset not found")

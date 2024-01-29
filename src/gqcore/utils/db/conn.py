@@ -1,5 +1,5 @@
-from pathlib import Path
 from contextlib import contextmanager
+from pathlib import Path
 
 import psycopg
 from loguru import logger
@@ -22,6 +22,7 @@ def get_conn(**kwargs):
         with psycopg.connect(connect_str, **kwargs) as conn:
             logger.trace("Successfully connected to database")
             yield conn
+
 
 def get_static_conn(**kwargs):
     if "row_factory" not in kwargs:

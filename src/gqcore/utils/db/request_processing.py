@@ -1,18 +1,18 @@
-from datetime import datetime
-import textwrap
 import os
-from pathlib import Path
 import shutil
+import textwrap
+from datetime import datetime
+from pathlib import Path
 
+import geopandas as gpd
 import pandas as pd
 import shapely
-import geopandas as gpd
 from loguru import logger
 
-from gqcore.utils.db.conn import get_conn
-from gqcore.utils.email import GeoEmail
 from gqcore import get_config
+from gqcore.utils.db.conn import get_conn
 from gqcore.utils.documentation import DocBuilder
+from gqcore.utils.email import GeoEmail
 
 
 @logger.catch(reraise=True)
@@ -34,7 +34,6 @@ def process_new_requests():
         notify_received(request_id, request_contact)
 
         rlogger.success("New request processed")
-
 
 
 def get_next_new_request():
@@ -77,13 +76,17 @@ def process_completed_requests():
         output_df.to_csv(output_path, index=False)
 
         rlogger.debug("Building documentation")
-        doc_output =  output_dir / "documentation.pdf"
+        doc_output = output_dir / "documentation.pdf"
         build_request_documentation(request_id, request_df, doc_output)
 
         rlogger.debug("Building feature collection")
-        fc_gdf = build_feature_collection(request_df[["geom", "geom_id"]].drop_duplicates("geom_id").copy())
+        fc_gdf = build_feature_collection(
+            request_df[["geom", "geom_id"]].drop_duplicates("geom_id").copy()
+        )
         for geomtype in fc_gdf.geom_type.unique():
-            fc_gdf[fc_gdf.geom_type == geomtype].to_file(output_dir / "features.gpkg", driver="GPKG", layer=geomtype)
+            fc_gdf[fc_gdf.geom_type == geomtype].to_file(
+                output_dir / "features.gpkg", driver="GPKG", layer=geomtype
+            )
 
         rlogger.debug("Building zip")
         build_request_zip(request_id, output_dir)
@@ -106,7 +109,9 @@ def update_request_time(request_id, time_type):
                 UPDATE requests
                 SET {0} = %s
                 WHERE id = %s
-            """.format(time_type)
+            """.format(
+                time_type
+            )
             cur.execute(update_time_query, (datetime.now(), request_id))
 
 
@@ -191,8 +196,16 @@ def build_output_df(request_df):
     # for each request, build a results table
     # consiting of all the extract_data associated with the extract_task for the request
 
-    request_df["col_name"] = request_df["dataset_name"] + "." + request_df["resource_label"] + "." + request_df["data_name"]
-    df = request_df.pivot(index="fm_id", columns=["col_name"], values='int_value').reset_index()
+    request_df["col_name"] = (
+        request_df["dataset_name"]
+        + "."
+        + request_df["resource_label"]
+        + "."
+        + request_df["data_name"]
+    )
+    df = request_df.pivot(
+        index="fm_id", columns=["col_name"], values="int_value"
+    ).reset_index()
 
     attr_df = request_df[["fm_id", "name", "attr"]].drop_duplicates("fm_id")
     attr_df.loc[attr_df.fm_id == 2, "attr"] = [{"test": "test"}]
@@ -227,7 +240,9 @@ def build_request_zip(request_id, output_dir):
 
 def build_feature_collection(feature_df):
     # read geom from wkb
-    feature_df["geometry"] = feature_df["geom"].apply(lambda x: shapely.wkb.loads(x, hex=True))
+    feature_df["geometry"] = feature_df["geom"].apply(
+        lambda x: shapely.wkb.loads(x, hex=True)
+    )
     feature_df["id"] = feature_df["geom_id"]
     feature_gdf = gpd.GeoDataFrame(feature_df[["id", "geometry"]], geometry="geometry")
     feature_gdf.crs = "EPSG:4326"
@@ -246,8 +261,7 @@ def update_request_status(request_id, status):
 
 
 def notify_received(request_id, request_contact):
-    """send email that request was received
-    """
+    """send email that request was received"""
     request_id = str(request_id)
 
     config = get_config()
@@ -256,8 +270,9 @@ def notify_received(request_id, request_contact):
 
     mail_to = request_contact
 
-    mail_subject = ("AidData GeoQuery{0}- "
-                    "Request {1}.. Received").format(devtag, request_id[:7])
+    mail_subject = ("AidData GeoQuery{0}- " "Request {1}.. Received").format(
+        devtag, request_id[:7]
+    )
 
     mail_message = (
         """
@@ -274,7 +289,8 @@ def notify_received(request_id, request_contact):
 
         Thank you,
         \tAidData's GeoQuery Team
-        """).format(request_url, request_id, mail_to)
+        """
+    ).format(request_url, request_id, mail_to)
 
     mail_message = textwrap.dedent(mail_message)
 
@@ -288,8 +304,7 @@ def notify_received(request_id, request_contact):
 
 
 def notify_completed(request_id, request_contact):
-    """send email that request was completed
-    """
+    """send email that request was completed"""
     request_id = str(request_id)
 
     config = get_config()
@@ -298,8 +313,9 @@ def notify_completed(request_id, request_contact):
 
     mail_to = request_contact
 
-    mail_subject = ("AidData GeoQuery{0}- "
-                    "Request {1}.. Completed").format(devtag, request_id[:7])
+    mail_subject = ("AidData GeoQuery{0}- " "Request {1}.. Completed").format(
+        devtag, request_id[:7]
+    )
 
     mail_message = (
         """
@@ -329,7 +345,8 @@ def notify_completed(request_id, request_contact):
 
         Thank you,
         \tAidData's GeoQuery Team
-        """).format(request_url, request_id, mail_to)
+        """
+    ).format(request_url, request_id, mail_to)
 
     mail_message = textwrap.dedent(mail_message)
 

@@ -1,13 +1,13 @@
+from typing import Dict
 
-import shapely
 import psycopg
+import shapely
+from loguru import logger
 from psycopg import Cursor
 from psycopg.types.json import Jsonb
-from typing import Dict
-from loguru import logger
 
 from gqcore.utils.db.conn import get_conn
-from gqcore.utils.models import ExtractTask, DatasetResource, ProcessingOption
+from gqcore.utils.models import DatasetResource, ExtractTask, ProcessingOption
 
 
 def get_dataset_by_name(name: str) -> dict:
@@ -62,7 +62,9 @@ def get_dataset_extent_by_id(id: int) -> shapely.geometry.base.BaseGeometry:
 
 
 @logger.catch(reraise=True)
-def _get_dataset_extent_by_id(cur: Cursor, id: int) -> shapely.geometry.base.BaseGeometry:
+def _get_dataset_extent_by_id(
+    cur: Cursor, id: int
+) -> shapely.geometry.base.BaseGeometry:
     query = """SELECT spatial_extent FROM datasets WHERE id = %s"""
     extent = cur.execute(query, (id,)).fetchone()
     feat = shapely.wkb.loads(extent["spatial_extent"], hex=True)
@@ -93,14 +95,16 @@ def update_coverage_status(geom_id: int, dataset_id: int, status: int) -> None:
 
 
 @logger.catch(reraise=True)
-def _update_coverage_status(cur: Cursor, geom_id: int, dataset_id: int, status: int) -> None:
+def _update_coverage_status(
+    cur: Cursor, geom_id: int, dataset_id: int, status: int
+) -> None:
     cur.execute(
         """
         UPDATE coverage
         SET status = %s
         WHERE geom_id = %s AND dataset_id = %s;
         """,
-        (status, geom_id, dataset_id)
+        (status, geom_id, dataset_id),
     )
 
 
@@ -117,6 +121,7 @@ def _get_feature_ids(cur: Cursor) -> list:
     cur.execute(feature_query)
     feature_ids = cur.fetchall()
     return feature_ids
+
 
 @logger.catch(reraise=True)
 def get_dataset_ids_without_coverage_dependencies() -> list:
@@ -160,7 +165,6 @@ def _find_missing_coverage_id_pairs(cur: Cursor) -> list:
     return results
 
 
-
 def get_dataset_ids() -> list:
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -193,7 +197,7 @@ def _insert_coverage_records(cur: Cursor, coverage_list: list) -> int:
             DO NOTHING
             ;
             """,
-            (c.geom_id, c.dataset_id, c.status)
+            (c.geom_id, c.dataset_id, c.status),
         )
 
 
@@ -221,7 +225,9 @@ def get_processing_options_by_dataset(dataset_id: int) -> list:
 
 @logger.catch(reraise=True)
 def _get_processing_options_by_dataset(cur: Cursor, dataset_id: int) -> list:
-    resource_query = "SELECT * from processing_options WHERE dataset_id = %s AND active = True"
+    resource_query = (
+        "SELECT * from processing_options WHERE dataset_id = %s AND active = True"
+    )
     cur.execute(resource_query, (dataset_id,))
     po_info = cur.fetchall()
     return po_info
@@ -234,7 +240,9 @@ def insert_extract_task(task: ExtractTask, overwrite: bool = False) -> None:
 
 
 @logger.catch(reraise=True)
-def _insert_extract_task(cur: Cursor, task: ExtractTask, overwrite: bool = False) -> None:
+def _insert_extract_task(
+    cur: Cursor, task: ExtractTask, overwrite: bool = False
+) -> None:
     if overwrite:
         conflict_str = "DO UPDATE SET status = excluded.status, priority = excluded.priority, submit_time = excluded.submit_time, kwargs = excluded.kwargs"
     else:
@@ -295,7 +303,9 @@ def _insert_dataset_resource(cur: Cursor, dataset_id: int, resource: DatasetReso
     cur.execute(query, params)
 
 
-def insert_processing_option(dataset_id: int, processing_option: ProcessingOption) -> None:
+def insert_processing_option(
+    dataset_id: int, processing_option: ProcessingOption
+) -> None:
     with get_conn() as conn:
         with conn.cursor() as cur:
             _insert_processing_option(cur, dataset_id, processing_option)
@@ -359,6 +369,7 @@ def _insert_mappings(cur: Cursor, dataset_id: int, mappings: Dict[str, int]) -> 
             (dataset_id, key, value),
         )
 
+
 def deactivate_processing_options(dataset_id: int) -> None:
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -371,6 +382,7 @@ def _deactivate_processing_options(cur: Cursor, dataset_id: int) -> None:
         "UPDATE processing_options SET active = False WHERE dataset_id = %s ;",
         (dataset_id,),
     )
+
 
 def update_dataset_from_resources(dataset_id: int, dset_params: dict) -> None:
     with get_conn() as conn:
