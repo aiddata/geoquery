@@ -26,7 +26,12 @@ def generate_tasks(overwrite: bool = False):
             ON coverage.dataset_id = dataset_resources.dataset_id
         LEFT OUTER JOIN processing_options
             ON coverage.dataset_id = processing_options.dataset_id
+        LEFT OUTER JOIN datasets
+            ON coverage.dataset_id = datasets.id
         WHERE coverage.status = 1
+        AND processing_options.active
+        AND feature_collections.active
+        AND datasets.active
         ON CONFLICT (resource_id, fm_id, po_id)
         DO NOTHING
         RETURNING id
