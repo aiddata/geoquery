@@ -4,6 +4,7 @@ from kubernetes import client, config
 from loguru import logger
 
 
+# TODO: add timeout kwarg
 @logger.catch(reraise=True)
 def wait_for_db() -> None:
     # we will be connecting to the k8s API from within a container
@@ -30,9 +31,35 @@ def wait_for_db() -> None:
             logger.info("database is now ready")
             break
         else:
-            logger.info(
-                f'database is not yet ready (phase is "{cluster_phase}")'
-            )
+            logger.info(f'database is not yet ready (phase is "{cluster_phase}")')
         # elif too much time has elapsed (make this configurable with values.yaml?)
         # logger.critical("database creation timeout exceeded, canceling db init")
+        sleep(5)
+
+
+# TODO: add timeout kwarg
+@logger.catch(reraise=True)
+def wait_for_init() -> bool:
+    # we will be connecting to the k8s API from within a container
+    # which has been given a serviceaccount
+    config.load_incluster_config()
+
+    # get client to watch job
+    client_batch_api = client.BatchV1Api()
+
+    while True:
+        # if job completed successfully
+        if client_batch_api.read_namespaced_job_status(
+            "geoguery-init-db", "geoquery"
+        ).status.succeeded:
+            logger.info("init db job succeeded!")
+            return True
+        # elif job is no longer active (not pending or running)
+        elif not client_batch_api.read_namespaced_job_status(
+            "geoguery-init-db", "geoquery"
+        ).status.active:
+            logger.warning("init db job didn't succeed, and it's no longer active!")
+            return False
+        # else if timeout exceeded, quit
+
         sleep(5)
