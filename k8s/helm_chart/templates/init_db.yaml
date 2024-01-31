@@ -60,7 +60,7 @@ spec:
       - name: geoquery-init-db
         image: {{ .Values.default_image }}
         command: [ "/bin/bash", "-c", "--" ]
-        args: [ "python /geoquery/src/gqcore/utils/db/init/main.py" ]
+        args: [ "python /geoquery/src/gqcore/tasks/init_db.py" ]
         volumeMounts:
         - name: gq-config-vol
           mountPath: /config
