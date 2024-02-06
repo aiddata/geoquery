@@ -1,3 +1,5 @@
+"""Module providing functions to initialize views in PostgreSQL."""
+
 import click
 from loguru import logger
 from psycopg.errors import DuplicateTable
@@ -7,6 +9,7 @@ from gqcore.utils.logs import get_logger
 
 
 def create_view_dataset_and_resources():
+    """Create the dataset_and_resources view."""
     query = """
         CREATE OR REPLACE VIEW dataset_and_resources AS
         SELECT
@@ -28,6 +31,7 @@ def create_view_dataset_and_resources():
 
 
 def create_view_coverage():
+    """Create the coverage_with_dependencies view."""
     query = """
         CREATE OR REPLACE VIEW coverage_with_dependencies AS
         SELECT
@@ -44,6 +48,13 @@ def create_view_coverage():
 
 
 def init_views():
+    """
+    Create all views.
+
+    !!! note
+        Right now, this function only creates the coverage_with_dependencies view.
+        We are likely to add other views in the future, as our needs become better-defined.
+    """
     logger.info("creating views...")
     create_view_coverage()
 

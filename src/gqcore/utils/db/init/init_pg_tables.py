@@ -1,3 +1,5 @@
+"""Module providing functions to initialize tables in PostgreSQL."""
+
 import click
 from loguru import logger
 from psycopg.errors import DuplicateTable
@@ -7,6 +9,7 @@ from gqcore.utils.logs import get_logger
 
 
 def create_table_feature_collections(cur):
+    """Create the feature_collections table."""
     cur.execute(
         """
         CREATE TABLE feature_collections (
@@ -45,6 +48,7 @@ def create_table_feature_collections(cur):
 
 
 def create_table_features(cur):
+    """Create the features table."""
     # create features table
     cur.execute(
         """
@@ -58,7 +62,7 @@ def create_table_features(cur):
 
 
 def create_index_features(cur):
-    # create spatial index on features table
+    """Create the spatial index features_geom_idx on the features table."""
     cur.execute(
         """
         CREATE INDEX features_geom_idx ON features
@@ -69,7 +73,7 @@ def create_index_features(cur):
 
 
 def create_table_feat_map(cur):
-    # create feat_map table
+    """Create the feat_map table."""
     cur.execute(
         """
         CREATE TABLE feat_map (
@@ -87,7 +91,7 @@ def create_table_feat_map(cur):
 
 
 def create_table_datasets(cur):
-    # create datasets table
+    """Create the datasets table."""
     cur.execute(
         """
         CREATE TABLE datasets (
@@ -127,7 +131,7 @@ def create_table_datasets(cur):
 
 
 def create_table_dataset_resources(cur):
-    # create dataset resources table
+    """Create the dataset_resources table."""
     cur.execute(
         """
         CREATE TABLE dataset_resources (
@@ -145,6 +149,7 @@ def create_table_dataset_resources(cur):
 
 
 def create_table_mappings(cur):
+    """Create the mappings table."""
     cur.execute(
         """
         CREATE TABLE mappings (
@@ -159,6 +164,7 @@ def create_table_mappings(cur):
 
 
 def create_table_processing_options(cur):
+    """Create the processing_options table."""
     cur.execute(
         """
         CREATE TABLE processing_options (
@@ -180,6 +186,7 @@ def create_table_processing_options(cur):
 
 
 def create_table_coverage(cur):
+    """Create the coverage table."""
     cur.execute(
         """
         CREATE TABLE coverage (
@@ -194,6 +201,7 @@ def create_table_coverage(cur):
 
 
 def create_table_extract_tasks(cur):
+    """Create the extract_tasks table."""
     cur.execute(
         """
         CREATE TABLE extract_tasks (
@@ -218,6 +226,7 @@ def create_table_extract_tasks(cur):
 
 
 def create_table_extract_data(cur):
+    """Create the extract_data table."""
     cur.execute(
         """
         CREATE TABLE extract_data (
@@ -234,6 +243,7 @@ def create_table_extract_data(cur):
 
 
 def create_table_requests(cur):
+    """Create the requests table."""
     cur.execute(
         """
         CREATE TABLE requests (
@@ -256,6 +266,7 @@ def create_table_requests(cur):
 
 
 def create_table_request_map(cur):
+    """Create the request_map table."""
     cur.execute(
         """
         CREATE TABLE request_map (
@@ -267,7 +278,13 @@ def create_table_request_map(cur):
     logger.info("created table request_map")
 
 
-def init_db(overwrite: bool) -> None:
+def init_db(overwrite: bool = False) -> None:
+    """
+    Create all tables.
+
+    Parameters:
+        overwrite: Whether or not to overwrite the tables if they already exist.
+    """
     with get_conn() as conn:
         with conn.cursor() as cur:
             if overwrite:
@@ -313,8 +330,16 @@ def init_db(overwrite: bool) -> None:
 
 
 @click.command()
-@click.option("--overwrite/--no-overwrite", default=False)
-def main(overwrite: bool) -> None:
+@click.option(
+    "--overwrite/--no-overwrite", default=False
+)  # make sure to update default on next line to match, for documentation purposes!
+def main(overwrite: bool = False) -> None:
+    """
+    click (CLI) wrapper for init_db function.
+
+    Parameters:
+        overwrite: Whether or not to overwrite the tables if they already exist.
+    """
     try:
         init_db(overwrite)
     except DuplicateTable:
