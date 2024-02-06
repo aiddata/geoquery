@@ -12,7 +12,7 @@ To view the documentation in your web browser, follow the following steps:
 
 - Install mkdocs, a static site generator for documentation:
   ```sh
-  pip install mkdocs mkdocstrings[python] mkdocs-material
+  pip install mkdocs mkdocstrings[python] mkdocs-material mkdocs-gen-files mkdocs-literate-nav mkdocs-section-index
   ```
 - Run `mkdocs serve` from the root of this repository
 - Visit http://localhost:8000 in your browser

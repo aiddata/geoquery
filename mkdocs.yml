@@ -11,9 +11,25 @@ markdown_extensions:
   - pymdownx.snippets
   - pymdownx.superfences
 
+nav:
+  - index.md
+  - Deploying: deploying/
+  - Services: services/ 
+  - The gqcore Package: reference/
+
 theme:
   name: "material"
 
 plugins:
-  - mkdocstrings
-
+  - gen-files:
+      scripts:
+        - scripts/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_symbol_type_heading: true
+  - search
+  - section-index

@@ -12,7 +12,14 @@ In-line documentation provides more detailed information about what each variabl
 
 ## Installing
 
+`cd` to the `k8s` directory in this repository if you haven't already
 ```sh
 cd k8s
+```
+
+Install the helm chart
+```
+# using --atomic is probably good for production startup script,
+# but not necessary if we run locally and confirm that everything should be expect to install/work
 helm upgrade --install gq --namespace geoquery  ./helm_chart -f ./helm_chart/my_values.yaml
 ```
