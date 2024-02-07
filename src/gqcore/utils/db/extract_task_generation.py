@@ -1,3 +1,7 @@
+"""
+This module handles the generation of extract tasks.
+"""
+
 import concurrent.futures
 
 from loguru import logger
@@ -15,6 +19,12 @@ from gqcore.utils.models import ExtractTask
 
 @logger.catch(reraise=False)
 def generate_tasks(overwrite: bool = False):
+    """
+    Generate extract tasks.
+
+    !!! warning
+        The `overwrite` parameter has not yet been implemented!
+    """
     select_task_query = """
         INSERT INTO extract_tasks (resource_id, fm_id, po_id)
         SELECT
