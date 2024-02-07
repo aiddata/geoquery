@@ -10,6 +10,12 @@ from gqcore import get_config
 
 @contextmanager
 def get_conn(**kwargs):
+    """
+    A context manager that provides a connection to the PostgreSQL database using psycopg.
+    All database queries within GeoQuery should use this context manager to manage their connections.
+    Keyword arguments are passed directly into the `psycopg.connect` context manager.
+    """
+    # FIXME: document this, or make it a separate keyword argument for this function?
     if "row_factory" not in kwargs:
         kwargs["row_factory"] = dict_row
 
