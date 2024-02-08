@@ -1,3 +1,5 @@
+"""Manage features in the database."""
+
 from loguru import logger
 from psycopg import Cursor
 from psycopg.types.json import Jsonb
@@ -14,6 +16,16 @@ def insert_feature_collection(
     replace_features: bool = False,
     update_features: bool = False,
 ) -> None:
+    """
+    Insert a feature collection into the database.
+
+    Parameters:
+        feature_collection: A `gqcore.utils.models.FeatureCollection` object representing the feature collection to be inserted.
+        skip_existing: If `#!python True`, feature collections will not be inserted if there is already a feature collection if the same name.
+        update_meta:
+        replace_features: Delete all features associated with this feature collection, and any features that are not associated with any feature collection.
+        update_features:
+    """
     fc_params = feature_collection.dict()
     fc_params["other"] = Jsonb(fc_params["other"])
 
