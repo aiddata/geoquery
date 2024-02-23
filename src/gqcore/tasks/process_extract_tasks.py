@@ -1,19 +1,23 @@
+"""
+This module handles the processing of extract tasks.
+"""
+
 import builtins
 import time
+from collections import OrderedDict
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 from warnings import catch_warnings
-from collections import OrderedDict
 
-
-from dask_kubernetes.operator import KubeCluster
 from dask.distributed import Client, LocalCluster, wait
+from dask_kubernetes.operator import KubeCluster
 from loguru import logger
 from shapely import Geometry
 
 import gqcore.utils.processors
+from gqcore import get_config
 from gqcore.utils.db.extract_task_processing import (
     ExtractData,
     ExtractTaskToRun,
@@ -22,12 +26,16 @@ from gqcore.utils.db.extract_task_processing import (
     count_available_tasks,
     get_mappings,
 )
-from gqcore import get_config
 from gqcore.utils.logs import get_logger
 
 
 def get_func(op: str) -> Callable:
-    """Get appropriate function for operation."""
+    """
+    Get appropriate function for operation.
+
+    Parameters:
+        op: The name of the function in the `qgcore.utils.processors` module.
+    """
     if hasattr(gqcore.utils.processors, op):
         func = getattr(gqcore.utils.processors, op)
     else:
@@ -36,8 +44,18 @@ def get_func(op: str) -> Callable:
 
 
 def run_task(
-    func: Callable, task_id: int, feat: Geometry, data: Any, op_kwargs
+    func: Callable, task_id: int, feat: Geometry, data: Any, op_kwargs: Dict
 ) -> List[ExtractData]:
+    """
+    Run an extract task.
+
+    Parameters:
+        func: The function to run on the feature.
+        task_id: The extract task ID.
+        feat: The feature to pass into `func`.
+        data: The data to pass into `func`.
+        op_kwargs: Additional keyword arguments to pass into `func`.
+    """
     # this re-import is necessary if this is running on a dask worker
     from loguru import logger
 
@@ -61,6 +79,12 @@ def run_task(
 
 
 def prepare_task(data: ExtractTaskToRun) -> Tuple[Callable, int, Geometry, Any, Dict]:
+    """
+    Prepare an extract task to be run.
+
+    Parameters:
+        data: An `ExtractTaskToRun` model of the extract task.
+    """
     path = Path(data.dataset_path) / data.resource_path
     func = get_func(data.po_func)
     op_kwargs = {"name": data.po_short_name}
@@ -71,6 +95,7 @@ def prepare_task(data: ExtractTaskToRun) -> Tuple[Callable, int, Geometry, Any, 
 
 
 def task_generator() -> Iterator[LockTask]:
+    """Generate extract tasks to run using `LockTask`, returning if there are no tasks available in the queue."""
     try:
         while True:
             with LockTask() as task:
@@ -81,12 +106,14 @@ def task_generator() -> Iterator[LockTask]:
 
 @logger.catch(reraise=True)
 def process_tasks_sequentially() -> None:
+    """Process all extract tasks in the queue, sequentially."""
     for task in task_generator():
         for result in run_task(*prepare_task(task.data)):
             task.submit_result(result)
 
 
 def run_one_task(*args) -> None:
+    """Run one extract task from the queue, if there is one available."""
     try:
         with LockTask() as task:
             for result in run_task(*prepare_task(task.data)):
@@ -96,7 +123,14 @@ def run_one_task(*args) -> None:
 
 
 @logger.catch(reraise=True)
-def process_tasks_concurrently(max_workers: int = 10, max_tasks=10000) -> None:
+def process_tasks_concurrently(max_workers: int = 10, max_tasks: int = 10000) -> None:
+    """
+    Process extract tasks in the queue, concurrently using a `ProcessPoolExecutor`.
+
+    Parameters:
+        max_workers: Maximum number of workers, passed to `ProcessPoolExecutor`.
+        max_tasks: Maximum number of tasks to run from the queue before stopping.
+    """
     tasks_available: int = count_available_tasks()
     logger.debug(f"{tasks_available} tasks available in queue")
     if tasks_available < max_tasks:
@@ -110,7 +144,13 @@ def process_tasks_concurrently(max_workers: int = 10, max_tasks=10000) -> None:
 
 
 @logger.catch(reraise=True)
-def process_tasks_using_dask(max_tasks=10000) -> None:
+def process_tasks_using_dask(max_tasks: int = 10000) -> None:
+    """
+    Process extract tasks from the queue, concurrently using a Dask cluster.
+
+    Parameters:
+        max_tasks: Maximum number of tasks to run from the queue before stopping.
+    """
     tasks_available: int = count_available_tasks()
     logger.debug(f"{tasks_available} tasks available in queue")
     if tasks_available > 0:
@@ -136,10 +176,29 @@ def process_tasks_using_dask(max_tasks=10000) -> None:
         logger.info(f"Finished processing {run_count} jobs")
 
 
-def manage_task_processing_for_k8s(max_tasks=1000, max_workers=20, active_sleep=5, inactive_sleep=30, scale_sleep=30, scale_dict=None) -> None:
+def manage_task_processing_for_k8s(
+    max_tasks: int = 1000,
+    max_workers: int = 20,
+    active_sleep: int = 5,
+    inactive_sleep: int = 30,
+    scale_sleep: int = 30,
+    scale_dict: Optional[Dict[int, int]] = None,
+) -> None:
+    """
+    Process extract tasks from the queue, concurrently using a Dask cluster.
 
+    Parameters:
+        max_tasks: Maximum number of tasks to run from the queue before stopping.
+        max_workers: Maximum number of workers, passed to `ProcessPoolExecutor`.
+        active_sleep: Time (in seconds) to sleep between readjusting number of workers.
+        inactive_sleep: Time (in seconds) to sleep between checks if there are no tasks available.
+        scale_sleep: Not yet implemented.
+        scale_dict: Dictionary defining how many workers to deploy (value) when a number of tasks are available (key).
+    """
     if max_workers % 2 != 0:
-        logger.warning(f"max_workers ({max_workers}) should be an even number, but is not, reducing by 1")
+        logger.warning(
+            f"max_workers ({max_workers}) should be an even number, but is not, reducing by 1"
+        )
         max_workers -= 1
 
     if scale_dict is None:
@@ -161,7 +220,7 @@ def manage_task_processing_for_k8s(max_tasks=1000, max_workers=20, active_sleep=
     client = Client(cluster)
 
     while True:
-        current_scale = len(client.scheduler_info()['workers'])
+        current_scale = len(client.scheduler_info()["workers"])
 
         try:
             tasks_available = count_available_tasks()
@@ -171,7 +230,9 @@ def manage_task_processing_for_k8s(max_tasks=1000, max_workers=20, active_sleep=
 
         if tasks_available == 0:
             if current_scale > 1:
-                logger.debug(f"No tasks available, but {current_scale} workers running, scaling down to 1")
+                logger.debug(
+                    f"No tasks available, but {current_scale} workers running, scaling down to 1"
+                )
                 cluster.scale(1)
             time.sleep(inactive_sleep)
 
@@ -183,7 +244,9 @@ def manage_task_processing_for_k8s(max_tasks=1000, max_workers=20, active_sleep=
                         cluster.scale(scale)
                         time.sleep(120)
                     else:
-                        logger.debug(f"Current scale is {current_scale}, not scaling to {scale}")
+                        logger.debug(
+                            f"Current scale is {current_scale}, not scaling to {scale}"
+                        )
                     continue
 
             process_tasks_using_dask(max_tasks=max_tasks)
@@ -192,7 +255,6 @@ def manage_task_processing_for_k8s(max_tasks=1000, max_workers=20, active_sleep=
 
 
 if __name__ == "__main__":
-
     try:
         get_logger("process_extract_tasks")
         config = get_config()
