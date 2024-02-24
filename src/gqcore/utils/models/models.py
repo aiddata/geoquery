@@ -1,7 +1,7 @@
 import re
-from pathlib import Path
-from typing import List, Optional, Dict
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Dict, List, Optional
 
 import shapely
 from pydantic import BaseModel as PydanticBaseModel
@@ -79,7 +79,9 @@ class ProcessingOption(BaseModel):
     @field_validator("function")
     @classmethod
     def validate_function(cls, f: str) -> str:
-        if not hasattr(gqcore.utils.processors, f) and callable(getattr(gqcore.utils.processors, f)):
+        if not hasattr(gqcore.utils.processors, f) and callable(
+            getattr(gqcore.utils.processors, f)
+        ):
             raise ValueError(
                 "function must be a callable from the gqcore.utils.processors module"
             )
@@ -126,7 +128,6 @@ class Dataset(BaseModel):
     variable_factor: Optional[float] = None
     processing_options: Optional[List[ProcessingOption]] = None
     coverage_dependency: Optional[str] = None
-
 
     @field_validator("name")
     @classmethod
@@ -199,7 +200,9 @@ class ExtractTask(BaseModel):
     def validate_status(cls, s: int) -> int:
         if s not in extract_task_valid_status_dict:
             raise ValueError(
-                "status must be one of the following: {}".format(extract_task_valid_status_dict)
+                "status must be one of the following: {}".format(
+                    extract_task_valid_status_dict
+                )
             )
         return s
 
@@ -221,6 +224,8 @@ class CoverageRecord(BaseModel):
     def validate_statusn(cls, s: int) -> int:
         if s not in coverage_record_valid_status_dict:
             raise ValueError(
-                "status must be one of the following: {}".format(coverage_record_valid_status_dict)
+                "status must be one of the following: {}".format(
+                    coverage_record_valid_status_dict
+                )
             )
         return s
