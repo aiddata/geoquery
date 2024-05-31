@@ -14,6 +14,11 @@ To view the documentation in your web browser, follow the following steps:
   ```sh
   pip install mkdocs mkdocstrings[python] mkdocs-material mkdocs-gen-files mkdocs-literate-nav mkdocs-section-index
   ```
+- Install gqcore, this repository's Python package:
+  ```sh
+  # cd to the root of this repository
+  pip install -e .
+  ```
 - Run `mkdocs serve` from the root of this repository
 - Visit http://localhost:8000 in your browser
 - Changes to files in `/docs` will render live in your browser!
