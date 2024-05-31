@@ -11,7 +11,7 @@ dev:
   localDir: /tmp/geoquery-update/
 
 # image to use for all geoquery backend jobs
-default_image: "jacobwhall/geoquery-backend:6c4f1ef"
+default_image: "jacobwhall/geoquery-backend:292154f"
 data_root: "/tmp/geoquery-update"
 
 # config for primary geoquery database
