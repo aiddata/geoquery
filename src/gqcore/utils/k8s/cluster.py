@@ -1,12 +1,17 @@
-from time import sleep, time
+from time import sleep
 
 from kubernetes import client, config
 from loguru import logger
+
+from gqcore import get_config
 
 
 # TODO: add timeout kwarg
 @logger.catch(reraise=True)
 def wait_for_db() -> None:
+
+    gqcore_config = get_config()
+
     # we will be connecting to the k8s API from within a container
     # which has been given a serviceaccount
     config.load_incluster_config()
@@ -21,7 +26,7 @@ def wait_for_db() -> None:
             group="postgresql.cnpg.io",
             version="v1",
             plural="clusters",
-            namespace="geoquery",
+            namespace=gqcore_config["namespace"],
             name="postgis-cluster",
         )["status"]["phase"]
 

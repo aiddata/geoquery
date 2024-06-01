@@ -24,7 +24,10 @@ def get_conn(**kwargs):
 
     # make database connection and yield it
     with logger.catch(exception=psycopg.Error, level="CRITICAL"):
-        connect_str = f'postgres://{config["postgis_username"]}:{config["postgis_password"]}@{config["postgis_address"]}:{config["postgis_port"]}/{config["postgis_dbname"]}'
+        postgis_address = (
+            f'{config["postgis_name"]}-rw.{config["namespace"]}.svc.cluster.local'
+        )
+        connect_str = f'postgres://{config["postgis_username"]}:{config["postgis_password"]}@{postgis_address}:{config["postgis_port"]}/{config["postgis_dbname"]}'
         with psycopg.connect(connect_str, **kwargs) as conn:
             logger.trace("Successfully connected to database")
             yield conn
