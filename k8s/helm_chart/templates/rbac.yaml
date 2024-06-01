@@ -3,7 +3,7 @@ kind: ServiceAccount
 apiVersion: v1
 metadata:
   name: geoquery-super
-  namespace: {{.Release.namespace}}
+  namespace: {{.Release.Namespace}}
 
 ---
 
@@ -81,7 +81,7 @@ roleRef:
   name: dask-cluster-role
 subjects:
   - kind: ServiceAccount
-    namespace: geoquery
+    namespace: {{ .Release.Namespace }}
     name: geoquery-super  # adjust name based on the service account you created
 ---
 
@@ -95,5 +95,5 @@ roleRef:
   name: super-user-role
 subjects:
   - kind: ServiceAccount
-    namespace: geoquery
+    namespace: {{ .Release.Namespace }}
     name: geoquery-super  # adjust name based on the service account you created
