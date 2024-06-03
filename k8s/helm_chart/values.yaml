@@ -1,9 +1,6 @@
 agentContainer: "python:3.11.7"
 
-prod:
-  nfs:
-    address: 128.239.59.130
-    mountPath: /sciclone/nova/test
+storageClass: manual
 
 dev:
   # enables "workbench" container for testing out scripts
