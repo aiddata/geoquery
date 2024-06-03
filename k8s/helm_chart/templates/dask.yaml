@@ -49,7 +49,6 @@ spec:
               port: http-dashboard
             initialDelaySeconds: 5
             periodSeconds: 10
-          resources: null
   worker:
     replicas: 3
     spec:
@@ -78,7 +77,6 @@ spec:
               value: bar
           image: {{.Values.default_image}}
           name: worker
-          resources: null
           volumeMounts:
           - name: geoquery-pv
             mountPath: /tmp/geoquery-update
