@@ -42,25 +42,6 @@ extracts:
   inactive_sleep: "30"
   scale_sleep: "30"
 
-# configuration for loki subchart,
-# monitors logs across the cluster
-loki:
-  loki:
-    auth_enabled: false
-
-  # use a simple, containerized block storage solution
-  # TODO: use longhorn or similar one day?
-  minio:
-    enabled: true
-
-  # monitor loki with prometheus
-  serviceMonitor:
-    labels:
-      release: "prometheus"
-  rules:
-    labels:
-      release: "prometheus"
-
 # configuration for grafana subchart,
 # dashboard that connects to various monitoring
 # solutions across cluster

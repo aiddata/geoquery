@@ -3,12 +3,6 @@ name: geoquery
 version: 0.0.1
 description: A chart for GeoQuery's infrastructure
 dependencies:
-- name: dask-kubernetes-operator
-  version: "2023.3.0"
-  repository: "https://helm.dask.org/"
-- name: loki
-  version: "5.41.4"
-  repository: https://grafana.github.io/helm-charts
 - name: grafana
   version: "7.1.0"
   repository: https://grafana.github.io/helm-charts
