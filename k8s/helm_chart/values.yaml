@@ -99,3 +99,5 @@ grafana:
          path: /var/lib/grafana/dashboards/default
   dashboardsConfigMaps:
     default: "grafana-dashboards"
+  rbac:
+    namespaced: true
