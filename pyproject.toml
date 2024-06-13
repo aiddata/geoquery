@@ -52,7 +52,13 @@ dependencies = [
     "numpy == 1.26.0",
     "pandas == 2.1.2",
     "tornado == 6.3.3",
-    "kubernetes"
+    "kubernetes",
+    "mkdocs",
+    "mkdocstrings[python]",
+    "mkdocs-material",
+    "mkdocs-gen-files",
+    "mkdocs-literate-nav",
+    "mkdocs-section-index",
 ]
 
 

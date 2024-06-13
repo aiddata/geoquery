@@ -10,10 +10,6 @@ All documentation can be found in `/docs`.
 
 To view the documentation in your web browser, follow the following steps:
 
-- Install mkdocs, a static site generator for documentation:
-  ```sh
-  pip install mkdocs mkdocstrings[python] mkdocs-material mkdocs-gen-files mkdocs-literate-nav mkdocs-section-index
-  ```
 - Install gqcore, this repository's Python package:
   ```sh
   # cd to the root of this repository
