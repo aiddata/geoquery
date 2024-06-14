@@ -38,8 +38,10 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: geoquery-init-db
+  name: geoquery-init-db-{{ uuidv4 }}
   namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync # run job after all other resources are ready
 spec:
   template:
     metadata:
