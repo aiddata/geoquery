@@ -4,7 +4,7 @@ RUN mkdir geoquery
 WORKDIR geoquery
 
 # we should eventually move the python package to one directory for ease of copying
-COPY --from=REPO_ROOT src src
-COPY --from=REPO_ROOT pyproject.toml pyproject.toml
+COPY src src
+COPY pyproject.toml pyproject.toml
 
 RUN pip install --no-cache-dir .
