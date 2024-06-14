@@ -1,6 +1,7 @@
 """
 Module to orchestrate database initialization.
 """
+
 from loguru import logger
 
 from gqcore.utils.db.init import init_pg_tables, init_pg_views

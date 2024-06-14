@@ -1,6 +1,7 @@
 """
 Module for processing new and complete requests
 """
+
 from loguru import logger
 
 from gqcore.utils.db.request_processing import (

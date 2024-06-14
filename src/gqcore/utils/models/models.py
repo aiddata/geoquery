@@ -68,7 +68,9 @@ class DatasetResource(BaseModel):
 
 
 class ProcessingOption(BaseModel):
-    dataset_id: int = None  # this needs to be None in the model because dataset id is not known at the time of validation
+    dataset_id: int = (
+        None  # this needs to be None in the model because dataset id is not known at the time of validation
+    )
     active: bool = False
     public: bool = False
     short_name: str

@@ -2,16 +2,11 @@
 import rasterstats as rs
 
 
-
 def _rasterstats_default(feat, raster, stat, **kwargs):
     kwargs["nodata"] = kwargs["nodata"] if "nodata" in kwargs else None
-    stats = rs.zonal_stats(
-        feat, raster,
-        stats=stat,
-        **kwargs
-    )
+    stats = rs.zonal_stats(feat, raster, stats=stat, **kwargs)
     output = stats[0][stat]
-    return [(kwargs['name'], output)]
+    return [(kwargs["name"], output)]
 
 
 def rasterstats_default_min(feat, raster, **kwargs):
@@ -42,7 +37,9 @@ def rasterstats_default_count(feat, raster, **kwargs):
 def rasterstats_default_categorical(feat, raster, **kwargs):
     mapping = kwargs["category_map"]
     nodata = kwargs["nodata"] if "nodata" in kwargs else None
-    stats = rs.zonal_stats(feat, raster, categorical=True, category_map=mapping, nodata=nodata)
+    stats = rs.zonal_stats(
+        feat, raster, categorical=True, category_map=mapping, nodata=nodata
+    )
     output = [(f"{kwargs['name']}_{k}", v) for k, v in stats[0].items()]
 
     for v, k in mapping.items():

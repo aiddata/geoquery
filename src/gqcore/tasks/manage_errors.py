@@ -1,6 +1,7 @@
 """
 Module for handling edge-cases and errors.
 """
+
 from datetime import datetime, timedelta
 
 from loguru import logger
