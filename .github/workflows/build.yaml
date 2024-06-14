@@ -47,7 +47,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: jacobwhall/argocd-configurations
-        path: argocd-configuations
+        path: argocd-configurations
         token: ${{ secrets.argocd_configurations_password }} 
 
     - name: Update Image Tag in geoquery-backend ArgoCD Configuration
@@ -62,6 +62,6 @@ jobs:
         changes: |
           {
             "geoquery/backend/overlays/testing/patch.yaml": {
-              "[0].value.parameters[0].value": "geoquery-backend:${{ steps.vars.outputs.sha_short }}"
+              "[0].value.parameters[0].value": "jacobwhall/geoquery-backend:${{ steps.vars.outputs.sha_short }}"
             }
           }
