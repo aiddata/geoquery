@@ -1,4 +1,5 @@
 """Generate the code reference pages."""
+
 # from https://mkdocstrings.github.io/recipes/
 
 from pathlib import Path
