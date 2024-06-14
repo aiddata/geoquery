@@ -32,11 +32,13 @@ jobs:
         oci: true
 
     - name: Push Image
-      username: jacobwhall
-      password: ${{ secrets.docker_password }}
-      registry: docker.io/jacobwhall
-      image: geoquery-backend
-      tags: ${{ steps.vars.outputs.sha_short }}
+      uses: redhat-actions/push-to-registry@v2
+      with:
+        username: jacobwhall
+        password: ${{ secrets.docker_password }}
+        registry: docker.io/jacobwhall
+        image: geoquery-backend
+        tags: ${{ steps.vars.outputs.sha_short }}
 
 
     - name: Checkout argocd-configurations Repository
