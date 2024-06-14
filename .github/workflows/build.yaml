@@ -28,3 +28,4 @@ jobs:
           ./k8s/containers/backend/Containerfile
         build-args: |
           REPO_ROOT=./
+        oci: true
