@@ -26,6 +26,4 @@ jobs:
         tags: ${{ steps.vars.outputs.sha_short }}
         containerfiles: |
           ./k8s/containers/backend/Containerfile
-        build-args: |
-          REPO_ROOT=./
         oci: true
