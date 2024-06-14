@@ -7,6 +7,7 @@ on:
       - 'src/**'
       - 'scripts/**'
       - 'pyproject.toml'
+      - '.github/workflows/build.yaml'
 
 jobs:
   build:
