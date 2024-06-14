@@ -3,9 +3,9 @@ on:
   push:
     branches:
       - develop
-  paths:
-    - "src/**"
-    - "pyproject.toml"
+    paths:
+      - 'src/**'
+      - 'pyproject.toml'
 
 jobs:
   build:
