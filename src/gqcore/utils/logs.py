@@ -1,4 +1,5 @@
 """Module to handle logs across entire GeoQuery backend."""
+
 import sys
 from pathlib import Path
 

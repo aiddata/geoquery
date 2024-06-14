@@ -1,34 +1,43 @@
 # accepts request object and creates pdf documentation
 
 import time
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, TableStyle, KeepTogether
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
-from reportlab.lib.units import inch
-from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER
-import shapely
 import pandas as pd
+import shapely
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import (
+    Image,
+    KeepTogether,
+    PageBreak,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
-from gqcore.utils.db.conn import get_conn
 from gqcore import get_config
+from gqcore.utils.db.conn import get_conn
 
 # =============================================================================
 
 styles = getSampleStyleSheet()
 
+
 def pg(text, pg_type):
-    """return paragraph of specified type for given text
-    """
+    """return paragraph of specified type for given text"""
     text = str(text)
     if pg_type == 1:
-        para = Paragraph(text, styles['Normal'])
+        para = Paragraph(text, styles["Normal"])
         return para
     elif pg_type == 2:
-        para = Paragraph(text, styles['BodyText'])
+        para = Paragraph(text, styles["BodyText"])
         return para
     else:
         raise Exception("invalid paragraph type")
@@ -40,8 +49,7 @@ def enforce_max_word_length(string, max_chars=80):
     for word in raw_word_list:
         if len(word) > max_chars:
             split_word = [
-                word[i:i+max_chars]
-                for i in range(0, len(word), max_chars)
+                word[i : i + max_chars] for i in range(0, len(word), max_chars)
             ]
             fixed_word = "\n".join(split_word)
         else:
@@ -57,6 +65,7 @@ def get_request(request_id):
             request = cur.fetchone()
             return request
 
+
 # TODO: this needs to be updated to reflect how meta attributes are used
 def get_dataset_meta(dataset_name):
     with get_conn() as conn:
@@ -67,13 +76,17 @@ def get_dataset_meta(dataset_name):
             if dataset is None:
                 return None, None
 
-            cur.execute("""SELECT * FROM dataset_resources WHERE dataset_id = %s""", (dataset['id'],))
+            cur.execute(
+                """SELECT * FROM dataset_resources WHERE dataset_id = %s""",
+                (dataset["id"],),
+            )
             dataset_resources = cur.fetchall()
             return dataset, dataset_resources
 
 
 def get_dummy_request():
     import pandas as pd
+
     with get_conn() as conn:
         with conn.cursor() as cur:
             id_query = """
@@ -150,7 +163,7 @@ def get_dummy_request():
             return request_id, request_contact, request_df
 
 
-class DocBuilder():
+class DocBuilder:
 
     def __init__(self, request_id, request_df, output_path):
 
@@ -175,9 +188,8 @@ class DocBuilder():
         self.Story = []
 
         self.styles = getSampleStyleSheet()
-        self.styles.add(ParagraphStyle(name='Justify', alignment=TA_JUSTIFY))
-        self.styles.add(ParagraphStyle(name='Center', alignment=TA_CENTER))
-
+        self.styles.add(ParagraphStyle(name="Justify", alignment=TA_JUSTIFY))
+        self.styles.add(ParagraphStyle(name="Center", alignment=TA_CENTER))
 
     def time_str(self, timestamp=None):
         if isinstance(timestamp, datetime):
@@ -191,8 +203,7 @@ class DocBuilder():
             except:
                 return "---"
 
-        return time.strftime('%Y-%m-%d %H:%M:%S (%Z)', time.localtime(timestamp))
-
+        return time.strftime("%Y-%m-%d %H:%M:%S (%Z)", time.localtime(timestamp))
 
     def build_doc(self):
 
@@ -204,11 +215,11 @@ class DocBuilder():
         # build doc call all functions
 
         self.add_header()
-        self.Story.append(Spacer(1, 0.5*inch))
+        self.Story.append(Spacer(1, 0.5 * inch))
         self.add_info()
-        self.Story.append(Spacer(1, 0.3*inch))
+        self.Story.append(Spacer(1, 0.3 * inch))
         self.add_timeline()
-        self.Story.append(Spacer(1, 0.3*inch))
+        self.Story.append(Spacer(1, 0.3 * inch))
         self.add_cite_and_contents()
         self.Story.append(PageBreak())
 
@@ -224,11 +235,9 @@ class DocBuilder():
 
         return True
 
-
     # write the document to disk
     def output_doc(self):
         self.doc.build(self.Story)
-
 
     # documentation header
     def add_header(self):
@@ -242,147 +251,152 @@ class DocBuilder():
         # self.Story.append(Spacer(1, 0.25*inch))
 
         # title
-        ptext = '<font size=20>AidData GeoQuery Request Documentation</font>'
-        self.Story.append(Paragraph(ptext, self.styles['Center']))
-
+        ptext = "<font size=20>AidData GeoQuery Request Documentation</font>"
+        self.Story.append(Paragraph(ptext, self.styles["Center"]))
 
     # report generation info
     def add_info(self):
-        ptext = '<b><font size=14>Report Info</font></b>'
-        self.Story.append(Paragraph(ptext, self.styles['BodyText']))
-        self.Story.append(Spacer(1, 0.1*inch))
+        ptext = "<b><font size=14>Report Info</font></b>"
+        self.Story.append(Paragraph(ptext, self.styles["BodyText"]))
+        self.Story.append(Spacer(1, 0.1 * inch))
 
-        custom_name = self.request['custom_name']
+        custom_name = self.request["custom_name"]
         if custom_name:
-            custom_name = custom_name.encode('utf8', 'replace')
+            custom_name = custom_name.encode("utf8", "replace")
         else:
             custom_name = "Request {0}".format(self.request_id[:8])
 
         data = [
-            ['Request Name', custom_name],
-            ['Request Id', str(self.request_id)],
-            ['Email', self.request['contact']],
-            ['Generated on', self.time_str()],
-            ['Download Link', '<a href="http://{0}/query/#!/status/{1}">{0}/query/#!/status/{1}</a>'.format(
-                self.download_server, self.request_id)]
+            ["Request Name", custom_name],
+            ["Request Id", str(self.request_id)],
+            ["Email", self.request["contact"]],
+            ["Generated on", self.time_str()],
+            [
+                "Download Link",
+                '<a href="http://{0}/query/#!/status/{1}">{0}/query/#!/status/{1}</a>'.format(
+                    self.download_server, self.request_id
+                ),
+            ],
         ]
 
         data = [[i[0], pg(i[1], 1)] for i in data]
         t = Table(data)
 
-        t.setStyle(TableStyle([
-            ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
-            ('BOX', (0,0), (-1,-1), 0.25, colors.black)
-        ]))
+        t.setStyle(
+            TableStyle(
+                [
+                    ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.black),
+                    ("BOX", (0, 0), (-1, -1), 0.25, colors.black),
+                ]
+            )
+        )
 
         self.Story.append(t)
-
 
     # full request timeline / other processing info
     def add_timeline(self):
 
-        ptext = '<b><font size=14>Processing Timeline</font></b>'
-        self.Story.append(Paragraph(ptext, self.styles['Normal']))
-        self.Story.append(Spacer(1, 0.1*inch))
+        ptext = "<b><font size=14>Processing Timeline</font></b>"
+        self.Story.append(Paragraph(ptext, self.styles["Normal"]))
+        self.Story.append(Spacer(1, 0.1 * inch))
 
         data = [
-            ["submit_time", self.time_str(self.request['submit_time'])],
-            ["prepare_time", self.time_str(self.request['prepare_time'])],
-            ["process_time", self.time_str(self.request['process_time'])],
-            ["complete_time", self.time_str(int(time.time()))]
+            ["submit_time", self.time_str(self.request["submit_time"])],
+            ["prepare_time", self.time_str(self.request["prepare_time"])],
+            ["process_time", self.time_str(self.request["process_time"])],
+            ["complete_time", self.time_str(int(time.time()))],
         ]
 
         data = [[i[0], pg(i[1], 1)] for i in data]
         t = Table(data)
 
-        t.setStyle(TableStyle([
-            ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
-            ('BOX', (0,0), (-1,-1), 0.25, colors.black)
-        ]))
+        t.setStyle(
+            TableStyle(
+                [
+                    ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.black),
+                    ("BOX", (0, 0), (-1, -1), 0.25, colors.black),
+                ]
+            )
+        )
 
         self.Story.append(t)
 
-
     def add_cite_and_contents(self):
 
-        with open(self.assets_dir / 'templates/general.txt') as general:
+        with open(self.assets_dir / "templates/general.txt") as general:
             for line in general:
-                p = Paragraph(line, self.styles['BodyText'])
+                p = Paragraph(line, self.styles["BodyText"])
                 self.Story.append(p)
-
 
     # intro paragraphs
     def add_notes(self):
 
-        with open(self.assets_dir / 'templates/field_names.txt') as field_names:
+        with open(self.assets_dir / "templates/field_names.txt") as field_names:
             for line in field_names:
-                p = Paragraph(line, self.styles['BodyText'])
+                p = Paragraph(line, self.styles["BodyText"])
                 self.Story.append(p)
 
         self.Story.append(PageBreak())
 
-        with open(self.assets_dir / 'templates/notes.txt') as field_names:
+        with open(self.assets_dir / "templates/notes.txt") as field_names:
             for line in field_names:
-                p = Paragraph(line, self.styles['BodyText'])
+                p = Paragraph(line, self.styles["BodyText"])
                 self.Story.append(p)
 
         self.Story.append(PageBreak())
 
-        with open(self.assets_dir / 'templates/aid_data.txt') as field_names:
+        with open(self.assets_dir / "templates/aid_data.txt") as field_names:
             for line in field_names:
-                p = Paragraph(line, self.styles['BodyText'])
+                p = Paragraph(line, self.styles["BodyText"])
                 self.Story.append(p)
-
 
     # license stuff
     def add_additional(self):
 
-        with open(self.assets_dir / 'templates/additional.txt') as license:
+        with open(self.assets_dir / "templates/additional.txt") as license:
             for line in license:
-                p = Paragraph(line, self.styles['BodyText'])
+                p = Paragraph(line, self.styles["BodyText"])
                 self.Story.append(p)
 
-
-# =============================================================================
-# =============================================================================
-# =============================================================================
-# =============================================================================
-# =============================================================================
-
+    # =============================================================================
+    # =============================================================================
+    # =============================================================================
+    # =============================================================================
+    # =============================================================================
 
     def add_meta(self):
 
-
-        ptext = '<b><font size=14>Feature Meta Information</font></b>'
-        self.Story.append(Paragraph(ptext, self.styles['Normal']))
-        self.Story.append(Spacer(1, 0.25*inch))
-
+        ptext = "<b><font size=14>Feature Meta Information</font></b>"
+        self.Story.append(Paragraph(ptext, self.styles["Normal"]))
+        self.Story.append(Spacer(1, 0.25 * inch))
 
         fdata = self.build_fc_meta()
 
-
         for ix, (fc_data, display_name) in enumerate(fdata):
 
-            ptext = '<font size=10><b>Feature Collection {0} - {1}</b></font>'.format(
-                ix, display_name)
-            self.Story.append(Paragraph(ptext, self.styles['Normal']))
-            self.Story.append(Spacer(1, 0.05*inch))
+            ptext = "<font size=10><b>Feature Collection {0} - {1}</b></font>".format(
+                ix, display_name
+            )
+            self.Story.append(Paragraph(ptext, self.styles["Normal"]))
+            self.Story.append(Spacer(1, 0.05 * inch))
 
             fc_data = [[i[0], pg(i[1], 2)] for i in fc_data]
             t = Table(fc_data)
-            t.setStyle(TableStyle([
-                ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
-                ('BOX', (0,0), (-1,-1), 0.25, colors.black)
-            ]))
+            t.setStyle(
+                TableStyle(
+                    [
+                        ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.black),
+                        ("BOX", (0, 0), (-1, -1), 0.25, colors.black),
+                    ]
+                )
+            )
 
             self.Story.append(KeepTogether(t))
-            self.Story.append(Spacer(1, 0.1*inch))
+            self.Story.append(Spacer(1, 0.1 * inch))
 
-
-
-        ptext = '<b><font size=14>Dataset Meta Information</font></b>'
-        self.Story.append(Paragraph(ptext, self.styles['Normal']))
-        self.Story.append(Spacer(1, 0.25*inch))
+        ptext = "<b><font size=14>Dataset Meta Information</font></b>"
+        self.Story.append(Paragraph(ptext, self.styles["Normal"]))
+        self.Story.append(Spacer(1, 0.25 * inch))
 
         datasets = self.request_df["dataset_name"].unique()
 
@@ -393,25 +407,28 @@ class DocBuilder():
             # build dataset meta table array
             data, display_name = self.build_dataset_meta(d)
 
-              # if d['name'] not in dataset_meta_log:
+            # if d['name'] not in dataset_meta_log:
             self.dataset_meta_log.append(d)
 
-            ptext = '<font size=10><b>Selection {0} - {1}</b></font>'.format(
-                len(self.dataset_meta_log), display_name)
-            self.Story.append(Paragraph(ptext, self.styles['Normal']))
-            self.Story.append(Spacer(1, 0.05*inch))
+            ptext = "<font size=10><b>Selection {0} - {1}</b></font>".format(
+                len(self.dataset_meta_log), display_name
+            )
+            self.Story.append(Paragraph(ptext, self.styles["Normal"]))
+            self.Story.append(Spacer(1, 0.05 * inch))
 
             data = [[i[0], pg(i[1], 2)] for i in data]
             t = Table(data)
-            t.setStyle(TableStyle([
-                ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
-                ('BOX', (0,0), (-1,-1), 0.25, colors.black)
-            ]))
+            t.setStyle(
+                TableStyle(
+                    [
+                        ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.black),
+                        ("BOX", (0, 0), (-1, -1), 0.25, colors.black),
+                    ]
+                )
+            )
 
             self.Story.append(KeepTogether(t))
-            self.Story.append(Spacer(1, 0.1*inch))
-
-
+            self.Story.append(Spacer(1, 0.1 * inch))
 
     def build_fc_meta(self):
 
@@ -429,7 +446,9 @@ class DocBuilder():
         JOIN feature_collections as fc
             ON feat_map.fc_id = fc.id
         WHERE feat_map.id IN ({0})
-        """.format(",".join([str(i) for i in feature_maps]))
+        """.format(
+            ",".join([str(i) for i in feature_maps])
+        )
 
         with get_conn() as conn:
             with conn.cursor() as cur:
@@ -438,12 +457,13 @@ class DocBuilder():
 
         fm_results = pd.DataFrame(fm_results)
 
-
         fc_query = """
         SELECT *
         FROM feature_collections
         WHERE id IN ({0})
-        """.format(",".join([str(i) for i in fm_results["fc_id"].unique()]))
+        """.format(
+            ",".join([str(i) for i in fm_results["fc_id"].unique()])
+        )
 
         with get_conn() as conn:
             with conn.cursor() as cur:
@@ -456,22 +476,33 @@ class DocBuilder():
         for ix, fc in fc_results.iterrows():
 
             fc_data = [
-                ['Title', fc["title"]],
-                ['Name', fc["name"]],
-                ['Description', fc["description"]],
-                ['Source', fc["source_name"]],
-                ['Source URL', fc["source_url"]],
-                ['Citation', fc["citation"]],
-                ['Bounding Box', shapely.wkb.loads(fc["spatial_extent"]).wkt],
-                ['Feature Count', fm_results.loc[fm_results["fc_id"] == fc["id"]].shape[0]],
-                ['Feature Names', ", ".join(fm_results.loc[fm_results["fc_id"] == fc["id"]]["name"])],
-                ['Feature IDs', ", ".join(fm_results.loc[fm_results["fc_id"] == fc["id"]]["geom_id"].astype(str))],
+                ["Title", fc["title"]],
+                ["Name", fc["name"]],
+                ["Description", fc["description"]],
+                ["Source", fc["source_name"]],
+                ["Source URL", fc["source_url"]],
+                ["Citation", fc["citation"]],
+                ["Bounding Box", shapely.wkb.loads(fc["spatial_extent"]).wkt],
+                [
+                    "Feature Count",
+                    fm_results.loc[fm_results["fc_id"] == fc["id"]].shape[0],
+                ],
+                [
+                    "Feature Names",
+                    ", ".join(fm_results.loc[fm_results["fc_id"] == fc["id"]]["name"]),
+                ],
+                [
+                    "Feature IDs",
+                    ", ".join(
+                        fm_results.loc[fm_results["fc_id"] == fc["id"]][
+                            "geom_id"
+                        ].astype(str)
+                    ),
+                ],
             ]
             data.append((fc_data, fc["title"]))
 
-
         return data
-
 
     def build_dataset_meta(self, dataset_name):
 
@@ -479,34 +510,41 @@ class DocBuilder():
         dataset_meta, dataset_resources = get_dataset_meta(dataset_name)
 
         if dataset_meta is None:
-            msg = f'Could not lookup dataset ({dataset_name}) for build_dataset_meta'
+            msg = f"Could not lookup dataset ({dataset_name}) for build_dataset_meta"
             raise Exception(msg)
 
         # build generic dataset_meta
         data = [
-            ['Title', dataset_meta['title']],
-            ['Name', dataset_name],
+            ["Title", dataset_meta["title"]],
+            ["Name", dataset_name],
         ]
 
-        request_dataset_df = self.request_df.loc[self.request_df['dataset_name'] == dataset_name]
-        request_fields = ['dataset_name', 'resource_label', 'data_name']
-        data_cols = request_dataset_df[request_fields].sort_values(by=request_fields).apply(lambda x: '.'.join(x), axis=1).unique()
+        request_dataset_df = self.request_df.loc[
+            self.request_df["dataset_name"] == dataset_name
+        ]
+        request_fields = ["dataset_name", "resource_label", "data_name"]
+        data_cols = (
+            request_dataset_df[request_fields]
+            .sort_values(by=request_fields)
+            .apply(lambda x: ".".join(x), axis=1)
+            .unique()
+        )
 
-        colnames_list =  data_cols
+        colnames_list = data_cols
 
-        colnames = ('Format: "{0}.&lt;temporal&gt;.&lt;method&gt;" <br /> '
-                    'for all combinations of &lt;temporal&gt; and &lt;method&gt; '
-                    'which can be found in the "Temporal Selection" and '
-                    '"Extract Types Selected" fields below '
-                    '({1} columns total)').format(
-                        dataset_name, len(colnames_list)
-                    )
+        colnames = (
+            'Format: "{0}.&lt;temporal&gt;.&lt;method&gt;" <br /> '
+            "for all combinations of &lt;temporal&gt; and &lt;method&gt; "
+            'which can be found in the "Temporal Selection" and '
+            '"Extract Types Selected" fields below '
+            "({1} columns total)"
+        ).format(dataset_name, len(colnames_list))
 
-        data.append(['Column Names ', colnames])
+        data.append(["Column Names ", colnames])
 
         temporal_raw = request_dataset_df["resource_label"].unique()
 
-        if any([i in temporal_raw for i in ['none', None]]):
+        if any([i in temporal_raw for i in ["none", None]]):
             temporal_str = temporal_raw
         else:
             temporal_int = [int(s) for s in temporal_raw]
@@ -519,46 +557,64 @@ class DocBuilder():
         if len(temporal_str) > max_temporal_str_len:
             temporal_str_sub = temporal_str[:max_temporal_str_len]
 
-        temporal_text = ', '.join(temporal_str_sub)
+        temporal_text = ", ".join(temporal_str_sub)
         if len(temporal_str) > max_temporal_str_len:
-            temporal_text += ', ...'
-        data.append(['Temporal Selection (' + str(len(temporal_str)) + ')', temporal_text])
+            temporal_text += ", ..."
+        data.append(
+            ["Temporal Selection (" + str(len(temporal_str)) + ")", temporal_text]
+        )
 
         # prevent issue due to missing extract_types_info field
 
-        unique_po = request_dataset_df.groupby(['po_name']).agg('first').reset_index()
-        data.append(['Extract Types Selected', ', '.join([
-            "{0} [{1}] - {2}".format(i["po_name"], i["po_result_type"], i["po_description"])
-            for _, i in unique_po.iterrows()
-        ])])
+        unique_po = request_dataset_df.groupby(["po_name"]).agg("first").reset_index()
+        data.append(
+            [
+                "Extract Types Selected",
+                ", ".join(
+                    [
+                        "{0} [{1}] - {2}".format(
+                            i["po_name"], i["po_result_type"], i["po_description"]
+                        )
+                        for _, i in unique_po.iterrows()
+                    ]
+                ),
+            ]
+        )
 
-        data.append(['',''])
-        data.append(['Description', dataset_meta['description']])
+        data.append(["", ""])
+        data.append(["Description", dataset_meta["description"]])
 
         details = "(no additional details)"
         if "details" in dataset_meta:
             details = dataset_meta["details"]
-        data.append(['Details', details])
+        data.append(["Details", details])
 
-        data.append(['Bounding Box', shapely.wkb.loads(dataset_meta['spatial_extent']).wkt])
+        data.append(
+            ["Bounding Box", shapely.wkb.loads(dataset_meta["spatial_extent"]).wkt]
+        )
 
-        data.append(['Date Added', str(dataset_meta['date_added'])])
-        data.append(['Date Updated', str(dataset_meta['date_updated'])])
+        data.append(["Date Added", str(dataset_meta["date_added"])])
+        data.append(["Date Updated", str(dataset_meta["date_updated"])])
 
-        if 'sources_name' in dataset_meta and dataset_meta['sources_name']:
-            data.append(['Source Name', dataset_meta['sources_name']])
+        if "sources_name" in dataset_meta and dataset_meta["sources_name"]:
+            data.append(["Source Name", dataset_meta["sources_name"]])
 
-        if 'sources_web' in dataset_meta and dataset_meta['sources_web']:
-            data.append(['Source URL', enforce_max_word_length(dataset_meta['source_url'])])
+        if "sources_web" in dataset_meta and dataset_meta["sources_web"]:
+            data.append(
+                ["Source URL", enforce_max_word_length(dataset_meta["source_url"])]
+            )
 
-        if 'citation' in dataset_meta and dataset_meta['citation']:
-            data.append(['Citation', enforce_max_word_length(dataset_meta['citation'])])
+        if "citation" in dataset_meta and dataset_meta["citation"]:
+            data.append(["Citation", enforce_max_word_length(dataset_meta["citation"])])
 
-        if 'variable_description' in dataset_meta and dataset_meta['variable_description']:
-            data.append(['Variable Description', dataset_meta['variable_description']])
-        if 'resolution' in dataset_meta and dataset_meta['resolution']:
-            data.append(['Resolution', str(dataset_meta['resolution'])])
-        if 'factor' in dataset_meta and dataset_meta['factor']:
-            data.append(['Factor', str(dataset_meta['factor'])])
+        if (
+            "variable_description" in dataset_meta
+            and dataset_meta["variable_description"]
+        ):
+            data.append(["Variable Description", dataset_meta["variable_description"]])
+        if "resolution" in dataset_meta and dataset_meta["resolution"]:
+            data.append(["Resolution", str(dataset_meta["resolution"])])
+        if "factor" in dataset_meta and dataset_meta["factor"]:
+            data.append(["Factor", str(dataset_meta["factor"])])
 
-        return data, dataset_meta['title']
+        return data, dataset_meta["title"]

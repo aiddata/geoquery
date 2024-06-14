@@ -1,17 +1,17 @@
 import os
 import smtplib
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 from gqcore import get_config
 
-class GeoEmail():
-    """used for sending emails within geo framework
-    """
+
+class GeoEmail:
+    """used for sending emails within geo framework"""
+
     def __init__(self):
 
         self.config = get_config()
-
 
     def get_passwd(self, sender):
         try:
@@ -21,8 +21,9 @@ class GeoEmail():
         except Exception as e:
             raise Exception("Error getting email env var", e)
 
-
-    def send_email(self, receiver, subject, message, sender=None, reply_to=None, passwd=None):
+    def send_email(
+        self, receiver, subject, message, sender=None, reply_to=None, passwd=None
+    ):
         """send an email
 
         Args:
@@ -51,13 +52,15 @@ class GeoEmail():
 
             msg = MIMEMultipart()
 
-            msg.add_header('reply-to', reply_to)
-            msg['From'] = reply_to
-            msg['To'] = receiver_str
-            msg['Subject'] = subject
+            msg.add_header("reply-to", reply_to)
+            msg["From"] = reply_to
+            msg["To"] = receiver_str
+            msg["Subject"] = subject
             msg.attach(MIMEText(message))
 
-            mailserver = smtplib.SMTP(self.config["email_server"], self.config["email_port"])
+            mailserver = smtplib.SMTP(
+                self.config["email_server"], self.config["email_port"]
+            )
             # identify ourselves to smtp gmail client
             mailserver.ehlo()
             # secure our email with tls encryption
@@ -74,8 +77,9 @@ class GeoEmail():
         except Exception as e:
             return 0, "Error sending email", e
 
-
-    def send_backup_email(self, receiver, subject, message, sender=None, reply_to=None, passwd=None):
+    def send_backup_email(
+        self, receiver, subject, message, sender=None, reply_to=None, passwd=None
+    ):
         """send an email using alternative method
 
         Args:
@@ -90,9 +94,9 @@ class GeoEmail():
         """
 
         if sender is None:
-            sender = self.defaults['sender']
+            sender = self.defaults["sender"]
         if reply_to is None:
-            reply_to = self.defaults['reply_to']
+            reply_to = self.defaults["reply_to"]
 
         try:
 
@@ -105,7 +109,7 @@ class GeoEmail():
             BCC = []
             # who it is going to, main, cc, bcc
             # must be a list
-            TO = MAIN + CC +  BCC
+            TO = MAIN + CC + BCC
 
             # Prepare actual message
             message = """\
@@ -115,7 +119,13 @@ class GeoEmail():
             Subject: %s
 
             %s
-            """ % (FROM, ', '.join(MAIN), ', '.join(CC), subject, message)
+            """ % (
+                FROM,
+                ", ".join(MAIN),
+                ", ".join(CC),
+                subject,
+                message,
+            )
 
             # Send the mail
             SERVER = self.config["email_backup_server"]
