@@ -37,3 +37,23 @@ jobs:
       registry: docker.io/jacobwhall
       image: geoquery-backend
       tags: ${{ steps.vars.outputs.sha_short }}
+
+
+    - name: Checkout argocd-configurations Repository
+      uses: actions/checkout@v4
+      with:
+        repository: jacobwhall/argocd-configurations
+        path: argocd-configuations
+        token: ${{ secrets.argocd_configurations_password }} 
+
+    - name: Update Image Tag in geoquery-backend ArgoCD Configuration
+      uses: fjogeleit/yaml-update-action@main
+      with:
+        valueFile: 'geoquery/backend/overlays/testing/patch.yaml'
+        propertyPath: '[0].value.parameters[0].value'
+        value: '\"geoquery-backend:${{ steps.vars.outputs.sha_short }}\"'
+        repository: jacobwhall/argocd-configurations
+        branch: main
+        message: 'update geoquery backend develop overlay to use ${{ steps.vars.outputs.sha_short }} tag'
+        token: ${{ secrets.argocd_configurations_password }} 
+        workDir: argocd-configurations
