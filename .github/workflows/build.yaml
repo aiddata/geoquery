@@ -25,6 +25,6 @@ jobs:
         image: geoquery-backend
         tags: ${{ steps.vars.outputs.sha_short }}
         containerfiles: |
-          ./k8s/backend/Containerfile
+          ./k8s/containers/backend/Containerfile
         build-args: |
           REPO_ROOT=./
