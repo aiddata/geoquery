@@ -46,14 +46,14 @@ jobs:
     - name: Checkout argocd-configurations Repository
       uses: actions/checkout@v4
       with:
-        repository: jacobwhall/argocd-configurations
+        repository: aiddata/nova-argocd-configurations
         path: argocd-configurations
         token: ${{ secrets.argocd_configurations_password }} 
 
     - name: Update Image Tag in geoquery-backend ArgoCD Configuration
       uses: fjogeleit/yaml-update-action@main
       with:
-        repository: jacobwhall/argocd-configurations
+        repository: aiddata/nova-argocd-configurations
         branch: main
         masterBranchName: main
         message: 'update geoquery backend develop overlay to use ${{ steps.vars.outputs.sha_short }} tag'
