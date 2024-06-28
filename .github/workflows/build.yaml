@@ -6,7 +6,9 @@ on:
     paths:
       - 'src/**'
       - 'scripts/**'
+      - 'docs/**'
       - 'pyproject.toml'
+      - 'mkdocs.yml'
       - '.github/workflows/build.yaml'
 
 jobs:

@@ -7,4 +7,9 @@ WORKDIR geoquery
 COPY src src
 COPY pyproject.toml pyproject.toml
 
+# copy docs over too
+COPY docs docs
+COPY scripts scripts
+COPY mkdocs.yml mkdocs.yml
+
 RUN pip install --no-cache-dir .
