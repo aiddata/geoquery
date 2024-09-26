@@ -11,6 +11,16 @@ dev:
 default_image: null
 data_root: "/tmp/geoquery-update"
 
+# connection info for read-only geo-datasets PV/C
+geo_datasets_volume:
+  storageClassName: nfs
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+  nfs:
+    path: /sciclone/nova/test/geo
+    server: 128.239.59.130
+
 # config for primary geoquery database
 # make sure to override these in my_values.yaml
 postgis:
