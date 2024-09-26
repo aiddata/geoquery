@@ -22,6 +22,9 @@ spec:
     secret:
       secretName: geoquery-gmail
       optional: true
+  - name: geo-datasets
+    persistentVolumeClaim:
+      claimName: geo-datasets-pvc
   containers:
   - name: python
     image: {{.Values.default_image}}
@@ -36,6 +39,8 @@ spec:
       mountPath: /secrets/db
     - name: email-secret-vol
       mountPath: /secrets/email
+    - name: geo-datasets
+      mountPath: /geo-datasets
     resources:
       requests:
         cpu: 6
