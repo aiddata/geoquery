@@ -5,7 +5,6 @@ storageClass: manual
 dev:
   # enables "workbench" container for testing out scripts
   enabled: false
-  localDir: /tmp/geoquery-update/
 
 # image to use for all geoquery backend jobs
 default_image: null
