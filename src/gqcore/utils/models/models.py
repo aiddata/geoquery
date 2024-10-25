@@ -108,7 +108,7 @@ class Dataset(BaseModel):
     name: str
     path: Path
     file_extension: str
-    file_mask: str
+    file_mask: Optional[str]
     title: str
     description: str
     details: str
