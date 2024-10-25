@@ -60,7 +60,7 @@ jobs:
         repository: aiddata/nova-argocd-configurations
         branch: main
         masterBranchName: main
-        message: 'update geoquery backend develop overlay to use ${{ steps.vars.outputs.sha_short }} tag'
+        message: 'update geoquery backend ${{ github.ref_name }} overlay to use ${{ steps.vars.outputs.sha_short }} tag'
         token: ${{ secrets.argocd_configurations_password }} 
         workDir: argocd-configurations
         changes: |
