@@ -26,6 +26,7 @@ from gqcore.utils.db.extract_task_processing import (
     count_available_tasks,
     get_mappings,
 )
+from gqcore.utils.k8s.context import get_current_namespace
 from gqcore.utils.logs import get_logger
 
 
@@ -164,7 +165,7 @@ def process_tasks_using_dask(max_tasks: int = 10000) -> None:
         # client = Client(cluster)
 
         logger.info("Connecting to k8s dask cluster (KubeCluster)")
-        cluster = KubeCluster.from_name("extract-dask-cluster")
+        cluster = KubeCluster.from_name("extract-dask-cluster", namespace=get_current_namespace())
         client = Client(cluster)
 
         logger.info(f"Link to Dask dashboard: {cluster.dashboard_link}")
@@ -216,7 +217,7 @@ def manage_task_processing_for_k8s(
 
     logger.info(f"Preparing to run extract tasks using dask on k8s cluster")
 
-    cluster = KubeCluster.from_name("extract-dask-cluster")
+    cluster = KubeCluster.from_name("extract-dask-cluster", namespace=get_current_namespace())
     client = Client(cluster)
 
     while True:
