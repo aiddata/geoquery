@@ -31,7 +31,7 @@ spec:
               optional: true
           containers:
           - name: coverage
-            image: {{.Values.default_image}}
+            image: {{ .Values.backend_image }}
             command: [ "/bin/bash", "-c", "--" ]
             args: [ "python /geoquery/src/gqcore/tasks/build_coverage_records.py" ]
             volumeMounts:

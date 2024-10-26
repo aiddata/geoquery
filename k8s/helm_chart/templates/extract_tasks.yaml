@@ -31,7 +31,7 @@ spec:
               optional: true
           containers:
           - name: extract-tasks
-            image: {{.Values.default_image}}
+            image: {{ .Values.backend_image }}
             command: [ "/bin/bash", "-c", "--" ]
             args: [ "python /geoquery/src/gqcore/tasks/create_extract_tasks.py" ]
             volumeMounts:

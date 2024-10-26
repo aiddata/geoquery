@@ -8,9 +8,6 @@ spec:
   serviceAccount: geoquery-super
   serviceAccountName: geoquery-super
   volumes:
-  - name: geoquery-pv
-    hostPath:
-      path: /tmp/geoquery-update
   - name: gq-config-vol
     configMap:
       name: gq-config
@@ -22,20 +19,23 @@ spec:
     secret:
       secretName: geoquery-gmail
       optional: true
+  - name: geo-datasets
+    persistentVolumeClaim:
+      claimName: geo-datasets-pvc
   containers:
   - name: python
-    image: {{.Values.default_image}}
+    image: {{ .Values.backend_image }}
     command: [ "/bin/bash", "-c", "--" ]
     args: [ "while true; do sleep 30; done;" ]
     volumeMounts:
-    - name: geoquery-pv
-      mountPath: /tmp/geoquery-update
     - name: gq-config-vol
       mountPath: /config
     - name: postgis-secret-vol
       mountPath: /secrets/db
     - name: email-secret-vol
       mountPath: /secrets/email
+    - name: geo-datasets
+      mountPath: /geo-datasets
     resources:
       requests:
         cpu: 6

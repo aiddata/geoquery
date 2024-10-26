@@ -1,13 +1,18 @@
-name: Build development image
+name: Build backend container
 on:
   push:
     branches:
       - develop
+      - jwhall
+      - cmhwang
     paths:
       - 'src/**'
       - 'scripts/**'
+      - 'docs/**'
       - 'pyproject.toml'
-      - '.github/workflows/build.yaml'
+      - 'mkdocs.yml'
+      - 'k8s/containers/backend/**'
+      - '.github/workflows/build-backend.yaml'
 
 jobs:
   build:
@@ -56,12 +61,12 @@ jobs:
         repository: aiddata/nova-argocd-configurations
         branch: main
         masterBranchName: main
-        message: 'update geoquery backend develop overlay to use ${{ steps.vars.outputs.sha_short }} tag'
+        message: 'update geoquery backend ${{ github.ref_name }} overlay to use ${{ steps.vars.outputs.sha_short }} tag'
         token: ${{ secrets.argocd_configurations_password }} 
         workDir: argocd-configurations
         changes: |
           {
-            "geoquery/backend/overlays/testing/patch.yaml": {
+            "projects/geoquery/backend/overlays/${{ github.ref_name }}/patch.yaml": {
               "[0].value.parameters[0].value": "jacobwhall/geoquery-backend:${{ steps.vars.outputs.sha_short }}"
             }
           }
