@@ -1,4 +1,4 @@
-name: Build development image
+name: Build backend container
 on:
   push:
     branches:
@@ -11,7 +11,8 @@ on:
       - 'docs/**'
       - 'pyproject.toml'
       - 'mkdocs.yml'
-      - '.github/workflows/build.yaml'
+      - 'k8s/containers/backend/**'
+      - '.github/workflows/build-backend.yaml'
 
 jobs:
   build:
