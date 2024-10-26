@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: documentation-server
+  namespace: {{ .Release.Namespace }}
+  labels:
+    run: docs-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: docs-server
+  template:
+    metadata:
+      labels:
+        run: docs-server
+    spec:
+      containers:
+      - name: docs-webserver
+        image: {{ .Values.backend_image }}
+        command: [ "/bin/bash", "-c", "--" ]
+        args: [ "mkdocs serve" ]
+        ports:
+        - containerPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docs-server
+  labels:
+    run: docs-server
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8000
+  selector:
+    run: docs-server
