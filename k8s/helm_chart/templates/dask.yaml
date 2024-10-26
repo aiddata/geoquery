@@ -28,7 +28,7 @@ spec:
           env:
             - name: FOO
               value: bar
-          image: {{.Values.backend_image}}
+          image: {{ .Values.backend_image }}
           livenessProbe:
             httpGet:
               path: /health
@@ -75,7 +75,7 @@ spec:
           env:
             - name: FOO
               value: bar
-          image: {{.Values.backend_image}}
+          image: {{ .Values.backend_image }}
           name: worker
           volumeMounts:
           - name: geoquery-pv
