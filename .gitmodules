@@ -1,0 +1,3 @@
+[submodule "k8s/containers/frontend/geo-query"]
+	path = k8s/containers/frontend/geo-query
+	url = git@github.com:aiddata/geo-query.git
