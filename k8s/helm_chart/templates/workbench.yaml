@@ -24,7 +24,7 @@ spec:
       claimName: geo-datasets-pvc
   containers:
   - name: python
-    image: {{.Values.default_image}}
+    image: {{ .Values.backend_image }}
     command: [ "/bin/bash", "-c", "--" ]
     args: [ "while true; do sleep 30; done;" ]
     volumeMounts:
