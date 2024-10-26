@@ -4,16 +4,16 @@ metadata:
   name: documentation-server
   namespace: {{ .Release.Namespace }}
   labels:
-    run: docs-server
+    app: docs
 spec:
   replicas: 1
   selector:
     matchLabels:
-      run: docs-server
+      app: docs
   template:
     metadata:
       labels:
-        run: docs-server
+        app: docs
     spec:
       containers:
       - name: docs-webserver
@@ -26,14 +26,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: docs-server
-  labels:
-    run: docs-server
+  name: docs
 spec:
+  selector:
+    app: docs
   ports:
   - name: http
     port: 80
     protocol: TCP
     targetPort: 8000
-  selector:
-    run: docs-server

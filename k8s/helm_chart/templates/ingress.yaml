@@ -20,6 +20,6 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: docs-server
+            name: docs
             port:
               name: http
