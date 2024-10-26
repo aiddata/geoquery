@@ -32,6 +32,13 @@ postgis:
   port: "5432"
   dbname: "geoquery"
 
+# frontend ingress configuration
+# you must specify host!
+# TODO: make this more configurable, to work with any ingress controller
+ingress:
+  ingressClassName: nginx
+  host: null
+
 # login details for outgoing email server
 # used to send users info about their requests
 # make sure to override these in my_values.yaml
