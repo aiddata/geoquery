@@ -19,7 +19,7 @@ spec:
       - name: docs-webserver
         image: {{ .Values.backend_image }}
         command: [ "/bin/bash", "-c", "--" ]
-        args: [ "mkdocs serve -a 0.0.0.0:8000" ]
+        args: [ "mkdocs serve -a 0.0.0.0:8000 --no-livereload" ]
         ports:
         - containerPort: 8000
 ---
