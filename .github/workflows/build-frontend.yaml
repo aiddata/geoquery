@@ -1,0 +1,67 @@
+name: Build frontend container
+on:
+  push:
+    branches:
+      - develop
+      - jwhall
+      - cmhwang
+    paths:
+      - 'k8s/containers/frontend/**'
+      - '.github/workflows/build-frontend.yaml'
+
+jobs:
+  build:
+    name: Build Image
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Get Short Commit SHA
+      id: vars
+      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    - name: Check outputs
+      run: echo ${{ steps.vars.outputs.sha_short }}
+
+    - name: Buildah Action
+      uses: redhat-actions/buildah-build@v2
+      with:
+        image: geoquery-frontend
+        tags: ${{ steps.vars.outputs.sha_short }}
+        containerfiles: |
+          ./k8s/containers/frontend/Containerfile
+        oci: true
+
+    - name: Push Image
+      uses: redhat-actions/push-to-registry@v2
+      with:
+        username: jacobwhall
+        password: ${{ secrets.docker_password }}
+        registry: docker.io/jacobwhall
+        image: geoquery-frontend
+        tags: ${{ steps.vars.outputs.sha_short }}
+
+
+    - name: Checkout argocd-configurations Repository
+      uses: actions/checkout@v4
+      with:
+        repository: aiddata/nova-argocd-configurations
+        path: argocd-configurations
+        token: ${{ secrets.argocd_configurations_password }} 
+
+    - name: Update Image Tag in geoquery-backend ArgoCD Configuration
+      uses: fjogeleit/yaml-update-action@main
+      with:
+        repository: aiddata/nova-argocd-configurations
+        branch: main
+        masterBranchName: main
+        message: 'update geoquery backend ${{ github.ref_name }} overlay to use ${{ steps.vars.outputs.sha_short }} tag'
+        token: ${{ secrets.argocd_configurations_password }} 
+        workDir: argocd-configurations
+        changes: |
+          {
+            "projects/geoquery/backend/overlays/${{ github.ref_name }}/patch.yaml": {
+              "[1].value.parameters[0].value": "jacobwhall/geoquery-backend:${{ steps.vars.outputs.sha_short }}"
+            }
+          }
