@@ -13,6 +13,7 @@ from warnings import catch_warnings
 
 from dask.distributed import Client, LocalCluster, wait
 from dask_kubernetes.operator import KubeCluster
+from dask_kubernetes.operator.kubecluster.kubecluster import CreateMode
 from loguru import logger
 from shapely import Geometry
 
@@ -165,7 +166,11 @@ def process_tasks_using_dask(max_tasks: int = 10000) -> None:
         # client = Client(cluster)
 
         logger.info("Connecting to k8s dask cluster (KubeCluster)")
-        cluster = KubeCluster.from_name("extract-dask-cluster", namespace=get_current_namespace())
+        cluster = KubeCluster.from_name(
+            "extract-dask-cluster",
+            namespace=get_current_namespace(),
+            create_mode=CreateMode("CONNECT_ONLY"),
+        )
         client = Client(cluster)
 
         logger.info(f"Link to Dask dashboard: {cluster.dashboard_link}")
@@ -217,7 +222,11 @@ def manage_task_processing_for_k8s(
 
     logger.info(f"Preparing to run extract tasks using dask on k8s cluster")
 
-    cluster = KubeCluster.from_name("extract-dask-cluster", namespace=get_current_namespace())
+    cluster = KubeCluster.from_name(
+        "extract-dask-cluster",
+        namespace=get_current_namespace(),
+        create_mode=CreateMode("CONNECT_ONLY"),
+    )
     client = Client(cluster)
 
     while True:
