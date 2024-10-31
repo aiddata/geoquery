@@ -7,8 +7,11 @@ dev:
   enabled: false
 
 # image to use for all geoquery backend jobs
-default_image: null
+backend_image: null
 data_root: "/tmp/geoquery-update"
+
+# image to use for the frontend (website)
+frontend_image: null
 
 # connection info for read-only geo-datasets PV/C
 geo_datasets_volume:
@@ -28,6 +31,13 @@ postgis:
   password: "[POSTGIS PASSWORD]"
   port: "5432"
   dbname: "geoquery"
+
+# frontend ingress configuration
+# you must specify host!
+# TODO: make this more configurable, to work with any ingress controller
+ingress:
+  ingressClassName: nginx
+  host: null
 
 # login details for outgoing email server
 # used to send users info about their requests

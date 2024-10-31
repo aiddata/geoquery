@@ -1,0 +1,19 @@
+FROM docker.io/node:14.6.0-buster
+
+COPY geo-query/www /www
+
+WORKDIR /www
+
+RUN npm install
+RUN npm install -g grunt-cli
+RUN npm install -g bower
+
+WORKDIR /www/public_src/libs
+
+RUN bower install
+
+WORKDIR /www
+
+RUN grunt build
+
+ENTRYPOINT npm start

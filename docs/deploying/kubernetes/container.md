@@ -22,5 +22,5 @@ It comes with the gqcore package preinstalled in `/src`.
 
 Images are available at [https://hub.docker.com/r/jacobwhall/geoquery-backend](https://hub.docker.com/r/jacobwhall/geoquery-backend)
 
-The image tag used by the helm chart is set using the `default_image` variable in `values.yaml`.
+The image tag used by the helm chart is set using the `backend_image` variable in `values.yaml`.
 Make sure to update that variable to deploy your most recent image.

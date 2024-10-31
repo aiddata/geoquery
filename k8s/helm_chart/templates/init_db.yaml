@@ -60,7 +60,7 @@ spec:
           optional: true
       containers:
       - name: geoquery-init-db
-        image: {{ .Values.default_image }}
+        image: {{ .Values.backend_image }}
         command: [ "/bin/bash", "-c", "--" ]
         args: [ "python /geoquery/src/gqcore/tasks/init_db.py" ]
         volumeMounts:
