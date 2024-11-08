@@ -1,35 +1,35 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: api-endpoint-server
-  namespace: geoquery-backend-cmhwang
+  name: api
+  namespace: {{ .Release.Namespace }}
   labels:
-    app: api-endpoint
+    app: api
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: api-endpoint
+      app: api
   template:
     metadata:
       labels:
-        app: api-endpoint
+        app: api
     spec:
       containers:
-      - name: api-endpoint
-        image: jacobwhall/geoquery-backend:4a21dcc
+      - name: api
+        image: {{ .Values.backend_image }}
         command: [ "/bin/bash", "-c", "--" ]
-        args: [ "mkdocs serve -a 0.0.0.0:8000 --no-livereload" ]
+        args: [ "uvicorn src.main:app --host 0.0.0.0 --port 8000" ]
         ports:
         - containerPort: 8000
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: endpoint-api
+  name: api
 spec:
   selector:
-    app: endpoint-api
+    app: api
   ports:
   - name: http
     port: 80

@@ -44,7 +44,7 @@ dependencies = [
     "dask[array,distributed] == 2024.10.0",
     "dask_kubernetes == 2024.9.0",
     "reportlab",
-    "fastapi",
+    "fastapi[standard]",
     "loguru",
     "toml",
     "lz4 == 4.3.3",
