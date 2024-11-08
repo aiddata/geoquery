@@ -21,6 +21,13 @@ spec:
           pathType: ImplementationSpecific
         - backend:
             service:
+              name: api
+              port:
+                name: http
+          path: /api/(.*)
+          pathType: ImplementationSpecific
+        - backend:
+            service:
               name: frontend
               port:
                 name: http
