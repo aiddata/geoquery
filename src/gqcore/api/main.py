@@ -46,7 +46,16 @@ async def get_datasets():
                 for i in x
             ]
             return dataset_list
-
+        
+@app.get("/get_dataset/{dataset_id}") #performs same function as /datasets/{dataset_id}
+async def get_dataset(dataset_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            x = cur.execute(
+                """SELECT * FROM datasets WHERE active = true AND public = true AND id = %s""",
+                (dataset_id,),
+            ).fetchone()
+            return x
 
 @app.get("/datasets/{dataset_id}")
 async def get_dataset(dataset_id: int):
