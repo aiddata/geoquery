@@ -1,0 +1,219 @@
+{
+    "download_server": "geo.aiddata.org",
+    "welcome": {
+        "backup_content": "<style>.AModal{display:-webkit-box;display:-ms-flexbox;display:flex;-ms-flex-wrap:wrap;flex-wrap:wrap;width:650px;padding:1em 3em;background-color:#FFF;border-radius:4px}.AModal-biline,.AModal-caption{font-family:Helvetica,'san serif';color:#7c7c7c;font-size:1.2em;font-weight:300}.AModal-biline{width:100%;margin:.5em 0;padding:.5em 0;border-top:1px solid #DDD;font-style:italic;font-size:15pt}.AModal-img{min-width:65px;min-height:65px;width:15%;height:15%;margin:0;padding:1em}.AModal-caption{width:75%;margin:0;padding:1em}</style><div class=AModal><h2 class=AModal-biline>Get a simple-to-use file where every row is a unit of analysis and every column is the data you want - no special training required.</h2><img alt=\"world icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_1.svg><p class=AModal-caption>Choose a country and a unit of analysis.</p><img alt=\"layer icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_2.svg><p class=AModal-caption>Select and customize satellite and other spatial datasets from across disciplines.</p><img alt=\"download icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_3.svg><p class=AModal-caption>We will email you the data for use in Excel, STATA, R, or your favorite program as soon as it is ready - 100% free.</div>",
+        "warning_content": "<style>.warn{color:red;}.AModal{display:-webkit-box;display:-ms-flexbox;display:flex;-ms-flex-wrap:wrap;flex-wrap:wrap;width:650px;padding:1em 3em;background-color:#FFF;border-radius:4px}.AModal-biline,.AModal-caption{font-family:Helvetica,'san serif';color:#7c7c7c;font-size:1.2em;font-weight:300}.AModal-biline{width:100%;margin:.5em 0;padding:.5em 0;border-top:1px solid #DDD;font-style:italic;font-size:15pt}.AModal-img{min-width:65px;min-height:65px;width:15%;height:15%;margin:0;padding:1em}.AModal-caption{width:75%;margin:0;padding:1em}</style><div class=AModal><h2 class=AModal-biline><p class=warn> WARNING CONTENT GOES HERE </p><p>Get a simple-to-use file where every row is a unit of analysis and every column is the data you want - no special training required.</p></h2><img alt=\"world icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_1.svg><p class=AModal-caption>Choose a country and a unit of analysis.</p><img alt=\"layer icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_2.svg><p class=AModal-caption>Select and customize satellite and other spatial datasets from across disciplines.</p><img alt=\"download icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_3.svg><p class=AModal-caption>We will email you the data for use in Excel, STATA, R, or your favorite program as soon as it is ready - 100% free.</p></div>",
+        "title": "Welcome to GeoQuery",
+        "content": "<style>.warn{color:red;}.AModal{display:-webkit-box;display:-ms-flexbox;display:flex;-ms-flex-wrap:wrap;flex-wrap:wrap;width:650px;padding:1em 3em;background-color:#FFF;border-radius:4px}.AModal-biline,.AModal-caption{font-family:Helvetica,'san serif';color:#7c7c7c;font-size:1.2em;font-weight:300}.AModal-biline{width:100%;margin:.5em 0;padding:.5em 0;border-top:1px solid #DDD;font-style:italic;font-size:15pt}.AModal-img{min-width:65px;min-height:65px;width:15%;height:15%;margin:0;padding:1em}.AModal-caption{width:75%;margin:0;padding:1em}</style><div class=AModal><h2 class=AModal-biline><p>Get a simple-to-use file where every row is a unit of analysis and every column is the data you want - no special training required.</p></h2><img alt=\"world icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_1.svg><p class=AModal-caption>Choose a country and a unit of analysis.</p><img alt=\"layer icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_2.svg><p class=AModal-caption>Select and customize satellite and other spatial datasets from across disciplines.</p><img alt=\"download icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_3.svg><p class=AModal-caption>We will email you the data for use in Excel, STATA, R, or your favorite program as soon as it is ready - 100% free.</p></div>",
+        "content4": "<style>.AModal{display:-webkit-box;display:-ms-flexbox;display:flex;-ms-flex-wrap:wrap;flex-wrap:wrap;width:650px;padding:1em 3em;background-color:#FFF;border-radius:4px}.AModal-biline,.AModal-caption{font-family:Helvetica,'san serif';color:#7c7c7c;font-size:1.2em;font-weight:300}.AModal-biline{width:100%;margin:.5em 0;padding:.5em 0;border-top:1px solid #DDD;font-style:italic;font-size:15pt}.AModal-img{min-width:65px;min-height:65px;width:15%;height:15%;margin:0;padding:1em}.AModal-caption{width:75%;margin:0;padding:1em}</style><div class=AModal><h2 class=AModal-biline>A tool to access terabytes of geospatial data in a research ready format</h2><img alt=\"world icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_1.svg><p class=AModal-caption>Choose a country and a unit of analysis.</p><img alt=\"layer icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_2.svg><p class=AModal-caption>Select and customize satellite and other spatial datasets from across disciplines.</p><img alt=\"download icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_3.svg><p class=AModal-caption>We will email you the data for use in Excel, STATA, R, or your favorite program as soon as it is ready - 100% free.</div>",
+        "content1": "<style>.AModal{display:-webkit-box;display:-ms-flexbox;display:flex;-ms-flex-wrap:wrap;flex-wrap:wrap;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-ms-flex-line-pack:center;align-content:center;width:500px;padding:1em 3em;background-color:#FFF;border-radius:4px}.AModal-biline,.AModal-caption{font-family:Helvetica,'san serif';color:#7c7c7c;font-size:.85em;font-weight:300}.AModal-biline{width:100%;margin:.5em 0;padding:.5em 0;border-top:1px solid #DDD;font-style:italic}.AModal-img{min-width:65px;min-height:65px;width:15%;height:auto;margin:0;padding:1em}.AModal-caption{width:70%;margin:0;margin-right:5%;padding:1em}</style><div class=AModal><h2 class=AModal-biline>A tool to leverage terabytes of geospatial data, helping you spend less time wrangling data and more time analyzing it.</h2><img alt=\"world icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_1.svg><p class=AModal-caption>Access geospatial data curated from publicly available sources.</p><img alt=\"layer icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_2.svg><p class=AModal-caption>Easily filter and join datsets to get the information you want.</p><img alt=\"download icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_3.svg><p class=AModal-caption>Check your email for a permanent link to download your data.</div>",
+        "content3": "<style>.AModal{display:-webkit-box;display:-ms-flexbox;display:flex;-ms-flex-wrap:wrap;flex-wrap:wrap;width:700px;padding:1em 3em;background-color:#FFF;border-radius:4px}.AModal-biline,.AModal-caption{font-family:Helvetica,'san serif';color:#7c7c7c;font-size:1.2em;font-weight:300}.AModal-biline{width:100%;margin:.5em 0;padding:.5em 0;border-top:1px solid #DDD;font-style:italic;font-size:15pt}.AModal-img{min-width:65px;min-height:65px;width:15%;height:auto;margin:0;padding:1em}.AModal-caption{width:75%;margin:0;padding:1em}</style><div class=AModal><h2 class=AModal-biline>A tool to access terabytes of geospatial data in a research ready format - allowing you to spend less time wrangling data, and more time analyzing it.</h2><img alt=\"world icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_1.svg><p class=AModal-caption>Choose from a curated collection of geospatial units of analysis including administrative boundaries, grids, and more.</p><img alt=\"layer icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_2.svg><p class=AModal-caption>Select and customize datasets from numerous disciplines and topics (international aid, climate and environment, conflict, economics, human welfare, and more).</p><img alt=\"download icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_3.svg><p class=AModal-caption>We will email you the data as soon as it is ready - 100% free.</div>",
+        "content2": "<style>.AModal{display:-webkit-box;display:-ms-flexbox;display:flex;-ms-flex-wrap:wrap;flex-wrap:wrap;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-ms-flex-line-pack:center;align-content:center;width:500px;padding:1em 3em;background-color:#FFF;border-radius:4px}.AModal-biline,.AModal-caption{font-family:Helvetica,'san serif';color:#7c7c7c;font-size:.85em;font-weight:300}.AModal-biline{width:100%;margin:.5em 0;padding:.5em 0;border-top:1px solid #DDD;font-style:italic;font-size:15pt}.AModal-img{min-width:85px;min-height:85px;width:15%;height:auto;margin:0;padding:1em}.AModal-caption{width:70%;margin:0;margin-right:5%;padding:1em;font-size:13pt}</style><div class=AModal><h2 class=AModal-biline>Join spatial data on aid with other datasets for use with your favorite program (including Excel, SPSS, STATA, R and more) - no training required.</h2><img alt=\"world icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_1.svg><p class=AModal-caption>Select geographic boundaries (country, census unit, and others) you want data for.</p><img alt=\"layer icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_2.svg><p class=AModal-caption>Select the data you want for those boundaries.</p><img alt=\"download icon\"class=AModal-img src=https://labs.aiddata.org/assets/img/icons/icon_3.svg><p class=AModal-caption>Check your email for a permanent link to download your data.</p><img alt=\"download icon\"class=AModal-img src=http://devlabs.aiddata.org/geo/images/action-redo-6x.png><p class=AModal-caption>Repeat for as many areas as you want, for free.</div>"
+    },
+    "help": [
+        {
+            "answer": "Yes, check out <a href='https://www.aiddata.org/geoquery'>aiddata.org/geo</a> for a range of tutorial videos, research applications, and more. ",
+            "question": "Do you have tutorials, videos, or additional resources where I can learn more?"
+        },
+        {
+            "answer": "Please email us at <a href='mailto:geo@aiddata.wm.edu'>geo@aiddata.wm.edu</a>",
+            "question": "How can I contact you for help or with questions I have?"
+        },
+        {
+            "answer": "You can request an extract with your own boundary file using the form found <u><a href='https://www.aiddata.org/geoquery/custom-requests'>HERE</a></u>",
+            "question": "Can I request data extracts using my own boundary files?"
+        },
+        {
+            "answer": "To get in touch with our team, please email use at <a href='mailto:geo@aiddata.wm.edu'>geo@aiddata.wm.edu</a>",
+            "question": "Where can I go to provide feedback or request new datasets?"
+        },
+        {
+            "answer": "Right now, you can only download data for one boundary at a time, but can put in multiple requests to get data on additional regions. We hope to improve this functionality in later releases.",
+            "question": "Can I select data for multiple boundaries?"
+        },
+        {
+            "answer": "We will email you a CSV for use in common programs (Excel, STATA, SPSS, etc), shape boundary information if you prefer use in GIS programs, and a PDF metadata file.",
+            "question": "What format will I receive data in?"
+        },
+        {
+            "answer": "You should cite both the individual data products you receive (details are provided in the metadata) as well as this tool: Goodman, S., BenYishay, A., Lv, Z., & Runfola, D. (2019). GeoQuery: Integrating HPC systems and public web-based geospatial data tools. Computers & Geosciences, 122, 103-112.",
+            "question": "How do I cite data I receive from this tool?"
+        },
+        {
+            "answer": "Yes. The documentation provided with your results will include citation and source information for individual datasets. These should be used along with a citation for geo.query",
+            "question": "Do I need to cite individual datasets?"
+        },
+        {
+            "answer": "This is highly dependent on the data requested. Many requests will be nearly instantaneous due to preprocessing and data caching, however requests which require processing may take up to several hours per aid permutation request (if selection has large number of project locations).",
+            "question": "How long will it take to receive my data?"
+        },
+        {
+            "answer": "Yes - we provide a number of examples of reports and publications using GeoQuery <u><a href='https://www.aiddata.org/geoquery/research'>HERE</a></u>.",
+            "question": "Do you have examples of the types of analyses that can be conducted using this data?"
+        },
+        {
+            "answer": "Yes, we work with a wide range of organizations to analyze spatial information.  Many examples can be seen at <u><a href='https://www.aiddata.org/geoquery/research'>HERE</a></u>. You can also contact us at <a href='mailto:geo@aiddata.wm.edu'>geo@aiddata.wm.edu</a> to learn more.",
+            "question": "Do you conduct research using this information?"
+        },
+        {
+            "answer": "Click the Submit Request at the upper-right then enter your email and click the big Submit button.",
+            "question": "How do I submit my request?"
+        },
+        {
+            "answer": "While we hope to implement this feature at a later date, you currently cannot modify previous requests.  However, you can input multiple requests into the system, and requests you previously made will be cached (and thus will not need to be processed again, and be returned to you quicker).",
+            "question": "Can I edit/update/resubmit previous requests?"
+        },
+        {
+            "answer": "Our filters are dynamically generated based on thhe underlying aid data and some datasets simply do not have projects for all years.",
+            "question": "Why are some years not listed in the filter for the aid dataset I selected?"
+        },
+        {
+            "answer": "You can read our paper <u><a href='https://www.sciencedirect.com/science/article/pii/S0098300418305326'>HERE</a></u> or visit <u><a href='https://www.aiddata.org/geoquery'>aiddata.org/geoquery</a></u> for links to our code and additional resources and documentation.",
+            "question": "Where can I find more details on the extract methods used (e.g., mean, sum, count, as well as aid data extractions)"
+        }
+    ],
+    "fields": [
+        {
+            "description": "Project sector names.",
+            "parent": false,
+            "filter_type": "list",
+            "is_default": true,
+            "field": "ad_sector_names",
+            "display": "sectors names"
+        },
+        {
+            "description": "Project donor names.",
+            "parent": false,
+            "filter_type": "list",
+            "is_default": true,
+            "field": "donors",
+            "display": "donor names"
+        },
+        {
+            "description": "Project title.",
+            "parent": false,
+            "filter_type": "list",
+            "is_default": false,
+            "field": "project_title",
+            "display": "project title"
+        },
+        {
+            "description": "Recipients ISO3 of project, usually corresponding to a country.",
+            "parent": false,
+            "filter_type": "list",
+            "is_default": false,
+            "field": "recipients_iso3",
+            "display": "recipients country iso3"
+        },
+        {
+            "description": "Status of project.",
+            "parent": false,
+            "filter_type": "list",
+            "is_default": false,
+            "field": "status",
+            "display": "status"
+        },
+        {
+            "description": "Earliest year associated with project",
+            "parent": false,
+            "filter_type": "list",
+            "is_default": false,
+            "field": "transactions_start_year",
+            "display": "start year"
+        },
+        {
+            "description": "Latest year associated with project",
+            "parent": false,
+            "filter_type": "list",
+            "is_default": false,
+            "field": "transactions_end_year",
+            "display": "end year"
+        },
+        {
+            "description": "Place name type descriptor(link to iati/geonames).",
+            "parent": "locations",
+            "filter_type": "list",
+            "is_default": false,
+            "field": "location_type_name",
+            "display": "location type name"
+        },
+        {
+            "description": "Location class code for project locations (link to iati).",
+            "parent": "locations",
+            "filter_type": "list",
+            "is_default": false,
+            "field": "location_class",
+            "display": "location class"
+        },
+        {
+            "description": "Geographic exactness codes for project locations (link to iati).",
+            "parent": "locations",
+            "filter_type": "list",
+            "is_default": false,
+            "field": "geographic_exactness",
+            "display": "geographic exactness codes"
+        },
+        {
+            "description": "Precision codes for project locations (link to iati).",
+            "parent": "locations",
+            "filter_type": "list",
+            "is_default": false,
+            "field": "precision_code",
+            "display": "precision codes"
+        }
+    ],
+    "featured_datasets": [
+        "atlasofurbanexpansion2016_urban_edge_t1",
+        "gha_adm2_gb_v4",
+        "china_osm_v301_5000m",
+        "viirs_vcmcfg_dnb_composites_v10_yearly_max",
+        "accessibility_to_cities_2015_v1.0",
+        "oco2_xco2_yearly",
+        "ltdr_avhrr_ndvi_v5_yearly"
+    ],
+    "terms_and_conditions": {
+        "content": [
+            "The database and derived products produced by this tool are governed by the license available at https://www.aiddata.org/geoquery/licenses.  By clicking submit you agree to the terms of the geo license, which are summarized as:",
+            "As long as you:",
+            "Attribute: You must attribute any public use of the database, or works produced from the database, in the manner specified in the license. For any use or redistribution of the database, or works produced from it, you must make clear to others the license of the database and keep intact any notices on the original database.",
+            "You are free:",
+            "To Share: To copy, distribute and use the database.",
+            "To Create: To produce works from the database.",
+            "To Adapt: To modify, transform and build upon the database.",
+            "This is not a license. It is simply a handy reference for understanding the ODC-BY 1.0 — it is a human-readable expression of some of its key terms. This summary has no legal value, and its contents do not appear in the actual license. Read the full ODC-BY 1.0 license text at https://www.aiddata.org/geoquery/licenses for the exact terms that apply."
+        ]
+    },
+    "submitted": {
+        "content": "You can review your current and past requests on this page, or start a new request.",
+        "title": "Your submission is now being processed"
+    },
+    "citation": "By clicking submit below, you agree to the terms and conditions listed and agree to cite the following in any and all applications of the extracted datasets: Goodman, S., BenYishay, A., Lv, Z., & Runfola, D. (2019). GeoQuery: Integrating HPC systems and public web-based geospatial data tools. Computers & Geosciences, 122, 103-112.",
+    "data_categories": [
+        {
+            "tag": "aid",
+            "display": "International Aid"
+        },
+        {
+            "tag": "environment",
+            "display": "Environment"
+        },
+        {
+            "tag": "conflict",
+            "display": "Conflict"
+        },
+        {
+            "tag": "economics",
+            "display": "Economics"
+        },
+        {
+            "tag": "welfare",
+            "display": "Human Welfare"
+        }
+    ],
+    "data_selection_intro": [
+        "Select a dataset on the left,",
+        "then filter using options on the right.",
+        "Add to your request when done, and select another dataset."
+    ],
+    "boundary_selection_intro": "Select a boundary on the left to begin."
+}
