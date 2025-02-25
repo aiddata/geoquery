@@ -38,11 +38,12 @@ python src/gqcore/utils/db/init/init_pg_views.py --overwrite
 
 ## Ingest data
 
+### Adding feature data
 To add feature data:
 ```
 python ingest/features/prepare_gB.py
 ```
-
+### Adding datasets
 To add datasets:
 ```
 python ingest/datasets/{ingest_dataset.py}
