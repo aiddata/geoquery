@@ -22,19 +22,6 @@ spec:
         args: [ "uvicorn src.gqcore.api.main:app --host 0.0.0.0 --port 8000" ]
         ports:
         - containerPort: 8000
-        volumeMounts:
-        - name: gq-config-vol
-          mountPath: /config
-        - name: postgis-secret-vol
-          mountPath: /secrets/db
-      volumes:
-      - name: gq-config-vol
-        configMap:
-          name: gq-config
-      - name: postgis-secret-vol
-        secret:
-          secretName: geoquery-postgis
-          optional: true
 ---
 apiVersion: v1
 kind: Service
