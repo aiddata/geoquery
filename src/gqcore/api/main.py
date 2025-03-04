@@ -10,6 +10,7 @@ http://127.0.0.1:8000/openapi.json
 """
 
 from fastapi import FastAPI
+import json
 
 from gqcore.utils.db.conn import get_conn
 
@@ -158,6 +159,14 @@ async def get_coverage(dataset_id: int):
             ).fetchall()
             return x
 
+@app.get("/info")
+async def root():
+    with open('info_resp.json', 'r') as json_file:
+        info_json_object = json.load(json_file)
+    
+    return [
+        json.dumps(info_json_object, indent=1)
+    ]
 
 # fake_items_db = [{"item_name": "Foo"}, {"item_name": "Bar"}, {"item_name": "Baz"}]
 
