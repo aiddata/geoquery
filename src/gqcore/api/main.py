@@ -27,6 +27,7 @@ async def root():
         "/feature_collections/{fc_id}",
         "/feat_map/{fc_id}",
         "/features/{feature_id}",
+        "/info"
     ]
 
 
@@ -161,7 +162,7 @@ async def get_coverage(dataset_id: int):
 
 @app.get("/info")
 async def root():
-    with open('info_resp.json', 'r') as json_file:
+    with open('src/gqcore/api/info_resp.json', 'r') as json_file:
         info_json_object = json.load(json_file)
     
     return [
