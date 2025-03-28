@@ -162,7 +162,7 @@ async def get_coverage(dataset_id: int):
             return x
 
 
-@app.get("/info", methods=["GET"])
+@app.get("/info")
 async def root():
     try:
         async with aiofiles.open('src/gqcore/api/info_resp.json', 'r') as json_file:
