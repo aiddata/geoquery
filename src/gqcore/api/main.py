@@ -11,6 +11,7 @@ http://127.0.0.1:8000/openapi.json
 
 from fastapi import FastAPI
 import json
+import aiofiles
 
 from gqcore.utils.db.conn import get_conn
 
@@ -158,16 +159,17 @@ async def get_coverage(dataset_id: int):
                 """SELECT * FROM coverage WHERE dataset_id = %s AND status = 1""",
                 (dataset_id,),
             ).fetchall()
-            return x
+            return xs
 
-@app.get("/info")
+@app.get("/info", methods=["GET"])
 async def root():
-    with open('src/gqcore/api/info_resp.json', 'r') as json_file:
-        info_json_object = json.load(json_file)
-    
-    return [
-        json.dumps(info_json_object, indent=1)
-    ]
+    try:
+        async with aiofiles.open('src/gqcore/api/info_resp.json', 'r') as json_file:
+            data = await json_file.read()
+            info_json_object = json.loads(data)
+        return info_json_object 
+    except Exception as e:
+        return {"error": str(e)}
 
 # fake_items_db = [{"item_name": "Foo"}, {"item_name": "Bar"}, {"item_name": "Baz"}]
 

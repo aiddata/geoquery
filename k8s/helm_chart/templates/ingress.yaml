@@ -28,13 +28,6 @@ spec:
           pathType: ImplementationSpecific
         - backend:
             service:
-              name: info
-              port:
-                name: http
-          path: /info/(.*)
-          pathType: ImplementationSpecific
-        - backend:
-            service:
               name: frontend
               port:
                 name: http
