@@ -9,7 +9,7 @@ http://127.0.0.1:8000/redoc
 http://127.0.0.1:8000/openapi.json
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 import json
 import aiofiles
 
@@ -159,7 +159,8 @@ async def get_coverage(dataset_id: int):
                 """SELECT * FROM coverage WHERE dataset_id = %s AND status = 1""",
                 (dataset_id,),
             ).fetchall()
-            return xs
+            return x
+
 
 @app.get("/info", methods=["GET"])
 async def root():
@@ -167,9 +168,9 @@ async def root():
         async with aiofiles.open('src/gqcore/api/info_resp.json', 'r') as json_file:
             data = await json_file.read()
             info_json_object = json.loads(data)
-        return info_json_object 
+        return info_json_object  
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 # fake_items_db = [{"item_name": "Foo"}, {"item_name": "Bar"}, {"item_name": "Baz"}]
 
