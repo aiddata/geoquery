@@ -11,7 +11,6 @@ http://127.0.0.1:8000/openapi.json
 
 from fastapi import FastAPI, HTTPException
 import json
-import aiofiles
 
 from gqcore.utils.db.conn import get_conn
 
@@ -165,10 +164,9 @@ async def get_coverage(dataset_id: int):
 @app.post("/info")
 async def root():
     try:
-        async with aiofiles.open('src/gqcore/api/info_resp.json', 'r') as json_file:
-            data = await json_file.read()
-            info_json_object = json.loads(data)
-        return info_json_object  
+        with open('src/gqcore/api/info_resp.json', 'r') as json_file:
+            info_json_object = json.load(json_file)
+        return info_json_object 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
