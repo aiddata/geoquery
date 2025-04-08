@@ -169,6 +169,28 @@ async def root():
         return info_json_object 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/boundaries")
+async def get_feature_collections():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            x = cur.execute(
+                """SELECT * FROM feature_collections WHERE active = false AND public = false"""
+            ).fetchall()
+            
+            if not x:
+                raise HTTPException(status_code=500, detail='No boundaries data')
+            
+            feature_collection_list = [
+                {
+                    "id": i["id"],
+                    "name": i["name"],
+                    "title": i["title"],
+                    "description": i["description"],
+                }
+                for i in x
+            ]
+            return feature_collection_list
 
 # fake_items_db = [{"item_name": "Foo"}, {"item_name": "Bar"}, {"item_name": "Baz"}]
 
