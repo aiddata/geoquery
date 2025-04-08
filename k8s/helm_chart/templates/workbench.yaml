@@ -1,3 +1,4 @@
+{{ if .Values.dev.enabled -}}
 {{- $pvname := printf "%s-%s" "geo-datasets-pv-workbench" .Release.Name }}
 {{- $pvexists := lookup "v1" "persistentvolume" .Release.Namespace $pvname }}
 {{- if not $pvexists -}}
@@ -34,8 +35,7 @@ spec:
     requests:
       storage: 100Gi
 {{- end }}
-
-{{ if .Values.dev.enabled -}}
+---
 apiVersion: v1
 kind: Pod
 metadata:
