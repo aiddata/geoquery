@@ -12,4 +12,7 @@ COPY docs docs
 COPY scripts scripts
 COPY mkdocs.yml mkdocs.yml
 
+# for writing to NFS mounts
+RUN groupadd ad-reu -g 9915
+
 RUN pip install --no-cache-dir .
