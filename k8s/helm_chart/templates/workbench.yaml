@@ -1,4 +1,4 @@
-{{- $pvname := printf "%s-%s" "geo-datasets-pvc-workbench" .Release.Name }}
+{{- $pvname := printf "%s-%s" "geo-datasets-pv-workbench" .Release.Name }}
 {{- $pvexists := lookup "v1" "persistentvolume" .Release.Namespace $pvname }}
 {{- if not $pvexists -}}
 apiVersion: v1
