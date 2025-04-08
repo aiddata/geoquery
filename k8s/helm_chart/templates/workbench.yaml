@@ -14,7 +14,7 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   claimRef:
     namespace: {{ .Release.Namespace }}
-    name: geo-datasets-pvc
+    name: geo-datasets-pvc-workbench
   {{- toYaml .Values.geo_datasets_volume | nindent 2 }}
 {{- end }}
 ---
