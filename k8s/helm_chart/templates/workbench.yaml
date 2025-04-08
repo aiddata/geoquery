@@ -18,7 +18,7 @@ spec:
   {{- toYaml .Values.geo_datasets_volume | nindent 2 }}
 {{- end }}
 ---
-{{- $pvcexists := lookup "v1" "PersistentVolumeClaim" .Release.Namespace "geo-datasets-pvc" }}
+{{- $pvcexists := lookup "v1" "PersistentVolumeClaim" .Release.Namespace "geo-datasets-pvc-workbench" }}
 {{- if not $pvcexists }}
 apiVersion: v1
 kind: PersistentVolumeClaim
