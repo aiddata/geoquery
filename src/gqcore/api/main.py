@@ -179,7 +179,7 @@ async def get_feature_collections():
             ).fetchall()
             
             if not x:
-                raise HTTPException(status_code=500, detail='No boundaries data')
+                return {"message": "No data returned"}
             
             feature_collection_list = [
                 {
