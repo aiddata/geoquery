@@ -170,7 +170,7 @@ async def root():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-@app.get("/boundaries")
+@app.post("/boundaries")
 async def get_feature_collections():
     with get_conn() as conn:
         with conn.cursor() as cur:
