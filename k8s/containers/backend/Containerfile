@@ -1,5 +1,13 @@
 FROM python:3.11-bookworm
 
+# install vim, sudo
+# these are more development-oriented and we should consider removing them in the future
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends \
+    sudo \
+    vim \
+&& rm -rf /var/lib/apt/lists/*
+
 RUN mkdir geoquery
 WORKDIR geoquery
 
