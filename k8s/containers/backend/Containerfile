@@ -15,6 +15,9 @@ WORKDIR geoquery
 COPY src src
 COPY pyproject.toml pyproject.toml
 
+# we should consider removing these and only including them in ingest-related processes
+COPY ingest ingest
+
 # copy docs over too
 COPY docs docs
 COPY scripts scripts
