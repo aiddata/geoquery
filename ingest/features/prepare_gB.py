@@ -3,7 +3,6 @@ import json
 from pathlib import Path
 from typing import List, Optional
 
-import fiona
 import geopandas as gpd
 import requests
 import shapely
@@ -76,22 +75,6 @@ ingest_items = sorted(ingest_items, key=lambda d: d["boundaryISO"])
 
 
 @logger.catch(reraise=False)
-# helper function
-def save_with_overwrite(gdf, gpkg_path, layer_name):
-    with fiona.open(
-        gpkg_path,
-        "w",
-        driver="GPKG",
-        layer=layer_name,
-        schema=gdf.schema,
-        crs=gdf.crs,
-        overwrite=False,
-    ) as dst:
-        for feature in gdf.iterfeatures():
-            dst.write(feature)
-
-
-@logger.catch(reraise=False)
 def ingest_gb_item(item: dict):
     iso3 = item["boundaryISO"]
 
@@ -148,8 +131,7 @@ def ingest_gb_item(item: dict):
         else:
             gdf["shapeName"] = None
 
-    # Use the helper function to save with overwrite
-    save_with_overwrite(gdf, gpkg_path, adm_meta["name"])
+    gdf.to_file(gpkg_path, driver="GPKG")
 
     logger.debug(f"Getting bounding box for {commit_dl_url}")
     spatial_extent = shapely.box(*gdf.total_bounds).wkt
