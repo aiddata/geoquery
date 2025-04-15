@@ -6,6 +6,7 @@ on:
       - jwhall
       - cmhwang
     paths:
+      - 'ingest/**'
       - 'src/**'
       - 'scripts/**'
       - 'docs/**'

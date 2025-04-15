@@ -1,23 +1,22 @@
+import concurrent.futures
 import json
 from pathlib import Path
 from typing import List, Optional
-import concurrent.futures
 
-from loguru import logger
 import geopandas as gpd
 import requests
 import shapely
-from psycopg.types.json import Json, Jsonb
+from loguru import logger
 
-import fiona
-
-from gqcore.utils.logs import get_logger
-from gqcore.utils.ingest.ingest_feature_collection import ingest_feature_collection
 from gqcore.utils.db import features as futils
+from gqcore.utils.ingest.ingest_feature_collection import (
+    ingest_feature_collection,
+)
+from gqcore.utils.logs import get_logger
 
 get_logger("ingest")
 
-logger.info(f"Starting geoBoundaries bulk ingest")
+logger.info("Starting geoBoundaries bulk ingest")
 
 # set this to None to download all ISO3 boundaries
 # dl_iso3_list: Optional[List[str]] = ["GHA", "AFG"]
@@ -28,7 +27,7 @@ target_gb_commit = "0faed0c"
 gb_dir = Path("/geo-datasets/data/boundaries/geoboundaries")
 
 output_path = Path(
-    f"/geo-datasets/data/boundaries/geoboundaries/v6_9469f09_57dcd43"
+    "/geo-datasets/data/boundaries/geoboundaries/v6_9469f09_57dcd43"
 )
 output_path.mkdir(exist_ok=True, parents=True)
 
@@ -57,10 +56,12 @@ default_meta = {
 
 all_url = f"https://raw.githubusercontent.com/wmgeolab/gbWeb/{target_gb_commit}/api/current/gbOpen/ALL/ALL/index.json"
 
+
 def get_api_url(url):
     response = requests.get(url)
     content = response.json()
     return content
+
 
 api_data = get_api_url(all_url)
 
@@ -70,20 +71,11 @@ if dl_iso3_list is None:
 else:
     ingest_items = [i for i in api_data if i["boundaryISO"] in dl_iso3_list]
 
-ingest_items = sorted(ingest_items, key=lambda d: d['boundaryISO'])
-
-
-@logger.catch(reraise=False)
-# helper function
-def save_with_overwrite(gdf, gpkg_path, layer_name):
-    with fiona.open(gpkg_path, 'w', driver='GPKG', layer=layer_name, schema=gdf.schema, crs=gdf.crs, overwrite=False) as dst:
-        for feature in gdf.iterfeatures():
-            dst.write(feature)
+ingest_items = sorted(ingest_items, key=lambda d: d["boundaryISO"])
 
 
 @logger.catch(reraise=False)
 def ingest_gb_item(item: dict):
-
     iso3 = item["boundaryISO"]
 
     adm_meta = default_meta.copy()
@@ -92,12 +84,12 @@ def ingest_gb_item(item: dict):
 
     logger.info(f"Processing geoBoundaries item: {adm_meta['name']}")
 
-    adm_meta[
-        "title"
-    ] = f"geoBoundaries v6 - {item['boundaryName']} {item['boundaryType']}"
-    adm_meta[
-        "description"
-    ] = f"This feature collection represents the {item['boundaryType']} level boundaries for {item['boundaryName']} ({iso3}) from geoBoundaries v6."
+    adm_meta["title"] = (
+        f"geoBoundaries v6 - {item['boundaryName']} {item['boundaryType']}"
+    )
+    adm_meta["description"] = (
+        f"This feature collection represents the {item['boundaryType']} level boundaries for {item['boundaryName']} ({iso3}) from geoBoundaries v6."
+    )
     adm_meta["details"] = ""
     adm_meta["group_name"] = f"gb_v6_{iso3}"
     adm_meta["group_title"] = f"gB v6 - {iso3}"
@@ -132,7 +124,6 @@ def ingest_gb_item(item: dict):
                 logger.error(f"Failed to download {commit_dl_url}")
                 return
 
-
     if "shapeName" not in gdf.columns:
         potential_name_field = f'{item["boundaryType"]}_NAME'
         if potential_name_field in gdf.columns:
@@ -140,8 +131,7 @@ def ingest_gb_item(item: dict):
         else:
             gdf["shapeName"] = None
 
-    # Use the helper function to save with overwrite
-    save_with_overwrite(gdf, gpkg_path, adm_meta["name"])
+    gdf.to_file(gpkg_path, driver="GPKG")
 
     logger.debug(f"Getting bounding box for {commit_dl_url}")
     spatial_extent = shapely.box(*gdf.total_bounds).wkt
@@ -171,7 +161,13 @@ def ingest_gb_item(item: dict):
     # futils.insert_feature_collection(FC)
     # # futils.update_feature_collection(FC)
 
-    ingest_feature_collection(json_data=adm_meta, skip_existing=True, update_meta=False, replace_features=False, update_features=False)
+    ingest_feature_collection(
+        json_data=adm_meta,
+        skip_existing=True,
+        update_meta=False,
+        replace_features=False,
+        update_features=False,
+    )
 
 
 if __name__ == "__main__":
@@ -179,7 +175,9 @@ if __name__ == "__main__":
     #     ingest_gb_item(item)
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
-        futures = [executor.submit(ingest_gb_item, item) for item in ingest_items]
+        futures = [
+            executor.submit(ingest_gb_item, item) for item in ingest_items
+        ]
 
         e = []
         for result in concurrent.futures.as_completed(futures):

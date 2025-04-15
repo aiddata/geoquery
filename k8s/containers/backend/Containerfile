@@ -1,11 +1,22 @@
 FROM python:3.11-bookworm
 
+# install vim, sudo
+# these are more development-oriented and we should consider removing them in the future
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends \
+    sudo \
+    vim \
+&& rm -rf /var/lib/apt/lists/*
+
 RUN mkdir geoquery
 WORKDIR geoquery
 
 # we should eventually move the python package to one directory for ease of copying
 COPY src src
 COPY pyproject.toml pyproject.toml
+
+# we should consider removing these and only including them in ingest-related processes
+COPY ingest ingest
 
 # copy docs over too
 COPY docs docs
