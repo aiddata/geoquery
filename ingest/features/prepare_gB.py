@@ -109,6 +109,40 @@ def ingest_gb_item(item: dict):
     gpkg_path = output_path / f"{Path(commit_dl_url).stem}.gpkg"
     adm_meta["path"] = str(gpkg_path)
 
+    json_path = gpkg_path.with_suffix(".json")
+
+    if gpkg_path.exists():
+        # TO DO fill in actual code for if file downloaded but not json
+        logger.info(f"{gpkg_path.name} already downloaded, skipping download & ingest.")
+        # if not json_path.exists():
+        #     export_adm_meta = adm_meta.copy()
+        #     export_adm_meta["features"] = None
+        #     with open(json_path, "w") as file:
+        #         json.dump(export_adm_meta, file, indent=4)
+
+        # need features to be downloaded cuz not in json
+            
+        gdf = gpd.read_file(commit_dl_url) # to do add a try statement
+        feature_list = []
+        for ix, row in gdf.iterrows():
+            feature_list.append(
+                futils.Feature(
+                    geometry=row.geometry.wkt,
+                    name=row["shapeName"],
+                    attr=row.drop(["geometry"]).to_dict(),
+                    parent=None,
+                )
+            )
+
+        with open(json_path) as f:
+            json_data = json.load(f)
+        
+        adm_meta = json_data.copy()
+        adm_meta["features"] = feature_list
+
+        ingest_feature_collection(json_data=adm_meta, skip_existing=False, update_meta=False, replace_features=False, update_features=False)
+        return
+
     logger.debug(f"Downloading {commit_dl_url}")
     try:
         gdf = gpd.read_file(commit_dl_url)
@@ -153,7 +187,6 @@ def ingest_gb_item(item: dict):
     # export to json
     export_adm_meta = adm_meta.copy()
     export_adm_meta["features"] = None
-    json_path = gpkg_path.with_suffix(".json")
     with open(json_path, "w") as file:
         json.dump(export_adm_meta, file, indent=4)
 
