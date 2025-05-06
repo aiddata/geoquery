@@ -13,9 +13,11 @@ def ingest_feature_collection(
     json_path: str = None,
     json_data: dict = None,
     skip_existing: bool = False,
-    update_meta: bool = False,
+    update_meta: bool = True,
     replace_features: bool = False,
     update_features: bool = False,
+    set_active: bool = None,
+    set_public: bool = None,
 ) -> None:
     """
     Ingest a feature collection into GeoQuery.
@@ -27,6 +29,8 @@ def ingest_feature_collection(
         update_meta: Passed to [gqcore.utils.db.features.insert_feature_collection][]
         replace_features: Passed to [gqcore.utils.db.features.insert_feature_collection][]
         update_features: Passed to [gqcore.utils.db.features.insert_feature_collection][]
+        set_active: Optional boolean to manually set the 'active' variable to True or False.
+        set_public: Optional boolean to manually set the 'public' variable to True or False.
     """
     logger.info(f"Starting feature collection ingest")
 
@@ -44,17 +48,24 @@ def ingest_feature_collection(
 
     logger.info(f"Creating feature collection: {data['name']}")
 
+    active = 't' if set_active else 'f' 
+    public = 't' if set_public else 'f' 
+
     FC = futils.FeatureCollection(**data)
 
     logger.info(
-        f"Inserting feature collection (update_meta={update_meta}, replace_features={replace_features}, update_features={update_features}))"
+        f"Inserting feature collection (update_meta={update_meta}, replace_features={replace_features}, update_features={update_features}, set_active={set_active}, set_public={set_public})"
     )
+
     futils.insert_feature_collection(
         FC,
         skip_existing=skip_existing,
         update_meta=update_meta,
         replace_features=replace_features,
         update_features=update_features,
+        set_active=set_active,
+        set_public=set_public,
     )
 
     logger.success(f"Finished feature collection ingest")
+

@@ -75,7 +75,7 @@ ingest_items = sorted(ingest_items, key=lambda d: d["boundaryISO"])
 
 
 @logger.catch(reraise=False)
-def ingest_gb_item(item: dict):
+def ingest_gb_item(item: dict, set_active, set_public):
     iso3 = item["boundaryISO"]
 
     adm_meta = default_meta.copy()
@@ -197,19 +197,35 @@ def ingest_gb_item(item: dict):
     ingest_feature_collection(
         json_data=adm_meta,
         skip_existing=True,
-        update_meta=False,
+        update_meta=True,
         replace_features=False,
         update_features=False,
+        set_active=set_active,
+        set_public=set_public,
     )
 
+import click
 
-if __name__ == "__main__":
-    # for item in ingest_items:
-    #     ingest_gb_item(item)
+@click.command()
+def main():
+    """Run geoBoundaries ingest with 0 or 1 input to set public/active."""
+    choice = input("Enter 0 for private/inactive or 1 for public/active: ").strip()
+
+    if choice == "0":
+        set_active = False
+        set_public = False
+    elif choice == "1":
+        set_active = True
+        set_public = True
+    else:
+        click.echo("Invalid input. Please enter 0 or 1.")
+        return
+
+    click.echo(f"\nProceeding with active={default_meta['active']} and public={default_meta['public']}\n")
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
         futures = [
-            executor.submit(ingest_gb_item, item) for item in ingest_items
+            executor.submit(ingest_gb_item, item, set_active, set_public) for item in ingest_items
         ]
 
         e = []
@@ -223,3 +239,6 @@ if __name__ == "__main__":
             logger.error(f"{len(unique_e)} unique exceptions occurred:")
             logger.error(f"Unique exceptions: {unique_e}")
             logger.exception(e[0])
+
+if __name__ == "__main__":
+    main()
