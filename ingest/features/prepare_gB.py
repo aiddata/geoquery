@@ -32,8 +32,8 @@ output_path = Path(
 output_path.mkdir(exist_ok=True, parents=True)
 
 default_meta = {
-    "active": 0,
-    "public": 0,
+    "active": 1,
+    "public": 1,
     "name": None,
     "path": None,
     "file_extension": ".gpkg",
@@ -101,8 +101,8 @@ def ingest_gb_item(item: dict):
     # save full metadata from geoboundaries api to the "other" field
     adm_meta["other"] = item.copy()
 
-    commit_dl_url = item["gjDownloadURL"]
-    # "https://github.com/wmgeolab/geoBoundaries/raw/c0ed7b8/releaseData/gbOpen/AFG/ADM0/geoBoundaries-AFG-ADM0.geojson",
+    commit_dl_url = "https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/AFG/ADM0/geoBoundaries-AFG-ADM0.geojson"
+    # "https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/AFG/ADM0/geoBoundaries-AFG-ADM0.geojson",
 
     # commit_dl_url = raw_dl_url.replace(raw_dl_url.split("/")[6], target_gb_commit)
 
@@ -140,7 +140,7 @@ def ingest_gb_item(item: dict):
         adm_meta = json_data.copy()
         adm_meta["features"] = feature_list
 
-        ingest_feature_collection(json_data=adm_meta, skip_existing=False, update_meta=False, replace_features=False, update_features=False)
+        ingest_feature_collection(json_data=adm_meta, skip_existing=False, update_meta=True, replace_features=False, update_features=True)
         return
 
     logger.debug(f"Downloading {commit_dl_url}")
