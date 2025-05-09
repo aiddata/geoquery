@@ -32,8 +32,8 @@ output_path = Path(
 output_path.mkdir(exist_ok=True, parents=True)
 
 default_meta = {
-    "active": 0,
-    "public": 0,
+    "active": 1,
+    "public": 1,
     "name": None,
     "path": None,
     "file_extension": ".gpkg",
@@ -75,7 +75,7 @@ ingest_items = sorted(ingest_items, key=lambda d: d["boundaryISO"])
 
 
 @logger.catch(reraise=False)
-def ingest_gb_item(item: dict):
+def ingest_gb_item(item: dict, set_active, set_public):
     iso3 = item["boundaryISO"]
 
     adm_meta = default_meta.copy()
@@ -101,13 +101,47 @@ def ingest_gb_item(item: dict):
     # save full metadata from geoboundaries api to the "other" field
     adm_meta["other"] = item.copy()
 
-    commit_dl_url = item["gjDownloadURL"]
-    # "https://github.com/wmgeolab/geoBoundaries/raw/c0ed7b8/releaseData/gbOpen/AFG/ADM0/geoBoundaries-AFG-ADM0.geojson",
+    commit_dl_url = "https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/AFG/ADM0/geoBoundaries-AFG-ADM0.geojson"
+    # "https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/AFG/ADM0/geoBoundaries-AFG-ADM0.geojson",
 
     # commit_dl_url = raw_dl_url.replace(raw_dl_url.split("/")[6], target_gb_commit)
 
     gpkg_path = output_path / f"{Path(commit_dl_url).stem}.gpkg"
     adm_meta["path"] = str(gpkg_path)
+
+    json_path = gpkg_path.with_suffix(".json")
+
+    if gpkg_path.exists():
+        # TO DO fill in actual code for if file downloaded but not json
+        logger.info(f"{gpkg_path.name} already downloaded, skipping download & ingest.")
+        # if not json_path.exists():
+        #     export_adm_meta = adm_meta.copy()
+        #     export_adm_meta["features"] = None
+        #     with open(json_path, "w") as file:
+        #         json.dump(export_adm_meta, file, indent=4)
+
+        # need features to be downloaded cuz not in json
+            
+        gdf = gpd.read_file(commit_dl_url) # to do add a try statement
+        feature_list = []
+        for ix, row in gdf.iterrows():
+            feature_list.append(
+                futils.Feature(
+                    geometry=row.geometry.wkt,
+                    name=row["shapeName"],
+                    attr=row.drop(["geometry"]).to_dict(),
+                    parent=None,
+                )
+            )
+
+        with open(json_path) as f:
+            json_data = json.load(f)
+        
+        adm_meta = json_data.copy()
+        adm_meta["features"] = feature_list
+
+        ingest_feature_collection(json_data=adm_meta, skip_existing=False, update_meta=True, replace_features=False, update_features=True)
+        return
 
     logger.debug(f"Downloading {commit_dl_url}")
     try:
@@ -153,7 +187,6 @@ def ingest_gb_item(item: dict):
     # export to json
     export_adm_meta = adm_meta.copy()
     export_adm_meta["features"] = None
-    json_path = gpkg_path.with_suffix(".json")
     with open(json_path, "w") as file:
         json.dump(export_adm_meta, file, indent=4)
 
@@ -164,19 +197,35 @@ def ingest_gb_item(item: dict):
     ingest_feature_collection(
         json_data=adm_meta,
         skip_existing=True,
-        update_meta=False,
+        update_meta=True,
         replace_features=False,
         update_features=False,
+        set_active=set_active,
+        set_public=set_public,
     )
 
+import click
 
-if __name__ == "__main__":
-    # for item in ingest_items:
-    #     ingest_gb_item(item)
+@click.command()
+def main():
+    """Run geoBoundaries ingest with 0 or 1 input to set public/active."""
+    choice = input("Enter 0 for private/inactive or 1 for public/active: ").strip()
+
+    if choice == "0":
+        set_active = False
+        set_public = False
+    elif choice == "1":
+        set_active = True
+        set_public = True
+    else:
+        click.echo("Invalid input. Please enter 0 or 1.")
+        return
+
+    click.echo(f"\nProceeding with active={default_meta['active']} and public={default_meta['public']}\n")
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
         futures = [
-            executor.submit(ingest_gb_item, item) for item in ingest_items
+            executor.submit(ingest_gb_item, item, set_active, set_public) for item in ingest_items
         ]
 
         e = []
@@ -190,3 +239,6 @@ if __name__ == "__main__":
             logger.error(f"{len(unique_e)} unique exceptions occurred:")
             logger.error(f"Unique exceptions: {unique_e}")
             logger.exception(e[0])
+
+if __name__ == "__main__":
+    main()

@@ -14,7 +14,9 @@ def insert_feature_collection(
     skip_existing: bool = False,
     update_meta: bool = False,
     replace_features: bool = False,
-    update_features: bool = False,
+    update_features: bool = True,
+    set_active: bool = False,
+    set_public: bool = False,
 ) -> None:
     """
     Insert a feature collection into the database.
@@ -56,6 +58,11 @@ def insert_feature_collection(
                     raise ValueError("No feature collection found with that name")
             else:
                 feature_collection_id = _insert_feature_collection(cur, fc_params)
+            
+            if set_active and set_public:
+                feature_collection_id = _update_active_public(cur, fc_params)
+                if not feature_collection_id:
+                    raise ValueError("No feature collection found with that name")
 
             if replace_features:
                 # delete all features associated with this feature collection
@@ -80,6 +87,7 @@ def insert_feature_collection(
                         feature,
                         check_existing=update_features,
                     )
+
 
 
 def _get_feature_collection_id(cur: Cursor, name: str) -> int:
@@ -123,6 +131,23 @@ def _update_feature_collection(cur: Cursor, params: dict) -> int:
             group_title = %(group_title)s,
             group_class = %(group_class)s,
             group_level = %(group_level)s
+        WHERE name = %(name)s
+        RETURNING id;
+    """
+
+    cur.execute(query, params)
+    result = cur.fetchone()
+    if result is None:
+        feature_collection_id = None
+    else:
+        feature_collection_id = result["id"]
+    return feature_collection_id
+
+def _update_active_public(cur: Cursor, params: dict) -> int:
+    query = """
+        UPDATE feature_collections SET
+            active = 't',
+            public = 't',
         WHERE name = %(name)s
         RETURNING id;
     """

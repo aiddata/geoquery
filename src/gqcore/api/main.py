@@ -11,6 +11,8 @@ http://127.0.0.1:8000/openapi.json
 
 from fastapi import FastAPI, HTTPException
 import json
+from pathlib import Path
+from datetime import datetime
 
 from gqcore.utils.db.conn import get_conn
 
@@ -169,28 +171,106 @@ async def root():
         return info_json_object 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# helper function for /boundaries endpoint, consider putting in utils
+def convert_sql_row_to_subboundary(row: dict) -> dict:
+    other_raw = row.get("other", {})
+    if isinstance(other_raw, str):
+        try:
+            other = json.loads(other_raw)
+        except json.JSONDecodeError:
+            other = {}
+    elif isinstance(other_raw, dict):
+        other = other_raw
+    else:
+        other = {}
+
+    try:
+        start = int(row.get("temporal_start") or "10000101")
+    except ValueError:
+        start = 10000101
+
+    try:
+        end = int(row.get("temporal_end") or "99991231")
+    except ValueError:
+        end = 99991231
+
+    name = row.get("name", "")
+    path = row.get("path", "")
+    file_name = Path(path).name
+    base_path = str(Path(path).parent)
+
+    sub_boundary = {
+        "name": other.get("boundaryName", name),
+        "boundaryId": other.get("boundaryID", name),
+        "temporal": {
+            "start": start,
+            "end": end,
+            "type": row.get("temporal_type", "None"),
+            "name": row.get("temporal_name", "Temporally Invariant"),
+            "format": "None"
+        },
+        "file_format": "vector",
+        "file_extension": row.get("file_extension", "").lstrip("."),
+        "title": row.get("title", ""),
+        "extras": {
+            "sources_name": row.get("source_name", ""),
+            "citation": row.get("citation", ""),
+            "sources_web": row.get("source_url", ""),
+            "tags": row.get("tags", "").strip("{}").split(",") if row.get("tags") else []
+        },
+        "resources": [
+            {
+                "path": file_name,
+                "start": start,
+                "end": end,
+                "name": name,
+                "bytes": None
+            }
+        ],
+        "base": base_path,
+        "scale": "global" if row.get("is_global", False) else "national",
+        "version": "1",
+        "spatial": {
+            "type": "Polygon",
+            "coordinates": []  
+        },
+        "active": int(row.get("active", 0)),
+        "type": "boundary",
+        "options": {
+            "group": row.get("group_name", ""),
+            "group_title": row.get("group_title", ""),
+            "group_class": row.get("group_class", "")
+        },
+        "asdf": {
+            "date_updated": str(row.get("date_updated", datetime.today().date())),
+            "date_added": str(row.get("date_added", datetime.today().date())),
+            "version": "1.0",
+            "generator": "sql_to_json_script",
+            "script": "convert_sql_boundaries.py"
+        },
+        "description": row.get("description", "")
+    }
+
+    return sub_boundary
+
     
 @app.post("/boundaries")
-async def get_feature_collections():
+def get_boundaries():
+    x = []
+
     with get_conn() as conn:
         with conn.cursor() as cur:
-            x = cur.execute(
-                """SELECT * FROM feature_collections WHERE active = false AND public = false"""
-            ).fetchall()
-            
-            if not x:
-                return {"message": "No data returned"}
-            
-            feature_collection_list = [
-                {
-                    "id": i["id"],
-                    "name": i["name"],
-                    "title": i["title"],
-                    "description": i["description"],
-                }
-                for i in x
-            ]
-            return feature_collection_list
+            cur.execute("SELECT * FROM feature_collections WHERE other IS NOT NULL")
+            rows = cur.fetchall()
+            for row in rows:
+                try:
+                    sub_boundary = convert_sql_row_to_subboundary(row)
+                    x.append(sub_boundary)
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=str(e))
+
+    return x
 
 # fake_items_db = [{"item_name": "Foo"}, {"item_name": "Bar"}, {"item_name": "Baz"}]
 
