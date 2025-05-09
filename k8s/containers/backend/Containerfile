@@ -36,4 +36,5 @@ USER jwhall:ad-reu
 # RUN chown -R jwhall .
 
 # perhaps we should remove the editable flag for production
-RUN pip install --editable --no-cache-dir .
+# ...if we do so, we should perhaps add --no-cache-dir back
+RUN pip install --editable .
