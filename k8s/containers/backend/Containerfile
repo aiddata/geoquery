@@ -23,6 +23,9 @@ COPY docs docs
 COPY scripts scripts
 COPY mkdocs.yml mkdocs.yml
 
+# increase maximum number of users allowed on system
+RUN sed -i -e 's/^UID_MAX.*$/&0/g' /etc/login.defs
+
 # use the jwhall user to get around NFS permission nonsense
 RUN useradd jwhall -ms /bin/bash -u 220294
 RUN groupadd ad-reu -g 9915
