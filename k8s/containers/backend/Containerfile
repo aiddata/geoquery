@@ -26,4 +26,5 @@ COPY mkdocs.yml mkdocs.yml
 # for writing to NFS mounts
 RUN groupadd ad-reu -g 9915
 
-RUN pip install --no-cache-dir .
+# perhaps we should remove the editable flag for production
+RUN pip install --editable --no-cache-dir .
