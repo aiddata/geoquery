@@ -31,7 +31,7 @@ RUN useradd jwhall -ms /bin/bash -u 220294
 RUN groupadd ad-reu -g 9915
 
 # jwhall and ad-reu
-USER jwhall:ad-reu
+# USER jwhall:ad-reu
 
 # RUN chown -R jwhall .
 
