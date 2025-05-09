@@ -9,17 +9,13 @@ import gqcore.utils
 __version__ = "0.0.1"
 
 
-
-
 def get_config():
-    local_config_path = os.path.dirname(__file__) + "/config.toml"
-    local_exists = os.path.exists(local_config_path)
-    if local_exists:
+    local_config_path = Path(__file__).parent / "config.toml"
+    if local_config_path.exists():
         local_config = toml.load(local_config_path)
         if local_config["main"]["use_local_config"]:
             logger.trace("Local config found and being used...")
             return local_config["main"]
-
 
     k8s_config = {}
 
@@ -65,13 +61,15 @@ def get_config():
             except Exception as e:
                 logger.warning(f"Error loading config item {s.name}: {e}")
 
-
     if k8s_config != {}:
         logger.trace("Kubernetes config found and being used...")
         return k8s_config
 
-
-    local_str = "not found" if not local_exists else "found but not being used"
+    local_str = (
+        "not found"
+        if not local_config_path.exists()
+        else "found but not being used"
+    )
     logger.exception(
         f"No secrets directory found, and local config {local_str}."
     )
