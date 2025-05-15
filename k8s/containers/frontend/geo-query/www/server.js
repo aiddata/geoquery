@@ -8,7 +8,7 @@ var express = require("express"),
 
 var httpApp = express();
 
-httpApp.set("port", process.env.PORT || 8000);
+httpApp.set("port", process.env.PORT || 8020);
 
 httpApp.use(compress()); //gzip support
 

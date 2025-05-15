@@ -20,7 +20,7 @@ spec:
       - name: frontend
         image: {{ .Values.frontend_image }}
         ports:
-        - containerPort: 8000
+        - containerPort: 8020
 ---
 apiVersion: v1
 kind: Service
@@ -33,4 +33,4 @@ spec:
   - name: http
     protocol: TCP
     port: 80
-    targetPort: 8000
+    targetPort: 8020
