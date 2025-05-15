@@ -1,0 +1,21 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Values.postgis.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgis:16-3.4
+  bootstrap:
+    initdb:
+      postInitTemplateSQL:
+        - CREATE EXTENSION postgis;
+        - CREATE EXTENSION postgis_topology;
+        - CREATE EXTENSION fuzzystrmatch;
+      database: geoquery
+      owner: geoquery
+      secret:
+        name: geoquery-postgis
+  storage:
+    size: 30Gi
+    storageClass: {{ .Values.storageClass }}

@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: extracts
+  namespace: {{.Release.Namespace}}
+  labels:
+    app: extracts
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: extracts
+  template:
+    metadata:
+      labels:
+        app: extracts
+        geoquery.org/log-group: backend
+    spec:
+      serviceAccount: geoquery-super
+      serviceAccountName: geoquery-super
+      volumes:
+      - name: geoquery-pv
+        hostPath:
+          path: /tmp/geoquery-update
+      - name: gq-config-vol
+        configMap:
+          name: gq-config
+      - name: postgis-secret-vol
+        secret:
+          secretName: geoquery-postgis
+          optional: true
+      - name: email-secret-vol
+        secret:
+          secretName: geoquery-gmail
+          optional: true
+      containers:
+      - name: extracts
+        image: {{ .Values.backend_image }}
+        command: [ "/bin/bash", "-c", "--" ]
+        args: [ "python /geoquery/src/gqcore/tasks/process_extract_tasks.py" ]
+        volumeMounts:
+        - name: geoquery-pv
+          mountPath: /tmp/geoquery-update
+        - name: gq-config-vol
+          mountPath: /config
+        - name: postgis-secret-vol
+          mountPath: /secrets/db
+        - name: email-secret-vol
+          mountPath: /secrets/email

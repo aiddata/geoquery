@@ -1,0 +1,142 @@
+features
+  id integer pk
+  geom geometry UNIQUE
+
+feature_collections
+  id "serial integer" pk
+  active int
+  public int
+  name varchar UNIQUE
+  path varchar
+  file_extension varchar
+  file_mask varchar
+  title varchar UNIQUE
+  description varchar
+  details varchar
+  tags array
+  citation varchar
+  source_name varchar
+  source_link varchar
+  other jsonb
+  spatial geometry
+  date_added datetime
+  date_updated datetime
+  temporal_start datetime
+  temporal_end datetime
+  temporal_step interval
+  is_global boolean
+  ingest_src varchar
+  group_name varchar
+  group_title varchar
+  group_class varchar
+  group_level int
+
+feat_map
+  id "serial integer"
+  fc_id "serial integer" pk fk feature_collections.id
+  geom_id varchar pk fk features.id
+  name varchar(200)
+  attr jsonb
+  parent int fk feat_map.id
+
+datasets
+  id "serial integer" pk
+  active boolean
+  mapped boolean
+  name varchar UNIQUE
+  type varchar
+  path varchar
+  file_extension varchar
+  file_mask varchar
+  title varchar UNIQUE
+  description varchar
+  details varchar
+  tags array
+  citation varchar
+  source_name varchar
+  source_url varchar
+  variable_description varchar
+  variable_factor float
+  other jsonb
+  temporal_start datetime
+  temporal_end datetime
+  temporal_step interval
+  spatial_extent geometry
+  date_added datetime
+  date_updated datetime
+  is_global boolean
+  coverage_dependency int fk datasets.id
+  ingest_src varchar
+
+dataset_resources
+  id integer pk
+  dataset_id integer fk datasets.id
+  name varchar UNIQUE
+  path  varchar
+  temporal_start datetime
+  temporal_end datetime
+  spatial_extent geometry
+  size_kb int
+  other jsonb
+
+mappings
+  dataset_id fk datasets.id
+  map_name varchar
+  map_val int
+
+processing_options
+  id "serial integer" pk
+  active int
+  public int
+  dataset_id "serial integer" fk datasets.id
+  short_name varchar(10)
+  description varchar(500)
+  function varchar(100)
+  kwargs json
+
+coverage
+  geom_id integer pk fk features.id
+  dataset_id integer pk fk datasets.id
+  status int
+
+extract_tasks
+  id  "SERIAL INTEGER"
+  resource_id integer pk fk dataset_resources.id
+  fm_id integer pk fk feat_map.id
+  processing_options_id fk processing_options.id
+  status int
+  priority int
+  submit_time timestamp
+  start_time timestamp
+  update_time timestamp
+  complete_time timestamp
+  attempts int
+  error varchar
+  kwargs jsonb pk
+
+extract_data
+  id int fk extract_tasks.id
+  name fk mappings.map_name
+  data_column varchar
+  float_value float
+  int_value int
+  str_value varchar
+
+requests
+  id uuid
+  date datetime
+  source varchar
+  contact varchar
+  custom_name varchar
+  info varchar
+  status int
+  priority int
+  submit_time datetime
+  prepare_time datetime
+  process_time datetime
+  complete_time datetime
+  data jsonb
+
+request_map
+  req_id uuid fk requests.id
+  task_id integer fk extract_tasks.id

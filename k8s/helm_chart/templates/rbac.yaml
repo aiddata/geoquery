@@ -1,0 +1,98 @@
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: geoquery-super
+  namespace: {{.Release.Namespace}}
+
+---
+
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: super-user-role
+rules:
+  # Application: watching & handling for the custom resource we declare.
+  - apiGroups: [kubernetes.dask.org]
+    resources: [daskclusters, daskworkergroups, daskworkergroups/scale, daskjobs, daskautoscalers]
+    verbs: [get, list, watch, patch, create, delete]
+
+  # Application: other resources it needs to watch and get information from.
+  - apiGroups:
+    - ""  # indicates the core API group
+    resources: [pods, pods/status]
+    verbs:
+    - "get"
+    - "list"
+    - "watch"
+
+  - apiGroups:
+    - ""  # indicates the core API group
+    resources: [services]
+    verbs:
+    - "get"
+    - "list"
+    - "watch"
+  
+  - apiGroups:
+    - "postgresql.cnpg.io"
+    resources: [clusters/status]
+    verbs:
+    - "get"
+
+---
+
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: dask-role
+rules:
+  # Application: watching & handling for the custom resource we declare.
+  - apiGroups: [kubernetes.dask.org]
+    resources: [daskclusters, daskworkergroups, daskworkergroups/scale, daskjobs, daskautoscalers]
+    verbs: [get, list, watch, patch, create, delete]
+
+  # Application: other resources it needs to watch and get information from.
+  - apiGroups:
+    - ""  # indicates the core API group
+    resources: [pods, pods/status]
+    verbs:
+    - "get"
+    - "list"
+    - "watch"
+
+  - apiGroups:
+    - ""  # indicates the core API group
+    resources: [services]
+    verbs:
+    - "get"
+    - "list"
+    - "watch"
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dask-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dask-role
+subjects:
+  - kind: ServiceAccount
+    namespace: {{ .Release.Namespace }}
+    name: geoquery-super  # adjust name based on the service account you created
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: super-user-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: super-user-role
+subjects:
+  - kind: ServiceAccount
+    namespace: {{ .Release.Namespace }}
+    name: geoquery-super  # adjust name based on the service account you created

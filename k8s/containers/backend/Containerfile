@@ -1,0 +1,40 @@
+FROM python:3.11-bookworm
+
+# install vim, sudo
+# these are more development-oriented and we should consider removing them in the future
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends \
+    sudo \
+    vim \
+&& rm -rf /var/lib/apt/lists/*
+
+RUN mkdir geoquery
+WORKDIR geoquery
+
+# we should eventually move the python package to one directory for ease of copying
+COPY src src
+COPY pyproject.toml pyproject.toml
+
+# we should consider removing these and only including them in ingest-related processes
+COPY ingest ingest
+
+# copy docs over too
+COPY docs docs
+COPY scripts scripts
+COPY mkdocs.yml mkdocs.yml
+
+# increase maximum number of users allowed on system
+RUN sed -i -e 's/^UID_MAX.*$/&0/g' /etc/login.defs
+
+# use the jwhall user to get around NFS permission nonsense
+RUN useradd jwhall -ms /bin/bash -u 220294
+RUN groupadd ad-reu -g 9915
+
+# jwhall and ad-reu
+# USER jwhall:ad-reu
+
+# RUN chown -R jwhall .
+
+# perhaps we should remove the editable flag for production
+# ...if we do so, we should perhaps add --no-cache-dir back
+RUN pip install --editable .

@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: errors
+  namespace: {{.Release.Namespace}}
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: "Forbid"
+  suspend: false
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 180
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          serviceAccount: geoquery-super
+          serviceAccountName: geoquery-super
+          volumes:
+          - name: gq-config-vol
+            configMap:
+              name: gq-config
+          - name: postgis-secret-vol
+            secret:
+              secretName: geoquery-postgis
+              optional: true
+          - name: email-secret-vol
+            secret:
+              secretName: geoquery-gmail
+              optional: true
+          containers:
+          - name: extracts
+            image: {{.Values.backend_image}}
+            command: [ "/bin/bash", "-c", "--" ]
+            args: [ "python /geoquery/src/gqcore/tasks/manage_errors.py" ]
+            volumeMounts:
+            - name: gq-config-vol
+              mountPath: /config
+            - name: postgis-secret-vol
+              mountPath: /secrets/db
+            - name: email-secret-vol
+              mountPath: /secrets/email

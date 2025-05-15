@@ -1,0 +1,122 @@
+agentContainer: "python:3.11.7"
+
+storageClass: manual
+
+dev:
+  # enables "workbench" container for testing out scripts
+  enabled: false
+
+# image to use for all geoquery backend jobs
+backend_image: null
+data_root: "/tmp/geoquery-update"
+
+# image to use for the frontend (website)
+frontend_image: null
+
+# connection info for read-only geo-datasets PV/C
+geo_datasets_volume:
+  storageClassName: nfs
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+  nfs:
+    path: /sciclone/nova/test/geo
+    server: 128.239.59.130
+
+# config for primary geoquery database
+# make sure to override these in my_values.yaml
+postgis:
+  name: "postgis-cluster"
+  username: "[POSTGIS USERNAME]"
+  password: "[POSTGIS PASSWORD]"
+  port: "5432"
+  dbname: "geoquery"
+
+# frontend ingress configuration
+# you must specify host!
+# TODO: make this more configurable, to work with any ingress controller
+ingress:
+  ingressClassName: nginx
+  host: null
+
+# login details for outgoing email server
+# used to send users info about their requests
+# make sure to override these in my_values.yaml
+email:
+  sender: "[EMAIL SENDER]"
+  password: "[EMAIL PASSWORD]"
+  reply_to: "[EMAIL REPLYTO]"
+  server: "smtp.gmail.com"
+  port: "587"
+  backup_server: "localhost"
+
+documentation:
+  devtag: "test"
+  request_url: "geoquery.org"
+
+extracts:
+  max_tasks: "1000"
+  max_workers: "50"
+  active_sleep: "5"
+  inactive_sleep: "30"
+  scale_sleep: "30"
+
+# configuration for grafana subchart,
+# dashboard that connects to various monitoring
+# solutions across cluster
+grafana:
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      # for more info on these, see documentation on how to provision
+      # data sources for grafana
+      # https://grafana.com/docs/grafana/latest/administration/provisioning/
+      # it's important that we set static UIDs for these data sources so that
+      # dashboards can always find them on install
+      datasources:
+        # this should point to our loki log monitoring solution, configured above
+        - name: "Loki"
+          type: "loki"
+          access: "proxy"
+          uid: "P982945308D3682D1"
+          url: "http://loki-gateway.{{ .Release.Namespace }}.svc.cluster.local"
+
+        # this should point to our postgres database, also configured above
+        - name: "Postgres"
+          type: "postgres"
+          uid: "P44368ADAD746BC27"
+          url: "postgis-cluster-r.{{ .Release.Namespace }}.svc.cluster.local:5432"
+          user: "geoquery"
+          secureJsonData:
+            password: "dante"
+          jsonData:
+            database: geoquery
+            sslmode: "disable"
+
+        # point to prometheus, configured separately (see "test.sh" in parent directory)
+        - name: "Prometheus"
+          type: "prometheus"
+          uid: "PBFA97CFB590B2093"
+          url: "http://prometheus-kube-prometheus-prometheus.prometheus.svc.cluster.local:9090"
+
+  # provision dashboards
+  # these coincide with templates/grafana-dashboard-configmap.yaml, see that file for more context
+  # see the following grafana community thread for more info:
+  # https://community.grafana.com/t/how-to-provision-a-dashboard-from-grafana-com-dashboards-when-deploying-grafana-using-the-helm-chart/46341/4
+  # TODO: make it easier to add more than one dashboard in the future
+  dashboardProviders:
+   dashboardproviders.yaml:
+     apiVersion: 1
+     providers:
+     - name: 'default'
+       orgId: 1
+       folder: ''
+       type: file
+       disableDeletion: false
+       editable: true
+       options:
+         path: /var/lib/grafana/dashboards/default
+  dashboardsConfigMaps:
+    default: "grafana-dashboards"
+  rbac:
+    namespaced: true

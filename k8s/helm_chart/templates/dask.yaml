@@ -1,0 +1,88 @@
+apiVersion: kubernetes.dask.org/v1
+kind: DaskCluster
+metadata:
+  name: extract-dask-cluster
+  namespace: {{.Release.namespace}}
+spec:
+  scheduler:
+    service:
+      ports:
+        - name: tcp-comm
+          port: 8786
+          protocol: TCP
+          targetPort: tcp-comm
+        - name: http-dashboard
+          port: 8787
+          protocol: TCP
+          targetPort: http-dashboard
+      selector:
+        dask.org/cluster-name: extract-dask-cluster
+        dask.org/component: scheduler
+      type: ClusterIP
+    spec:
+      containers:
+        - args:
+            - dask-scheduler
+            - --host
+            - 0.0.0.0
+          env:
+            - name: FOO
+              value: bar
+          image: {{ .Values.backend_image }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http-dashboard
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          name: scheduler
+          ports:
+            - containerPort: 8786
+              name: tcp-comm
+              protocol: TCP
+            - containerPort: 8787
+              name: http-dashboard
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http-dashboard
+            initialDelaySeconds: 5
+            periodSeconds: 10
+  worker:
+    replicas: 3
+    spec:
+      volumes:
+      - name: geoquery-pv
+        hostPath:
+          path: /tmp/geoquery-update
+      - name: gq-config-vol
+        configMap:
+          name: gq-config
+      - name: postgis-secret-vol
+        secret:
+          secretName: geoquery-postgis
+          optional: true
+      - name: email-secret-vol
+        secret:
+          secretName: geoquery-gmail
+          optional: true
+      containers:
+        - args:
+            - dask-worker
+            - --name
+            - $(DASK_WORKER_NAME)
+          env:
+            - name: FOO
+              value: bar
+          image: {{ .Values.backend_image }}
+          name: worker
+          volumeMounts:
+          - name: geoquery-pv
+            mountPath: /tmp/geoquery-update
+          - name: gq-config-vol
+            mountPath: /config
+          - name: postgis-secret-vol
+            mountPath: /secrets/db
+          - name: email-secret-vol
+            mountPath: /secrets/email
