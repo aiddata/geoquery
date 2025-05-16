@@ -1,13 +1,13 @@
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 import rasterio
 import shapely
 from dateutil.relativedelta import relativedelta
 from loguru import logger
-from psycopg.types.json import Json, Jsonb
+from psycopg.types.json import Jsonb
 from shapely.geometry import box
 
 from gqcore.utils.db.conn import get_conn
@@ -21,7 +21,7 @@ from gqcore.utils.db.helpers import (
     _update_dataset,
     _update_dataset_from_resources,
 )
-from gqcore.utils.models import Dataset, DatasetResource, ProcessingOption
+from gqcore.utils.models import Dataset, DatasetResource
 
 
 @logger.catch(reraise=True)

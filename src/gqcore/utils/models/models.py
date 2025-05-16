@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -30,7 +30,12 @@ class Feature(BaseModel):
         return g
 
 
-class FeatureCollection(BaseModel):
+class IngestFeatureCollection(BaseModel):
+    """
+    A feature collection, along with all of its features, ready to be ingested into the system.
+    Does not include an ID, as those are assigned by the database.
+    """
+
     active: bool = False
     public: bool = False
     name: str
@@ -59,6 +64,39 @@ class FeatureCollection(BaseModel):
     features: List[Feature]
 
 
+class FeatureCollection(BaseModel):
+    """
+    A feature collection as stored by (and selected from) the database.
+    """
+
+    id: int
+    active: bool = False
+    public: bool = False
+    name: str
+    path: str
+    file_extension: str
+    file_mask: Optional[str] = None
+    title: str
+    description: str
+    details: Optional[str] = None
+    tags: List[str]
+    citation: Optional[str] = None
+    source_name: Optional[str] = None
+    source_url: Optional[str] = None
+    other: Optional[dict] = None
+    temporal_start: Optional[datetime] = None
+    temporal_end: Optional[datetime] = None
+    temporal_name: Optional[str] = None
+    temporal_type: Optional[str] = None
+    spatial_extent: str
+    is_global: bool
+    ingest_src: Optional[str] = None
+    group_name: Optional[str] = None
+    group_title: Optional[str] = None
+    group_class: Optional[str] = None
+    group_level: Optional[int] = None
+
+
 class DatasetResource(BaseModel):
     name: str
     path: str
@@ -68,9 +106,7 @@ class DatasetResource(BaseModel):
 
 
 class ProcessingOption(BaseModel):
-    dataset_id: int = (
-        None  # this needs to be None in the model because dataset id is not known at the time of validation
-    )
+    dataset_id: int = None  # this needs to be None in the model because dataset id is not known at the time of validation
     active: bool = False
     public: bool = False
     short_name: str

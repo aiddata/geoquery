@@ -9,12 +9,15 @@ http://127.0.0.1:8000/redoc
 http://127.0.0.1:8000/openapi.json
 """
 
-from fastapi import FastAPI, HTTPException
 import json
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+from typing import List
 
-from gqcore.utils.db.conn import get_conn
+from fastapi import FastAPI, Form, HTTPException
+
+from gqcore.utils.db.features import get_feature_collections
+from gqcore.utils.models.models import FeatureCollection
 
 app = FastAPI()
 
@@ -29,8 +32,27 @@ async def root():
         "/feature_collections/{fc_id}",
         "/feat_map/{fc_id}",
         "/features/{feature_id}",
-        "/info"
+        "/info",
     ]
+
+
+@app.post("/")
+async def root_post(domain: str = Form(...), call: str = Form(default=None)):
+    if domain == "aiddata" and (call == "get_info"):
+        try:
+            with open("src/gqcore/api/info_resp.json", "r") as json_file:
+                info_json_object = json.load(json_file)
+            return {"data": info_json_object}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    elif call == "get_boundaries":
+        feature_collections: List[FeatureCollection] = get_feature_collections()
+        boundaries = {}
+
+        # TODO: load boundaries dictionary and transform it correctly for output
+
+        return {"data": boundaries}
+    return {"message": "Post request to root endpoint", "domain": domain, "call": call}
 
 
 @app.get("/datasets")
@@ -50,16 +72,7 @@ async def get_datasets():
                 for i in x
             ]
             return dataset_list
-        
-@app.get("/get_dataset/{dataset_id}") #performs same function as /datasets/{dataset_id}
-async def get_dataset(dataset_id: int):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            x = cur.execute(
-                """SELECT * FROM datasets WHERE active = true AND public = true AND id = %s""",
-                (dataset_id,),
-            ).fetchone()
-            return x
+
 
 @app.get("/datasets/{dataset_id}")
 async def get_dataset(dataset_id: int):
@@ -142,7 +155,7 @@ async def get_coverage():
 
 
 @app.get("/coverage/features/{feature_id}")
-async def get_coverage(feature_id: int):
+async def get_feature_coverage(feature_id: int):
     with get_conn() as conn:
         with conn.cursor() as cur:
             x = cur.execute(
@@ -153,7 +166,7 @@ async def get_coverage(feature_id: int):
 
 
 @app.get("/coverage/datasets/{dataset_id}")
-async def get_coverage(dataset_id: int):
+async def get_dataset_coverage(dataset_id: int):
     with get_conn() as conn:
         with conn.cursor() as cur:
             x = cur.execute(
@@ -162,15 +175,6 @@ async def get_coverage(dataset_id: int):
             ).fetchall()
             return x
 
-
-@app.post("/info")
-async def root():
-    try:
-        with open('src/gqcore/api/info_resp.json', 'r') as json_file:
-            info_json_object = json.load(json_file)
-        return info_json_object 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 # helper function for /boundaries endpoint, consider putting in utils
 def convert_sql_row_to_subboundary(row: dict) -> dict:
@@ -208,7 +212,7 @@ def convert_sql_row_to_subboundary(row: dict) -> dict:
             "end": end,
             "type": row.get("temporal_type", "None"),
             "name": row.get("temporal_name", "Temporally Invariant"),
-            "format": "None"
+            "format": "None",
         },
         "file_format": "vector",
         "file_extension": row.get("file_extension", "").lstrip("."),
@@ -217,60 +221,36 @@ def convert_sql_row_to_subboundary(row: dict) -> dict:
             "sources_name": row.get("source_name", ""),
             "citation": row.get("citation", ""),
             "sources_web": row.get("source_url", ""),
-            "tags": row.get("tags", "").strip("{}").split(",") if row.get("tags") else []
+            "tags": row.get("tags", "").strip("{}").split(",")
+            if row.get("tags")
+            else [],
         },
         "resources": [
-            {
-                "path": file_name,
-                "start": start,
-                "end": end,
-                "name": name,
-                "bytes": None
-            }
+            {"path": file_name, "start": start, "end": end, "name": name, "bytes": None}
         ],
         "base": base_path,
         "scale": "global" if row.get("is_global", False) else "national",
         "version": "1",
-        "spatial": {
-            "type": "Polygon",
-            "coordinates": []  
-        },
+        "spatial": {"type": "Polygon", "coordinates": []},
         "active": int(row.get("active", 0)),
         "type": "boundary",
         "options": {
             "group": row.get("group_name", ""),
             "group_title": row.get("group_title", ""),
-            "group_class": row.get("group_class", "")
+            "group_class": row.get("group_class", ""),
         },
         "asdf": {
             "date_updated": str(row.get("date_updated", datetime.today().date())),
             "date_added": str(row.get("date_added", datetime.today().date())),
             "version": "1.0",
             "generator": "sql_to_json_script",
-            "script": "convert_sql_boundaries.py"
+            "script": "convert_sql_boundaries.py",
         },
-        "description": row.get("description", "")
+        "description": row.get("description", ""),
     }
 
     return sub_boundary
 
-    
-@app.post("/boundaries")
-def get_boundaries():
-    x = []
-
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM feature_collections WHERE other IS NOT NULL")
-            rows = cur.fetchall()
-            for row in rows:
-                try:
-                    sub_boundary = convert_sql_row_to_subboundary(row)
-                    x.append(sub_boundary)
-                except Exception as e:
-                    raise HTTPException(status_code=500, detail=str(e))
-
-    return x
 
 # fake_items_db = [{"item_name": "Foo"}, {"item_name": "Bar"}, {"item_name": "Baz"}]
 

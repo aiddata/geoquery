@@ -66,10 +66,6 @@ def get_config():
         return k8s_config
 
     local_str = (
-        "not found"
-        if not local_config_path.exists()
-        else "found but not being used"
+        "not found" if not local_config_path.exists() else "found but not being used"
     )
-    logger.exception(
-        f"No secrets directory found, and local config {local_str}."
-    )
+    logger.exception(f"No secrets directory found, and local config {local_str}.")

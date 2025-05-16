@@ -1,10 +1,9 @@
-import traceback as tb
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import shapely
 from loguru import logger
-from psycopg import Connection, Cursor
+from psycopg import Cursor
 from psycopg.rows import class_row
 from pydantic import BaseModel, ConfigDict, field_validator
 from shapely import Geometry

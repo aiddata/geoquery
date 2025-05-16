@@ -1,6 +1,5 @@
 from typing import Dict
 
-import psycopg
 import shapely
 from loguru import logger
 from psycopg import Cursor

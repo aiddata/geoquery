@@ -43,7 +43,7 @@ def ingest_feature_collection(
 
     logger.info(f"Creating feature collection: {data['name']}")
 
-    feature_collection = futils.FeatureCollection(**data)
+    feature_collection = futils.IngestFeatureCollection(**data)
 
     logger.info(
         f"Inserting feature collection (replace_features={replace_features}, update_features={update_features})"

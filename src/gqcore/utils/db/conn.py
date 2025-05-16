@@ -23,7 +23,7 @@ def get_conn(**kwargs):
 
     # make database connection and yield it
     with logger.catch(exception=psycopg.Error, level="CRITICAL"):
-        connect_str = f'postgres://{config["postgis_username"]}:{config["postgis_password"]}@{config["postgis_address"]}:{config["postgis_port"]}/{config["postgis_dbname"]}'
+        connect_str = f"postgres://{config['postgis_username']}:{config['postgis_password']}@{config['postgis_address']}:{config['postgis_port']}/{config['postgis_dbname']}"
         with psycopg.connect(connect_str, **kwargs) as conn:
             logger.trace("Successfully connected to database")
             yield conn
@@ -38,7 +38,7 @@ def get_static_conn(**kwargs):
 
     # make database connection and yield it
     with logger.catch(exception=psycopg.Error, level="CRITICAL"):
-        connect_str = f'postgres://{config["postgis_username"]}:{config["postgis_password"]}@{config["postgis_address"]}:{config["postgis_port"]}/{config["postgis_dbname"]}'
+        connect_str = f"postgres://{config['postgis_username']}:{config['postgis_password']}@{config['postgis_address']}:{config['postgis_port']}/{config['postgis_dbname']}"
         conn = psycopg.connect(connect_str, **kwargs)
         logger.trace("Successfully connected to database")
         return conn

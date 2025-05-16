@@ -1,22 +1,35 @@
 """Manage features in the database."""
 
+from typing import List, Optional
+
 from loguru import logger
 from psycopg import Cursor
+from psycopg.rows import class_row
 from psycopg.types.json import Jsonb
 
 from gqcore.utils.db.conn import get_conn
-from gqcore.utils.models import Feature, FeatureCollection
+from gqcore.utils.models import Feature, FeatureCollection, IngestFeatureCollection
+
+
+def get_feature_collections() -> List[FeatureCollection]:
+    """
+    Get all feature collections from the database.
+    """
+    query = """
+        SELECT * FROM feature_collections;
+    """
+
+    with get_conn() as conn:
+        with conn.cursor(row_factory=class_row(FeatureCollection)) as cur:
+            return cur.execute(query).fetchall()
 
 
 @logger.catch(reraise=False)
 def insert_feature_collection(
-    feature_collection: FeatureCollection,
+    feature_collection: IngestFeatureCollection,
     skip_existing: bool = False,
-    update_meta: bool = False,
     replace_features: bool = False,
     update_features: bool = True,
-    set_active: bool = False,
-    set_public: bool = False,
 ) -> None:
     """
     Insert a feature collection into the database.
@@ -24,19 +37,16 @@ def insert_feature_collection(
     Parameters:
         feature_collection: A `gqcore.utils.models.FeatureCollection` object representing the feature collection to be inserted.
         skip_existing: If `#!python True`, feature collections will not be inserted if there is already a feature collection of the same name.
-        update_meta:
-        replace_features: Delete all features associated with this feature collection, and any features that are not associated with any feature collection.
+        replace_features: Delete all features associated with this feature collection, and any features that are not associated with any feature collection, before inserting this feature collection.
         update_features:
     """
-    fc_params = feature_collection.dict()
-    fc_params["other"] = Jsonb(fc_params["other"])
 
-    if replace_features or update_features:
-        if not update_meta:
-            logger.warning(
-                "update_meta will be set to True if replace_features or update_features is True"
-            )
-            update_meta = True
+    # if replace_features or update_features:
+    #     if not update_meta:
+    #         logger.warning(
+    #             "update_meta will be set to True if replace_features or update_features is True"
+    #         )
+    #         update_meta = True
 
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -44,25 +54,22 @@ def insert_feature_collection(
 
             if skip_existing:
                 feature_collection_id = _get_feature_collection_id(
-                    cur, fc_params["name"]
+                    cur, feature_collection.name
                 )
                 if feature_collection_id:
                     logger.info(
-                        f"Skipping feature collection {fc_params['name']} because it already exists"
+                        f"Skipping feature collection {feature_collection.name} because it already exists"
                     )
                     return
 
-            if update_meta:
-                feature_collection_id = _update_feature_collection(cur, fc_params)
-                if not feature_collection_id:
-                    raise ValueError("No feature collection found with that name")
-            else:
-                feature_collection_id = _insert_feature_collection(cur, fc_params)
-
-            if set_active and set_public:
-                feature_collection_id = _update_active_public(cur, fc_params)
-                if not feature_collection_id:
-                    raise ValueError("No feature collection found with that name")
+            # if update_meta:
+            #     feature_collection_id = _update_feature_collection(
+            #         cur, feature_collection
+            #     )
+            #     if not feature_collection_id:
+            #         raise ValueError("No feature collection found with that name")
+            # else:
+            feature_collection_id = _insert_feature_collection(cur, feature_collection)
 
             if replace_features:
                 # delete all features associated with this feature collection
@@ -79,7 +86,7 @@ def insert_feature_collection(
                     """
                 )
 
-            if update_features or replace_features or not update_meta:
+            if update_features or replace_features:  # or not update_meta:
                 for feature in feature_collection.features:
                     _insert_feature(
                         cur,
@@ -103,7 +110,9 @@ def _get_feature_collection_id(cur: Cursor, name: str) -> Optional[int]:
         return result["id"]
 
 
-def _update_feature_collection(cur: Cursor, params: dict) -> Optional[int]:
+def _update_feature_collection(
+    cur: Cursor, feature_collection: IngestFeatureCollection
+) -> Optional[int]:
     query = """
         UPDATE feature_collections SET
             active = %(active)s,
@@ -134,6 +143,9 @@ def _update_feature_collection(cur: Cursor, params: dict) -> Optional[int]:
         RETURNING id;
     """
 
+    params = dict(feature_collection)
+    params["other"] = Jsonb(params["other"])
+
     cur.execute(query, params)
     result = cur.fetchone()
     if result is None:
@@ -143,7 +155,9 @@ def _update_feature_collection(cur: Cursor, params: dict) -> Optional[int]:
     return feature_collection_id
 
 
-def _insert_feature_collection(cur: Cursor, params: dict) -> int:
+def _insert_feature_collection(
+    cur: Cursor, feature_collection: IngestFeatureCollection
+) -> int:
     query = """
         INSERT INTO feature_collections (
             active,
@@ -198,6 +212,9 @@ def _insert_feature_collection(cur: Cursor, params: dict) -> int:
         ) RETURNING id;
     """
 
+    params = dict(feature_collection)
+    params["other"] = Jsonb(params["other"])
+
     cur.execute(query, params)
     feature_collection_id = cur.fetchone()["id"]
     return feature_collection_id
@@ -207,43 +224,33 @@ def _insert_feature(
     cur: Cursor,
     feature_collection_id: int,
     feature: Feature,
-    check_existing: bool = False,
-) -> None:
+    check_existing: bool = True,
+) -> int:
+    """
+    Insert a feature, associating it with a feature collection and returning its ID.
+
+    If check_existing is True, return the ID of any identical feature in the database.
+    """
     wkt = feature.geometry
 
+    feature_id = None
+
     if check_existing:
-        # check if geom is already in features table, returning any matching ids
+        # check if geom is already in features table, returning matching id
         query = """
-            SELECT
-                f.id as geom_id,
-                fm.id as fm_id,
-                fm.fc_id as fc_id
-            FROM (
-                SELECT * FROM features
-            ) AS f
-            INNER JOIN (
-                SELECT * FROM feat_map
-            ) AS fm
-            ON f.id = fm.geom_id
-            WHERE fc_id = %s AND ST_Equals(ST_GeomFromText(%s), shape)
-            ;
+            SELECT id FROM features WHERE ST_Equals(ST_GeomFromText(%s), shape);
         """
         cur.execute(
             query,
-            (
-                feature_collection_id,
-                wkt,
-            ),
+            (wkt,),
         )
-        result = cur.fetchone()["geom_id"]
+        result = cur.fetchone()
 
-        # query = """
-        #     SELECT id FROM features WHERE ST_Equals(ST_GeomFromText(%s), shape)
-        # """
-        # cur.execute(query, (wkt,), )
-        # result = cur.fetchone()
+        # if we did get a result, return the id
+        if result is not None:
+            feature_id = result["id"]
 
-    else:
+    if feature_id is None:
         cur.execute(
             """
             INSERT INTO features (shape) VALUES (ST_GeomFromText(%s)) RETURNING id;
