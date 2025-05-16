@@ -23,7 +23,7 @@ def insert_feature_collection(
 
     Parameters:
         feature_collection: A `gqcore.utils.models.FeatureCollection` object representing the feature collection to be inserted.
-        skip_existing: If `#!python True`, feature collections will not be inserted if there is already a feature collection if the same name.
+        skip_existing: If `#!python True`, feature collections will not be inserted if there is already a feature collection of the same name.
         update_meta:
         replace_features: Delete all features associated with this feature collection, and any features that are not associated with any feature collection.
         update_features:
@@ -58,7 +58,7 @@ def insert_feature_collection(
                     raise ValueError("No feature collection found with that name")
             else:
                 feature_collection_id = _insert_feature_collection(cur, fc_params)
-            
+
             if set_active and set_public:
                 feature_collection_id = _update_active_public(cur, fc_params)
                 if not feature_collection_id:
@@ -87,7 +87,6 @@ def insert_feature_collection(
                         feature,
                         check_existing=update_features,
                     )
-
 
 
 def _get_feature_collection_id(cur: Cursor, name: str) -> int:
@@ -142,6 +141,7 @@ def _update_feature_collection(cur: Cursor, params: dict) -> int:
     else:
         feature_collection_id = result["id"]
     return feature_collection_id
+
 
 def _update_active_public(cur: Cursor, params: dict) -> int:
     query = """
