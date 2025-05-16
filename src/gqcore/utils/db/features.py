@@ -89,7 +89,7 @@ def insert_feature_collection(
                     )
 
 
-def _get_feature_collection_id(cur: Cursor, name: str) -> int:
+def _get_feature_collection_id(cur: Cursor, name: str) -> Optional[int]:
     cur.execute(
         """
         SELECT id FROM feature_collections WHERE name = %s;
@@ -103,7 +103,7 @@ def _get_feature_collection_id(cur: Cursor, name: str) -> int:
         return result["id"]
 
 
-def _update_feature_collection(cur: Cursor, params: dict) -> int:
+def _update_feature_collection(cur: Cursor, params: dict) -> Optional[int]:
     query = """
         UPDATE feature_collections SET
             active = %(active)s,
@@ -143,7 +143,7 @@ def _update_feature_collection(cur: Cursor, params: dict) -> int:
     return feature_collection_id
 
 
-def _update_active_public(cur: Cursor, params: dict) -> int:
+def _update_active_public(cur: Cursor, params: dict) -> Optional[int]:
     query = """
         UPDATE feature_collections SET
             active = 't',
