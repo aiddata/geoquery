@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from typing import List, Optional
 
+import click
 import geopandas as gpd
 import requests
 import shapely
@@ -26,14 +27,12 @@ target_gb_commit = "0faed0c"
 
 gb_dir = Path("/geo-datasets/data/boundaries/geoboundaries")
 
-output_path = Path(
-    "/geo-datasets/data/boundaries/geoboundaries/v6_9469f09_57dcd43"
-)
+output_path = Path("/geo-datasets/data/boundaries/geoboundaries/v6_9469f09_57dcd43")
 output_path.mkdir(exist_ok=True, parents=True)
 
 default_meta = {
-    "active": 1,
-    "public": 1,
+    "active": False,
+    "public": False,
     "name": None,
     "path": None,
     "file_extension": ".gpkg",
@@ -75,7 +74,7 @@ ingest_items = sorted(ingest_items, key=lambda d: d["boundaryISO"])
 
 
 @logger.catch(reraise=False)
-def ingest_gb_item(item: dict, set_active, set_public):
+def ingest_gb_item(item: dict, set_active: bool, set_public: bool):
     iso3 = item["boundaryISO"]
 
     adm_meta = default_meta.copy()
@@ -93,55 +92,16 @@ def ingest_gb_item(item: dict, set_active, set_public):
     adm_meta["details"] = ""
     adm_meta["group_name"] = f"gb_v6_{iso3}"
     adm_meta["group_title"] = f"gB v6 - {iso3}"
-    adm_meta["group_class"] = (
-        "parent" if item["boundaryType"] == "ADM0" else "child"
-    )
+    adm_meta["group_class"] = "parent" if item["boundaryType"] == "ADM0" else "child"
     adm_meta["group_level"] = int(item["boundaryType"][3:])
 
     # save full metadata from geoboundaries api to the "other" field
     adm_meta["other"] = item.copy()
 
-    commit_dl_url = "https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/AFG/ADM0/geoBoundaries-AFG-ADM0.geojson"
-    # "https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/AFG/ADM0/geoBoundaries-AFG-ADM0.geojson",
-
-    # commit_dl_url = raw_dl_url.replace(raw_dl_url.split("/")[6], target_gb_commit)
+    commit_dl_url = item["gjDownloadURL"]
 
     gpkg_path = output_path / f"{Path(commit_dl_url).stem}.gpkg"
     adm_meta["path"] = str(gpkg_path)
-
-    json_path = gpkg_path.with_suffix(".json")
-
-    if gpkg_path.exists():
-        # TO DO fill in actual code for if file downloaded but not json
-        logger.info(f"{gpkg_path.name} already downloaded, skipping download & ingest.")
-        # if not json_path.exists():
-        #     export_adm_meta = adm_meta.copy()
-        #     export_adm_meta["features"] = None
-        #     with open(json_path, "w") as file:
-        #         json.dump(export_adm_meta, file, indent=4)
-
-        # need features to be downloaded cuz not in json
-            
-        gdf = gpd.read_file(commit_dl_url) # to do add a try statement
-        feature_list = []
-        for ix, row in gdf.iterrows():
-            feature_list.append(
-                futils.Feature(
-                    geometry=row.geometry.wkt,
-                    name=row["shapeName"],
-                    attr=row.drop(["geometry"]).to_dict(),
-                    parent=None,
-                )
-            )
-
-        with open(json_path) as f:
-            json_data = json.load(f)
-        
-        adm_meta = json_data.copy()
-        adm_meta["features"] = feature_list
-
-        ingest_feature_collection(json_data=adm_meta, skip_existing=False, update_meta=True, replace_features=False, update_features=True)
-        return
 
     logger.debug(f"Downloading {commit_dl_url}")
     try:
@@ -159,7 +119,7 @@ def ingest_gb_item(item: dict, set_active, set_public):
                 return
 
     if "shapeName" not in gdf.columns:
-        potential_name_field = f'{item["boundaryType"]}_NAME'
+        potential_name_field = f"{item['boundaryType']}_NAME"
         if potential_name_field in gdf.columns:
             gdf["shapeName"] = gdf[potential_name_field]
         else:
@@ -167,7 +127,7 @@ def ingest_gb_item(item: dict, set_active, set_public):
 
     gdf.to_file(gpkg_path, driver="GPKG")
 
-    logger.debug(f"Getting bounding box for {commit_dl_url}")
+    logger.debug(f"Calculating bounding box for {commit_dl_url}")
     spatial_extent = shapely.box(*gdf.total_bounds).wkt
     adm_meta["spatial_extent"] = spatial_extent
 
@@ -187,6 +147,7 @@ def ingest_gb_item(item: dict, set_active, set_public):
     # export to json
     export_adm_meta = adm_meta.copy()
     export_adm_meta["features"] = None
+    json_path = gpkg_path.with_suffix(".json")
     with open(json_path, "w") as file:
         json.dump(export_adm_meta, file, indent=4)
 
@@ -197,14 +158,10 @@ def ingest_gb_item(item: dict, set_active, set_public):
     ingest_feature_collection(
         json_data=adm_meta,
         skip_existing=True,
-        update_meta=True,
         replace_features=False,
         update_features=False,
-        set_active=set_active,
-        set_public=set_public,
     )
 
-import click
 
 @click.command()
 def main():
@@ -221,24 +178,32 @@ def main():
         click.echo("Invalid input. Please enter 0 or 1.")
         return
 
-    click.echo(f"\nProceeding with active={default_meta['active']} and public={default_meta['public']}\n")
+    click.echo(f"\nProceeding with active={set_active} and public={set_public}\n")
 
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        futures = [
-            executor.submit(ingest_gb_item, item, set_active, set_public) for item in ingest_items
-        ]
+    run_concurrent = False
 
-        e = []
-        for result in concurrent.futures.as_completed(futures):
-            if result.exception() is not None:
-                e.append(result.exception())
+    if run_concurrent:
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            futures = [
+                executor.submit(ingest_gb_item, item, set_active, set_public)
+                for item in ingest_items
+            ]
 
-        if len(e) > 0:
-            logger.error(f"{len(e)} exceptions occurred")
-            unique_e = set([str(x) for x in e])
-            logger.error(f"{len(unique_e)} unique exceptions occurred:")
-            logger.error(f"Unique exceptions: {unique_e}")
-            logger.exception(e[0])
+            e = []
+            for result in concurrent.futures.as_completed(futures):
+                if result.exception() is not None:
+                    e.append(result.exception())
+
+            if len(e) > 0:
+                logger.error(f"{len(e)} exceptions occurred")
+                unique_e = set([str(x) for x in e])
+                logger.error(f"{len(unique_e)} unique exceptions occurred:")
+                logger.error(f"Unique exceptions: {unique_e}")
+                logger.exception(e[0])
+    else:
+        for item in ingest_items:
+            ingest_gb_item(item, set_active, set_public)
+
 
 if __name__ == "__main__":
     main()
