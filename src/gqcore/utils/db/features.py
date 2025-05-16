@@ -143,24 +143,6 @@ def _update_feature_collection(cur: Cursor, params: dict) -> Optional[int]:
     return feature_collection_id
 
 
-def _update_active_public(cur: Cursor, params: dict) -> Optional[int]:
-    query = """
-        UPDATE feature_collections SET
-            active = 't',
-            public = 't',
-        WHERE name = %(name)s
-        RETURNING id;
-    """
-
-    cur.execute(query, params)
-    result = cur.fetchone()
-    if result is None:
-        feature_collection_id = None
-    else:
-        feature_collection_id = result["id"]
-    return feature_collection_id
-
-
 def _insert_feature_collection(cur: Cursor, params: dict) -> int:
     query = """
         INSERT INTO feature_collections (
