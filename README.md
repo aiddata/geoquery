@@ -2,7 +2,7 @@
 
 Development of an updated version of [GeoQuery](https://geoquery.org)
 
-The database [schema](schema.aml) can be loaded using the free web based databse exploration tool [Azimutt](https://azimutt.app/).
+The database [schema](schema.aml) can be loaded using the free web based database exploration tool [Azimutt](https://azimutt.app/).
 
 ## Documentation
 
