@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 import shapely
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import ValidationInfo, field_validator
+from shapely import Polygon
 
 import gqcore.utils.processors
 
@@ -88,7 +89,7 @@ class FeatureCollection(BaseModel):
     temporal_end: Optional[datetime] = None
     temporal_name: Optional[str] = None
     temporal_type: Optional[str] = None
-    spatial_extent: str
+    spatial_extent: Polygon
     is_global: bool
     ingest_src: Optional[str] = None
     group_name: Optional[str] = None
