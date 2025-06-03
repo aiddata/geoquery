@@ -1,12 +1,13 @@
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import rasterio
 import shapely
 from dateutil.relativedelta import relativedelta
 from loguru import logger
+from psycopg.rows import class_row
 from psycopg.types.json import Jsonb
 from shapely.geometry import box
 
@@ -22,6 +23,23 @@ from gqcore.utils.db.helpers import (
     _update_dataset_from_resources,
 )
 from gqcore.utils.models import Dataset, DatasetResource
+
+
+def get_datasets_for_feature_collection_by_name(fc_name: str) -> List[Dataset]:
+    query = """
+        SELECT * FROM datasets
+        WHERE id IN (
+            SELECT dataset_id FROM coverage
+            JOIN features ON coverage.geom_id = features.id
+            JOIN feat_map ON feat_map.geom_id = features.id
+            JOIN feature_collections ON feature_collections.id = feat_map.fc_id
+            WHERE feature_collections.name = %s
+        );
+    """
+
+    with get_conn() as conn:
+        with conn.cursor(row_factory=class_row(Dataset)) as cur:
+            return cur.execute(query, (fc_name,)).fetchall()
 
 
 @logger.catch(reraise=True)

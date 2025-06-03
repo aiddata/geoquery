@@ -121,6 +121,7 @@ async def root_post(
     domain: str = Form(...),
     call: str = Form(default=None),
     name: str = Form(default=None),
+    group: str = Form(default=None),
 ):
     if domain == "aiddata" and (call == "get_info"):
         try:
@@ -149,6 +150,16 @@ async def root_post(
             # Get the boundary features
             geojson = get_feature_collection_as_geojson(name)
             return {"data": geojson}
+        except Exception as e:
+            print(e)
+            raise HTTPException(status_code=500, detail=str(e))
+    elif call == "get_relevant_datasets":
+        if not group:
+            raise HTTPException(status_code=400, detail="name parameter is required")
+        try:
+            data = {}
+            # call get_datasets_for_feature_collection_by_name() to construct a response
+            return {"data": data}
         except Exception as e:
             print(e)
             raise HTTPException(status_code=500, detail=str(e))
