@@ -17,6 +17,10 @@ class BaseModel(PydanticBaseModel):
 
 
 class Feature(BaseModel):
+    """
+    An individual feature, as selected from the database.
+    """
+
     geometry: str  # this is a wkt str. TODO: this does not include CRS info. We should verify (or be reasonably certain) it is EPSG:4326
     name: Optional[str]
     attr: Optional[dict]

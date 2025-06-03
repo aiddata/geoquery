@@ -72,7 +72,6 @@ def insert_feature_collection(
         replace_features: Delete all features associated with this feature collection, and any features that are not associated with any feature collection, before inserting this feature collection.
         update_features:
     """
-
     # if replace_features or update_features:
     #     if not update_meta:
     #         logger.warning(
@@ -297,6 +296,8 @@ def _insert_feature(
         "attr": Jsonb(feature.attr),
         "parent": None,
     }
+
+    # TODO: this in a transaction with the above feature insertion. Both insertions should happen within one atomic unit.
 
     # insert into feat_map with that id
     cur.execute(
