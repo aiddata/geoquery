@@ -1,14 +1,46 @@
 """Manage features in the database."""
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from loguru import logger
 from psycopg import Cursor
 from psycopg.rows import class_row
 from psycopg.types.json import Jsonb
+from shapely.geometry import mapping
 
 from gqcore.utils.db.conn import get_conn
 from gqcore.utils.models import Feature, FeatureCollection, IngestFeatureCollection
+
+
+def get_feature_collection_as_geojson(name: str) -> Dict:
+    """
+    Returns a Feature with the given name from the database.
+    If that feature does not exist, returns None.
+    """
+
+    query = """
+        SELECT shape FROM features
+        JOIN feat_map on feat_map.geom_id = features.id
+        JOIN feature_collections ON feature_collections.id = feat_map.fc_id
+        WHERE feature_collections.name = %s;
+    """
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            features = []
+            for row in cur.execute(query, (name,)).fetchall():
+                # mapping returns a GeoJSON-like dictionary
+                geojson_geometry = mapping(row["shape"])
+
+                feature = {
+                    "type": "Feature",
+                    "geometry": geojson_geometry,
+                    "properties": {},  # Add properties if needed
+                }
+                features.append(feature)
+
+            # Create GeoJSON-like feature collection
+            return {"type": "FeatureCollection", "features": features}
 
 
 def get_feature_collections() -> List[FeatureCollection]:
