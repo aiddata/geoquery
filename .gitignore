@@ -1,5 +1,6 @@
 # Project-specific ignores
 data/
+db-data/
 load.py
 old/
 src/gqcore/config.toml
