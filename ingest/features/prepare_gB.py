@@ -9,11 +9,11 @@ import requests
 import shapely
 from loguru import logger
 
-from gqcore.utils.db import features as futils
 from gqcore.utils.ingest.ingest_feature_collection import (
     ingest_feature_collection,
 )
 from gqcore.utils.logs import get_logger
+from gqcore.utils.models.models import Feature
 
 get_logger("ingest")
 
@@ -36,6 +36,7 @@ default_meta = {
     "name": None,
     "path": None,
     "file_extension": ".gpkg",
+    "file_format": "vector",
     "title": None,
     "description": None,
     "details": "",
@@ -73,7 +74,7 @@ else:
 ingest_items = sorted(ingest_items, key=lambda d: d["boundaryISO"])
 
 
-@logger.catch(reraise=False)
+# @logger.catch(reraise=False)
 def ingest_gb_item(item: dict, set_active: bool, set_public: bool):
     iso3 = item["boundaryISO"]
 
@@ -90,8 +91,8 @@ def ingest_gb_item(item: dict, set_active: bool, set_public: bool):
         f"This feature collection represents the {item['boundaryType']} level boundaries for {item['boundaryName']} ({iso3}) from geoBoundaries v6."
     )
     adm_meta["details"] = ""
-    adm_meta["group_name"] = f"gb_v6_{iso3}"
-    adm_meta["group_title"] = f"gB v6 - {iso3}"
+    adm_meta["group_name"] = f"gb_v6_{iso3.lower()}"
+    adm_meta["group_title"] = f"{item['boundaryName']} - GeoBoundaries v6"
     adm_meta["group_class"] = "parent" if item["boundaryType"] == "ADM0" else "child"
     adm_meta["group_level"] = int(item["boundaryType"][3:])
 
@@ -135,7 +136,7 @@ def ingest_gb_item(item: dict, set_active: bool, set_public: bool):
     feature_list = []
     for ix, row in gdf.iterrows():
         feature_list.append(
-            futils.Feature(
+            Feature(
                 geometry=row.geometry.wkt,
                 name=row["shapeName"],
                 attr=row.drop(["geometry"]).to_dict(),
