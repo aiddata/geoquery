@@ -12,11 +12,16 @@ http://127.0.0.1:8000/openapi.json
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 
+import shapely
 from fastapi import FastAPI, Form, HTTPException
 
-from gqcore.utils.db.features import get_feature_collections
+from gqcore.utils.db.conn import get_conn
+from gqcore.utils.db.features import (
+    get_feature_collection_as_geojson,
+    get_feature_collections,
+)
 from gqcore.utils.models.models import FeatureCollection
 
 app = FastAPI()
@@ -36,8 +41,87 @@ async def root():
     ]
 
 
+async def convert_feature_collection(feature_collection: FeatureCollection) -> Dict:
+    """
+    Convert a FeatureCollection to the format expected by the GeoQuery frontend
+    """
+
+    # Convert temporal information to the expected format
+    temporal = {
+        "start": int(feature_collection.temporal_start.strftime("%Y%m%d"))
+        if feature_collection.temporal_start
+        else 10000101,
+        "end": int(feature_collection.temporal_end.strftime("%Y%m%d"))
+        if feature_collection.temporal_end
+        else 99991231,
+        "type": feature_collection.temporal_type or "None",
+        "name": feature_collection.temporal_name or "Temporally Invariant",
+        "format": "None",
+    }
+
+    # Convert spatial extent to the expected format
+    # Assuming spatial_extent is a WKT string
+    try:
+        geom = shapely.wkt.loads(feature_collection.spatial_extent)
+        coordinates = [list(geom.exterior.coords)]
+    except:
+        coordinates = []
+
+    # Create the boundary dictionary
+    boundary_dict = {
+        "_id": {"$oid": str(feature_collection.id)},  # Create a MongoDB-style ObjectId
+        "name": feature_collection.name,
+        "temporal": temporal,
+        "file_format": "vector",
+        "file_extension": feature_collection.file_extension.lstrip("."),
+        "title": feature_collection.title,
+        "extras": {
+            "sources_name": feature_collection.source_name or "",
+            "citation": feature_collection.citation or "",
+            "sources_web": feature_collection.source_url or "",
+            "tags": feature_collection.tags or [],
+        },
+        "resources": [
+            {
+                "path": Path(feature_collection.path).name,
+                "end": temporal["end"],
+                "bytes": None,  # You might want to add file size information
+                "name": feature_collection.name,
+                "start": temporal["start"],
+            }
+        ],
+        "base": str(Path(feature_collection.path).parent),
+        "scale": "global" if feature_collection.is_global else "regional",
+        "version": feature_collection.other.get("version", "1")
+        if feature_collection.other
+        else "1",
+        "spatial": {"type": "Polygon", "coordinates": coordinates},
+        "active": 1 if feature_collection.active else 0,
+        "type": "boundary",
+        "options": {
+            "group": feature_collection.group_name or "",
+            "group_title": feature_collection.group_title or "",
+            "group_class": feature_collection.group_class or "sub",
+        },
+        "asdf": {
+            "date_updated": datetime.now().strftime("%Y-%m-%d"),
+            "date_added": datetime.now().strftime("%Y-%m-%d"),
+            "version": "0.4.1",
+            "generator": "auto",
+            "script": "add_boundary.py",
+        },
+        "description": feature_collection.description or "",
+    }
+
+    return boundary_dict
+
+
 @app.post("/")
-async def root_post(domain: str = Form(...), call: str = Form(default=None)):
+async def root_post(
+    domain: str = Form(...),
+    call: str = Form(default=None),
+    name: str = Form(default=None),
+):
     if domain == "aiddata" and (call == "get_info"):
         try:
             with open("src/gqcore/api/info_resp.json", "r") as json_file:
@@ -47,11 +131,27 @@ async def root_post(domain: str = Form(...), call: str = Form(default=None)):
             raise HTTPException(status_code=500, detail=str(e))
     elif call == "get_boundaries":
         feature_collections: List[FeatureCollection] = get_feature_collections()
-        boundaries = {}
 
-        # TODO: load boundaries dictionary and transform it correctly for output
+        # Group by group_name
+        grouped_boundaries = {}
+        for fc in feature_collections:
+            if fc.group_name not in grouped_boundaries:
+                grouped_boundaries[fc.group_name] = []
 
-        return {"data": boundaries}
+            boundary_dict = await convert_feature_collection(fc)
+            grouped_boundaries[fc.group_name].append(boundary_dict)
+
+        return {"data": grouped_boundaries}
+    elif call == "get_boundary_geojson":
+        if not name:
+            raise HTTPException(status_code=400, detail="name parameter is required")
+        try:
+            # Get the boundary features
+            geojson = get_feature_collection_as_geojson(name)
+            return {"data": geojson}
+        except Exception as e:
+            print(e)
+            raise HTTPException(status_code=500, detail=str(e))
     return {"message": "Post request to root endpoint", "domain": domain, "call": call}
 
 
@@ -94,25 +194,6 @@ async def get_dataset_resources(dataset_id: int):
                 (dataset_id,),
             ).fetchall()
             return x
-
-
-@app.get("/feature_collections")
-async def get_feature_collections():
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            x = cur.execute(
-                """SELECT * FROM feature_collections WHERE active = false AND public = false"""
-            ).fetchall()
-            feature_collection_list = [
-                {
-                    "id": i["id"],
-                    "name": i["name"],
-                    "title": i["title"],
-                    "description": i["description"],
-                }
-                for i in x
-            ]
-            return feature_collection_list
 
 
 @app.get("/feature_collections/{feature_collection_id}")
