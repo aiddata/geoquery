@@ -86,14 +86,13 @@ def insert_feature_collection(
                     """
                 )
 
-            if update_features or replace_features:  # or not update_meta:
-                for feature in feature_collection.features:
-                    _insert_feature(
-                        cur,
-                        feature_collection_id,
-                        feature,
-                        check_existing=update_features,
-                    )
+            for feature in feature_collection.features:
+                _insert_feature(
+                    cur,
+                    feature_collection_id,
+                    feature,
+                    check_existing=update_features,
+                )
 
 
 def _get_feature_collection_id(cur: Cursor, name: str) -> Optional[int]:
