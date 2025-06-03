@@ -3,6 +3,8 @@ from contextlib import contextmanager
 import psycopg
 from loguru import logger
 from psycopg.rows import dict_row
+from psycopg.types import TypeInfo
+from psycopg.types.shapely import register_shapely
 
 from gqcore import get_config
 
@@ -26,6 +28,12 @@ def get_conn(**kwargs):
         connect_str = f"postgres://{config['postgis_username']}:{config['postgis_password']}@{config['postgis_address']}:{config['postgis_port']}/{config['postgis_dbname']}"
         with psycopg.connect(connect_str, **kwargs) as conn:
             logger.trace("Successfully connected to database")
+
+            # Setup connection to translate PostGIS objects into Shapely objects and vice versa
+            # https://www.psycopg.org/psycopg3/docs/basic/pgtypes.html#geometry-adaptation-using-shapely
+            info = TypeInfo.fetch(conn, "geometry")
+            register_shapely(info, conn)
+
             yield conn
 
 
