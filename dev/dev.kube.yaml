@@ -1,0 +1,97 @@
+# Save the output of this file and use kubectl create -f to import
+# it into Kubernetes.
+#
+# Created with podman-5.4.2
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gq-config
+data:
+  data_root: "/mnt/geoquery-update"
+  postgis_address: "127.0.0.1"
+  postgis_name: "postgis-cluster"
+  postgis_username: "geoquery"
+  postgis_password: "dante"
+  postgis_port: "5432"
+  postgis_dbname: "geoquery"
+  extracts_max_tasks: "1000"
+  extracts_max_workers: "50"
+  extracts_active_sleep: "5"
+  extracts_inactive_sleep: "30"
+  extracts_scale_sleep: "30"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    io.kubernetes.cri-o.SandboxID/db: 3e4b8ac38d299c7e9828e2984a31cd12d529a90c7cd652790a1a4a0f3cefea85
+    io.kubernetes.cri-o.SandboxID/workbench: 3e4b8ac38d299c7e9828e2984a31cd12d529a90c7cd652790a1a4a0f3cefea85
+  creationTimestamp: "2025-04-22T21:15:51Z"
+  labels:
+    app: geoquery-dev
+  name: geoquery-dev
+spec:
+  containers:
+    - image: docker.io/jacobwhall/geoquery-backend:29e950c
+      name: workbench
+      command: ["/bin/bash", "-c", "--"]
+      args: ["while true; do sleep 30; done;"]
+      imagePullPolicy: "Always"
+      volumeMounts:
+        - mountPath: /geoquery/ingest:Z
+          name: home-jacob-documents-aiddata-geoquery-update-ingest-host-0
+        - mountPath: /geoquery/src:Z
+          name: home-jacob-documents-aiddata-geoquery-update-src-host-0
+        - name: gq-config-vol
+          mountPath: /config
+      ports:
+        - name: api
+          containerPort: 8010
+          hostPort: 8010
+    - image: docker.io/jacobwhall/geoquery-frontend:latest
+      name: frontend
+      imagePullPolicy: "Always"
+      ports:
+        - name: http
+          containerPort: 8020
+          hostPort: 8020
+    - image: docker.io/postgis/postgis:16-3.5
+      args:
+        - postgres
+      name: db
+      imagePullPolicy: "IfNotPresent"
+      env:
+        - name: POSTGRES_PASSWORD
+          value: dante
+        - name: POSTGRES_USER
+          value: geoquery
+        - name: POSTGRES_DB
+          value: geoquery
+      volumeMounts:
+        - mountPath: /var/lib/postgresql/data:Z
+          name: home-jacob-documents-aiddata-geoquery-update-db-data-host-0
+    - image: ghcr.io/maplibre/martin:v0.17.0
+      env:
+        - name: DATABASE_URL
+          value: postgres://geoquery:dante@127.0.0.1:5432/geoquery
+      name: martin
+      ports:
+        - name: http
+          containerPort: 3000
+          hostPort: 8030
+  volumes:
+    - hostPath:
+        path: /home/jacob/Documents/aiddata/geoquery-update/ingest
+        type: Directory
+      name: home-jacob-documents-aiddata-geoquery-update-ingest-host-0
+    - hostPath:
+        path: /home/jacob/Documents/aiddata/geoquery-update/src
+        type: Directory
+      name: home-jacob-documents-aiddata-geoquery-update-src-host-0
+    - hostPath:
+        path: /home/jacob/Documents/aiddata/geoquery-update/db-data
+        type: Directory
+      name: home-jacob-documents-aiddata-geoquery-update-db-data-host-0
+    - name: gq-config-vol
+      configMap:
+        name: gq-config
