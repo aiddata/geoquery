@@ -1,76 +1,9 @@
-[build-system]
-requires = ["setuptools>=70", "wheel"]
-build-backend = "setuptools.build_meta"
-
-
 [project]
-name = "gqcore"
-description = "Core utilities for GeoQuery"
-authors = [
-    { name = "Seth Goodman", email = "sgoodman@aiddata.wm.edu" },
-    { name = "Jacob Hall", email = "jhall@aiddata.wm.edu" },
-]
+name = "geoquery-update"
+version = "0.1.0"
+description = "Add your description here"
 readme = "README.md"
-keywords = ["geoquery", "geospatial", "gis", "geographic"]
-dynamic = ["version"]
-license = "BSD-3-Clause"
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Science/Research",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Topic :: Utilities",
-    "Topic :: Scientific/Engineering :: GIS",
-]
 requires-python = ">=3.12"
 dependencies = [
-    "pyproj",
-    "shapely",
-    "pydantic",
-    "psycopg",
-    "pandas",
-    "geopandas",
-    "shapely",
-    "rasterio",
-    "rasterstats @ git+https://github.com/aiddata/geoquery-python-rasterstats@main",
-    "dask[array,distributed] == 2024.10.0",
-    "dask_kubernetes == 2024.9.0",
-    "reportlab",
-    "fastapi[standard]",
-    "loguru",
-    "toml",
-    "numpy",
-    "numpy",
-    "pandas",
-    "kubernetes",
-    "mkdocs",
-    "mkdocstrings[python]",
-    "mkdocs-material",
-    "mkdocs-gen-files",
-    "mkdocs-literate-nav",
-    "mkdocs-section-index",
+    "zensical>=0.0.15",
 ]
-
-
-[project.optional-dependencies]
-test = ["coverage", "pytest >=4.6", "pytest-cov >=2.2.0"]
-dev = ["gqcore[test]", "twine"]
-
-
-[project.urls]
-"Source Code" = "https://github.com/aiddata/geoquery-update"
-"Bug Tracker" = "https://github.com/aiddata/geoquery-update/issues"
-
-[tool.setuptools.dynamic]
-version = { attr = "gqcore.__init__.__version__" }
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.isort]
-profile = "black"
-known_first_party = ["gqcore"]
