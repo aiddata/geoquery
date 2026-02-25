@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 
 [project]
-name = "geoquery"
-description = "Core utilities for GeoQuery"
+name = "geoquery-backend"
+description = "Django backend for GeoQuery"
 authors = [
     { name = "Seth Goodman", email = "sgoodman@aiddata.wm.edu" },
     { name = "Jacob Hall", email = "jhall@aiddata.wm.edu" },
@@ -59,10 +59,6 @@ dependencies = [
     "django-cors-headers>=4.9.0",
 ]
 
-
-[project.urls]
-"Source Code" = "https://github.com/aiddata/geoquery-update"
-"Bug Tracker" = "https://github.com/aiddata/geoquery-update/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -1,51 +1,66 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { Separator } from '$lib/components/ui/separator';
 	import { ChevronLeft, ChevronRight, Search } from '@lucide/svelte';
-
-	interface Boundary {
-		id: string;
-		name: string;
-		title: string;
-	}
+	import { searchBoundaries, type BoundaryResult } from '$lib/api';
 
 	interface Props {
-		boundaries?: Boundary[];
-		featuredBoundaries?: Boundary[];
-		onSelect?: (boundary: Boundary, subboundary?: string) => void;
+		featuredBoundaries?: BoundaryResult[];
+		onSelect?: (boundary: BoundaryResult | null) => void;
+		onProceed?: (boundary: BoundaryResult) => void;
 	}
 
-	let { boundaries = [], featuredBoundaries = [], onSelect }: Props = $props();
+	let { featuredBoundaries = [], onSelect, onProceed }: Props = $props();
 
 	let searchText = $state('');
-	let selectedBoundary = $state<Boundary | null>(null);
-	let subboundaries = $state<Boundary[]>([]);
-	let selectedSubboundary = $state<string | null>(null);
+	let selectedBoundary = $state<BoundaryResult | null>(null);
 
-	const filteredBoundaries = $derived(
-		boundaries.filter(
-			(b) =>
-				b.name.toLowerCase().includes(searchText.toLowerCase()) ||
-				b.title.toLowerCase().includes(searchText.toLowerCase())
-		)
-	);
+	let autocompleteResults = $state<BoundaryResult[]>([]);
+	let isLoading = $state(false);
 
-	function selectBoundary(boundary: Boundary) {
+	// Debounced autocomplete from API
+	$effect(() => {
+		const query = searchText;
+
+		if (selectedBoundary || !query.trim()) {
+			autocompleteResults = [];
+			return;
+		}
+
+		isLoading = true;
+		const timeout = setTimeout(async () => {
+			try {
+				autocompleteResults = await searchBoundaries(query, 10);
+			} catch (e) {
+				console.error('Autocomplete fetch failed:', e);
+				autocompleteResults = [];
+			} finally {
+				isLoading = false;
+			}
+		}, 300);
+
+		return () => {
+			clearTimeout(timeout);
+			isLoading = false;
+		};
+	});
+
+	function selectBoundary(boundary: BoundaryResult) {
 		selectedBoundary = boundary;
 		searchText = boundary.title || boundary.name;
-		// TODO: Load subboundaries from API
-		subboundaries = [];
+		autocompleteResults = [];
+		onSelect?.(boundary);
 	}
 
 	function goBack() {
 		selectedBoundary = null;
-		selectedSubboundary = null;
 		searchText = '';
+		autocompleteResults = [];
+		onSelect?.(null);
 	}
 
 	function proceed() {
-		if (selectedBoundary && onSelect) {
-			onSelect(selectedBoundary, selectedSubboundary ?? undefined);
+		if (selectedBoundary) {
+			onProceed?.(selectedBoundary);
 		}
 	}
 </script>
@@ -66,24 +81,26 @@
 		/>
 
 		<!-- Autocomplete dropdown -->
-		{#if searchText && !selectedBoundary && filteredBoundaries.length > 0}
+		{#if searchText && !selectedBoundary}
 			<div
 				class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover shadow-lg"
 			>
-				{#each filteredBoundaries.slice(0, 10) as boundary}
-					<button
-						class="w-full px-4 py-2 text-left text-sm hover:bg-accent"
-						onclick={() => selectBoundary(boundary)}
-					>
-						{boundary.title || boundary.name}
-					</button>
-				{/each}
-			</div>
-		{/if}
-
-		{#if searchText && !selectedBoundary && filteredBoundaries.length === 0}
-			<div class="absolute z-10 mt-1 w-full rounded-md border bg-popover p-4 text-sm shadow-lg">
-				No boundaries matching "{searchText}" were found.
+				{#if isLoading}
+					<div class="px-4 py-2 text-sm text-muted-foreground">Searching...</div>
+				{:else if autocompleteResults.length > 0}
+					{#each autocompleteResults as boundary}
+						<button
+							class="w-full px-4 py-2 text-left text-sm hover:bg-accent"
+							onclick={() => selectBoundary(boundary)}
+						>
+							{boundary.title || boundary.name}
+						</button>
+					{/each}
+				{:else if searchText.trim().length > 0}
+					<div class="px-4 py-2 text-sm text-muted-foreground">
+						No boundaries matching "{searchText}" were found.
+					</div>
+				{/if}
 			</div>
 		{/if}
 	</div>
@@ -95,56 +112,24 @@
 				<strong>Featured Boundaries: </strong>
 				{#each featuredBoundaries.slice(0, 5) as boundary, i}
 					<button class="text-primary hover:underline" onclick={() => selectBoundary(boundary)}>
-						{boundary.name}{i < Math.min(featuredBoundaries.length, 5) - 1 ? ', ' : ''}
+						{boundary.title || boundary.name}{i < Math.min(featuredBoundaries.length, 5) - 1
+							? ', '
+							: ''}
 					</button>
 				{/each}
 			</p>
 		</div>
 	{/if}
 
-	<!-- Subboundary selection (shown after boundary selected) -->
-	{#if selectedBoundary && subboundaries.length > 0}
-		<Separator class="my-4" />
-
-		<fieldset class="space-y-2">
-			<legend class="text-sm font-medium">Select a Subboundary</legend>
-			{#each subboundaries as sub}
-				<label class="flex items-center gap-2">
-					<input
-						type="radio"
-						name="subboundary"
-						value={sub.name}
-						bind:group={selectedSubboundary}
-						class="h-4 w-4"
-					/>
-					<span class="text-sm">{sub.title}</span>
-				</label>
-			{/each}
-		</fieldset>
-
-		<Separator class="my-4" />
-
-		<div class="flex justify-between">
-			<Button variant="ghost" onclick={goBack}>
-				<ChevronLeft class="mr-2 h-4 w-4" />
-				Back
-			</Button>
-			<Button onclick={proceed}>
-				Search Datasets
-				<ChevronRight class="ml-2 h-4 w-4" />
-			</Button>
-		</div>
-	{/if}
-
-	<!-- Proceed button (when boundary selected but no subboundaries) -->
-	{#if selectedBoundary && subboundaries.length === 0}
+	<!-- Proceed / Back buttons (when boundary selected) -->
+	{#if selectedBoundary}
 		<div class="mt-4 flex justify-between">
 			<Button variant="ghost" onclick={goBack}>
 				<ChevronLeft class="mr-2 h-4 w-4" />
 				Back
 			</Button>
 			<Button onclick={proceed}>
-				Search Datasets
+				Find Data
 				<ChevronRight class="ml-2 h-4 w-4" />
 			</Button>
 		</div>

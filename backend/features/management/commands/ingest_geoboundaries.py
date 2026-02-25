@@ -10,6 +10,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from loguru import logger
 
+from features.matviews import refresh_materialized_views
 from features.models import FeatMap, Feature, FeatureCollection
 
 
@@ -98,6 +99,11 @@ class Command(BaseCommand):
             self.process_concurrent(ingest_items)
         else:
             self.process_sequential(ingest_items)
+
+        # Refresh materialized views with simplified geometries
+        self.stdout.write("Refreshing simplified-geometry materialized views...")
+        refresh_materialized_views()
+        self.stdout.write(self.style.SUCCESS("Materialized views refreshed."))
 
         self.stdout.write(self.style.SUCCESS("Finished geoBoundaries ingest"))
 

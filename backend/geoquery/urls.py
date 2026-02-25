@@ -18,7 +18,10 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
+from geoquery.views import ConfigView
+
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("api/config/", ConfigView.as_view(), name="config"),
     path("api/features/", include("features.urls")),
 ]

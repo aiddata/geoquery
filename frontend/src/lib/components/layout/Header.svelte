@@ -1,16 +1,14 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { Badge } from '$lib/components/ui/badge';
 	import { openSidebar, currentStep, type Step } from '$lib/stores/ui';
-	import { CircleHelp, History, ListTodo, MapPin, Star, ClipboardList } from '@lucide/svelte';
+	import { CircleHelp, History, MapPin, Star, ClipboardList } from '@lucide/svelte';
 
 	interface Props {
-		cartCount?: number;
 		logoUrl?: string;
 		showSteps?: boolean;
 	}
 
-	let { cartCount = 0, logoUrl = 'https://www.aiddata.org/assets/img/aiddata-main-logo.png', showSteps = true }: Props = $props();
+	let { logoUrl = 'https://www.aiddata.org/assets/img/aiddata-main-logo.png', showSteps = true }: Props = $props();
 
 	const steps: { id: Step; label: string; icon: typeof MapPin }[] = [
 		{ id: 'map', label: '1. Select Boundary', icon: MapPin },
@@ -30,26 +28,13 @@
 		<!-- Navigation Buttons -->
 		<div class="flex items-center gap-2">
 			<Button variant="ghost" onclick={() => openSidebar('help')}>
-				<CircleHelp class="mr-1 h-4 w-4" />
+				<CircleHelp />
 				Help
 			</Button>
 
 			<Button variant="ghost" href="/requests">
-				<History class="mr-1 h-4 w-4" />
+				<History />
 				Past Requests
-			</Button>
-
-			<Button
-				variant={cartCount > 0 ? 'default' : 'ghost'}
-				onclick={() => openSidebar('cart')}
-				disabled={cartCount === 0}
-				class="relative"
-			>
-				<ListTodo class="mr-1 h-4 w-4" />
-				Submit Request
-				{#if cartCount > 0}
-					<Badge variant="secondary" class="ml-2">{cartCount}</Badge>
-				{/if}
 			</Button>
 		</div>
 	</div>
@@ -62,27 +47,23 @@
 					{#if i > 0}
 						<span class="text-muted-foreground">/</span>
 					{/if}
-					<button
-						class="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors
+					<span
+						class="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium
 							{$currentStep === step.id
 							? 'bg-primary text-primary-foreground'
-							: 'text-muted-foreground hover:text-foreground'}"
-						disabled
+							: 'text-muted-foreground'}"
 					>
 						<step.icon class="h-4 w-4" />
 						{step.label}
-					</button>
+					</span>
 				{/each}
 			</div>
 
 			<div class="text-sm text-muted-foreground">
 				Powered by
-				<a href="https://www.aiddata.org" class="font-medium hover:underline">AidData</a>
-				and
-				<a href="https://www.wm.edu/" class="font-medium hover:underline">William & Mary's</a>
-				<a href="https://www.wm.edu/offices/global-research/" class="font-medium hover:underline">
-					Global Research Institute
-				</a>
+				<a href="https://www.aiddata.org" class="font-medium hover:underline">AidData</a>,
+				a research lab at
+				<a href="https://www.wm.edu/" class="font-medium hover:underline">William & Mary</a>
 			</div>
 		</div>
 	{/if}

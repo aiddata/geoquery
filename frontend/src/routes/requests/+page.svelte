@@ -5,13 +5,17 @@
 	import { ArrowLeft, Search } from '@lucide/svelte';
 
 	let email = $state('');
+	let inputEl: HTMLInputElement | undefined = $state();
+	// Read `email` to make Svelte re-run this whenever the value changes,
+	// then check the DOM element's built-in validity.
+	let isValidEmail = $derived((email, inputEl?.validity.valid ?? false));
 	let requests: any[] = $state([]);
 	let loading = $state(false);
 	let searched = $state(false);
 	let error = $state('');
 
 	async function lookupRequests() {
-		if (!email) return;
+		if (!isValidEmail) return;
 		loading = true;
 		error = '';
 
@@ -55,13 +59,14 @@
 					<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 					<input
 						type="email"
+						bind:this={inputEl}
 						bind:value={email}
 						placeholder="your@email.com"
 						class="w-full rounded-md border bg-background py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-ring"
 						required
 					/>
 				</div>
-				<Button type="submit" disabled={!email || loading}>
+				<Button type="submit" disabled={!isValidEmail || loading}>
 					{loading ? 'Loading...' : 'Lookup'}
 				</Button>
 			</div>

@@ -1,9 +1,16 @@
 [project]
-name = "geoquery-update"
+name = "geoquery"
 version = "0.1.0"
-description = "Add your description here"
+description = "A tool for accessing and extracting geospatial datae"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "zensical>=0.0.15",
+    "zensical>=0.0.23",
 ]
+
+[project.urls]
+"Source Code" = "https://github.com/aiddata/geoquery-update"
+"Bug Tracker" = "https://github.com/aiddata/geoquery-update/issues"
+
+[tool.uv.workspace]
+members = ["backend"]

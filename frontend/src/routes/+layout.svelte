@@ -4,14 +4,10 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import Header from '$lib/components/layout/Header.svelte';
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
-
 	let { children } = $props();
 
-	// TODO: Connect to actual cart store
-	let cartCount = $state(0);
-
 	// Only show steps on main workflow pages
-	const workflowPaths = ['/', '/search', '/checkout'];
+	const workflowPaths = ['/', '/customize', '/checkout'];
 	let showSteps = $derived(
 		workflowPaths.some((path) => page.url.pathname === path || page.url.pathname.startsWith(path + '/'))
 	);
@@ -29,7 +25,7 @@
 </svelte:head>
 
 <div class="flex min-h-screen flex-col font-sans">
-	<Header {cartCount} {showSteps} />
+	<Header {showSteps} />
 
 	<main class="flex-1">
 		{@render children()}

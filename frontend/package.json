@@ -30,6 +30,7 @@
 	},
 	"type": "module",
 	"dependencies": {
+		"@protomaps/basemaps": "^5.7.0",
 		"maplibre-gl": "^5.15.0"
 	}
 }
