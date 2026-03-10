@@ -4,30 +4,17 @@ Development of an updated version of [GeoQuery](https://geoquery.org), built usi
 
 ## Development
 
-### Backend
-
-Run the development database:
-
 ```
+docker compose down && docker compose up
 ```
 
-Run any migrations:
+Site will be viewable at http://localhost:5173/
+
+Import some boundaries:
 
 ```
-uv run manage.py migrate
+uv run manage.py ingest_geoboundaries --active --public --iso3 AFG GHA --output-path ./boundary_data
 ```
-
-Run the server:
-
-```
-uv run manage.py runserver
-```
-
-### Frontend
-
-`cd frontend`
-
-...
 
 ### Documentation
 
