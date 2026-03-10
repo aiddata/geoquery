@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { browser } from '$app/environment';
 	import { currentStep } from '$lib/stores/ui';
 	import { searchBoundaries, type BoundaryResult } from '$lib/api';
 	import GeographySearch from '$lib/components/map/GeographySearch.svelte';
 	import ZoomControls from '$lib/components/map/ZoomControls.svelte';
 	import MapFrame from '$lib/components/map/MapFrame.svelte';
+	import WelcomeModal from '$lib/components/map/WelcomeModal.svelte';
 
 	$effect(() => {
 		currentStep.set('map');
@@ -16,6 +18,13 @@
 		searchBoundaries('', 5).then((results) => {
 			featuredBoundaries = results;
 		});
+	});
+
+	let showWelcome = $state(browser ? !sessionStorage.getItem('welcomeDismissed') : false);
+	$effect(() => {
+		if (!showWelcome && browser) {
+			sessionStorage.setItem('welcomeDismissed', '1');
+		}
 	});
 
 	let mapFrame: MapFrame;
@@ -45,6 +54,8 @@
 		mapFrame?.zoomOut();
 	}
 </script>
+
+<WelcomeModal bind:open={showWelcome} />
 
 <div class="relative flex h-[calc(100vh-7rem)] flex-col">
 	<!-- Geography Search Panel (overlaid on map) -->

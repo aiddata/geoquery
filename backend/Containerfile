@@ -1,0 +1,20 @@
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gdal-bin libgdal-dev libgeos-dev libproj-dev postgresql \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy workspace root pyproject.toml and lockfile first
+COPY pyproject.toml uv.lock ./
+COPY backend/pyproject.toml backend/
+
+# Install dependencies (without the project itself)
+RUN uv sync --frozen --no-install-project --package geoquery-backend
+
+# Copy backend source
+COPY backend/ backend/
+RUN uv sync --frozen --package geoquery-backend
+
+WORKDIR /app/backend

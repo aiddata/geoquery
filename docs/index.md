@@ -1,13 +1,9 @@
-# Welcome to the GeoQuery Backend
+# Welcome to the GeoQuery Documentation
 
-Herein lies the documentation for the GeoQuery backend
+Herein lies documentation for GeoQuery, a platform for accessing geospatial data developed by [AidData](https://aiddata.org).
 
 ## Building these docs
 
-Full documentation for mkdocs can be found at [mkdocs.org](https://www.mkdocs.org).
-
-See the documentation for the [material theme](https://squidfunk.github.io/mkdocs-material/reference/) for advanced formatting and presentation tips.
-
-* `mkdocs serve` - Start the live-reloading docs server.
-* `mkdocs build` - Build the documentation site.
-* `mkdocs -h` - Print help message and exit.
+```
+uv run zensical serve
+```

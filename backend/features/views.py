@@ -6,6 +6,8 @@ from rest_framework.response import Response
 
 from .models import FeatureCollection
 
+_MVT_CONTENT_TYPE = "application/vnd.mapbox-vector-tile"
+
 
 class FeatureCollectionAutocompleteView(generics.ListAPIView):
     """
@@ -62,12 +64,6 @@ def feature_collection_vector_tiles(request, fc_name, z, x, y):
     Uses pre-simplified geometries at lower zoom levels for performance.
     """
 
-    # Verify feature collection exists and is accessible
-    try:
-        fc = FeatureCollection.objects.get(name=fc_name, active=True, public=True)
-    except FeatureCollection.DoesNotExist:
-        return HttpResponse("Feature collection not found", status=404)
-
     # Choose the geometry source based on zoom level
     if z <= 5:
         sql = _mvt_sql_simplified("features_simplified_z0_5")
@@ -78,42 +74,44 @@ def feature_collection_vector_tiles(request, fc_name, z, x, y):
     else:
         sql = _mvt_sql_raw()
 
-    layer_name = fc_name
-    params = [layer_name, z, x, y, fc.id, z, x, y]
+    # Param order: layer_name, z/x/y (AsMVTGeom), fc_name, z/x/y (&&), z/x/y (Intersects)
+    params = [fc_name, z, x, y, fc_name, z, x, y, z, x, y]
 
     with connection.cursor() as cursor:
         cursor.execute(sql, params)
         result = cursor.fetchone()
 
         if result and result[0]:
-            return HttpResponse(
-                bytes(result[0]), content_type="application/vnd.mapbox-vector-tile"
-            )
+            return HttpResponse(bytes(result[0]), content_type=_MVT_CONTENT_TYPE)
         else:
-            return HttpResponse(b"", content_type="application/vnd.mapbox-vector-tile")
+            return HttpResponse(b"", content_type=_MVT_CONTENT_TYPE)
 
 
 def _mvt_sql_simplified(view_name):
-    """SQL for generating MVT tiles from a simplified materialized view."""
+    """SQL for generating MVT tiles from a simplified materialized view.
+
+    Matview geometry is stored in EPSG:3857, so no per-row ST_Transform needed.
+    ST_TileEnvelope already returns 3857, used directly for both clipping and filtering.
+    """
     return f"""
         SELECT ST_AsMVT(mvtgeoms.*, %s) AS mvt FROM (
             SELECT
                 ST_AsMVTGeom(
-                    ST_Transform(sv.shape, 3857),
+                    sv.shape,
                     ST_TileEnvelope(%s, %s, %s),
-                    4096,
-                    256,
-                    true
+                    4096, 256, true
                 ) AS geom,
                 sv.fm_id AS id,
                 sv.name,
                 sv.attr
             FROM {view_name} sv
-            WHERE sv.fc_id = %s
-                AND ST_Intersects(
-                    sv.shape,
-                    ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
+            WHERE sv.fc_id = (
+                    SELECT id FROM feature_collections
+                    WHERE name = %s AND active AND public
+                    LIMIT 1
                 )
+                AND sv.shape && ST_TileEnvelope(%s, %s, %s)
+                AND ST_Intersects(sv.shape, ST_TileEnvelope(%s, %s, %s))
         ) mvtgeoms
         WHERE mvtgeoms.geom IS NOT NULL
     """
@@ -127,16 +125,19 @@ def _mvt_sql_raw():
                 ST_AsMVTGeom(
                     ST_Transform(f.shape, 3857),
                     ST_TileEnvelope(%s, %s, %s),
-                    4096,
-                    256,
-                    true
+                    4096, 256, true
                 ) AS geom,
                 fm.id,
                 fm.name,
                 fm.attr
             FROM feat_map fm
             JOIN features f ON fm.geom_id = f.id
-            WHERE fm.fc_id = %s
+            WHERE fm.fc_id = (
+                    SELECT id FROM feature_collections
+                    WHERE name = %s AND active AND public
+                    LIMIT 1
+                )
+                AND f.shape && ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
                 AND ST_Intersects(
                     f.shape,
                     ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)

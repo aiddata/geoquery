@@ -26,7 +26,7 @@ SECRET_KEY = "django-insecure-(5al+g1afse8_v9fhhwv1m&wslqe31x(fz_!&wdn557r9y3@as
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 
 # Application definition
@@ -87,7 +87,7 @@ DATABASES = {
         "NAME": "geoquery",
         "USER": "django_user",
         "PASSWORD": "dev_password",
-        "HOST": "localhost",
+        "HOST": os.environ.get("DB_HOST", "localhost"),
         "PORT": "5432",
     },
 }
@@ -144,6 +144,14 @@ CORS_ALLOW_CREDENTIALS = True
 
 # Protomaps
 PROTOMAPS_API_KEY = os.environ.get("PROTOMAPS_API_KEY", "c1f661e43ad06f34")
+
+# Celery
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "amqp://guest:guest@localhost:5672//")
+CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "rpc://")
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
 
 # Django REST Framework settings
 REST_FRAMEWORK = {
