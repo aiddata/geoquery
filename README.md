@@ -6,6 +6,10 @@ Development of an updated version of [GeoQuery](https://geoquery.org), built usi
 
 ```
 docker compose down && docker compose up
+cd backend
+uv run manage.py migrate
+cd ../frontend
+bun install
 ```
 
 Site will be viewable at http://localhost:5173/
