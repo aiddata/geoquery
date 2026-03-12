@@ -16,7 +16,8 @@
 	import RasterOptions from '$lib/components/datasets/RasterOptions.svelte';
 	import SelectionSummary from '$lib/components/datasets/SelectionSummary.svelte';
 	import { Button } from '$lib/components/ui/button';
-	import { ChevronLeft } from '@lucide/svelte';
+	import { ChevronLeft, ArrowRight } from '@lucide/svelte';
+	import { cartCount } from '$lib/stores/cart';
 
 	$effect(() => {
 		currentStep.set('search');
@@ -139,6 +140,15 @@
 		<span class="text-sm">
 			Boundary: <strong>{boundaryName || 'None selected'}</strong>
 		</span>
+
+		{#if $cartCount > 0}
+			<div class="ml-auto">
+				<Button size="sm" href="/review">
+					Review Request ({$cartCount})
+					<ArrowRight class="ml-1 h-4 w-4" />
+				</Button>
+			</div>
+		{/if}
 	</div>
 
 	{#if !boundaryName}
@@ -236,4 +246,5 @@
 			</div>
 		</div>
 	{/if}
+
 </div>

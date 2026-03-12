@@ -7,7 +7,7 @@
 	let { children } = $props();
 
 	// Only show steps on main workflow pages
-	const workflowPaths = ['/', '/customize', '/checkout'];
+	const workflowPaths = ['/', '/customize', '/review'];
 	let showSteps = $derived(
 		workflowPaths.some((path) => page.url.pathname === path || page.url.pathname.startsWith(path + '/'))
 	);

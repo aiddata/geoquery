@@ -14,6 +14,6 @@ export function closeSidebar() {
   sidebarOpen.set(false);
 }
 
-export type Step = "map" | "search" | "checkout";
+export type Step = "map" | "search" | "review";
 
 export const currentStep = writable<Step>("map");

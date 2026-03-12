@@ -13,7 +13,7 @@
 	const steps: { id: Step; label: string; icon: typeof MapPin }[] = [
 		{ id: 'map', label: '1. Select Boundary', icon: MapPin },
 		{ id: 'search', label: '2. Customize Datasets', icon: Star },
-		{ id: 'checkout', label: '3. Review Request', icon: ClipboardList }
+		{ id: 'review', label: '3. Review Request', icon: ClipboardList }
 	];
 </script>
 

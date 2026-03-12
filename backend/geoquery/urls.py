@@ -24,4 +24,5 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/config/", ConfigView.as_view(), name="config"),
     path("api/features/", include("features.urls")),
+    path("api/datasets/", include("datasets.urls")),
 ]

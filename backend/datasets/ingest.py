@@ -2,11 +2,12 @@
 
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import rasterio
 import shapely
+import shapely.ops
 from dateutil.relativedelta import relativedelta
 from django.contrib.gis.geos import GEOSGeometry
 from django.db import transaction
@@ -39,12 +40,16 @@ def run_file_mask(fmask: str, fname: str):
 
     if month == "" and day != "":
         date_str = f"{year}{day}"
-        timestamp = datetime(int(year), 1, 1) + timedelta(days=int(day) - 1)
+        timestamp = datetime(int(year), 1, 1, tzinfo=timezone.utc) + timedelta(
+            days=int(day) - 1
+        )
     else:
         date_str = f"{year}{month}{day}"
         m = "01" if month == "" else month
         d = "01" if day == "" else day
-        timestamp = datetime.strptime(f"{year}{m}{d}", "%Y%m%d")
+        timestamp = datetime.strptime(f"{year}{m}{d}", "%Y%m%d").replace(
+            tzinfo=timezone.utc
+        )
 
     if len(date_str) == 7:
         step = relativedelta(days=1)
@@ -166,11 +171,22 @@ _NON_MODEL_KEYS = {"mappings", "processing_options", "coverage_dependency", "is_
 
 def _dataset_fields_from_json(data: dict) -> dict:
     """Return a dict of kwargs suitable for Dataset.objects.create / update."""
+    model_field_names = {f.name for f in Dataset._meta.get_fields()}
+
     fields = {}
+    skipped = []
     for key, val in data.items():
         if key in _NON_MODEL_KEYS:
             continue
+        if key not in model_field_names:
+            skipped.append(key)
+            continue
         fields[key] = val
+
+    if skipped:
+        logger.warning(
+            f"Ignoring unrecognized keys (not in Dataset model): {', '.join(skipped)}"
+        )
 
     # mapped is derived
     fields["mapped"] = bool(data.get("mappings"))
@@ -210,7 +226,8 @@ def ingest_dataset(
 
     if update_or_insert:
         dataset, created = Dataset.objects.update_or_create(
-            name=name, defaults=fields,
+            name=name,
+            defaults=fields,
         )
         logger.info(f"{'Inserted' if created else 'Updated'} dataset {name!r}")
     elif update:

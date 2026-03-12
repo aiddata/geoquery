@@ -7,7 +7,7 @@
 </script>
 
 <div class="space-y-4 p-4">
-	<Button class="w-full" disabled={$cart.length === 0} href="/checkout">
+	<Button class="w-full" disabled={$cart.length === 0} href="/review">
 		Review Request
 	</Button>
 
