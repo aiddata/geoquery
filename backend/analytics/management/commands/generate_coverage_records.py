@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand
 from django.db import connection
 
 from analytics.models import Coverage
-from analytics.tasks import test_coverage_for_dataset
+from analytics.tasks.coverage import test_coverage_for_dataset
 from datasets.models import Dataset
 from features.models import Feature
 

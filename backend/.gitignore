@@ -2,6 +2,7 @@
 boundary_data
 data/
 db-data/
+/dev_data
 load.py
 old/
 src/gqcore/config.toml
