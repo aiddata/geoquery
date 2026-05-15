@@ -8,7 +8,7 @@ class Dataset(models.Model):
     id = models.AutoField(primary_key=True)
     active = models.BooleanField(default=False)
     public = models.BooleanField(default=False)
-    name = models.CharField(max_length=200, unique=True)
+    name = models.CharField(max_length=300, unique=True)
     path = models.CharField(max_length=200, unique=True)
     file_extension = models.CharField(max_length=10, blank=True, null=True)
     file_mask = models.CharField(max_length=100, blank=True, null=True)
