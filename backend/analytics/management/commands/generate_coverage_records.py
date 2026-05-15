@@ -48,7 +48,8 @@ class Command(BaseCommand):
                 CROSS JOIN datasets d
                 LEFT JOIN coverage c ON c.geom_id = f.id AND c.dataset_id = d.id
                 WHERE d.coverage_dependency_id IS NULL
-                  AND c.geom_id IS NULL
+                  AND (c.geom_id IS NULL
+                    OR c.status = -1)
                 """
             )
             missing_pairs = cursor.fetchall()
