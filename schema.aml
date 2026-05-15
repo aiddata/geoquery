@@ -33,19 +33,19 @@ feature_collections
 
 feat_map
   id "serial integer"
-  fc_id "serial integer" pk fk feature_collections.id
-  geom_id varchar pk fk features.id
+  fc_id "serial integer" pk -> feature_collections(id)
+  geom_id varchar pk -> features(id)
   name varchar(200)
   attr jsonb
-  parent int fk feat_map.id
+  parent int -> feat_map(id)
 
 datasets
   id "serial integer" pk
   active boolean
   mapped boolean
   name varchar UNIQUE
-  type varchar
-  path varchar
+  dtype varchar
+  dpath varchar
   file_extension varchar
   file_mask varchar
   title varchar UNIQUE
@@ -65,12 +65,12 @@ datasets
   date_added datetime
   date_updated datetime
   is_global boolean
-  coverage_dependency int fk datasets.id
+  coverage_dependency int -> datasets(id)
   ingest_src varchar
 
 dataset_resources
   id integer pk
-  dataset_id integer fk datasets.id
+  dataset_id integer -> datasets(id)
   name varchar UNIQUE
   path  varchar
   temporal_start datetime
@@ -80,7 +80,7 @@ dataset_resources
   other jsonb
 
 mappings
-  dataset_id fk datasets.id
+  dataset_id -> datasets(id)
   map_name varchar
   map_val int
 
@@ -88,22 +88,22 @@ processing_options
   id "serial integer" pk
   active int
   public int
-  dataset_id "serial integer" fk datasets.id
+  dataset_id "serial integer" -> datasets(id)
   short_name varchar(10)
   description varchar(500)
   function varchar(100)
   kwargs json
 
 coverage
-  geom_id integer pk fk features.id
-  dataset_id integer pk fk datasets.id
+  geom_id integer pk -> features(id)
+  dataset_id integer pk -> datasets(id)
   status int
 
 extract_tasks
   id  "SERIAL INTEGER"
-  resource_id integer pk fk dataset_resources.id
-  fm_id integer pk fk feat_map.id
-  processing_options_id fk processing_options.id
+  resource_id integer pk -> dataset_resources(id)
+  fm_id integer pk -> feat_map(id)
+  processing_options_id -> processing_options(id)
   status int
   priority int
   submit_time timestamp
@@ -115,8 +115,8 @@ extract_tasks
   kwargs jsonb pk
 
 extract_data
-  id int fk extract_tasks.id
-  name fk mappings.map_name
+  id int -> extract_tasks(id)
+  name -> mappings(map_name)
   data_column varchar
   float_value float
   int_value int
@@ -138,5 +138,5 @@ requests
   data jsonb
 
 request_map
-  req_id uuid fk requests.id
-  task_id integer fk extract_tasks.id
+  req_id uuid -> requests(id)
+  task_id integer -> extract_tasks(id)
