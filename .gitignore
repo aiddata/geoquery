@@ -3,3 +3,7 @@
 
 # Local test data
 dev_data/
+data/
+
+logs/*.log
+build/
