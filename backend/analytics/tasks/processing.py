@@ -83,7 +83,7 @@ def run_extract_task(task_id):
                 po.function AS po_func,
                 po.short_name AS po_short_name,
                 po.kwargs AS po_kwargs,
-                f.shape AS feature
+                ST_AsEWKT(f.shape) AS feature_geom
             FROM extract_tasks et
             JOIN feat_map fm ON fm.id = et.fm_id
             JOIN features f ON f.id = fm.geom_id
@@ -108,7 +108,7 @@ def run_extract_task(task_id):
 
         (
             _task_id, dataset_id, dataset_path, mapped_dataset,
-            resource_path, po_func, po_short_name, po_kwargs, feature_wkb,
+            resource_path, po_func, po_short_name, po_kwargs, django_geom,
         ) = row
 
         # Mark as locked
@@ -120,10 +120,15 @@ def run_extract_task(task_id):
     # Prepare inputs outside the lock
     raster_path = Path(dataset_path) / resource_path
     func = get_func(po_func)
-    geometry = shapely.wkb.loads(bytes(feature_wkb))
+
+    srid, wkt_str = django_geom.split(';')
+    epsg = srid.replace('SRID=', '')
+    geometry = shapely.wkt.loads(wkt_str)
 
     op_kwargs = {"name": po_short_name}
     if po_kwargs:
+        # convert text representation of dict back to dict (stored as text in DB)
+        po_kwargs = eval(po_kwargs) if isinstance(po_kwargs, str) else po_kwargs
         op_kwargs.update(po_kwargs)
 
     if mapped_dataset:
