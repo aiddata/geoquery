@@ -1,3 +1,4 @@
+import json
 import logging
 from pathlib import Path
 from warnings import catch_warnings
@@ -128,7 +129,7 @@ def run_extract_task(task_id):
     op_kwargs = {"name": po_short_name}
     if po_kwargs:
         # convert text representation of dict back to dict (stored as text in DB)
-        po_kwargs = eval(po_kwargs) if isinstance(po_kwargs, str) else po_kwargs
+        po_kwargs = json.loads(po_kwargs) if isinstance(po_kwargs, str) else po_kwargs
         op_kwargs.update(po_kwargs)
 
     if mapped_dataset:
