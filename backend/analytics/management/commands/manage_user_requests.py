@@ -272,6 +272,7 @@ class Command(BaseCommand):
 
         self.stdout.write("\nChecking status of processing tasks (dry=run = {})...".format(dry_run))
 
+        # TODO: combine the RequestMap and ExtractTask queries into one
         task_list = RequestMap.objects.filter(req_id=request['id'])
 
         for task_item in task_list:
