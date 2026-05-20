@@ -124,10 +124,11 @@ extract_data
 
 requests
   id uuid
-  date datetime
   source varchar
   contact varchar
   custom_name varchar
+  contact_flag boolean
+  comments_request boolean
   info varchar
   status int
   priority int
