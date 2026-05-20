@@ -67,26 +67,34 @@ class Command(BaseCommand):
 
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Identified {count_extracts} available extract tasks to generate"
+                    f"Identified {count_extracts} potential extract tasks to generate"
                 )
             )
 
+        added_tasks = 0
         for et in result:
-            new_task = ExtractTask(
-                resource=DatasetResource.objects.get(id=et[0]),
-                fm=FeatMap.objects.get(id=et[1]),
-                po=ProcessingOption.objects.get(id=et[2])
-            )
-            new_task.save()
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"Created extract task for resource {et[0]}, feature {et[1]}, processing option {et[2]}"
+
+            if not ExtractTask.objects.filter(
+                resource=et[0],
+                fm=et[1],
+                po=et[2]
+            ).exists():
+                new_task = ExtractTask(
+                    resource=DatasetResource.objects.get(id=et[0]),
+                    fm=FeatMap.objects.get(id=et[1]),
+                    po=ProcessingOption.objects.get(id=et[2])
                 )
-            )
+                new_task.save()
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"Created extract task for resource {et[0]}, feature {et[1]}, processing option {et[2]}"
+                    )
+                )
+                added_tasks += 1
 
         t_end = time.perf_counter()
         self.stdout.write(
             self.style.SUCCESS(
-                f"Generated {count_extracts} extract tasks in {t_end - t_start:.2f} seconds"
+                f"Generated {added_tasks} new extract tasks in {t_end - t_start:.2f} seconds"
             )
         )
