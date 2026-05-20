@@ -121,7 +121,6 @@ class Request(models.Model):
     """Requests table for managing extraction requests."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    date = models.DateTimeField(blank=True, null=True)
     source = models.CharField(max_length=100, blank=True, null=True)
     contact = models.CharField(max_length=100, blank=True, null=True)
     contact_flag = models.BooleanField(default=False)
