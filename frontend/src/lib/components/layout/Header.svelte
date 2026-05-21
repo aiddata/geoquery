@@ -2,13 +2,13 @@
 	import { Button } from '$lib/components/ui/button';
 	import { openSidebar, currentStep, type Step } from '$lib/stores/ui';
 	import { CircleHelp, History, MapPin, Star, ClipboardList } from '@lucide/svelte';
+	import aidDataLogo from '$lib/assets/aid_data.png';
 
 	interface Props {
-		logoUrl?: string;
 		showSteps?: boolean;
 	}
 
-	let { logoUrl = 'https://www.aiddata.org/assets/img/aiddata-main-logo.png', showSteps = true }: Props = $props();
+	let { showSteps = true }: Props = $props();
 
 	const steps: { id: Step; label: string; icon: typeof MapPin }[] = [
 		{ id: 'map', label: '1. Select Boundary', icon: MapPin },
@@ -22,7 +22,7 @@
 	<div class="flex h-16 items-center justify-between px-4">
 		<!-- Logo -->
 		<a href="https://www.aiddata.org/geoquery" class="flex items-center">
-			<img src={logoUrl} alt="AidData GeoQuery" class="h-10" />
+			<img src={aidDataLogo} alt="AidData GeoQuery" class="h-10" />
 		</a>
 
 		<!-- Navigation Buttons -->

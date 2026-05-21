@@ -350,12 +350,12 @@ class Command(BaseCommand):
         os.remove(pdf_dst)
 
         # set permissions
-        os.chmod(request_dir, 0775)
+        os.chmod(request_dir, 0o775)
         for ro, di, fi in os.walk(request_dir):
             for d in di:
-                os.chmod(os.path.join(ro, d), 0775)
+                os.chmod(os.path.join(ro, d), 0o775)
             for f in fi:
-                os.chmod(os.path.join(ro, f), 0664)
+                os.chmod(os.path.join(ro, f), 0o664)
 
         return
 
