@@ -3,13 +3,14 @@
     import { Button } from "$lib/components/ui/button";
     import { Separator } from "$lib/components/ui/separator";
     import { ArrowLeft, Search } from "@lucide/svelte";
+    import { fetchRequestsByEmail, type PastRequest } from "$lib/api";
 
     let email = $state("");
     let inputEl: HTMLInputElement | undefined = $state();
     // Read `email` to make Svelte re-run this whenever the value changes,
     // then check the DOM element's built-in validity.
     let isValidEmail = $derived((email, inputEl?.validity.valid ?? false));
-    let requests: any[] = $state([]);
+    let requests = $state<PastRequest[]>([]);
     let loading = $state(false);
     let searched = $state(false);
     let error = $state("");
@@ -20,16 +21,7 @@
         error = "";
 
         try {
-            // TODO: Implement actual API call
-            // const response = await fetch('/api/requests', {
-            //   method: 'POST',
-            //   headers: { 'Content-Type': 'application/json' },
-            //   body: JSON.stringify({ email })
-            // });
-            // requests = await response.json();
-
-            // Mock empty response for now
-            requests = [];
+            requests = await fetchRequestsByEmail(email);
             searched = true;
         } catch (e) {
             error = "Failed to lookup requests. Please try again.";
@@ -94,31 +86,28 @@
             {:else}
                 <div class="space-y-3">
                     {#each requests as request}
-                        <a
-                            href="/requests/{request.id}"
-                            class="block rounded-md border p-4 transition-colors hover:bg-muted/50"
-                        >
+                        <div class="block rounded-md border p-4">
                             <div class="flex items-center justify-between">
                                 <div class="font-medium">
                                     {request.name || "Unnamed Request"}
                                 </div>
                                 <span
                                     class="rounded-full px-2 py-0.5 text-xs font-medium
-									{request.status === 'completed'
+									{request.status_label === 'completed'
                                         ? 'bg-green-100 text-green-800'
-                                        : request.status === 'processing'
+                                        : request.status_label === 'processing' || request.status_label === 'preparing'
                                           ? 'bg-yellow-100 text-yellow-800'
-                                          : 'bg-gray-100 text-gray-800'}"
+                                          : request.status_label === 'error'
+                                            ? 'bg-red-100 text-red-800'
+                                            : 'bg-gray-100 text-gray-800'}"
                                 >
-                                    {request.status}
+                                    {request.status_label}
                                 </span>
                             </div>
                             <div class="mt-1 text-sm text-muted-foreground">
-                                {new Date(
-                                    request.createdAt,
-                                ).toLocaleDateString()}
+                                {new Date(request.submit_time).toLocaleDateString()}
                             </div>
-                        </a>
+                        </div>
                     {/each}
                 </div>
             {/if}

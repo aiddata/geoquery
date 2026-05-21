@@ -113,8 +113,11 @@ class DatasetDetailSerializer(serializers.ModelSerializer):
         return result
 
     def get_extract_types(self, obj):
-        """Return available extract types for raster datasets."""
+        """Return active/public ProcessingOptions for raster datasets."""
         if obj.type != "raster":
             return []
-        other = obj.other or {}
-        return other.get("extract_types", ["mean", "max", "min", "count"])
+        return list(
+            obj.processing_options.filter(active=True, public=True)
+            .order_by("short_name")
+            .values("short_name", "description")
+        )

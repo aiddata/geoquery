@@ -66,7 +66,7 @@ class DatasetDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         return Dataset.objects.filter(active=True, public=True).prefetch_related(
-            "resources", "mappings"
+            "resources", "mappings", "processing_options"
         )
 
 

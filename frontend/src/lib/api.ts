@@ -81,9 +81,14 @@ export interface DatasetField {
 	distinct: string[] | [number, number];
 }
 
+export interface ExtractType {
+	short_name: string;
+	description: string | null;
+}
+
 export interface DatasetDetail extends DatasetSummary {
 	// raster datasets
-	extract_types: string[];
+	extract_types: ExtractType[];
 	resources: DatasetResource[];
 	// release datasets
 	fields: Record<string, DatasetField>;
@@ -122,6 +127,61 @@ export async function fetchDatasetCategories(): Promise<DatasetCategory[]> {
 	const response = await fetch('/api/datasets/categories/');
 	if (!response.ok) {
 		throw new Error(`Failed to fetch categories: ${response.status}`);
+	}
+	return response.json();
+}
+
+// ── Requests ───────────────────────────────────────────────────
+
+export interface RequestItem {
+	boundaryName: string;
+	datasetName: string;
+	datasetType: string;
+	extractTypes?: string[];
+	resources?: string[];
+	filters?: Record<string, string[]>;
+}
+
+export interface SubmittedRequest {
+	id: string;
+	name: string | null;
+	status: number;
+	status_label: string;
+	submit_time: string;
+	task_count: number;
+	warnings?: string[];
+}
+
+export interface PastRequest {
+	id: string;
+	name: string | null;
+	status: number;
+	status_label: string;
+	submit_time: string;
+}
+
+export async function submitRequest(payload: {
+	name: string;
+	email: string;
+	items: RequestItem[];
+}): Promise<SubmittedRequest> {
+	const response = await fetch('/api/analytics/requests/', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(payload)
+	});
+	if (!response.ok) {
+		const err = await response.json().catch(() => ({}));
+		throw new Error(err.error || `Request submission failed: ${response.status}`);
+	}
+	return response.json();
+}
+
+export async function fetchRequestsByEmail(email: string): Promise<PastRequest[]> {
+	const params = new URLSearchParams({ email });
+	const response = await fetch(`/api/analytics/requests/?${params}`);
+	if (!response.ok) {
+		throw new Error(`Failed to fetch requests: ${response.status}`);
 	}
 	return response.json();
 }

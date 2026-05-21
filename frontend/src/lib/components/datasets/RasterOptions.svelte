@@ -3,7 +3,8 @@
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { Label } from '$lib/components/ui/label';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
-	import type { DatasetDetail } from '$lib/api';
+	import * as Tooltip from '$lib/components/ui/tooltip';
+	import type { DatasetDetail, ExtractType } from '$lib/api';
 
 	interface RasterSelection {
 		extractTypes: string[];
@@ -30,11 +31,11 @@
 		dataset.temporal_name !== 'Temporally Invariant' && dataset.resources.length > 0
 	);
 
-	function toggleExtractType(type: string) {
+	function toggleExtractType(type: ExtractType) {
 		const current = options.extractTypes;
-		const next = current.includes(type)
-			? current.filter((t) => t !== type)
-			: [...current, type];
+		const next = current.includes(type.short_name)
+			? current.filter((t) => t !== type.short_name)
+			: [...current, type.short_name];
 		onOptionsChange({ ...options, extractTypes: next });
 	}
 
@@ -42,7 +43,7 @@
 		if (allExtractsSelected) {
 			onOptionsChange({ ...options, extractTypes: [] });
 		} else {
-			onOptionsChange({ ...options, extractTypes: [...dataset.extract_types] });
+			onOptionsChange({ ...options, extractTypes: dataset.extract_types.map((t) => t.short_name) });
 		}
 	}
 
@@ -101,10 +102,25 @@
 				{#each dataset.extract_types as type}
 					<div class="flex items-center gap-2">
 						<Checkbox
-							checked={options.extractTypes.includes(type)}
+							checked={options.extractTypes.includes(type.short_name)}
 							onCheckedChange={() => toggleExtractType(type)}
 						/>
-						<Label class="text-xs font-normal capitalize">{type}</Label>
+						{#if type.description}
+							<Tooltip.Provider>
+								<Tooltip.Root>
+									<Tooltip.Trigger class="text-left">
+										<Label class="cursor-default text-xs font-normal capitalize">
+											{type.short_name}
+										</Label>
+									</Tooltip.Trigger>
+									<Tooltip.Content>
+										<p class="max-w-56 text-xs">{type.description}</p>
+									</Tooltip.Content>
+								</Tooltip.Root>
+							</Tooltip.Provider>
+						{:else}
+							<Label class="text-xs font-normal capitalize">{type.short_name}</Label>
+						{/if}
 					</div>
 				{/each}
 			</div>
