@@ -2,7 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { openSidebar, currentStep, type Step } from '$lib/stores/ui';
 	import { CircleHelp, History, MapPin, Star, ClipboardList } from '@lucide/svelte';
-	import aidDataLogo from '$lib/assets/aid_data.png';
+	import aidDataLogo from '$lib/assets/aiddata.svg';
 
 	interface Props {
 		showSteps?: boolean;
