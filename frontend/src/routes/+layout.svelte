@@ -4,6 +4,7 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import Header from '$lib/components/layout/Header.svelte';
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
+	import { TooltipProvider } from '$lib/components/ui/tooltip';
 	let { children } = $props();
 
 	// Only show steps on main workflow pages
@@ -24,12 +25,14 @@
 	<title>GeoQuery - AidData</title>
 </svelte:head>
 
-<div class="flex min-h-screen flex-col font-sans">
-	<Header {showSteps} />
+<TooltipProvider>
+	<div class="flex min-h-screen flex-col font-sans">
+		<Header {showSteps} />
 
-	<main class="flex-1">
-		{@render children()}
-	</main>
+		<main class="flex-1">
+			{@render children()}
+		</main>
 
-	<Sidebar />
-</div>
+		<Sidebar />
+	</div>
+</TooltipProvider>

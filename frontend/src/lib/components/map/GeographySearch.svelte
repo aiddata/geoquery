@@ -1,15 +1,18 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { ChevronLeft, ChevronRight, Search } from '@lucide/svelte';
 	import { searchBoundaries, type BoundaryResult } from '$lib/api';
 
 	interface Props {
 		featuredBoundaries?: BoundaryResult[];
+		proceedLabel?: string;
+		proceedTooltip?: string;
 		onSelect?: (boundary: BoundaryResult | null) => void;
 		onProceed?: (boundary: BoundaryResult) => void;
 	}
 
-	let { featuredBoundaries = [], onSelect, onProceed }: Props = $props();
+	let { featuredBoundaries = [], proceedLabel = 'Find Data', proceedTooltip, onSelect, onProceed }: Props = $props();
 
 	let searchText = $state('');
 	let selectedBoundary = $state<BoundaryResult | null>(null);
@@ -173,10 +176,22 @@
 				<ChevronLeft class="mr-2 h-4 w-4" />
 				Back
 			</Button>
-			<Button onclick={proceed}>
-				Find Data
-				<ChevronRight class="ml-2 h-4 w-4" />
-			</Button>
+			{#if proceedTooltip}
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						<Button onclick={proceed}>
+							{proceedLabel}
+							<ChevronRight class="ml-2 h-4 w-4" />
+						</Button>
+					</Tooltip.Trigger>
+					<Tooltip.Content>{proceedTooltip}</Tooltip.Content>
+				</Tooltip.Root>
+			{:else}
+				<Button onclick={proceed}>
+					{proceedLabel}
+					<ChevronRight class="ml-2 h-4 w-4" />
+				</Button>
+			{/if}
 		</div>
 	{/if}
 </div>
