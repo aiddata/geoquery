@@ -8,7 +8,6 @@
 	import type { DatasetDetail } from '$lib/api';
 
 	interface Props {
-		boundaryName: string;
 		dataset: DatasetDetail | null;
 		// Release filters
 		filters?: Record<string, string[]>;
@@ -21,7 +20,6 @@
 	}
 
 	let {
-		boundaryName,
 		dataset,
 		filters,
 		extractTypes,
@@ -37,7 +35,6 @@
 		const lines: string[] = [];
 
 		lines.push(`Extract data from ${dataset.title ?? dataset.name}`);
-		lines.push(`within ${boundaryName}`);
 
 		if (dataset.type === 'release' && filters) {
 			for (const [key, values] of Object.entries(filters)) {

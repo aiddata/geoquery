@@ -2,14 +2,13 @@ import { writable, derived } from 'svelte/store';
 
 export interface CartItem {
 	customName: string;
-	boundaryName: string;
 	datasetName: string;
 	datasetTitle: string;
 	datasetType: string;
-	filters?: Record<string, string[]>; // for release datasets
-	extractTypes?: string[]; // for raster datasets
-	resources?: string[]; // for raster temporal selections
-	summary: string; // plain-text query description
+	filters?: Record<string, string[]>;
+	extractTypes?: string[];
+	resources?: string[];
+	resourceLabels?: string[];
 }
 
 function createCartStore() {
@@ -25,6 +24,9 @@ function createCartStore() {
 		},
 		updateItemName(index: number, name: string) {
 			update((items) => items.map((item, i) => (i === index ? { ...item, customName: name } : item)));
+		},
+		setItems(items: CartItem[]) {
+			set(items);
 		},
 		clear() {
 			set([]);
