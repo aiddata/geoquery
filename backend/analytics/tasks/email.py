@@ -1,8 +1,8 @@
 import smtplib
-from email.MIMEMultipart import MIMEMultipart
-from email.MIMEText import MIMEText
+import dotenv
 
-import environ
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 class GeoEmail():
     """used for sending emails within geo framework
@@ -10,9 +10,8 @@ class GeoEmail():
     def __init__(self):
 
         # TODO: this should be refactored to use a more secure method of storing email password
-        env = environ.Env()
-        environ.Env.read_env()
-        self.email_pw = env('EMAIL_PASSWORD')
+        dotenv.load_dotenv()
+        self.email_pw = os.getenv('EMAIL_PASSWORD')
 
         self.defaults = {
             'reply_to': 'AidData GeoQuery <geo@aiddata.wm.edu>',

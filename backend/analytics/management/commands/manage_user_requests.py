@@ -106,18 +106,18 @@ class Command(BaseCommand):
         # building final output when ready and emailing user who requested data
         for request_obj in request_objects:
 
-            request_id = str(request_obj['id'])
+            request_id = str(request_obj.id)
 
             self.stdout.write(f"\n---------------------------------------")
             self.stdout.write(f"Request (id: {request_id})\n{request_obj}\n")
 
-            if not 'boundary' in request_obj or not request_obj['boundary'] or (not request_obj['release_data'] and not request_obj['raster_data']):
+            if not hasattr(request_obj, 'boundary') or not request_obj.boundary or (not hasattr(request_obj, 'release_data') and not hasattr(request_obj, 'raster_data')):
                 Request.objects.filter(id=request_id).update(status=-2)
                 self.stdout.write(self.style.ERROR(f"Invalid request (missing key fields). Id: {request_id}"))
                 continue
 
 
-            self.stdout.write(f"Boundary: {request_obj['boundary']['name']}")
+            self.stdout.write(f"Boundary: {request_obj.boundary.name}")
 
             original_status = Request.objects.get(id=request_id).status
 
@@ -125,7 +125,7 @@ class Command(BaseCommand):
                 # update initial prepare_time
                 Request.objects.filter(id=request_id).update(prepare_time=time.time())
                 # send email that request was received
-                self.notify_user(request_id, request_obj['contact'], 0, options['download_server'])
+                self.notify_user(request_id, request_obj.contact, 0, options['download_server'])
 
             # set status 2 (no email)
             Request.objects.filter(id=request_id).update(status=2)
@@ -167,7 +167,7 @@ class Command(BaseCommand):
 
                 # set status 1 and send email that request is completed
                 Request.objects.filter(id=request_id).update(status=1)
-                self.notify_user(request_id, request_obj['contact'], 1, options['download_server'])
+                self.notify_user(request_id, updated_request_obj.contact, 1, options['download_server'])
 
                 self.stdout.write(self.style.SUCCESS(f"Request completed (id: {request_id})"))
 
@@ -296,7 +296,7 @@ class Command(BaseCommand):
         assets_dir = Path(assets_dir)
         results_dir = Path(results_dir) # "/path/to/request_data"
 
-        request_id = str(request['id'])
+        request_id = str(request.id)
         request_dir = results_dir / request_id
 
         # clear any existing files in request dir
