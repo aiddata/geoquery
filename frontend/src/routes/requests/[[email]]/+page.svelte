@@ -1,14 +1,13 @@
 <script lang="ts">
+    import { page } from "$app/state";
     import { goto } from "$app/navigation";
     import { Button } from "$lib/components/ui/button";
     import { Separator } from "$lib/components/ui/separator";
     import { ArrowLeft, Search } from "@lucide/svelte";
     import { fetchRequestsByEmail, type PastRequest } from "$lib/api";
 
-    let email = $state("");
+    let email = $state(page.params.email ?? "");
     let inputEl: HTMLInputElement | undefined = $state();
-    // Read `email` to make Svelte re-run this whenever the value changes,
-    // then check the DOM element's built-in validity.
     let isValidEmail = $derived((email, inputEl?.validity.valid ?? false));
     let requests = $state<PastRequest[]>([]);
     let loading = $state(false);
@@ -23,12 +22,19 @@
         try {
             requests = await fetchRequestsByEmail(email);
             searched = true;
+            // Keep URL in sync so the page is bookmarkable
+            if (page.params.email !== email) goto(`/requests/${encodeURIComponent(email)}`, { replaceState: true });
         } catch (e) {
             error = "Failed to lookup requests. Please try again.";
         } finally {
             loading = false;
         }
     }
+
+    // Auto-load when an email is provided in the URL
+    $effect(() => {
+        if (page.params.email) lookupRequests();
+    });
 </script>
 
 <div class="container mx-auto max-w-2xl px-4 py-8">
@@ -86,7 +92,10 @@
             {:else}
                 <div class="space-y-3">
                     {#each requests as request}
-                        <div class="block rounded-md border p-4">
+                        <button
+                            class="block w-full rounded-md border p-4 text-left transition-colors hover:bg-muted/50"
+                            onclick={() => goto(`/requests/${request.id}`)}
+                        >
                             <div class="flex items-center justify-between">
                                 <div class="font-medium">
                                     {request.name || "Unnamed Request"}
@@ -107,7 +116,7 @@
                             <div class="mt-1 text-sm text-muted-foreground">
                                 {new Date(request.submit_time).toLocaleDateString()}
                             </div>
-                        </div>
+                        </button>
                     {/each}
                 </div>
             {/if}
