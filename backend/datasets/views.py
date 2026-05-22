@@ -1,19 +1,18 @@
-from django.db.models import Q
 from rest_framework import generics
 from rest_framework.response import Response
 
-from features.models import FeatureCollection
+from analytics.models import Coverage
 
 from .models import Dataset
 from .serializers import DatasetDetailSerializer, DatasetSummarySerializer
 
 
 class DatasetListView(generics.ListAPIView):
-    """List datasets relevant to a given boundary.
+    """List datasets with coverage for a set of features.
 
     Query parameters:
-    - boundary: FeatureCollection name (required). Returns datasets whose
-      spatial_extent intersects the boundary, plus any global datasets.
+    - features: Comma-separated Feature.id values. Returns only datasets that
+      have at least one Coverage record for any of the given features.
     """
 
     serializer_class = DatasetSummarySerializer
@@ -21,25 +20,22 @@ class DatasetListView(generics.ListAPIView):
     def get_queryset(self):
         qs = Dataset.objects.filter(active=True, public=True)
 
-        boundary_name = self.request.query_params.get("boundary")
-        if boundary_name:
+        features_param = self.request.query_params.get("features", "").strip()
+        if features_param:
             try:
-                fc = FeatureCollection.objects.get(
-                    name=boundary_name, active=True, public=True
-                )
-            except FeatureCollection.DoesNotExist:
+                feature_ids = [int(v) for v in features_param.split(",") if v.strip()]
+            except ValueError:
                 return qs.none()
 
-            if fc.spatial_extent:
-                qs = qs.filter(
-                    Q(is_global=True) | Q(spatial_extent__intersects=fc.spatial_extent)
-                )
-            else:
-                # Boundary has no geometry — fall back to global datasets only
-                qs = qs.filter(is_global=True)
-        else:
-            # No boundary specified — return all active/public datasets
-            pass
+            if not feature_ids:
+                return qs.none()
+
+            covered_ids = (
+                Coverage.objects.filter(geom_id__in=feature_ids)
+                .values_list("dataset_id", flat=True)
+                .distinct()
+            )
+            qs = qs.filter(id__in=covered_ids)
 
         return qs.order_by("type", "-date_updated")
 
