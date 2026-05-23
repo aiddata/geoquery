@@ -29,14 +29,29 @@
 	}
 	type StagedSelection = StagedSingleFC | StagedMultiFC | null;
 
-	// ── Initialise staged from the committed store on mount ────────────────────
-	function initStaged(): StagedSelection {
+	// ── Initialise staged + bbox from the committed store on mount ───────────────
+	function initFromStore(): { staged: StagedSelection; bbox: [number, number, number, number] | null } {
 		const sel = get(selection);
-		if (!sel) return null;
-		if (sel.mode === 'single')
-			return { mode: 'single', fc: sel.fc, featureIds: [...sel.featureIds] };
-		return { mode: 'multi', fcs: [...sel.fcs] };
+		if (!sel) return { staged: null, bbox: null };
+		if (sel.mode === 'single') {
+			return {
+				staged: { mode: 'single', fc: sel.fc, featureIds: [...sel.featureIds] },
+				bbox: sel.fc.bbox ?? null
+			};
+		}
+		const bboxes = sel.fcs.map((fc) => fc.bbox).filter(Boolean) as [number, number, number, number][];
+		const bbox: [number, number, number, number] | null = bboxes.length
+			? [
+					Math.min(...bboxes.map((b) => b[0])),
+					Math.min(...bboxes.map((b) => b[1])),
+					Math.max(...bboxes.map((b) => b[2])),
+					Math.max(...bboxes.map((b) => b[3]))
+				]
+			: null;
+		return { staged: { mode: 'multi', fcs: [...sel.fcs] }, bbox };
 	}
+
+	const _init = initFromStore();
 
 	$effect(() => {
 		currentStep.set('map');
@@ -57,14 +72,14 @@
 	let mapFrame: MapFrame;
 
 	// Local staged selection (not yet committed to store)
-	let staged = $state<StagedSelection>(initStaged());
+	let staged = $state<StagedSelection>(_init.staged);
 	// True when the user has picked a new boundary via GeographySearch since last commit
 	let selectionModified = $state(false);
 
 	// Search preview state
 	let pendingBoundary = $state<BoundaryResult | null>(null);
 	let pendingFeatureIds = $state<number[]>([]);
-	let currentBbox = $state<[number, number, number, number] | null>(null);
+	let currentBbox = $state<[number, number, number, number] | null>(_init.bbox);
 	let addingAnother = $state(false);
 
 	// Async state
@@ -125,7 +140,7 @@
 	}
 
 	function handleProceed(boundary: BoundaryResult) {
-		const fc: FCRef = { id: boundary.id, name: boundary.name, title: boundary.title };
+		const fc: FCRef = { id: boundary.id, name: boundary.name, title: boundary.title, bbox: boundary.bbox ?? null };
 		if (addingAnother) {
 			if (!staged) {
 				staged = { mode: 'multi', fcs: [fc] };
