@@ -5,7 +5,7 @@
 	import { currentStep } from '$lib/stores/ui';
 	import { selection, type FCRef } from '$lib/stores/selection';
 	import { cartCount } from '$lib/stores/cart';
-	import { searchBoundaries, fetchFeatureIds, type BoundaryResult } from '$lib/api';
+	import { searchBoundaries, fetchFeatureIds, fetchDatasetsForFeatures, type BoundaryResult } from '$lib/api';
 	import GeographySearch from '$lib/components/map/GeographySearch.svelte';
 	import ZoomControls from '$lib/components/map/ZoomControls.svelte';
 	import MapFrame from '$lib/components/map/MapFrame.svelte';
@@ -86,6 +86,36 @@
 	let findingData = $state(false);
 	// True when features have been changed post-commit; requires re-confirmation before Find Data
 	let stagedNeedsConfirm = $state(false);
+
+	// Running dataset count based on current staged coverage
+	let datasetCount = $state<number | null>(null);
+	let datasetCountLoading = $state(false);
+
+	$effect(() => {
+		const s = staged;
+		if (!s) { datasetCount = null; datasetCountLoading = false; return; }
+
+		datasetCountLoading = true;
+		let cancelled = false;
+
+		const timer = setTimeout(async () => {
+			try {
+				let ids: number[];
+				if (s.mode === 'single') {
+					ids = s.featureIds.length > 0 ? s.featureIds : await fetchFeatureIds([s.fc.id]);
+				} else {
+					ids = await fetchFeatureIds(s.fcs.map((fc) => fc.id));
+				}
+				if (cancelled) return;
+				const datasets = await fetchDatasetsForFeatures(ids);
+				if (!cancelled) { datasetCount = datasets.length; datasetCountLoading = false; }
+			} catch {
+				if (!cancelled) { datasetCount = null; datasetCountLoading = false; }
+			}
+		}, 400);
+
+		return () => { cancelled = true; clearTimeout(timer); };
+	});
 
 	let hasIndividualFeatures = $derived(
 		staged?.mode === 'single' && staged.featureIds.length > 0
@@ -242,6 +272,13 @@
 					<div class="min-w-0">
 						<p class="truncate font-semibold">{stagedSummary?.label}</p>
 						<p class="text-sm text-muted-foreground">{stagedSummary?.detail}</p>
+						<p class="mt-0.5 text-xs text-muted-foreground">
+							{#if datasetCountLoading}
+								Checking coverage…
+							{:else if datasetCount !== null}
+								<strong>{datasetCount}</strong> dataset{datasetCount === 1 ? '' : 's'} available
+							{/if}
+						</p>
 					</div>
 					<Button
 						size="sm"
