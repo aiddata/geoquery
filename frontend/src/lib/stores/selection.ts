@@ -74,7 +74,7 @@ function createSelectionStore() {
 					return { mode: 'multi', fcs: [fc], resolvedFeatureIds: [] };
 				}
 				if (sel.mode === 'single') {
-					// Convert to multi, carrying the existing single FC alongside the new one
+					if (sel.fc.id === fc.id) return sel;
 					return { mode: 'multi', fcs: [sel.fc, fc], resolvedFeatureIds: [] };
 				}
 				// Already multi — skip if already present, otherwise append

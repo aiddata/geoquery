@@ -145,7 +145,7 @@
 			if (!staged) {
 				staged = { mode: 'multi', fcs: [fc] };
 			} else if (staged.mode === 'single') {
-				staged = { mode: 'multi', fcs: [staged.fc, fc] };
+				if (staged.fc.id !== fc.id) staged = { mode: 'multi', fcs: [staged.fc, fc] };
 			} else if (!staged.fcs.some((f) => f.id === fc.id)) {
 				staged = { ...staged, fcs: [...staged.fcs, fc] };
 			}
