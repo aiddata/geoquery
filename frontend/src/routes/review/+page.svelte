@@ -86,6 +86,7 @@
 			});
 			submitted = result;
 			cart.clear();
+			selection.clear();
 		} catch (err) {
 			submitError = err instanceof Error ? err.message : 'Submission failed. Please try again.';
 		} finally {
@@ -133,7 +134,10 @@
 					</div>
 				{/if}
 				<p class="text-xs text-muted-foreground">Request ID: {submitted.id}</p>
-				<Button onclick={() => goto('/')}>Start a New Request</Button>
+				<div class="flex flex-col gap-2 sm:flex-row sm:justify-center">
+					<Button href="/requests/{submitted.id}">View Request</Button>
+					<Button variant="outline" onclick={() => goto('/')}>Start a New Request</Button>
+				</div>
 			</div>
 		</div>
 	{:else}
@@ -199,7 +203,7 @@
 											value={item.customName}
 											oninput={(e) =>
 												cart.updateItemName(i, (e.target as HTMLInputElement).value)}
-											class="flex-1 bg-transparent text-sm font-medium outline-none"
+											class="flex-1 cursor-default bg-transparent text-sm font-medium outline-none"
 										/>
 										<button
 											onclick={() => cart.removeItem(i)}
@@ -212,14 +216,6 @@
 									<Collapsible.Content class="mt-3 space-y-1 pl-7 text-sm text-muted-foreground">
 										<p><span class="font-medium">Dataset:</span> {item.datasetTitle}</p>
 										<p><span class="font-medium">Type:</span> {item.datasetType}</p>
-										{#if item.filters}
-											{#each Object.entries(item.filters) as [field, values]}
-												<p>
-													<span class="font-medium">{field}:</span>
-													{values.length > 0 ? values.join(', ') : 'All'}
-												</p>
-											{/each}
-										{/if}
 										{#if item.extractTypes && item.extractTypes.length > 0}
 											<p>
 												<span class="font-medium">Extract types:</span>
