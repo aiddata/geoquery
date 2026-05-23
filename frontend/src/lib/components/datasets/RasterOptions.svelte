@@ -91,25 +91,30 @@
 		<Card.Content class="pt-0">
 			<div class="space-y-2">
 				<!-- Select All -->
-				<div class="flex items-center gap-2 border-b pb-2">
-					<Checkbox
-						checked={allExtractsSelected}
-						onCheckedChange={toggleAllExtracts}
-					/>
-					<Label class="text-xs font-medium">All Extract Options</Label>
+				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+				<div class="flex cursor-pointer items-center gap-2 border-b pb-2" onclick={toggleAllExtracts}>
+					<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+					<span onclick={(e) => e.stopPropagation()}>
+						<Checkbox checked={allExtractsSelected} onCheckedChange={toggleAllExtracts} />
+					</span>
+					<Label class="cursor-pointer text-xs font-medium">All Extract Options</Label>
 				</div>
 
 				{#each dataset.extract_types as type}
-					<div class="flex items-center gap-2">
-						<Checkbox
-							checked={options.extractTypes.includes(type.short_name)}
-							onCheckedChange={() => toggleExtractType(type)}
-						/>
+					<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+					<div class="flex cursor-pointer items-center gap-2" onclick={() => toggleExtractType(type)}>
+						<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+						<span onclick={(e) => e.stopPropagation()}>
+							<Checkbox
+								checked={options.extractTypes.includes(type.short_name)}
+								onCheckedChange={() => toggleExtractType(type)}
+							/>
+						</span>
 						{#if type.description}
 							<Tooltip.Provider>
 								<Tooltip.Root>
 									<Tooltip.Trigger class="text-left">
-										<Label class="cursor-default text-xs font-normal capitalize">
+										<Label class="cursor-pointer text-xs font-normal capitalize">
 											{type.short_name}
 										</Label>
 									</Tooltip.Trigger>
@@ -119,7 +124,7 @@
 								</Tooltip.Root>
 							</Tooltip.Provider>
 						{:else}
-							<Label class="text-xs font-normal capitalize">{type.short_name}</Label>
+							<Label class="cursor-pointer text-xs font-normal capitalize">{type.short_name}</Label>
 						{/if}
 					</div>
 				{/each}
@@ -142,21 +147,26 @@
 				<ScrollArea class="h-64">
 					<div class="space-y-2 pr-3">
 						<!-- Select All -->
-						<div class="flex items-center gap-2 border-b pb-2">
-							<Checkbox
-								checked={allResourcesSelected}
-								onCheckedChange={toggleAllResources}
-							/>
-							<Label class="text-xs font-medium">All Time Periods</Label>
+						<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+						<div class="flex cursor-pointer items-center gap-2 border-b pb-2" onclick={toggleAllResources}>
+							<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+							<span onclick={(e) => e.stopPropagation()}>
+								<Checkbox checked={allResourcesSelected} onCheckedChange={toggleAllResources} />
+							</span>
+							<Label class="cursor-pointer text-xs font-medium">All Time Periods</Label>
 						</div>
 
 						{#each dataset.resources as resource}
-							<div class="flex items-center gap-2">
-								<Checkbox
-									checked={options.resources.includes(resource.name)}
-									onCheckedChange={() => toggleResource(resource.name)}
-								/>
-								<Label class="text-xs font-normal">
+							<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+							<div class="flex cursor-pointer items-center gap-2" onclick={() => toggleResource(resource.name)}>
+								<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+								<span onclick={(e) => e.stopPropagation()}>
+									<Checkbox
+										checked={options.resources.includes(resource.name)}
+										onCheckedChange={() => toggleResource(resource.name)}
+									/>
+								</span>
+								<Label class="cursor-pointer text-xs font-normal">
 									{resource.label ?? formatTemporal(resource.temporal)}
 								</Label>
 							</div>
