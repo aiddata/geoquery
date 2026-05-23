@@ -2,7 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { openSidebar, currentStep, type Step } from '$lib/stores/ui';
 	import { CircleHelp, History, MapPin, Star, ClipboardList } from '@lucide/svelte';
-	import aidDataLogo from '$lib/assets/aiddata.svg';
+	import geoqueryLogo from '$lib/assets/geoquery_logo.svg';
 
 	interface Props {
 		showSteps?: boolean;
@@ -21,8 +21,8 @@
 	<!-- Main Header -->
 	<div class="flex h-16 items-center justify-between px-4">
 		<!-- Logo -->
-		<a href="https://www.aiddata.org/geoquery" class="flex items-center">
-			<img src={aidDataLogo} alt="AidData GeoQuery" class="h-10" />
+		<a href="/" class="flex items-center -ml-7">
+			<img src={geoqueryLogo} alt="GeoQuery" class="h-24" />
 		</a>
 
 		<!-- Navigation Buttons -->
