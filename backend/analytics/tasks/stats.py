@@ -77,9 +77,6 @@ for r in dataset_requests:
     for i in r["raster_data"]:
         if i:
             dataset_names.append(i["name"])
-    for i in r["release_data"]:
-        if i:
-            dataset_names.append(i["dataset"])
 
 dataset_values, dataset_counts = np.unique(dataset_names, return_counts=True)
 

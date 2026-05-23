@@ -167,14 +167,6 @@
 
 									<Collapsible.Content class="mt-3 space-y-1 pl-7 text-sm text-muted-foreground">
 										<p><span class="font-medium">Type:</span> {item.datasetType}</p>
-										{#if item.filters}
-											{#each Object.entries(item.filters) as [field, values]}
-												<p>
-													<span class="font-medium">{field}:</span>
-													{values.length > 0 ? values.join(', ') : 'All'}
-												</p>
-											{/each}
-										{/if}
 										{#if item.extractTypes && item.extractTypes.length > 0}
 											<p>
 												<span class="font-medium">Extract types:</span>

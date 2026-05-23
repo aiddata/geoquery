@@ -20,7 +20,6 @@
 		type DatasetCategory
 	} from '$lib/api';
 	import DatasetSelector from '$lib/components/datasets/DatasetSelector.svelte';
-	import ReleaseFilters from '$lib/components/datasets/ReleaseFilters.svelte';
 	import RasterOptions from '$lib/components/datasets/RasterOptions.svelte';
 	import SelectionSummary from '$lib/components/datasets/SelectionSummary.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -74,9 +73,6 @@
 	// Full detail for the selected dataset
 	let selectedDatasetDetail = $state<DatasetDetail | null>(null);
 	let detailLoading = $state(false);
-
-	// Release filter state
-	let releaseFilters = $state<Record<string, string[]>>({});
 
 	// Raster options state
 	let rasterOptions = $state<{ extractTypes: string[]; resources: string[] }>({
@@ -138,27 +134,20 @@
 	function handleAddToRequest(customName: string) {
 		if (!selectedDatasetDetail) return;
 
-		const isRelease = selectedDatasetDetail.type === 'release';
-
 		const item: CartItem = {
 			customName: customName || selectedDatasetDetail.title || selectedDatasetDetail.name,
 			datasetName: selectedDatasetDetail.name,
 			datasetTitle: selectedDatasetDetail.title ?? selectedDatasetDetail.name,
 			datasetType: selectedDatasetDetail.type,
-		};
-
-		if (isRelease) {
-			item.filters = { ...releaseFilters };
-		} else {
-			item.extractTypes = [...rasterOptions.extractTypes];
-			item.resources = [...rasterOptions.resources];
-			item.resourceLabels = rasterOptions.resources.map((name) => {
+			extractTypes: [...rasterOptions.extractTypes],
+			resources: [...rasterOptions.resources],
+			resourceLabels: rasterOptions.resources.map((name) => {
 				const res = selectedDatasetDetail!.resources.find((r) => r.name === name);
 				return res?.label ?? res?.temporal ?? name;
-			});
-		}
+			}),
+		};
 
-		cart.addItem(item);
+		cart.upsertItem(item);
 
 		// Reset for next selection
 		selectedDatasetSummary = null;
@@ -168,7 +157,6 @@
 	}
 
 	function handleReset() {
-		releaseFilters = {};
 		rasterOptions = { extractTypes: [], resources: [] };
 	}
 </script>
@@ -249,19 +237,11 @@
 					</div>
 
 					<!-- Configuration area -->
-					{#if selectedDatasetDetail.type === 'release'}
-						<ReleaseFilters
-							dataset={selectedDatasetDetail}
-							filters={releaseFilters}
-							onFiltersChange={(f) => (releaseFilters = f)}
-						/>
-					{:else}
-						<RasterOptions
-							dataset={selectedDatasetDetail}
-							options={rasterOptions}
-							onOptionsChange={(o) => (rasterOptions = o)}
-						/>
-					{/if}
+					<RasterOptions
+						dataset={selectedDatasetDetail}
+						options={rasterOptions}
+						onOptionsChange={(o) => (rasterOptions = o)}
+					/>
 				{/if}
 			</div>
 
@@ -269,13 +249,8 @@
 			<div class="w-72 shrink-0 border-l bg-card">
 				<SelectionSummary
 					dataset={selectedDatasetDetail}
-					filters={selectedDatasetDetail?.type === 'release' ? releaseFilters : undefined}
-					extractTypes={selectedDatasetDetail?.type !== 'release'
-						? rasterOptions.extractTypes
-						: undefined}
-					selectedResources={selectedDatasetDetail?.type !== 'release'
-						? rasterOptions.resources
-						: undefined}
+					extractTypes={rasterOptions.extractTypes}
+					selectedResources={rasterOptions.resources}
 					onAddToRequest={handleAddToRequest}
 					onReset={handleReset}
 				/>

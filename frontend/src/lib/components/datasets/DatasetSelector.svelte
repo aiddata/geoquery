@@ -155,7 +155,7 @@
 									{dataset.title ?? dataset.name}
 								</p>
 								<p class="mt-0.5 text-xs text-muted-foreground">
-									{dataset.type === 'release' ? 'AidData' : 'Raster'}
+									Raster
 								</p>
 							</div>
 							<button

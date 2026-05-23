@@ -111,7 +111,7 @@ class Command(BaseCommand):
             self.stdout.write(f"\n---------------------------------------")
             self.stdout.write(f"Request (id: {request_id})\n{request_obj}\n")
 
-            if not hasattr(request_obj, 'boundary') or not request_obj.boundary or (not hasattr(request_obj, 'release_data') and not hasattr(request_obj, 'raster_data')):
+            if not request_obj.features or not request_obj.data:
                 Request.objects.filter(id=request_id).update(status=-2)
                 self.stdout.write(self.style.ERROR(f"Invalid request (missing key fields). Id: {request_id}"))
                 continue

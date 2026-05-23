@@ -54,7 +54,7 @@ export interface DatasetSummary {
 	name: string;
 	title: string | null;
 	description: string | null;
-	type: string; // "raster" | "release"
+	type: string;
 	tags: string[];
 	source_name: string | null;
 	source_url: string | null;
@@ -73,25 +73,14 @@ export interface DatasetResource {
 	temporal: string | null;
 }
 
-export interface DatasetField {
-	name: string;
-	display: string;
-	type: 'list' | 'slider';
-	is_default: boolean;
-	distinct: string[] | [number, number];
-}
-
 export interface ExtractType {
 	short_name: string;
 	description: string | null;
 }
 
 export interface DatasetDetail extends DatasetSummary {
-	// raster datasets
 	extract_types: ExtractType[];
 	resources: DatasetResource[];
-	// release datasets
-	fields: Record<string, DatasetField>;
 }
 
 export interface DatasetCategory {
