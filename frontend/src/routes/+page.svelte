@@ -262,9 +262,9 @@
 
 <WelcomeModal bind:open={showWelcome} />
 
-<div class="relative flex h-[calc(100vh-7rem)] flex-col">
+<div class="relative flex h-[calc(100vh-8rem)] flex-col">
 	<!-- Left panel: search + selection status -->
-	<div class="absolute left-4 top-4 z-10 w-96 space-y-2">
+	<div class="absolute left-4 top-4 z-10 w-96 max-w-[calc(100vw-2rem)] space-y-2">
 		{#if staged}
 			<!-- Staged selection summary -->
 			<div class="rounded-lg border bg-card p-4 shadow-lg">

@@ -95,7 +95,7 @@
 	}
 </script>
 
-<div class="flex h-[calc(100vh-7rem)] flex-col">
+<div class="flex h-[calc(100vh-8rem)] flex-col">
 	<!-- Top bar -->
 	<div class="flex items-center gap-3 border-b bg-muted/30 px-4 py-2">
 		{#if !submitted}
@@ -143,9 +143,9 @@
 	{:else}
 
 	<!-- Two-panel layout -->
-	<div class="flex flex-1 overflow-hidden">
+	<div class="flex flex-1 flex-col overflow-auto md:flex-row md:overflow-hidden">
 		<!-- Left: Selections list -->
-		<div class="flex-1 overflow-auto p-6">
+		<div class="flex-1 overflow-auto p-4 md:p-6">
 			<div class="mx-auto max-w-2xl space-y-4">
 
 				{#if $selectionSummary}
@@ -238,7 +238,7 @@
 		</div>
 
 		<!-- Right: Submit form -->
-		<div class="w-96 shrink-0 overflow-auto border-l bg-card p-6">
+		<div class="shrink-0 overflow-auto border-t bg-card p-4 md:w-96 md:border-l md:border-t-0 md:p-6">
 			<h2 class="text-lg font-semibold">Review &amp; Submit</h2>
 			<Separator class="my-4" />
 
