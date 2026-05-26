@@ -6,7 +6,7 @@ on:
       - jwhall
       - cmhwang
     paths:
-      - 'k8s/containers/frontend/**'
+      - 'frontend/**'
       - '.github/workflows/build-frontend.yaml'
 
 jobs:
@@ -27,11 +27,11 @@ jobs:
     - name: Buildah Action
       uses: redhat-actions/buildah-build@v2
       with:
-        context: ./k8s/containers/frontend/
+        context: ./frontend/
         image: geoquery-frontend
         tags: ${{ steps.vars.outputs.sha_short }}
         containerfiles: |
-          ./k8s/containers/frontend/Containerfile
+          ./frontend/Containerfile
         oci: true
 
     - name: Push Image

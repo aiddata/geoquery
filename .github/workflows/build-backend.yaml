@@ -6,13 +6,9 @@ on:
       - jwhall
       - cmhwang
     paths:
-      - 'ingest/**'
-      - 'src/**'
-      - 'scripts/**'
-      - 'docs/**'
+      - 'backend/**'
       - 'pyproject.toml'
-      - 'mkdocs.yml'
-      - 'k8s/containers/backend/**'
+      - 'uv.lock'
       - '.github/workflows/build-backend.yaml'
 
 jobs:
@@ -36,7 +32,7 @@ jobs:
         image: geoquery-backend
         tags: ${{ steps.vars.outputs.sha_short }}
         containerfiles: |
-          ./k8s/containers/backend/Containerfile
+          ./backend/Containerfile
         oci: true
 
     - name: Push Image
