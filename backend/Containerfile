@@ -4,17 +4,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gdal-bin libgdal-dev libgeos-dev libproj-dev postgresql \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd --gid 1000 app && useradd --uid 1000 --gid 1000 --create-home app
+
 WORKDIR /app
+RUN chown app:app /app
+USER app
 
 # Copy workspace root pyproject.toml and lockfile first
-COPY pyproject.toml uv.lock ./
-COPY backend/pyproject.toml backend/
+COPY --chown=app:app pyproject.toml uv.lock ./
+COPY --chown=app:app backend/pyproject.toml backend/
 
 # Install dependencies (without the project itself)
 RUN uv sync --frozen --no-install-project --package geoquery-backend
 
 # Copy backend source
-COPY backend/ backend/
+COPY --chown=app:app backend/ backend/
 RUN uv sync --frozen --package geoquery-backend
 
 WORKDIR /app/backend
