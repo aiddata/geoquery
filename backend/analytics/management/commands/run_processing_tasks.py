@@ -3,7 +3,7 @@ import time
 from django.core.management.base import BaseCommand
 from django.db import connection
 
-from backend.analytics.tasks.processing import run_extract_task
+from analytics.tasks.processing import run_extract_task
 
 
 class Command(BaseCommand):
