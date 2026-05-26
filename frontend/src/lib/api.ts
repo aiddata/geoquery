@@ -54,7 +54,7 @@ export interface DatasetSummary {
 	name: string;
 	title: string | null;
 	description: string | null;
-	type: string; // "raster" | "release"
+	type: string;
 	tags: string[];
 	source_name: string | null;
 	source_url: string | null;
@@ -73,20 +73,14 @@ export interface DatasetResource {
 	temporal: string | null;
 }
 
-export interface DatasetField {
-	name: string;
-	display: string;
-	type: 'list' | 'slider';
-	is_default: boolean;
-	distinct: string[] | [number, number];
+export interface ExtractType {
+	short_name: string;
+	description: string | null;
 }
 
 export interface DatasetDetail extends DatasetSummary {
-	// raster datasets
-	extract_types: string[];
+	extract_types: ExtractType[];
 	resources: DatasetResource[];
-	// release datasets
-	fields: Record<string, DatasetField>;
 }
 
 export interface DatasetCategory {
@@ -94,11 +88,22 @@ export interface DatasetCategory {
 	display: string;
 }
 
-// ── Dataset API stubs ──────────────────────────────────────────
-// These call endpoints that don't exist yet on the backend.
+// ── Features API ───────────────────────────────────────────────
 
-export async function fetchDatasetsForBoundary(boundaryName: string): Promise<DatasetSummary[]> {
-	const params = new URLSearchParams({ boundary: boundaryName });
+export async function fetchFeatureIds(fcIds: number[]): Promise<number[]> {
+	const params = new URLSearchParams({ fc: fcIds.join(',') });
+	const response = await fetch(`/api/features/ids/?${params}`);
+	if (!response.ok) {
+		throw new Error(`Failed to fetch feature IDs: ${response.status}`);
+	}
+	const data = await response.json();
+	return data.featureIds as number[];
+}
+
+// ── Dataset API ────────────────────────────────────────────────
+
+export async function fetchDatasetsForFeatures(featureIds: number[]): Promise<DatasetSummary[]> {
+	const params = new URLSearchParams({ features: featureIds.join(',') });
 	const response = await fetch(`/api/datasets/?${params}`);
 	if (!response.ok) {
 		throw new Error(`Failed to fetch datasets: ${response.status}`);
@@ -106,12 +111,8 @@ export async function fetchDatasetsForBoundary(boundaryName: string): Promise<Da
 	return response.json();
 }
 
-export async function fetchDatasetDetail(
-	datasetName: string,
-	boundaryName: string
-): Promise<DatasetDetail> {
-	const params = new URLSearchParams({ boundary: boundaryName });
-	const response = await fetch(`/api/datasets/${encodeURIComponent(datasetName)}/?${params}`);
+export async function fetchDatasetDetail(datasetName: string): Promise<DatasetDetail> {
+	const response = await fetch(`/api/datasets/${encodeURIComponent(datasetName)}/`);
 	if (!response.ok) {
 		throw new Error(`Failed to fetch dataset detail: ${response.status}`);
 	}
@@ -122,6 +123,81 @@ export async function fetchDatasetCategories(): Promise<DatasetCategory[]> {
 	const response = await fetch('/api/datasets/categories/');
 	if (!response.ok) {
 		throw new Error(`Failed to fetch categories: ${response.status}`);
+	}
+	return response.json();
+}
+
+// ── Requests ───────────────────────────────────────────────────
+
+export interface RequestItem {
+	featureIds: number[];
+	datasetName: string;
+	datasetType: string;
+	extractTypes?: string[];
+	resources?: string[];
+	resourceLabels?: string[];
+	filters?: Record<string, string[]>;
+}
+
+export interface SubmittedRequest {
+	id: string;
+	name: string | null;
+	status: number;
+	status_label: string;
+	submit_time: string;
+	task_count: number;
+	warnings?: string[];
+}
+
+export interface PastRequest {
+	id: string;
+	name: string | null;
+	status: number;
+	status_label: string;
+	submit_time: string;
+}
+
+export interface RequestDetail extends PastRequest {
+	complete_time: string | null;
+	task_count: number;
+	selection_label: string | null;
+	selection_detail: string | null;
+	items: RequestItem[];
+	download_url?: string;
+}
+
+export async function submitRequest(payload: {
+	name: string;
+	email: string;
+	selectionLabel?: string;
+	selectionDetail?: string;
+	items: RequestItem[];
+}): Promise<SubmittedRequest> {
+	const response = await fetch('/api/analytics/requests/', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(payload)
+	});
+	if (!response.ok) {
+		const err = await response.json().catch(() => ({}));
+		throw new Error(err.error || `Request submission failed: ${response.status}`);
+	}
+	return response.json();
+}
+
+export async function fetchRequestDetail(id: string): Promise<RequestDetail> {
+	const response = await fetch(`/api/analytics/requests/${encodeURIComponent(id)}/`);
+	if (!response.ok) {
+		throw new Error(`Failed to fetch request: ${response.status}`);
+	}
+	return response.json();
+}
+
+export async function fetchRequestsByEmail(email: string): Promise<PastRequest[]> {
+	const params = new URLSearchParams({ email });
+	const response = await fetch(`/api/analytics/requests/?${params}`);
+	if (!response.ok) {
+		throw new Error(`Failed to fetch requests: ${response.status}`);
 	}
 	return response.json();
 }

@@ -39,7 +39,7 @@ class Command(BaseCommand):
 
                 self.stdout.write(
                     self.style.WARNING(
-                        "Would free %d stale extract tasks (disable --dry-run to actually free them)", freed
+                        f"Would free {freed} stale extract tasks (disable --dry-run to actually free them)"
                     )
                 )
 
@@ -58,8 +58,8 @@ class Command(BaseCommand):
 
                 self.stdout.write(
                     self.style.SUCCESS(
-                        "Freed %d stale extract tasks", freed
+                        f"Freed {freed} stale extract tasks"
                     )
                 )
-                
-        return {"freed": freed}
+
+        return

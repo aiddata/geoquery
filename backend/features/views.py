@@ -2,9 +2,11 @@ from django.db import connection
 from django.db.models import Q
 from django.http import HttpResponse
 from rest_framework import generics
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from .models import FeatureCollection
+from .models import FeatMap, FeatureCollection
 
 _MVT_CONTENT_TYPE = "application/vnd.mapbox-vector-tile"
 
@@ -92,6 +94,7 @@ def _mvt_sql_simplified(view_name):
 
     Matview geometry is stored in EPSG:3857, so no per-row ST_Transform needed.
     ST_TileEnvelope already returns 3857, used directly for both clipping and filtering.
+    Exposes geom_id (Feature.id) as the tile feature id for client-side selection.
     """
     return f"""
         SELECT ST_AsMVT(mvtgeoms.*, %s) AS mvt FROM (
@@ -101,7 +104,7 @@ def _mvt_sql_simplified(view_name):
                     ST_TileEnvelope(%s, %s, %s),
                     4096, 256, true
                 ) AS geom,
-                sv.fm_id AS id,
+                sv.geom_id AS id,
                 sv.name,
                 sv.attr
             FROM {view_name} sv
@@ -117,8 +120,41 @@ def _mvt_sql_simplified(view_name):
     """
 
 
+class FeatureIdsView(APIView):
+    """
+    GET /api/features/ids/?fc=1,2,3
+
+    Returns all Feature.ids belonging to the given FeatureCollection ids.
+    Used by the frontend to resolve whole-FC selections to a flat feature list
+    before submitting a request.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        fc_param = request.query_params.get("fc", "").strip()
+        if not fc_param:
+            return Response({"error": "fc parameter is required"}, status=400)
+
+        try:
+            fc_ids = [int(v) for v in fc_param.split(",") if v.strip()]
+        except ValueError:
+            return Response({"error": "fc must be a comma-separated list of integers"}, status=400)
+
+        feature_ids = list(
+            FeatMap.objects.filter(fc_id__in=fc_ids, fc__active=True, fc__public=True)
+            .values_list("geom_id", flat=True)
+            .distinct()
+        )
+        return Response({"featureIds": feature_ids})
+
+
 def _mvt_sql_raw():
-    """SQL for generating MVT tiles from the raw (unsimplified) geometry."""
+    """SQL for generating MVT tiles from the raw (unsimplified) geometry.
+
+    Exposes f.id (Feature.id) as the tile feature id for client-side selection.
+    """
     return """
         SELECT ST_AsMVT(mvtgeoms.*, %s) AS mvt FROM (
             SELECT
@@ -127,7 +163,7 @@ def _mvt_sql_raw():
                     ST_TileEnvelope(%s, %s, %s),
                     4096, 256, true
                 ) AS geom,
-                fm.id,
+                f.id,
                 fm.name,
                 fm.attr
             FROM feat_map fm

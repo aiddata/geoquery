@@ -1,18 +1,25 @@
 <script lang="ts">
+	import { get } from 'svelte/store';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { currentStep } from '$lib/stores/ui';
 	import { cart, type CartItem } from '$lib/stores/cart';
 	import {
-		fetchDatasetsForBoundary,
+		selection,
+		selectionFcIds,
+		selectedFeatureIds,
+		type FCRef
+	} from '$lib/stores/selection';
+	import {
+		fetchDatasetsForFeatures,
 		fetchDatasetDetail,
 		fetchDatasetCategories,
+		fetchFeatureIds,
 		type DatasetSummary,
 		type DatasetDetail,
 		type DatasetCategory
 	} from '$lib/api';
 	import DatasetSelector from '$lib/components/datasets/DatasetSelector.svelte';
-	import ReleaseFilters from '$lib/components/datasets/ReleaseFilters.svelte';
 	import RasterOptions from '$lib/components/datasets/RasterOptions.svelte';
 	import SelectionSummary from '$lib/components/datasets/SelectionSummary.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -23,8 +30,38 @@
 		currentStep.set('search');
 	});
 
-	// Read boundary from URL query params
-	let boundaryName = $derived(page.url.searchParams.get('boundary') ?? '');
+	// Determine selection mode from URL params
+	let isSingleMode = $derived(page.url.searchParams.has('selection'));
+	let isMultiMode = $derived(!!page.url.searchParams.get('fc'));
+
+	// Validate selection against the store; redirect to map if stale/missing
+	$effect(() => {
+		if (isSingleMode && $selection?.mode !== 'single') goto('/');
+		else if (isMultiMode && $selection?.mode !== 'multi') goto('/');
+		else if (!isSingleMode && !isMultiMode) goto('/');
+	});
+
+	// Resolved feature IDs from the store (set by map page before navigation)
+	let resolvedIds = $derived($selection?.resolvedFeatureIds ?? []);
+
+	// If the user arrived directly (e.g. browser back/forward) without resolved IDs,
+	// re-resolve from the FC IDs so the page still works.
+	$effect(() => {
+		if (!$selection || resolvedIds.length > 0) return;
+		const fcIds = $selectionFcIds;
+		if (!fcIds.length) return;
+		fetchFeatureIds(fcIds)
+			.then((ids) => selection.setResolvedFeatureIds(ids))
+			.catch(console.error);
+	});
+
+	// Human-readable label for the top bar
+	let selectionLabel = $derived.by(() => {
+		if ($selection?.mode === 'single') return $selection.fc.title ?? $selection.fc.name;
+		if ($selection?.mode === 'multi')
+			return $selection.fcs.map((fc) => fc.title ?? fc.name).join(', ');
+		return '';
+	});
 
 	// Data loading state
 	let datasets = $state<DatasetSummary[]>([]);
@@ -37,25 +74,28 @@
 	let selectedDatasetDetail = $state<DatasetDetail | null>(null);
 	let detailLoading = $state(false);
 
-	// Release filter state
-	let releaseFilters = $state<Record<string, string[]>>({});
-
 	// Raster options state
 	let rasterOptions = $state<{ extractTypes: string[]; resources: string[] }>({
 		extractTypes: [],
 		resources: []
 	});
 
-	// Fetch datasets and categories when boundary changes
+	// Fetch datasets when resolved feature IDs become available
 	$effect(() => {
-		if (!boundaryName) return;
+		const ids = resolvedIds;
+		if (!ids.length) return;
 
 		loadError = null;
 
-		Promise.all([fetchDatasetsForBoundary(boundaryName), fetchDatasetCategories()])
+		Promise.all([fetchDatasetsForFeatures(ids), fetchDatasetCategories()])
 			.then(([ds, cats]) => {
 				datasets = ds;
 				categories = cats;
+				const covered = new Set(ds.map((d) => d.name));
+				const current = get(cart);
+				if (current.length > 0) {
+					cart.setItems(current.filter((item) => covered.has(item.datasetName)));
+				}
 			})
 			.catch((err) => {
 				loadError = err.message;
@@ -65,13 +105,13 @@
 
 	// Fetch full detail when a dataset is selected
 	$effect(() => {
-		if (!selectedDatasetSummary || !boundaryName) {
+		if (!selectedDatasetSummary) {
 			selectedDatasetDetail = null;
 			return;
 		}
 
 		detailLoading = true;
-		fetchDatasetDetail(selectedDatasetSummary.name, boundaryName)
+		fetchDatasetDetail(selectedDatasetSummary.name)
 			.then((detail) => {
 				selectedDatasetDetail = detail;
 			})
@@ -94,27 +134,20 @@
 	function handleAddToRequest(customName: string) {
 		if (!selectedDatasetDetail) return;
 
-		const isRelease = selectedDatasetDetail.type === 'release';
-		const summaryParts = [`${selectedDatasetDetail.title ?? selectedDatasetDetail.name}`];
-		summaryParts.push(`within ${boundaryName}`);
-
 		const item: CartItem = {
 			customName: customName || selectedDatasetDetail.title || selectedDatasetDetail.name,
-			boundaryName,
 			datasetName: selectedDatasetDetail.name,
 			datasetTitle: selectedDatasetDetail.title ?? selectedDatasetDetail.name,
 			datasetType: selectedDatasetDetail.type,
-			summary: summaryParts.join(' ')
+			extractTypes: [...rasterOptions.extractTypes],
+			resources: [...rasterOptions.resources],
+			resourceLabels: rasterOptions.resources.map((name) => {
+				const res = selectedDatasetDetail!.resources.find((r) => r.name === name);
+				return res?.label ?? res?.temporal ?? name;
+			}),
 		};
 
-		if (isRelease) {
-			item.filters = { ...releaseFilters };
-		} else {
-			item.extractTypes = [...rasterOptions.extractTypes];
-			item.resources = [...rasterOptions.resources];
-		}
-
-		cart.addItem(item);
+		cart.upsertItem(item);
 
 		// Reset for next selection
 		selectedDatasetSummary = null;
@@ -124,21 +157,20 @@
 	}
 
 	function handleReset() {
-		releaseFilters = {};
 		rasterOptions = { extractTypes: [], resources: [] };
 	}
 </script>
 
-<div class="flex h-[calc(100vh-7rem)] flex-col">
-	<!-- Top bar with back navigation and boundary info -->
+<div class="flex h-[calc(100vh-8rem)] flex-col">
+	<!-- Top bar with back navigation and selection info -->
 	<div class="flex items-center gap-3 border-b bg-muted/30 px-4 py-2">
 		<Button variant="ghost" size="sm" onclick={() => goto('/')}>
 			<ChevronLeft class="mr-1 h-4 w-4" />
 			Back to Map
 		</Button>
 		<span class="text-sm text-muted-foreground">|</span>
-		<span class="text-sm">
-			Boundary: <strong>{boundaryName || 'None selected'}</strong>
+		<span class="truncate text-sm">
+			<strong>{selectionLabel || 'No selection'}</strong>
 		</span>
 
 		{#if $cartCount > 0}
@@ -151,13 +183,10 @@
 		{/if}
 	</div>
 
-	{#if !boundaryName}
-		<!-- No boundary selected -->
+	{#if !resolvedIds.length}
+		<!-- Waiting for feature IDs to resolve -->
 		<div class="flex flex-1 items-center justify-center">
-			<div class="text-center">
-				<p class="text-lg text-muted-foreground">No boundary selected.</p>
-				<Button variant="link" onclick={() => goto('/')}>Go back to select a boundary</Button>
-			</div>
+			<p class="text-muted-foreground">Loading available datasets…</p>
 		</div>
 	{:else if loadError}
 		<!-- Error state -->
@@ -165,15 +194,11 @@
 			<div class="max-w-md text-center">
 				<p class="text-lg font-medium text-destructive">Failed to load datasets</p>
 				<p class="mt-2 text-sm text-muted-foreground">{loadError}</p>
-				<p class="mt-4 text-xs text-muted-foreground">
-					The backend endpoint <code class="rounded bg-muted px-1 py-0.5">GET /api/datasets/</code>
-					needs to be implemented.
-				</p>
 			</div>
 		</div>
 	{:else}
-		<!-- Three-panel layout -->
-		<div class="flex flex-1 overflow-hidden">
+		<!-- Three-panel layout (min-width enforced; scrolls horizontally on narrow screens) -->
+		<div class="flex flex-1 overflow-x-auto overflow-y-hidden">
 			<!-- Left Panel: Dataset Selector -->
 			<div class="w-80 shrink-0 border-r bg-card">
 				<DatasetSelector
@@ -212,39 +237,24 @@
 					</div>
 
 					<!-- Configuration area -->
-					{#if selectedDatasetDetail.type === 'release'}
-						<ReleaseFilters
-							dataset={selectedDatasetDetail}
-							filters={releaseFilters}
-							onFiltersChange={(f) => (releaseFilters = f)}
-						/>
-					{:else}
-						<RasterOptions
-							dataset={selectedDatasetDetail}
-							options={rasterOptions}
-							onOptionsChange={(o) => (rasterOptions = o)}
-						/>
-					{/if}
+					<RasterOptions
+						dataset={selectedDatasetDetail}
+						options={rasterOptions}
+						onOptionsChange={(o) => (rasterOptions = o)}
+					/>
 				{/if}
 			</div>
 
 			<!-- Right Panel: Selection Summary -->
 			<div class="w-72 shrink-0 border-l bg-card">
 				<SelectionSummary
-					{boundaryName}
 					dataset={selectedDatasetDetail}
-					filters={selectedDatasetDetail?.type === 'release' ? releaseFilters : undefined}
-					extractTypes={selectedDatasetDetail?.type !== 'release'
-						? rasterOptions.extractTypes
-						: undefined}
-					selectedResources={selectedDatasetDetail?.type !== 'release'
-						? rasterOptions.resources
-						: undefined}
+					extractTypes={rasterOptions.extractTypes}
+					selectedResources={rasterOptions.resources}
 					onAddToRequest={handleAddToRequest}
 					onReset={handleReset}
 				/>
 			</div>
 		</div>
 	{/if}
-
 </div>

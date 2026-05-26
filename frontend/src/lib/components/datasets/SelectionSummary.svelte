@@ -8,22 +8,15 @@
 	import type { DatasetDetail } from '$lib/api';
 
 	interface Props {
-		boundaryName: string;
 		dataset: DatasetDetail | null;
-		// Release filters
-		filters?: Record<string, string[]>;
-		// Raster options
 		extractTypes?: string[];
 		selectedResources?: string[];
-		//
 		onAddToRequest: (customName: string) => void;
 		onReset: () => void;
 	}
 
 	let {
-		boundaryName,
 		dataset,
-		filters,
 		extractTypes,
 		selectedResources,
 		onAddToRequest,
@@ -37,44 +30,22 @@
 		const lines: string[] = [];
 
 		lines.push(`Extract data from ${dataset.title ?? dataset.name}`);
-		lines.push(`within ${boundaryName}`);
 
-		if (dataset.type === 'release' && filters) {
-			for (const [key, values] of Object.entries(filters)) {
-				if (values.includes('All')) continue;
-				const field = dataset.fields[key];
-				const display = field?.display ?? key;
-				lines.push(`where ${display} includes ${values.join(', ')}`);
-			}
+		if (extractTypes && extractTypes.length > 0) {
+			lines.push(`calculating ${extractTypes.join(', ')}`);
 		}
-
-		if (dataset.type !== 'release') {
-			if (extractTypes && extractTypes.length > 0) {
-				lines.push(`calculating ${extractTypes.join(', ')}`);
-			}
-			if (selectedResources && selectedResources.length > 0) {
-				const resourceLabels = selectedResources.map((name) => {
-					const r = dataset.resources.find((res) => res.name === name);
-					return r?.label ?? name;
-				});
-				lines.push(`for ${resourceLabels.join(', ')}`);
-			}
+		if (selectedResources && selectedResources.length > 0) {
+			const resourceLabels = selectedResources.map((name) => {
+				const r = dataset.resources.find((res) => res.name === name);
+				return r?.label ?? name;
+			});
+			lines.push(`for ${resourceLabels.join(', ')}`);
 		}
 
 		return lines;
 	});
 
-	let canAdd = $derived.by(() => {
-		if (!dataset) return false;
-
-		if (dataset.type === 'release') {
-			// Must have at least one non-"All" filter or any active filters
-			return true;
-		}
-
-		// Raster: must have at least one extract type selected
-		return (extractTypes?.length ?? 0) > 0;
-	});
+	let canAdd = $derived((extractTypes?.length ?? 0) > 0 && !!dataset);
 </script>
 
 <div class="flex h-full flex-col">
@@ -84,14 +55,16 @@
 		{#if !dataset}
 			<p class="text-sm text-muted-foreground">Select a dataset to begin configuring your query.</p>
 		{:else}
+			<!-- FLAG: restore the Input below (and remove the <p>) to allow custom name editing -->
 			<!-- Custom Name -->
 			<div class="space-y-1.5">
 				<Label class="text-xs">Selection Name</Label>
-				<Input
+				<p class="text-xs text-muted-foreground">{dataset.title ?? dataset.name}</p>
+				<!-- <Input
 					bind:value={customName}
 					placeholder={dataset.title ?? dataset.name}
 					class="h-8 text-xs"
-				/>
+				/> -->
 			</div>
 
 			<Separator />

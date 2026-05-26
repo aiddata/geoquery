@@ -1,15 +1,15 @@
 <script lang="ts">
+    import { page } from "$app/state";
     import { goto } from "$app/navigation";
     import { Button } from "$lib/components/ui/button";
     import { Separator } from "$lib/components/ui/separator";
     import { ArrowLeft, Search } from "@lucide/svelte";
+    import { fetchRequestsByEmail, type PastRequest } from "$lib/api";
 
-    let email = $state("");
+    let email = $state(page.params.email ?? "");
     let inputEl: HTMLInputElement | undefined = $state();
-    // Read `email` to make Svelte re-run this whenever the value changes,
-    // then check the DOM element's built-in validity.
     let isValidEmail = $derived((email, inputEl?.validity.valid ?? false));
-    let requests: any[] = $state([]);
+    let requests = $state<PastRequest[]>([]);
     let loading = $state(false);
     let searched = $state(false);
     let error = $state("");
@@ -20,23 +20,21 @@
         error = "";
 
         try {
-            // TODO: Implement actual API call
-            // const response = await fetch('/api/requests', {
-            //   method: 'POST',
-            //   headers: { 'Content-Type': 'application/json' },
-            //   body: JSON.stringify({ email })
-            // });
-            // requests = await response.json();
-
-            // Mock empty response for now
-            requests = [];
+            requests = await fetchRequestsByEmail(email);
             searched = true;
+            // Keep URL in sync so the page is bookmarkable
+            if (page.params.email !== email) goto(`/requests/${encodeURIComponent(email)}`, { replaceState: true });
         } catch (e) {
             error = "Failed to lookup requests. Please try again.";
         } finally {
             loading = false;
         }
     }
+
+    // Auto-load when an email is provided in the URL
+    $effect(() => {
+        if (page.params.email) lookupRequests();
+    });
 </script>
 
 <div class="container mx-auto max-w-2xl px-4 py-8">
@@ -94,9 +92,9 @@
             {:else}
                 <div class="space-y-3">
                     {#each requests as request}
-                        <a
-                            href="/requests/{request.id}"
-                            class="block rounded-md border p-4 transition-colors hover:bg-muted/50"
+                        <button
+                            class="block w-full rounded-md border p-4 text-left transition-colors hover:bg-muted/50"
+                            onclick={() => goto(`/requests/${request.id}`)}
                         >
                             <div class="flex items-center justify-between">
                                 <div class="font-medium">
@@ -104,21 +102,21 @@
                                 </div>
                                 <span
                                     class="rounded-full px-2 py-0.5 text-xs font-medium
-									{request.status === 'completed'
+									{request.status_label === 'completed'
                                         ? 'bg-green-100 text-green-800'
-                                        : request.status === 'processing'
+                                        : request.status_label === 'processing' || request.status_label === 'preparing'
                                           ? 'bg-yellow-100 text-yellow-800'
-                                          : 'bg-gray-100 text-gray-800'}"
+                                          : request.status_label === 'error'
+                                            ? 'bg-red-100 text-red-800'
+                                            : 'bg-gray-100 text-gray-800'}"
                                 >
-                                    {request.status}
+                                    {request.status_label}
                                 </span>
                             </div>
                             <div class="mt-1 text-sm text-muted-foreground">
-                                {new Date(
-                                    request.createdAt,
-                                ).toLocaleDateString()}
+                                {new Date(request.submit_time).toLocaleDateString()}
                             </div>
-                        </a>
+                        </button>
                     {/each}
                 </div>
             {/if}

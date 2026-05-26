@@ -25,4 +25,5 @@ urlpatterns = [
     path("api/config/", ConfigView.as_view(), name="config"),
     path("api/features/", include("features.urls")),
     path("api/datasets/", include("datasets.urls")),
+    path("api/analytics/", include("analytics.urls")),
 ]

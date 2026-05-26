@@ -35,7 +35,6 @@
 					</div>
 					<Collapsible.Content class="px-6 py-2 text-sm text-muted-foreground">
 						<p>Dataset: {item.datasetTitle}</p>
-						<p>Boundary: {item.boundaryName}</p>
 						<p class="mt-1 italic">{item.summary}</p>
 					</Collapsible.Content>
 				</Collapsible.Root>

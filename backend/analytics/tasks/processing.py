@@ -4,8 +4,10 @@ from warnings import catch_warnings
 
 import shapely
 from celery import shared_task
-from django.db import connection
+from django.db import connection, transaction
 from django.utils import timezone
+
+from analytics.models import ExtractTask
 
 logger = logging.getLogger(__name__)
 
@@ -70,69 +72,45 @@ def run_extract_task(task_id):
     logger.info("Running extract task %s", task_id)
     now = timezone.now
 
-    with connection.cursor() as cursor:
-        # Lock and fetch the task together with all related data in one query.
-        cursor.execute(
-            """
-            SELECT
-                et.id AS task_id,
-                d.id AS dataset_id,
-                d.path AS dataset_path,
-                d.mapped AS mapped_dataset,
-                dr.path AS resource_path,
-                po.function AS po_func,
-                po.short_name AS po_short_name,
-                po.kwargs AS po_kwargs,
-                f.shape AS feature
-            FROM extract_tasks et
-            JOIN feat_map fm ON fm.id = et.fm_id
-            JOIN features f ON f.id = fm.geom_id
-            JOIN feature_collections fc ON fc.id = fm.fc_id
-            JOIN dataset_resources dr ON dr.id = et.resource_id
-            JOIN datasets d ON d.id = dr.dataset_id
-            JOIN processing_options po ON po.id = et.po_id
-            WHERE et.id = %s
-              AND et.status = 0
-              AND fc.active
-              AND d.active
-              AND po.active
-            FOR UPDATE OF et SKIP LOCKED
-            """,
-            [task_id],
+    with transaction.atomic():
+        task = (
+            ExtractTask.objects.select_for_update(of=("self",), skip_locked=True)
+            .select_related("resource__dataset", "po", "fm__fc", "fm__geom")
+            .filter(
+                id=task_id,
+                status=0,
+                fm__fc__active=True,
+                resource__dataset__active=True,
+                po__active=True,
+            )
+            .first()
         )
-        row = cursor.fetchone()
 
-        if row is None:
-            logger.info("Task %s is not available (already locked, done, or filtered out)", task_id)
+        if task is None:
+            logger.info(
+                "Task %s is not available (already locked, done, or filtered out)",
+                task_id,
+            )
             return None
 
-        (
-            _task_id, dataset_id, dataset_path, mapped_dataset,
-            resource_path, po_func, po_short_name, po_kwargs, feature_wkb,
-        ) = row
+        task.status = 2
+        task.update_time = now()
+        task.save(update_fields=["status", "update_time"])
 
-        # Mark as locked
-        cursor.execute(
-            "UPDATE extract_tasks SET status = 2, update_time = %s WHERE id = %s",
-            [now(), task_id],
+    dataset = task.resource.dataset
+    raster_path = Path(dataset.path) / task.resource.path
+    func = get_func(task.po.function)
+
+    geometry = shapely.from_wkb(bytes(task.fm.geom.shape.wkb))
+
+    op_kwargs = {"name": task.po.short_name}
+    if task.po.kwargs:
+        op_kwargs.update(task.po.kwargs)
+
+    if dataset.mapped:
+        op_kwargs["category_map"] = dict(
+            dataset.mappings.values_list("map_val", "map_name")
         )
-
-    # Prepare inputs outside the lock
-    raster_path = Path(dataset_path) / resource_path
-    func = get_func(po_func)
-    geometry = shapely.wkb.loads(bytes(feature_wkb))
-
-    op_kwargs = {"name": po_short_name}
-    if po_kwargs:
-        op_kwargs.update(po_kwargs)
-
-    if mapped_dataset:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT map_val, map_name FROM mappings WHERE dataset_id = %s",
-                [dataset_id],
-            )
-            op_kwargs["category_map"] = {r[0]: r[1] for r in cursor.fetchall()}
 
     # Execute the processor function
     try:

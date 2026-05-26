@@ -46,7 +46,7 @@ class Command(BaseCommand):
                     "No pending extract tasks to dispatch"
                 )
             )
-            return {"dispatched": 0}
+            return
 
         if not options["dry_run"]:
             for tid in task_ids:
@@ -54,14 +54,14 @@ class Command(BaseCommand):
 
             self.stdout.write(
                 self.style.SUCCESS(
-                    "Dispatched %d extract tasks", len(task_ids)
+                    f"Dispatched {len(task_ids)} extract tasks"
                 )
             )
         else:
             self.stdout.write(
                 self.style.WARNING(
-                    "Would dispatch %d extract tasks (disable --dry-run to actually dispatch them)", len(task_ids)
+                    f"Would dispatch {len(task_ids)} extract tasks (disable --dry-run to actually dispatch them)"
                 )
             )
 
-        return {"dispatched": len(task_ids)}
+        return

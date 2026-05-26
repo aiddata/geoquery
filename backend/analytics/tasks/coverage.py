@@ -6,6 +6,27 @@ from django.db import connection
 logger = logging.getLogger(__name__)
 
 
+def _test_coverage_for_feature(feature_id):
+    """Test coverage for a single feature against all datasets.
+
+    Checks whether the feature falls within the spatial extent of each dataset
+    using ST_Contains. Sets coverage status to 1 (covered) or 0 (not covered).
+    Only operates on records with status = -1 (untested).
+    """
+    pass
+
+@shared_task
+def test_coverage_for_feature(feature_id):
+    # _test_coverage_for_feature(feature_id)
+    pass
+
+
+@shared_task
+def test_coverage_for_feature_collection(feature_collection_id):
+    # for fid in fc:
+        # _test_coverage_for_feature(fid)
+    pass
+
 @shared_task
 def test_coverage_for_dataset(dataset_id):
     """Test spatial coverage for a single dataset against all features.

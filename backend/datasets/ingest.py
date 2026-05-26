@@ -15,6 +15,7 @@ from loguru import logger
 from shapely.geometry import box
 
 from datasets.models import Dataset, DatasetResource, Mapping
+from analytics.models import ProcessingOption
 
 
 def run_file_mask(fmask: str, fname: str):
@@ -252,4 +253,32 @@ def ingest_dataset(
     dataset.save()
 
     logger.success(f"Finished dataset ingest for {name!r}")
+
+    # add processing options or update if they already exist
+    if not data.get("processing_options"):
+        logger.info(f"No processing options provided for dataset {name!r}")
+        return dataset
+
+    for po in data["processing_options"]:
+        po_fields = {
+            "dataset": dataset,
+            "short_name": po["short_name"],
+            "description": po.get("description", ""),
+            "function": po["function"],
+            "result_type": po.get("result_type"),
+            "kwargs": po.get("kwargs", {}),
+            "active": po.get("active", False),
+            "public": po.get("public", False),
+        }
+        ProcessingOption.objects.update_or_create(
+            dataset=dataset,
+            short_name=po["short_name"],
+            defaults=po_fields,
+        )
+        logger.info(
+            f"Added/updated processing option {po['short_name']!r} for dataset {name!r}"
+        )
+
+    logger.success(f"Finished adding processing_options for dataset {name!r}")
+
     return dataset

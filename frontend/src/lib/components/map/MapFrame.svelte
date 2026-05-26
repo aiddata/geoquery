@@ -7,26 +7,33 @@
 
 	interface Props {
 		class?: string;
-		boundaryName?: string | null;
-		boundaryBbox?: [number, number, number, number] | null;
+		fcNames?: string[];
+		activeFcName?: string | null;
+		selectedFeatureIds?: number[];
+		bbox?: [number, number, number, number] | null;
+		onFeatureClick?: (featureId: number) => void;
 	}
 
 	let {
 		class: className = '',
-		boundaryName = null,
-		boundaryBbox = null
+		fcNames = [],
+		activeFcName = null,
+		selectedFeatureIds = [],
+		bbox = null,
+		onFeatureClick
 	}: Props = $props();
 
 	let mapContainer: HTMLDivElement;
 	let map: maplibregl.Map | null = $state(null);
 	let mapReady = $state(false);
 
-	const BOUNDARY_SOURCE = 'boundary-tiles';
-	const BOUNDARY_FILL_LAYER = 'boundary-fill';
-	const BOUNDARY_LINE_LAYER = 'boundary-line';
-
 	let popup: maplibregl.Popup | null = null;
 	let hoveredFeatureId: number | null = null;
+	let prevSelectedIds: number[] = [];
+
+	const fcSourceId = (name: string) => `fc-tiles-${name}`;
+	const fcFillId = (name: string) => `fc-fill-${name}`;
+	const fcLineId = (name: string) => `fc-line-${name}`;
 
 	onMount(() => {
 		fetchConfig().then((config) => {
@@ -68,73 +75,105 @@
 		};
 	});
 
-	// Add/remove vector tile layers when boundary changes
+	// Sync FC tile sources/layers when fcNames changes
 	$effect(() => {
 		if (!map || !mapReady) return;
 		const m = map;
-		const name = boundaryName;
+		const names = [...fcNames];
 
-		if (m.getLayer(BOUNDARY_LINE_LAYER)) m.removeLayer(BOUNDARY_LINE_LAYER);
-		if (m.getLayer(BOUNDARY_FILL_LAYER)) m.removeLayer(BOUNDARY_FILL_LAYER);
-		if (m.getSource(BOUNDARY_SOURCE)) m.removeSource(BOUNDARY_SOURCE);
+		const existingSources = Object.keys(m.getStyle()?.sources ?? {});
+		const existingFcNames = existingSources
+			.filter((s) => s.startsWith('fc-tiles-'))
+			.map((s) => s.slice('fc-tiles-'.length));
 
-		if (!name) return;
-
-		m.addSource(BOUNDARY_SOURCE, {
-			type: 'vector',
-			tiles: [boundaryTileUrl(name)],
-			minzoom: 0,
-			maxzoom: 12,
-			promoteId: { [name]: 'id' }
-		});
-
-		m.addLayer({
-			id: BOUNDARY_FILL_LAYER,
-			type: 'fill',
-			source: BOUNDARY_SOURCE,
-			'source-layer': name,
-			paint: {
-				'fill-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#2563eb', '#3b82f6'],
-				'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.45, 0.3]
+		for (const name of existingFcNames) {
+			if (!names.includes(name)) {
+				if (m.getLayer(fcLineId(name))) m.removeLayer(fcLineId(name));
+				if (m.getLayer(fcFillId(name))) m.removeLayer(fcFillId(name));
+				if (m.getSource(fcSourceId(name))) m.removeSource(fcSourceId(name));
 			}
-		});
+		}
 
-		m.addLayer({
-			id: BOUNDARY_LINE_LAYER,
-			type: 'line',
-			source: BOUNDARY_SOURCE,
-			'source-layer': name,
-			paint: {
-				'line-color': '#1e40af',
-				'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 3, 2]
-			}
-		});
+		for (const name of names) {
+			if (existingFcNames.includes(name)) continue;
 
-		// Hover popup
+			m.addSource(fcSourceId(name), {
+				type: 'vector',
+				tiles: [boundaryTileUrl(name)],
+				minzoom: 0,
+				maxzoom: 12,
+				promoteId: { [name]: 'id' }
+			});
+
+			m.addLayer({
+				id: fcFillId(name),
+				type: 'fill',
+				source: fcSourceId(name),
+				'source-layer': name,
+				paint: {
+					'fill-color': [
+						'case',
+						['boolean', ['feature-state', 'selected'], false],
+						'#1e40af',
+						['boolean', ['feature-state', 'hover'], false],
+						'#2563eb',
+						'#3b82f6'
+					],
+					'fill-opacity': [
+						'case',
+						['boolean', ['feature-state', 'selected'], false],
+						0.55,
+						['boolean', ['feature-state', 'hover'], false],
+						0.45,
+						0.25
+					]
+				}
+			});
+
+			m.addLayer({
+				id: fcLineId(name),
+				type: 'line',
+				source: fcSourceId(name),
+				'source-layer': name,
+				paint: {
+					'line-color': '#1e40af',
+					'line-width': 1.5
+				}
+			});
+		}
+	});
+
+	// Hover + click handlers for the active FC
+	$effect(() => {
+		if (!map || !mapReady) return;
+		void fcNames; // re-run when layers are added/removed
+		const m = map;
+		const name = activeFcName;
+
+		if (!name || !fcNames.includes(name)) return;
+
+		const fillLayer = fcFillId(name);
+		const src = fcSourceId(name);
+
 		const onMouseMove = (e: maplibregl.MapLayerMouseEvent) => {
-			if (!e.features || e.features.length === 0) return;
-			m.getCanvas().style.cursor = 'pointer';
+			if (!e.features?.length) return;
+			if (onFeatureClick) m.getCanvas().style.cursor = 'pointer';
 
 			const feature = e.features[0];
+			const fid = feature.id as number;
 			const featureName = feature.properties?.name;
 
-			// Update hover state
-			if (hoveredFeatureId !== null) {
+			if (hoveredFeatureId !== null && hoveredFeatureId !== fid) {
 				m.setFeatureState(
-					{ source: BOUNDARY_SOURCE, sourceLayer: name, id: hoveredFeatureId },
+					{ source: src, sourceLayer: name, id: hoveredFeatureId },
 					{ hover: false }
 				);
 			}
-			hoveredFeatureId = feature.id as number;
-			m.setFeatureState(
-				{ source: BOUNDARY_SOURCE, sourceLayer: name, id: hoveredFeatureId },
-				{ hover: true }
-			);
+			hoveredFeatureId = fid;
+			m.setFeatureState({ source: src, sourceLayer: name, id: fid }, { hover: true });
 
 			if (featureName) {
-				if (!popup) {
-					popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
-				}
+				if (!popup) popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
 				popup.setLngLat(e.lngLat).setHTML(`<strong>${featureName}</strong>`).addTo(m);
 			}
 		};
@@ -143,35 +182,61 @@
 			m.getCanvas().style.cursor = '';
 			if (hoveredFeatureId !== null) {
 				m.setFeatureState(
-					{ source: BOUNDARY_SOURCE, sourceLayer: name, id: hoveredFeatureId },
+					{ source: src, sourceLayer: name, id: hoveredFeatureId },
 					{ hover: false }
 				);
 				hoveredFeatureId = null;
 			}
-			if (popup) {
-				popup.remove();
-				popup = null;
-			}
+			popup?.remove();
+			popup = null;
 		};
 
-		m.on('mousemove', BOUNDARY_FILL_LAYER, onMouseMove);
-		m.on('mouseleave', BOUNDARY_FILL_LAYER, onMouseLeave);
+		const onClick = (e: maplibregl.MapLayerMouseEvent) => {
+			if (!e.features?.length || !onFeatureClick) return;
+			onFeatureClick(e.features[0].id as number);
+		};
+
+		m.on('mousemove', fillLayer, onMouseMove);
+		m.on('mouseleave', fillLayer, onMouseLeave);
+		m.on('click', fillLayer, onClick);
 
 		return () => {
-			m.off('mousemove', BOUNDARY_FILL_LAYER, onMouseMove);
-			m.off('mouseleave', BOUNDARY_FILL_LAYER, onMouseLeave);
-			if (popup) {
-				popup.remove();
-				popup = null;
+			m.off('mousemove', fillLayer, onMouseMove);
+			m.off('mouseleave', fillLayer, onMouseLeave);
+			m.off('click', fillLayer, onClick);
+			if (hoveredFeatureId !== null) {
+				m.setFeatureState(
+					{ source: src, sourceLayer: name, id: hoveredFeatureId },
+					{ hover: false }
+				);
+				hoveredFeatureId = null;
 			}
-			hoveredFeatureId = null;
+			popup?.remove();
+			popup = null;
 		};
 	});
 
-	// Zoom to boundary extent
+	// Sync selected feature IDs as feature state on the active FC
 	$effect(() => {
-		if (!map || !mapReady || !boundaryBbox) return;
-		const [west, south, east, north] = boundaryBbox;
+		if (!map || !mapReady || !activeFcName) return;
+		const m = map;
+		const name = activeFcName;
+		const src = fcSourceId(name);
+		const ids = [...selectedFeatureIds];
+
+		for (const id of prevSelectedIds) {
+			m.setFeatureState({ source: src, sourceLayer: name, id }, { selected: false });
+		}
+		for (const id of ids) {
+			m.setFeatureState({ source: src, sourceLayer: name, id }, { selected: true });
+		}
+		prevSelectedIds = ids;
+	});
+
+	// Zoom to bbox
+	$effect(() => {
+		if (!map || !mapReady || !bbox) return;
+		const [west, south, east, north] = bbox;
 		map.fitBounds(
 			[
 				[west, south],
@@ -188,7 +253,6 @@
 	export function zoomOut() {
 		map?.zoomOut();
 	}
-
 </script>
 
 <div bind:this={mapContainer} class="h-full w-full {className}"></div>
