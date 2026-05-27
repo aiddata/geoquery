@@ -1,378 +1,237 @@
-# accepts request object and creates pdf documentation
-
-import time
-import math
+from datetime import datetime, timezone
 from pathlib import Path
 
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, TableStyle, KeepTogether
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
-from reportlab.lib.units import inch
-from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER
+from datasets.models import Dataset
+from analytics.models import Request
 
-from datasets.models import Dataset, DatasetResource
-from features.models import Feature, FeatMap, FeatureCollection
-from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
+GEOQUERY_CITATION = (
+    "Goodman, S., BenYishay, A., Lv, Z., &amp; Runfola, D. (2019). "
+    "GeoQuery: Integrating HPC systems and public web-based geospatial data tools. "
+    "<em>Computers &amp; Geosciences</em>, 122, 103–112. "
+    "https://doi.org/10.1016/j.cageo.2018.10.009"
+)
 
-# =============================================================================
 
-styles = getSampleStyleSheet()
+class DocBuilder:
+    """Generate an HTML documentation file for a completed GeoQuery request.
 
-def pg(text, pg_type):
-    """return paragraph of specified type for given text
+    The output is a self-contained HTML file that renders in any browser and
+    prints cleanly to PDF via the browser's print dialog (or a headless tool
+    such as weasyprint if added later).
     """
-    if pg_type == 1:
-        return Paragraph(text, styles['Normal'])
-    elif pg_type == 2:
-        return Paragraph(text, styles['BodyText'])
-    else:
-        raise Exception("invalid paragraph type")
 
-
-def enforce_max_word_length(string, max_chars=80):
-    raw_word_list = string.split(" ")
-    short_word_list = []
-    for word in raw_word_list:
-        if len(word) > max_chars:
-            split_word = [
-                word[i:i+max_chars]
-                for i in range(0, len(word), max_chars)
-            ]
-            fixed_word = "\n".join(split_word)
-        else:
-            fixed_word = word
-        short_word_list += [fixed_word]
-    return " ".join(short_word_list)
-
-
-class DocBuilder():
-
-    def __init__(self, request, output_path, download_server, asset_dir):
-
-        self.request_id = str(request['id'])
+    def __init__(self, request: Request, output_path, download_server: str):
         self.request = request
-        self.output_path = output_path
-
-        self.assets_dir = Path(asset_dir)
-
+        self.output_path = Path(output_path).with_suffix(".html")
         self.download_server = download_server
 
-        self.doc = 0
+    # ── public ───────────────────────────────────────────────────────────────
 
-        # container for the 'Flowable' objects
-        self.Story = []
+    def build_doc(self) -> str:
+        html = self._render()
+        with open(self.output_path, "w", encoding="utf-8") as f:
+            f.write(html)
+        return "Success"
 
-        self.styles = getSampleStyleSheet()
-        self.styles.add(ParagraphStyle(name='Justify', alignment=TA_JUSTIFY))
-        self.styles.add(ParagraphStyle(name='Center', alignment=TA_CENTER))
+    # ── private helpers ───────────────────────────────────────────────────────
 
+    @staticmethod
+    def _esc(text) -> str:
+        if text is None:
+            return ""
+        return (
+            str(text)
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
 
-    def time_str(self, timestamp=None):
-        if timestamp != None:
+    @staticmethod
+    def _fmt_dt(dt) -> str:
+        if dt is None:
+            return "—"
+        if isinstance(dt, str):
             try:
-                timestamp = int(timestamp)
-                if timestamp == 0:
-                    return "---"
-            except:
-                return "---"
+                dt = datetime.fromisoformat(dt)
+            except ValueError:
+                return dt
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.strftime("%Y-%m-%d %H:%M UTC")
 
-        return time.strftime('%Y-%m-%d %H:%M:%S (%Z)', time.localtime(timestamp))
+    def _kv(self, label: str, value: str) -> str:
+        return f"<tr><th>{self._esc(label)}</th><td>{value}</td></tr>"
 
+    def _table(self, rows: list[str]) -> str:
+        return f'<table class="kv">{"".join(rows)}</table>'
 
-    def build_doc(self):
-        rid = self.request_id
-        print('build_doc: ' + rid)
+    # ── sections ─────────────────────────────────────────────────────────────
 
-        self.doc = SimpleDocTemplate(self.output, pagesize=letter)
-
-        # build doc call all functions
-        self.add_header()
-        self.Story.append(Spacer(1, 0.5*inch))
-        self.add_info()
-        self.Story.append(Spacer(1, 0.3*inch))
-        self.add_timeline()
-        self.Story.append(Spacer(1, 0.3*inch))
-        self.add_cite_and_contents()
-        self.Story.append(PageBreak())
-
-        self.add_meta()
-        self.Story.append(PageBreak())
-
-        self.add_notes()
-        self.Story.append(PageBreak())
-
-        self.add_additional()
-
-        self.output_doc()
-
-        return True
-
-
-    # documentation header
-    def add_header(self):
-        # # aiddata logo
-        # logo = self.assets_dir + '/templates/aid_data.png'
-
-        # im = Image(logo, 2.188*inch, 0.5*inch)
-        # im.hAlign = 'LEFT'
-        # self.Story.append(im)
-
-        # self.Story.append(Spacer(1, 0.25*inch))
-
-        # title
-        ptext = '<font size=20>AidData GeoQuery Request Documentation</font>'
-        self.Story.append(Paragraph(ptext, self.styles['Center']))
-
-
-    # report generation info
-    def add_info(self):
-        ptext = '<b><font size=14>Report Info</font></b>'
-        self.Story.append(Paragraph(ptext, self.styles['BodyText']))
-        self.Story.append(Spacer(1, 0.1*inch))
-
-        data = [
-            ['Request Name', self.request['custom_name'].encode('utf8', 'replace')],
-            ['Request Id', str(self.request['id'])],
-            ['Email', self.request['contact']],
-            ['Generated on', self.time_str()],
-            ['Download Link', '<a href="http://{0}/query/#!/status/{1}">{0}/query/#!/status/{1}</a>'.format(
-                self.download_server, self.request['id'])]
+    def _section_info(self) -> str:
+        req = self.request
+        dl_url = (
+            f"http://{self.download_server}/data/geoquery_results"
+            f"/{req.id}/{req.id}.zip"
+        )
+        rows = [
+            self._kv("Request Name", self._esc(req.custom_name or "—")),
+            self._kv("Request ID", f"<code>{req.id}</code>"),
+            self._kv("Email", self._esc(req.contact or "—")),
+            self._kv("Submitted", self._fmt_dt(req.submit_time)),
+            self._kv("Completed", self._fmt_dt(req.complete_time)),
+            self._kv("Download", f'<a href="{self._esc(dl_url)}">{self._esc(dl_url)}</a>'),
         ]
+        return f"<section><h2>Request Info</h2>{self._table(rows)}</section>"
 
-        data = [[i[0], pg(i[1], 1)] for i in data]
-        t = Table(data)
+    def _section_selection(self) -> str:
+        data = self.request.data or {}
+        label = data.get("selection_label") or "—"
+        detail = data.get("selection_detail") or ""
+        feature_ids = data.get("feature_ids") or []
 
-        t.setStyle(TableStyle([
-            ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
-            ('BOX', (0,0), (-1,-1), 0.25, colors.black)
-        ]))
+        rows = [self._kv("Selection", self._esc(label))]
+        if detail:
+            rows.append(self._kv("Detail", self._esc(detail)))
+        rows.append(self._kv("Feature count", str(len(feature_ids))))
+        return f"<section><h2>Geographic Selection</h2>{self._table(rows)}</section>"
 
-        self.Story.append(t)
+    def _section_datasets(self) -> str:
+        datasets = (self.request.data or {}).get("datasets") or []
+        if not datasets:
+            return ""
 
-
-    # full request timeline / other processing info
-    def add_timeline(self):
-
-        ptext = '<b><font size=14>Processing Timeline</font></b>'
-        self.Story.append(Paragraph(ptext, self.styles['Normal']))
-        self.Story.append(Spacer(1, 0.1*inch))
-
-        data = [
-            ["submit_time", self.time_str(self.request['submit_time'])],
-            ["prepare_time", self.time_str(self.request['prepare_time'])],
-            ["processing_time", self.time_str(self.request['processing_time'])],
-            ["complete_time", self.time_str(int(time.time()))]
-        ]
-
-        data = [[i[0], pg(i[1], 1)] for i in data]
-        t = Table(data)
-
-        t.setStyle(TableStyle([
-            ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
-            ('BOX', (0,0), (-1,-1), 0.25, colors.black)
-        ]))
-
-        self.Story.append(t)
-
-
-    def add_cite_and_contents(self):
-
-        with open(self.assets_dir + '/templates/general.txt') as general:
-            for line in general:
-                p = Paragraph(line, self.styles['BodyText'])
-                self.Story.append(p)
-
-
-    # intro paragraphs
-    def add_notes(self):
-
-        with open(self.assets_dir + '/templates/field_names.txt') as field_names:
-            for line in field_names:
-                p = Paragraph(line, self.styles['BodyText'])
-                self.Story.append(p)
-
-        self.Story.append(PageBreak())
-
-        with open(self.assets_dir + '/templates/notes.txt') as field_names:
-            for line in field_names:
-                p = Paragraph(line, self.styles['BodyText'])
-                self.Story.append(p)
-
-        self.Story.append(PageBreak())
-
-        with open(self.assets_dir + '/templates/aid_data.txt') as field_names:
-            for line in field_names:
-                p = Paragraph(line, self.styles['BodyText'])
-                self.Story.append(p)
-
-
-    def add_meta(self):
-
-        ptext = '<b><font size=14>Meta Information</font></b>'
-        self.Story.append(Paragraph(ptext, self.styles['Normal']))
-        self.Story.append(Spacer(1, 0.25*inch))
-
-        # full boundary meta
-        ptext = '<font size=10><b>Boundary</b></font>'
-        self.Story.append(Paragraph(ptext, self.styles['Normal']))
-        self.Story.append(Spacer(1, 0.05*inch))
-
-
-        # build boundary meta table array
-        data = self.build_meta(self.request['boundary']['name'], 'boundary', None)
-
-        data = [[i[0], pg(i[1], 2)] for i in data]
-        t = Table(data)
-        t.setStyle(TableStyle([
-            ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
-            ('BOX', (0,0), (-1,-1), 0.25, colors.black)
-        ]))
-
-        self.Story.append(t)
-        self.Story.append(Spacer(1, 0.1*inch))
-
-        meta_log = []
-
-        for dset in self.request['raster_data']:
-
-            if not dset:
-                continue
-
-            # if dset['name'] not in meta_log:
-            meta_log.append(dset['name'])
-
-            ptext = '<font size=10><b>Selection {0} - {1}</b></font>'.format(
-                len(meta_log), dset['custom_name'].encode('utf8', 'replace'))
-            self.Story.append(Paragraph(ptext, self.styles['Normal']))
-            self.Story.append(Spacer(1, 0.05*inch))
-
-            # build dataset meta table array
-            data = self.build_meta(dset['name'], dset['type'], dset)
-
-            data = [[i[0], pg(i[1], 2)] for i in data]
-            t = Table(data)
-            t.setStyle(TableStyle([
-                ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
-                ('BOX', (0,0), (-1,-1), 0.25, colors.black)
-            ]))
-
-            self.Story.append(KeepTogether(t))
-            self.Story.append(Spacer(1, 0.1*inch))
-
-
-    def build_meta(self, name, item_type, dset):
-
-        valid_item_types = ['boundary', 'dataset']
-        if item_type not in valid_item_types:
-            raise Exception(f'invalid item_type for build_meta ({item_type}), must be in: {valid_item_types}')
-
-        # get metadata for dataset or boundary
-        if item_type == 'boundary':
-            meta = FeatureCollection.objects.filter(name=name)
-        elif item_type == 'dataset':
-            meta = Dataset.objects.filter(name=name)
-
-        if meta is None:
-            msg = ('Could not lookup dataset ({0}, {1}) for '
-                   'build_meta').format(name, item_type)
-            raise Exception(msg)
-
-        details = "(no additional details)"
-        if "details" in meta:
-            details = meta["details"]
-
-        # build generic meta
-        data = [
-            ['Title', meta['title']],
-            ['Name', meta['name']],
-            ['Version', str(meta['version'])],
-        ]
-
-        if item_type == 'raster':
-
-            data.append(['Variable Description', meta['options']['variable_description']])
-            data.append(['Resolution', str(meta['options']['resolution'])])
-            # data.append(['Extract Types', ', '.join(meta['options']['extract_types'])])
-            data.append(['Factor', str(meta['options']['factor'])])
-
-            colnames_list =  [
-                '{0}.{1}.{2}'.format(dset['name'], i, j)
-                for i in [f['name'].split('_')[-1] for f in dset['files']]
-                for j in dset['options']['extract_types']
+        cards = []
+        for i, ds in enumerate(datasets, 1):
+            name = ds.get("dataset_name") or "—"
+            rows = [
+                self._kv("Dataset", self._esc(name)),
+                self._kv("Type", self._esc(ds.get("dataset_type") or "—")),
             ]
 
-            colnames = ('Format: "{0}.&lt;temporal&gt;.&lt;method&gt;" <br /> '
-                        'for all combinations of &lt;temporal&gt; and &lt;method&gt; '
-                        'which can be found in the "Temporal Selection" and '
-                        '"Extract Types Selected" fields below '
-                        '({1} columns total)').format(
-                            dset['name'], len(colnames_list)
-                        )
+            extract_types = ds.get("extract_types") or []
+            if extract_types:
+                rows.append(self._kv("Extract types", self._esc(", ".join(extract_types))))
 
-            data.append(['Column Names ', colnames])
+            resource_labels = ds.get("resource_labels") or ds.get("resources") or []
+            if resource_labels:
+                rows.append(self._kv("Time periods", self._esc(", ".join(str(l) for l in resource_labels))))
 
-            # data.append(['Temporal Type', dset['temporal_type']])
+            # pull additional metadata from the database
+            try:
+                db_ds = Dataset.objects.filter(name=name).first()
+                if db_ds:
+                    if db_ds.description:
+                        rows.append(self._kv("Description", self._esc(db_ds.description)))
+                    if db_ds.source_name:
+                        src = self._esc(db_ds.source_name)
+                        if db_ds.source_url:
+                            src = f'<a href="{self._esc(db_ds.source_url)}">{src}</a>'
+                        rows.append(self._kv("Source", src))
+                    if db_ds.temporal_name and db_ds.temporal_name != "Temporally Invariant":
+                        rows.append(self._kv("Temporal coverage", self._esc(db_ds.temporal_name)))
+                    if db_ds.date_updated:
+                        rows.append(self._kv("Last updated", self._esc(str(db_ds.date_updated))))
+            except Exception:
+                pass
 
-            temporal_raw = [f['name'].split('_')[-1] for f in dset['files']]
+            cards.append(
+                f'<div class="dataset-card">'
+                f"<h3>{i}. {self._esc(name)}</h3>"
+                f"{self._table(rows)}"
+                f"</div>"
+            )
 
-            if 'none' in temporal_raw:
-                temporal_str = temporal_raw
-            else:
-                temporal_int = [int(s) for s in temporal_raw]
-                temporal_sorted = sorted(temporal_int, reverse=True)
-                temporal_str = [str(ts) for ts in temporal_sorted]
+        return (
+            f"<section>"
+            f"<h2>Datasets ({len(datasets)})</h2>"
+            f'{"".join(cards)}'
+            f"</section>"
+        )
 
-            max_temporal_str_len = 25
-            for ix, i in enumerate(range(0, len(temporal_str), max_temporal_str_len)):
-                temporal_str_sub = temporal_str[i:i + max_temporal_str_len]
-                data.append(['Temporal Selection (' + str(ix) + ')', ', '.join(temporal_str_sub)])
+    def _section_citation(self) -> str:
+        return (
+            "<section>"
+            "<h2>Citation</h2>"
+            "<p>When publishing results generated with GeoQuery, please cite:</p>"
+            f"<blockquote>{GEOQUERY_CITATION}</blockquote>"
+            "<p>Individual dataset citations can be found in the source links above.</p>"
+            "</section>"
+        )
 
-            # prevent issue due to missing extract_types_info field
-            for i in dset['options']['extract_types']:
-                if i not in meta['options']['extract_types_info']:
-                    meta['options']['extract_types_info'][i] = ""
+    # ── full document ─────────────────────────────────────────────────────────
 
-            data.append(['Extract Types Selected', ', '.join([
-                "{0} ({1})".format(i, meta['options']['extract_types_info'][i])
-                for i in dset['options']['extract_types']
-            ])])
-
-        data.append(['',''])
-        data.append(['Description', meta['description']])
-        data.append(['Details', details])
-
-        data.append(['Bounding Box', str(meta['spatial']['coordinates'])])
-
-        data.append(['Date Added', str(meta['asdf']['date_added'])])
-        data.append(['Date Updated', str(meta['asdf']['date_updated'])])
-
-        if 'sources_name' in meta['extras']:
-            data.append(['Source Name', meta['extras']['sources_name']])
-
-        if 'sources_web' in meta['extras']:
-            tmp_sources_web = meta['extras']['sources_web']
-            tmp_sources_web = enforce_max_word_length(tmp_sources_web)
-            data.append(['Source Link', tmp_sources_web])
-
-        if 'citation' in meta['extras']:
-            tmp_citation = meta['extras']['citation']
-            tmp_citation = enforce_max_word_length(tmp_citation)
-            data.append(['Citation', tmp_citation])
-
-        return data
-
-
-    # license stuff
-    def add_additional(self):
-
-        with open(self.assets_dir + '/templates/additional.txt') as license:
-            for line in license:
-                p = Paragraph(line, self.styles['BodyText'])
-                self.Story.append(p)
-
-
-    # write the document to disk
-    def output_doc(self):
-        self.doc.build(self.Story)
-        return "Success"
+    def _render(self) -> str:
+        title = self._esc(self.request.custom_name or "Unnamed Request")
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GeoQuery Documentation — {title}</title>
+<style>
+  body {{
+    font-family: system-ui, -apple-system, sans-serif;
+    max-width: 860px;
+    margin: 2rem auto;
+    padding: 0 1.5rem;
+    color: #1a1a1a;
+    line-height: 1.5;
+  }}
+  h1 {{
+    font-size: 1.6rem;
+    border-bottom: 2px solid #003087;
+    padding-bottom: .5rem;
+    margin-bottom: 1.5rem;
+  }}
+  h2 {{ font-size: 1.1rem; color: #003087; margin: 2rem 0 .5rem; }}
+  h3 {{ font-size: 1rem; margin: .75rem 0 .25rem; }}
+  section {{ margin-bottom: 1.5rem; }}
+  table.kv {{ border-collapse: collapse; width: 100%; font-size: .9rem; }}
+  table.kv th {{
+    text-align: left;
+    width: 28%;
+    padding: .4rem .7rem;
+    background: #f3f4f6;
+    font-weight: 600;
+    border: 1px solid #d1d5db;
+    white-space: nowrap;
+    vertical-align: top;
+  }}
+  table.kv td {{ padding: .4rem .7rem; border: 1px solid #d1d5db; vertical-align: top; }}
+  .dataset-card {{
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: .75rem 1rem;
+    margin: .75rem 0;
+  }}
+  blockquote {{
+    border-left: 3px solid #003087;
+    margin: .5rem 0;
+    padding: .5rem 1rem;
+    background: #f8f9fa;
+    font-size: .9rem;
+  }}
+  code {{
+    font-size: .85em;
+    background: #f3f4f6;
+    padding: .1em .3em;
+    border-radius: 3px;
+    word-break: break-all;
+  }}
+  a {{ color: #003087; }}
+  @media print {{
+    body {{ max-width: none; margin: 0; padding: 1cm; font-size: 11pt; }}
+    h2 {{ color: #000; }}
+    a {{ color: #000; text-decoration: none; }}
+    .dataset-card {{ break-inside: avoid; }}
+  }}
+</style>
+</head>
+<body>
+<h1>AidData GeoQuery — Request Documentation</h1>
+{self._section_info()}
+{self._section_selection()}
+{self._section_datasets()}
+{self._section_citation()}
+</body>
+</html>"""

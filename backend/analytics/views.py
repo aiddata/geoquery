@@ -182,5 +182,8 @@ class RequestDetailView(APIView):
                 data["download_url"] = (
                     f"{base}/data/geoquery_results/{req.id}/{req.id}.zip"
                 )
+                data["documentation_url"] = (
+                    f"{base}/data/geoquery_results/{req.id}/{req.id}_documentation.html"
+                )
 
         return Response(data)
