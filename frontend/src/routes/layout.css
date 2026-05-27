@@ -8,13 +8,15 @@
 
 :root {
     --radius: 0.625rem;
-    --font-sans: "Lato", ui-sans-serif, system-ui, sans-serif;
+    --font-sans: "Roboto", ui-sans-serif, system-ui, sans-serif;
 
     /* AidData Brand Colors */
     --aiddata-navy: oklch(0.18 0.03 260);
     --aiddata-steel: oklch(0.42 0.03 240);
     --aiddata-lime: oklch(0.7 0.15 130);
-    --wm-green: oklch(0.35 0.1 160);
+    --wm-green: #004E38;
+    --wm-gold: #B79257;
+    --wm-silver: #D8DCDB;
 
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
