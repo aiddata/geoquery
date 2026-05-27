@@ -20,6 +20,7 @@ TEMPLATE = """<!DOCTYPE html>
       color: #1e293b;
     }
 
+    /* ── Header ── */
     #header {
       padding: 10px 16px;
       background: #fff;
@@ -43,6 +44,7 @@ TEMPLATE = """<!DOCTYPE html>
       flex-shrink: 0;
     }
 
+    /* ── Layout ── */
     #app { display: flex; flex: 1; overflow: hidden; }
 
     #sidebar {
@@ -53,12 +55,12 @@ TEMPLATE = """<!DOCTYPE html>
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 0;
     }
 
     .panel {
       padding: 12px 14px;
       border-bottom: 1px solid #f1f5f9;
+      flex-shrink: 0;
     }
     .panel-title {
       font-size: 10px;
@@ -69,6 +71,7 @@ TEMPLATE = """<!DOCTYPE html>
       margin-bottom: 7px;
     }
 
+    /* ── Select controls ── */
     select {
       width: 100%;
       padding: 6px 28px 6px 8px;
@@ -85,47 +88,34 @@ TEMPLATE = """<!DOCTYPE html>
     }
     select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.12); }
 
-    .legend-item {
+    /* ── Legend ── */
+    .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 11px; color: #475569; }
+    .legend-swatch { width: 13px; height: 13px; border-radius: 2px; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.08); }
+
+    /* ── Stats ── */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .stat-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 7px 8px; }
+    .stat-label { font-size: 10px; color: #94a3b8; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-value { font-size: 13px; font-weight: 600; color: #0f172a; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── Toggle items (FC + feature checkboxes) ── */
+    .toggle-item {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 5px;
-      font-size: 11px;
-      color: #475569;
+      gap: 7px;
+      padding: 3px 2px;
+      cursor: pointer;
+      font-size: 12px;
+      color: #1e293b;
+      border-radius: 4px;
+      user-select: none;
     }
-    .legend-swatch {
-      width: 13px;
-      height: 13px;
-      border-radius: 2px;
-      flex-shrink: 0;
-      border: 1px solid rgba(0,0,0,0.08);
-    }
-    .legend-nodata { color: #94a3b8; font-style: italic; }
+    .toggle-item:hover { background: #f8fafc; }
+    .toggle-item input[type="checkbox"] { flex-shrink: 0; cursor: pointer; accent-color: #3b82f6; width: 13px; height: 13px; }
+    .toggle-item .toggle-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+    .toggle-item .toggle-count { font-size: 10px; color: #94a3b8; flex-shrink: 0; }
 
-    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-    .stat-item {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-      padding: 7px 8px;
-    }
-    .stat-label {
-      font-size: 10px;
-      color: #94a3b8;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .stat-value {
-      font-size: 13px;
-      font-weight: 600;
-      color: #0f172a;
-      margin-top: 2px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
+    /* ── Map ── */
     #map-container { flex: 1; position: relative; }
     #map { position: absolute; inset: 0; }
 
@@ -189,6 +179,11 @@ TEMPLATE = """<!DOCTYPE html>
       </div>
     </div>
 
+    <div class="panel" id="fc-panel">
+      <div class="panel-title">Feature Collections</div>
+      <div id="fc-toggles"></div>
+    </div>
+
   </div>
 
   <div id="map-container">
@@ -201,22 +196,44 @@ TEMPLATE = """<!DOCTYPE html>
 
   // ── Color palettes (5-class ColorBrewer) ───────────────────────────────────
   const PALETTES = {
-    'YlOrRd':  { label: 'Yellow → Orange → Red',     colors: ['#ffffb2','#fecc5c','#fd8d3c','#f03b20','#bd0026'] },
-    'Blues':   { label: 'Blues',                      colors: ['#eff3ff','#bdd7e7','#6baed6','#3182bd','#08519c'] },
-    'Greens':  { label: 'Greens',                     colors: ['#edf8e9','#bae4b3','#74c476','#31a354','#006d2c'] },
-    'Purples': { label: 'Purples',                    colors: ['#f2f0f7','#cbc9e2','#9e9ac8','#756bb1','#54278f'] },
-    'Oranges': { label: 'Oranges',                    colors: ['#feedde','#fdbe85','#fd8d3c','#e6550d','#a63603'] },
-    'YlGn':    { label: 'Yellow → Green',             colors: ['#ffffcc','#c2e699','#78c679','#31a354','#006837'] },
-    'RdYlGn':  { label: 'Red → Yellow → Green ↔',    colors: ['#d7191c','#fdae61','#ffffbf','#a6d96a','#1a9641'] },
-    'RdBu':    { label: 'Red → Blue ↔',              colors: ['#ca0020','#f4a582','#f7f7f7','#92c5de','#0571b0'] },
-    'PuOr':    { label: 'Purple → Orange ↔',         colors: ['#5e3696','#b2abd2','#f7f7f7','#fdb863','#e66101'] },
-    'BrBG':    { label: 'Brown → Blue-Green ↔',      colors: ['#8c510a','#d8b365','#f5f5f5','#5ab4ac','#01665e'] },
+    'YlOrRd':  { label: 'Yellow → Orange → Red',  colors: ['#ffffb2','#fecc5c','#fd8d3c','#f03b20','#bd0026'] },
+    'Blues':   { label: 'Blues',                   colors: ['#eff3ff','#bdd7e7','#6baed6','#3182bd','#08519c'] },
+    'Greens':  { label: 'Greens',                  colors: ['#edf8e9','#bae4b3','#74c476','#31a354','#006d2c'] },
+    'Purples': { label: 'Purples',                 colors: ['#f2f0f7','#cbc9e2','#9e9ac8','#756bb1','#54278f'] },
+    'Oranges': { label: 'Oranges',                 colors: ['#feedde','#fdbe85','#fd8d3c','#e6550d','#a63603'] },
+    'YlGn':    { label: 'Yellow → Green',          colors: ['#ffffcc','#c2e699','#78c679','#31a354','#006837'] },
+    'RdYlGn':  { label: 'Red → Yellow → Green ↔', colors: ['#d7191c','#fdae61','#ffffbf','#a6d96a','#1a9641'] },
+    'RdBu':    { label: 'Red → Blue ↔',           colors: ['#ca0020','#f4a582','#f7f7f7','#92c5de','#0571b0'] },
+    'PuOr':    { label: 'Purple → Orange ↔',      colors: ['#5e3696','#b2abd2','#f7f7f7','#fdb863','#e66101'] },
+    'BrBG':    { label: 'Brown → Blue-Green ↔',   colors: ['#8c510a','#d8b365','#f5f5f5','#5ab4ac','#01665e'] },
   };
 
+  // ── Visibility state ───────────────────────────────────────────────────────
+  const hiddenFCs = new Set();
+
+  function applyVisibility(idStr) {
+    const feat = DATA.features[idStr];
+    if (!feat) return;
+    map.setFeatureState(
+      { source: 'fc-' + feat.fc, sourceLayer: feat.fc, id: parseInt(idStr) },
+      { hidden: hiddenFCs.has(feat.fc) }
+    );
+  }
+
+  function onFCToggle(el) {
+    const fc = el.dataset.fc;
+    if (el.checked) hiddenFCs.delete(fc);
+    else hiddenFCs.add(fc);
+    for (const [idStr, feat] of Object.entries(DATA.features)) {
+      if (feat.fc === fc) applyVisibility(idStr);
+    }
+  }
+
+  // ── Visualization state ────────────────────────────────────────────────────
   let map;
-  let currentColumn = DATA.columns[0] || null;
+  let currentColumn  = DATA.columns[0] || null;
   let currentPalette = 'YlOrRd';
-  let currentMethod = 'quantile';
+  let currentMethod  = 'quantile';
 
   // ── Populate controls ──────────────────────────────────────────────────────
   document.getElementById('header-subtitle').textContent =
@@ -252,6 +269,32 @@ TEMPLATE = """<!DOCTYPE html>
     }
   })();
 
+  function buildFCToggles() {
+    const fcCounts = {};
+    for (const feat of Object.values(DATA.features)) {
+      fcCounts[feat.fc] = (fcCounts[feat.fc] || 0) + 1;
+    }
+    const container = document.getElementById('fc-toggles');
+    for (const fc of DATA.fc_names) {
+      const label = document.createElement('label');
+      label.className = 'toggle-item';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = true;
+      cb.dataset.fc = fc;
+      cb.onchange = function() { onFCToggle(this); };
+      const name = document.createElement('span');
+      name.className = 'toggle-label';
+      name.textContent = fc;
+      name.title = fc;
+      const count = document.createElement('span');
+      count.className = 'toggle-count';
+      count.textContent = (fcCounts[fc] || 0) + ' features';
+      label.append(cb, name, count);
+      container.appendChild(label);
+    }
+  }
+
   // ── Map init ───────────────────────────────────────────────────────────────
   function initMap() {
     const { layers, namedFlavor } = basemaps;
@@ -279,6 +322,7 @@ TEMPLATE = """<!DOCTYPE html>
     map.on('load', () => {
       addFeatureLayers();
       setupHover();
+      buildFCToggles();
       if (DATA.bbox) {
         map.fitBounds(
           [[DATA.bbox[0], DATA.bbox[1]], [DATA.bbox[2], DATA.bbox[3]]],
@@ -310,7 +354,9 @@ TEMPLATE = """<!DOCTYPE html>
             ['coalesce', ['feature-state', 'color'], '#cbd5e1']
           ],
           'fill-opacity': ['case',
-            ['boolean', ['feature-state', 'hover'], false], 0.88, 0.72
+            ['boolean', ['feature-state', 'hidden'], false], 0,
+            ['boolean', ['feature-state', 'hover'], false], 0.88,
+            0.72
           ]
         }
       });
@@ -320,7 +366,13 @@ TEMPLATE = """<!DOCTYPE html>
         type: 'line',
         source: 'fc-' + fc,
         'source-layer': fc,
-        paint: { 'line-color': '#334155', 'line-width': 0.75 }
+        paint: {
+          'line-color': '#334155',
+          'line-width': 0.75,
+          'line-opacity': ['case',
+            ['boolean', ['feature-state', 'hidden'], false], 0, 1
+          ]
+        }
       });
     }
   }
@@ -353,7 +405,7 @@ TEMPLATE = """<!DOCTYPE html>
     return palette[palette.length - 1];
   }
 
-  // ── Apply colors ───────────────────────────────────────────────────────────
+  // ── Apply choropleth colors ────────────────────────────────────────────────
   function applyColors() {
     if (!currentColumn || !map) return;
 
@@ -379,6 +431,7 @@ TEMPLATE = """<!DOCTYPE html>
     for (const [idStr, feat] of Object.entries(DATA.features)) {
       const id = parseInt(idStr);
       const color = getColor(feat[currentColumn], breaks, palette);
+      // setFeatureState merges — does not overwrite 'hidden' state
       map.setFeatureState(
         { source: 'fc-' + feat.fc, sourceLayer: feat.fc, id },
         { color }
@@ -392,9 +445,9 @@ TEMPLATE = """<!DOCTYPE html>
   function fmt(v) {
     if (!isFinite(v)) return String(v);
     if (Math.abs(v) >= 10000) return v.toLocaleString(undefined, { maximumFractionDigits: 0 });
-    if (Math.abs(v) >= 100)  return v.toFixed(1);
-    if (Math.abs(v) >= 1)    return v.toFixed(3);
-    if (v === 0)             return '0';
+    if (Math.abs(v) >= 100)   return v.toFixed(1);
+    if (Math.abs(v) >= 1)     return v.toFixed(3);
+    if (v === 0)               return '0';
     return v.toPrecision(3);
   }
 
@@ -406,7 +459,7 @@ TEMPLATE = """<!DOCTYPE html>
         '<span>' + fmt(breaks[i]) + ' – ' + fmt(breaks[i + 1]) + '</span>' +
       '</div>'
     ).join('') +
-      '<div class="legend-item legend-nodata">' +
+      '<div class="legend-item" style="opacity:0.55">' +
         '<span class="legend-swatch" style="background:#cbd5e1"></span>' +
         '<span>No data</span>' +
       '</div>';
@@ -435,7 +488,7 @@ TEMPLATE = """<!DOCTYPE html>
         if (!e.features.length) return;
         map.getCanvas().style.cursor = 'pointer';
 
-        const f = e.features[0];
+        const f  = e.features[0];
         const id = f.id;
         const feat = DATA.features[String(id)];
 
@@ -450,9 +503,9 @@ TEMPLATE = """<!DOCTYPE html>
 
         const name = feat ? feat.name : ('Feature ' + id);
         const val  = feat ? feat[currentColumn] : null;
-        const colLabel = currentColumn
-          ? (currentColumn.includes('.') ? currentColumn.split('.').slice(1).join('.') : currentColumn)
-          : '';
+        const colLabel = currentColumn && currentColumn.includes('.')
+          ? currentColumn.split('.').slice(1).join('.')
+          : (currentColumn || '');
         const valStr = (val !== null && val !== undefined) ? fmt(Number(val)) : '—';
 
         popup.setLngLat(e.lngLat).setHTML(
