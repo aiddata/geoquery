@@ -13,6 +13,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 from django.db import connection, transaction
+from django.utils import timezone
 
 from datasets.models import Dataset, DatasetResource
 from features.models import Feature, FeatMap, FeatureCollection
@@ -60,7 +61,6 @@ class Command(BaseCommand):
             )
         )
 
-
         if options["id"]:
             request_id = options["id"]
             self.stdout.write(f"Processing request with id: {request_id}")
@@ -102,6 +102,10 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("Request queue is empty"))
             return
 
+        def request_error(request_id, message):
+            self.stdout.write(self.style.ERROR(f"Error with request (id: {request_id}): {message}"))
+            Request.objects.filter(id=request_id).update(status=-2)
+
         # go through found requests, checking status of items in processing queue,
         # building final output when ready and emailing user who requested data
         for request_obj in request_objects:
@@ -111,19 +115,23 @@ class Command(BaseCommand):
             self.stdout.write(f"\n---------------------------------------")
             self.stdout.write(f"Request (id: {request_id})\n{request_obj}\n")
 
-            if not request_obj.features or not request_obj.data:
-                Request.objects.filter(id=request_id).update(status=-2)
-                self.stdout.write(self.style.ERROR(f"Invalid request (missing key fields). Id: {request_id}"))
+            if not request_obj.data:
+                request_error(request_id, "Invalid request (missing items field)")
+                continue
+            if not request_obj.data["feature_ids"]:
+                request_error(request_id, "Invalid request (missing features)")
+                continue
+            if not request_obj.data["datasets"]:
+                request_error(request_id, "Invalid request (missing dataset details)")
                 continue
 
-
-            self.stdout.write(f"Boundary: {request_obj.boundary.name}")
+            self.stdout.write(f"Features: {request_obj.data['selection_label']} ({request_obj.data['selection_label']})")
 
             original_status = Request.objects.get(id=request_id).status
 
             if original_status == -1:
                 # update initial prepare_time
-                Request.objects.filter(id=request_id).update(prepare_time=time.time())
+                Request.objects.filter(id=request_id).update(prepare_time=timezone.now())
                 # send email that request was received
                 self.notify_user(request_id, request_obj.contact, 0, options['download_server'])
 
@@ -134,10 +142,8 @@ class Command(BaseCommand):
             try:
                 missing_items, merge_list = self.check_request_tasks(request_obj, dry_run=options['dry_run'])
             except Exception as e:
-                self.stdout.write(self.style.ERROR(f"Error while running check_request_tasks (id: {request_id})"))
-                Request.objects.filter(id=request_id).update(status=-2)
+                request_error(request_id, f"Error while running check_request_tasks: {e}")
                 raise
-
 
             if missing_items > 0:
                 # set status 0 (do not send an email)
@@ -150,7 +156,7 @@ class Command(BaseCommand):
                 try:
                     updated_request_obj = Request.objects.get(id=request_id)
                 except Exception as e:
-                    self.stdout.write(self.style.ERROR(f"Error while checking for updated request (id: {request_id})"))
+                    request_error(request_id, f"Error while checking for updated request: {e}")
                     raise
 
                 if updated_request_obj is None:
@@ -161,8 +167,7 @@ class Command(BaseCommand):
                     # build request output/docs/zip/etc
                     self.build_output(updated_request_obj, merge_list, options['download_server'], options['assets_dir'])
                 except Exception as e:
-                    self.stdout.write(self.style.ERROR(f"Error while building request output (id: {request_id})"))
-                    Request.objects.filter(id=request_id).update(status=-2)
+                    request_error(request_id, f"Error while building request output: {e}")
                     raise e
 
                 # set status 1 and send email that request is completed
@@ -177,15 +182,15 @@ class Command(BaseCommand):
                 Request.objects.filter(id=request_id).update(status=original_status)
             ###
 
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"""
-                    =======================================
-                    Finished User Request Management Script
-                    {time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())}
-                    """
-                )
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"""
+                =======================================
+                Finished User Request Management Script
+                {time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())}
+                """
             )
+        )
 
 
     def notify_user(self, request_id, mail_to, status, download_server):
@@ -273,10 +278,10 @@ class Command(BaseCommand):
         self.stdout.write("\nChecking status of processing tasks (dry=run = {})...".format(dry_run))
 
         # TODO: combine the RequestMap and ExtractTask queries into one
-        task_list = RequestMap.objects.filter(req_id=request['id'])
+        task_list = RequestMap.objects.filter(request=request.id)
 
         for task_item in task_list:
-            extract_task = ExtractTask.objects.filter(id=task_item.task_id)
+            extract_task = ExtractTask.objects.filter(id=task_item.task_id).first()
             if extract_task.status != 1:
                 pending_task_count += 1
             else:
