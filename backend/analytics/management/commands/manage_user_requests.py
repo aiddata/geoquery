@@ -43,9 +43,14 @@ class Command(BaseCommand):
             help="The server that users will download data from (used in email notifications)",
         )
         parser.add_argument(
+            "--results-dir",
+            default="../results",
+            help="The directory containing results for the request",
+        )
+        parser.add_argument(
             "--assets-dir",
-            default="./assets",
-            help="The directory containing assets for the request documentation",
+            default="../assets",
+            help="The directory containing assets for the request (e.g. documentation templates, example docs, etc.)",
         )
 
     @transaction.atomic
@@ -165,7 +170,7 @@ class Command(BaseCommand):
 
                 try:
                     # build request output/docs/zip/etc
-                    # self.build_output(updated_request_obj, merge_list, options['download_server'], options['assets_dir'])
+                    self.build_output(updated_request_obj, merge_list, options['download_server'], options['results_dir'], options['assets_dir'])
                     pass
                 except Exception as e:
                     request_error(request_id, f"Error while building request output: {e}")
@@ -299,8 +304,8 @@ class Command(BaseCommand):
         merge extracts, generate documentation, update status,
             cleanup working directory, send final email
         """
-        assets_dir = Path(assets_dir)
         results_dir = Path(results_dir) # "/path/to/request_data"
+        assets_dir = Path(assets_dir)
 
         request_id = str(request.id)
         request_dir = results_dir / request_id
@@ -332,25 +337,34 @@ class Command(BaseCommand):
         # else:
         #     self.stdout.write(f'\tDocumentation generated for request {request_id}')
 
-        # output request doc as json
         with open(request_json, "w") as rdoc_file:
-            json.dump(request, rdoc_file, indent=4)
+            json.dump(
+                {k: v for k, v in request.__dict__.items() if not k.startswith('_')},
+                rdoc_file,
+                indent=4,
+                default=str,
+            )
 
         pdf_src = assets_dir / "other/GeoQuery_Goodman2019.pdf"
         pdf_dst = request_dir / "GeoQuery_Goodman2019.pdf"
         shutil.copyfile(pdf_src, pdf_dst)
 
         # dump all feature data into a GPKG in request dir
-        features_gdf = merge_task_features(task_list)
-        features_dst = request_dir / "request_features.gpkg"
-        features_gdf.to_file(features_dst, driver="GPKG")
+        features_status, features_gdf = merge_task_features(task_list)
+        if features_status == "Success":
+            features_dst = request_dir / "request_features.gpkg"
+            features_gdf.to_file(features_dst, driver="GPKG")
+        elif features_status == "Empty":
+            self.stdout.write(f'\tNo features to merge for request {request_id}')
+        else:
+            raise Exception(f'\tError merging features for request {request_id}. Status: {features_status}')
 
         # make zip of request dir
         # shutil.make_archive(request_dir, "zip", request_dir)
         make_zipfile(request_dir, request_dir)
 
         # move zip of request dir into request dir
-        shutil.move(request_dir + ".zip", request_dir)
+        shutil.move(str(request_dir) + ".zip", str(request_dir))
 
         # remove unzipped files which do not need direct access
         os.remove(pdf_dst)
@@ -373,11 +387,11 @@ def make_zipfile(base_name, base_dir):
 
     *** Modified from shutil.make_archive
     """
-    zip_filename = Path(base_name + ".zip")
+    zip_filename = Path(str(base_name) + ".zip")
     archive_dir = zip_filename.parent
     archive_dir.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_filename, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
-        length = len(base_dir)
+        length = len(str(base_dir))
         for dirpath, dirnames, filenames in os.walk(base_dir):
             folder = dirpath[length:]
             for name in filenames:
