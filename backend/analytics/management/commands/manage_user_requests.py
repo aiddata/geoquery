@@ -53,7 +53,6 @@ class Command(BaseCommand):
             help="The directory containing assets for the request (e.g. documentation templates, example docs, etc.)",
         )
 
-    @transaction.atomic
     def handle(self, *args, **options):
 
         self.stdout.write(
@@ -120,73 +119,62 @@ class Command(BaseCommand):
             self.stdout.write(f"\n---------------------------------------")
             self.stdout.write(f"Request (id: {request_id})\n{request_obj}\n")
 
-            if not request_obj.data:
-                request_error(request_id, "Invalid request (missing items field)")
-                continue
-            if not request_obj.data["feature_ids"]:
-                request_error(request_id, "Invalid request (missing features)")
-                continue
-            if not request_obj.data["datasets"]:
-                request_error(request_id, "Invalid request (missing dataset details)")
-                continue
-
-            self.stdout.write(f"Features: {request_obj.data['selection_label']} ({request_obj.data['selection_label']})")
-
-            original_status = Request.objects.get(id=request_id).status
-
-            if original_status == -1:
-                # update initial prepare_time
-                Request.objects.filter(id=request_id).update(prepare_time=timezone.now())
-                # send email that request was received
-                self.notify_user(request_id, request_obj.contact, 0, options['download_server'])
-
-            # set status 2 (no email)
-            Request.objects.filter(id=request_id).update(status=2)
-
-            # run core checks to see if request is ready to be built and emailed, and get list of missing items if not ready
             try:
-                missing_items, merge_list = self.check_request_tasks(request_obj, dry_run=options['dry_run'])
+                with transaction.atomic():
+                    if not request_obj.data:
+                        request_error(request_id, "Invalid request (missing items field)")
+                        continue
+                    if not request_obj.data["feature_ids"]:
+                        request_error(request_id, "Invalid request (missing features)")
+                        continue
+                    if not request_obj.data["datasets"]:
+                        request_error(request_id, "Invalid request (missing dataset details)")
+                        continue
+
+                    self.stdout.write(f"Features: {request_obj.data['selection_label']} ({request_obj.data['selection_label']})")
+
+                    original_status = Request.objects.get(id=request_id).status
+
+                    if original_status == -1:
+                        # update initial prepare_time
+                        Request.objects.filter(id=request_id).update(prepare_time=timezone.now())
+                        # send email that request was received
+                        self.notify_user(request_id, request_obj.contact, 0, options['download_server'])
+
+                    # set status 2 (no email)
+                    Request.objects.filter(id=request_id).update(status=2, process_time=timezone.now())
+
+                    # run core checks to see if request is ready to be built and emailed, and get list of missing items if not ready
+                    missing_items, merge_list = self.check_request_tasks(request_obj, dry_run=options['dry_run'])
+
+                    if missing_items > 0:
+                        # set status 0 (do not send an email)
+                        Request.objects.filter(id=request_id).update(status=0)
+                        self.stdout.write(self.style.WARNING(f"Request not ready (id: {request_id})"))
+
+                    else:
+
+                        # pull request again, since check_request_tasks may have updated fields
+                        updated_request_obj = Request.objects.get(id=request_id)
+
+                        # build request output/docs/zip/etc
+                        self.build_output(updated_request_obj, merge_list, options['download_server'], options['results_dir'], options['assets_dir'])
+
+                        # set status 1 and send email that request is completed
+                        Request.objects.filter(id=request_id).update(status=1, complete_time=timezone.now())
+                        self.notify_user(request_id, updated_request_obj.contact, 1, options['download_server'])
+
+                        self.stdout.write(self.style.SUCCESS(f"Request completed (id: {request_id})"))
+
+                    ###
+                    # for testing
+                    if options['dry_run']:
+                        Request.objects.filter(id=request_id).update(status=original_status)
+                    ###
+
             except Exception as e:
-                request_error(request_id, f"Error while running check_request_tasks: {e}")
-                raise
-
-            if missing_items > 0:
-                # set status 0 (do not send an email)
-                Request.objects.filter(id=request_id).update(status=0)
-                self.stdout.write(self.style.WARNING(f"Request not ready (id: {request_id})"))
-
-            else:
-
-                # pull request again, since check_request_tasks may have updated fields
-                try:
-                    updated_request_obj = Request.objects.get(id=request_id)
-                except Exception as e:
-                    request_error(request_id, f"Error while checking for updated request: {e}")
-                    raise
-
-                if updated_request_obj is None:
-                    self.stdout.write(self.style.ERROR(f"Error getting updated request: Request with id does not exist ({request_id})"))
-                    raise Exception(f"Error getting updated request: Request with id does not exist ({request_id})")
-
-                try:
-                    # build request output/docs/zip/etc
-                    self.build_output(updated_request_obj, merge_list, options['download_server'], options['results_dir'], options['assets_dir'])
-                    pass
-                except Exception as e:
-                    request_error(request_id, f"Error while building request output: {e}")
-                    raise e
-
-                # set status 1 and send email that request is completed
-                Request.objects.filter(id=request_id).update(status=1)
-                self.notify_user(request_id, updated_request_obj.contact, 1, options['download_server'])
-
-                self.stdout.write(self.style.SUCCESS(f"Request completed (id: {request_id})"))
-
-            ###
-            # for testing
-            if options['dry_run']:
-                Request.objects.filter(id=request_id).update(status=original_status)
-            ###
+                request_error(request_id, f"Unhandled exception: {e}")
+                self.stdout.write(self.style.ERROR(f"Skipping request (id: {request_id}) due to error"))
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -316,7 +304,7 @@ class Command(BaseCommand):
         request_dir.mkdir(parents=True, exist_ok=True)
 
         request_csv = request_dir / "{0}_results.csv".format(request_id)
-        request_documentation = request_dir / "{0}_documentation.pdf".format(request_id)
+        request_documentation = request_dir / "{0}_documentation.html".format(request_id)
         request_json = request_dir / "request_details.json"
 
         # merge cached results if all are available
@@ -328,14 +316,12 @@ class Command(BaseCommand):
             self.stdout.write(f'\tMerge completed for request {request_id}')
             merge_df.to_csv(request_csv, index=False)
 
-        # # TODO: generate documentation. Update to markdown/pandocs or something similar?
-        # doc = DocBuilder(request, request_documentation, download_server)
-        # bd_status = doc.build_doc()
-
-        # if bd_status != "Success":
-        #     raise Exception(f'\tError building documentation for request {request_id}. Status: {bd_status}')
-        # else:
-        #     self.stdout.write(f'\tDocumentation generated for request {request_id}')
+        doc = DocBuilder(request, request_documentation, download_server)
+        bd_status = doc.build_doc()
+        if bd_status != "Success":
+            raise Exception(f'\tError building documentation for request {request_id}. Status: {bd_status}')
+        else:
+            self.stdout.write(f'\tDocumentation generated for request {request_id}')
 
         with open(request_json, "w") as rdoc_file:
             json.dump(
