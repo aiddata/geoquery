@@ -64,7 +64,7 @@
 			.join(', ');
 	}
 
-	let featureCount = $derived(request?.items[0]?.featureIds?.length ?? 0);
+	let featureCount = $derived(request?.data?.feature_ids?.length ?? 0);
 </script>
 
 <div class="container mx-auto max-w-2xl px-4 py-8">
@@ -134,13 +134,13 @@
 			</div>
 
 			<!-- Geographic selection -->
-			{#if request.selection_label}
+			{#if request.data?.selection_label}
 				<Card.Root class="bg-muted/40">
 					<Card.Header class="pb-3">
 						<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Geographic Selection</p>
-						<p class="mt-1 font-semibold">{request.selection_label}</p>
-						{#if request.selection_detail}
-							<p class="text-sm text-muted-foreground">{request.selection_detail}</p>
+						<p class="mt-1 font-semibold">{request.data.selection_label}</p>
+						{#if request.data.selection_detail}
+							<p class="text-sm text-muted-foreground">{request.data.selection_detail}</p>
 						{/if}
 						{#if featureCount > 0}
 							<p class="mt-0.5 text-xs text-muted-foreground">
@@ -152,9 +152,9 @@
 			{/if}
 
 			<!-- Dataset items -->
-			{#if request.items.length > 0}
+			{#if request.data?.datasets?.length > 0}
 				<div class="space-y-3">
-					{#each request.items as item}
+					{#each request.data.datasets as item}
 						<Card.Root>
 							<Card.Header class="pb-3">
 								<Collapsible.Root>
@@ -162,21 +162,23 @@
 										<Collapsible.Trigger class="flex items-center text-muted-foreground hover:text-foreground">
 											<ChevronRight class="h-4 w-4 transition-transform [[data-state=open]_&]:rotate-90" />
 										</Collapsible.Trigger>
-										<p class="flex-1 text-sm font-medium">{item.datasetName}</p>
+										<p class="flex-1 text-sm font-medium">{item.dataset_name}</p>
 									</div>
 
 									<Collapsible.Content class="mt-3 space-y-1 pl-7 text-sm text-muted-foreground">
-										<p><span class="font-medium">Type:</span> {item.datasetType}</p>
-										{#if item.extractTypes && item.extractTypes.length > 0}
+										{#if item.dataset_type}
+											<p><span class="font-medium">Type:</span> {item.dataset_type}</p>
+										{/if}
+										{#if item.extract_types && item.extract_types.length > 0}
 											<p>
 												<span class="font-medium">Extract types:</span>
-												{item.extractTypes.join(', ')}
+												{item.extract_types.join(', ')}
 											</p>
 										{/if}
 										{#if item.resources && item.resources.length > 0}
 											<p>
 												<span class="font-medium">Time periods:</span>
-												{formatResources(item.resources, item.resourceLabels)}
+												{formatResources(item.resources, item.resource_labels)}
 											</p>
 										{/if}
 									</Collapsible.Content>

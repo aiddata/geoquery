@@ -13,6 +13,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 from django.db import connection, transaction
+from django.utils import timezone
 
 from datasets.models import Dataset, DatasetResource
 from features.models import Feature, FeatMap, FeatureCollection
@@ -42,9 +43,14 @@ class Command(BaseCommand):
             help="The server that users will download data from (used in email notifications)",
         )
         parser.add_argument(
+            "--results-dir",
+            default="../results",
+            help="The directory containing results for the request",
+        )
+        parser.add_argument(
             "--assets-dir",
-            default="./assets",
-            help="The directory containing assets for the request documentation",
+            default="../assets",
+            help="The directory containing assets for the request (e.g. documentation templates, example docs, etc.)",
         )
 
     @transaction.atomic
@@ -59,7 +65,6 @@ class Command(BaseCommand):
                 """
             )
         )
-
 
         if options["id"]:
             request_id = options["id"]
@@ -102,6 +107,10 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("Request queue is empty"))
             return
 
+        def request_error(request_id, message):
+            self.stdout.write(self.style.ERROR(f"Error with request (id: {request_id}): {message}"))
+            Request.objects.filter(id=request_id).update(status=-2)
+
         # go through found requests, checking status of items in processing queue,
         # building final output when ready and emailing user who requested data
         for request_obj in request_objects:
@@ -111,19 +120,23 @@ class Command(BaseCommand):
             self.stdout.write(f"\n---------------------------------------")
             self.stdout.write(f"Request (id: {request_id})\n{request_obj}\n")
 
-            if not request_obj.features or not request_obj.data:
-                Request.objects.filter(id=request_id).update(status=-2)
-                self.stdout.write(self.style.ERROR(f"Invalid request (missing key fields). Id: {request_id}"))
+            if not request_obj.data:
+                request_error(request_id, "Invalid request (missing items field)")
+                continue
+            if not request_obj.data["feature_ids"]:
+                request_error(request_id, "Invalid request (missing features)")
+                continue
+            if not request_obj.data["datasets"]:
+                request_error(request_id, "Invalid request (missing dataset details)")
                 continue
 
-
-            self.stdout.write(f"Boundary: {request_obj.boundary.name}")
+            self.stdout.write(f"Features: {request_obj.data['selection_label']} ({request_obj.data['selection_label']})")
 
             original_status = Request.objects.get(id=request_id).status
 
             if original_status == -1:
                 # update initial prepare_time
-                Request.objects.filter(id=request_id).update(prepare_time=time.time())
+                Request.objects.filter(id=request_id).update(prepare_time=timezone.now())
                 # send email that request was received
                 self.notify_user(request_id, request_obj.contact, 0, options['download_server'])
 
@@ -134,10 +147,8 @@ class Command(BaseCommand):
             try:
                 missing_items, merge_list = self.check_request_tasks(request_obj, dry_run=options['dry_run'])
             except Exception as e:
-                self.stdout.write(self.style.ERROR(f"Error while running check_request_tasks (id: {request_id})"))
-                Request.objects.filter(id=request_id).update(status=-2)
+                request_error(request_id, f"Error while running check_request_tasks: {e}")
                 raise
-
 
             if missing_items > 0:
                 # set status 0 (do not send an email)
@@ -150,7 +161,7 @@ class Command(BaseCommand):
                 try:
                     updated_request_obj = Request.objects.get(id=request_id)
                 except Exception as e:
-                    self.stdout.write(self.style.ERROR(f"Error while checking for updated request (id: {request_id})"))
+                    request_error(request_id, f"Error while checking for updated request: {e}")
                     raise
 
                 if updated_request_obj is None:
@@ -159,10 +170,10 @@ class Command(BaseCommand):
 
                 try:
                     # build request output/docs/zip/etc
-                    self.build_output(updated_request_obj, merge_list, options['download_server'], options['assets_dir'])
+                    self.build_output(updated_request_obj, merge_list, options['download_server'], options['results_dir'], options['assets_dir'])
+                    pass
                 except Exception as e:
-                    self.stdout.write(self.style.ERROR(f"Error while building request output (id: {request_id})"))
-                    Request.objects.filter(id=request_id).update(status=-2)
+                    request_error(request_id, f"Error while building request output: {e}")
                     raise e
 
                 # set status 1 and send email that request is completed
@@ -177,15 +188,15 @@ class Command(BaseCommand):
                 Request.objects.filter(id=request_id).update(status=original_status)
             ###
 
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"""
-                    =======================================
-                    Finished User Request Management Script
-                    {time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())}
-                    """
-                )
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"""
+                =======================================
+                Finished User Request Management Script
+                {time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())}
+                """
             )
+        )
 
 
     def notify_user(self, request_id, mail_to, status, download_server):
@@ -257,7 +268,7 @@ class Command(BaseCommand):
         mail_status = GE.send_email(mail_to, mail_subject, mail_message)
 
         if not mail_status[0]:
-            self.stdout.write(self.style.ERROR(mail_status[1]))
+            self.stdout.write(self.style.ERROR(f"{mail_status[1]}: {mail_status[2]}"))
             update_status = Request.objects.filter(id=request_id).update(status=-2)
             # raise mail_status[2]
 
@@ -273,10 +284,10 @@ class Command(BaseCommand):
         self.stdout.write("\nChecking status of processing tasks (dry=run = {})...".format(dry_run))
 
         # TODO: combine the RequestMap and ExtractTask queries into one
-        task_list = RequestMap.objects.filter(req_id=request['id'])
+        task_list = RequestMap.objects.filter(request=request.id)
 
         for task_item in task_list:
-            extract_task = ExtractTask.objects.filter(id=task_item.task_id)
+            extract_task = ExtractTask.objects.filter(id=task_item.task_id).first()
             if extract_task.status != 1:
                 pending_task_count += 1
             else:
@@ -293,8 +304,8 @@ class Command(BaseCommand):
         merge extracts, generate documentation, update status,
             cleanup working directory, send final email
         """
-        assets_dir = Path(assets_dir)
         results_dir = Path(results_dir) # "/path/to/request_data"
+        assets_dir = Path(assets_dir)
 
         request_id = str(request.id)
         request_dir = results_dir / request_id
@@ -326,25 +337,34 @@ class Command(BaseCommand):
         # else:
         #     self.stdout.write(f'\tDocumentation generated for request {request_id}')
 
-        # output request doc as json
         with open(request_json, "w") as rdoc_file:
-            json.dump(request, rdoc_file, indent=4)
+            json.dump(
+                {k: v for k, v in request.__dict__.items() if not k.startswith('_')},
+                rdoc_file,
+                indent=4,
+                default=str,
+            )
 
         pdf_src = assets_dir / "other/GeoQuery_Goodman2019.pdf"
         pdf_dst = request_dir / "GeoQuery_Goodman2019.pdf"
         shutil.copyfile(pdf_src, pdf_dst)
 
         # dump all feature data into a GPKG in request dir
-        features_gdf = merge_task_features(task_list)
-        features_dst = request_dir / "request_features.gpkg"
-        features_gdf.to_file(features_dst, driver="GPKG")
+        features_status, features_gdf = merge_task_features(task_list)
+        if features_status == "Success":
+            features_dst = request_dir / "request_features.gpkg"
+            features_gdf.to_file(features_dst, driver="GPKG")
+        elif features_status == "Empty":
+            self.stdout.write(f'\tNo features to merge for request {request_id}')
+        else:
+            raise Exception(f'\tError merging features for request {request_id}. Status: {features_status}')
 
         # make zip of request dir
         # shutil.make_archive(request_dir, "zip", request_dir)
         make_zipfile(request_dir, request_dir)
 
         # move zip of request dir into request dir
-        shutil.move(request_dir + ".zip", request_dir)
+        shutil.move(str(request_dir) + ".zip", str(request_dir))
 
         # remove unzipped files which do not need direct access
         os.remove(pdf_dst)
@@ -367,11 +387,11 @@ def make_zipfile(base_name, base_dir):
 
     *** Modified from shutil.make_archive
     """
-    zip_filename = Path(base_name + ".zip")
+    zip_filename = Path(str(base_name) + ".zip")
     archive_dir = zip_filename.parent
     archive_dir.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_filename, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
-        length = len(base_dir)
+        length = len(str(base_dir))
         for dirpath, dirnames, filenames in os.walk(base_dir):
             folder = dirpath[length:]
             for name in filenames:

@@ -126,8 +126,6 @@
 
 	function handleDatasetSelect(dataset: DatasetSummary) {
 		selectedDatasetSummary = dataset;
-		// Reset configuration state
-		releaseFilters = {};
 		rasterOptions = { extractTypes: [], resources: [] };
 	}
 
@@ -152,7 +150,6 @@
 		// Reset for next selection
 		selectedDatasetSummary = null;
 		selectedDatasetDetail = null;
-		releaseFilters = {};
 		rasterOptions = { extractTypes: [], resources: [] };
 	}
 

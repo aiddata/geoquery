@@ -144,7 +144,7 @@ export const selectionSummary = derived(selection, ($sel) => {
 		};
 	}
 	return {
-		label: `${$sel.fcs.length} boundary collection${$sel.fcs.length === 1 ? '' : 's'}`,
-		detail: $sel.fcs.map((fc) => fc.title ?? fc.name).join(', ')
+		label: $sel.fcs.map((fc) => fc.title ?? fc.name).join(', '),
+		detail: `${$sel.fcs.length} boundary collection${$sel.fcs.length === 1 ? '' : 's'}`
 	};
 });

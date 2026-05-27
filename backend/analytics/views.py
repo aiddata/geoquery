@@ -1,5 +1,3 @@
-import json
-
 from django.conf import settings
 from django.db import transaction
 from rest_framework import status
@@ -52,31 +50,34 @@ class RequestView(APIView):
     def post(self, request):
         name = (request.data.get("name") or "").strip()
         email = (request.data.get("email") or "").strip()
-        items = request.data.get("items") or []
+        feature_ids = request.data.get("featureIds") or []
+        datasets = request.data.get("datasets") or []
 
         if not email:
             return Response(
                 {"error": "email is required"}, status=status.HTTP_400_BAD_REQUEST
             )
-        if not items:
+        if not feature_ids:
             return Response(
-                {"error": "at least one item is required"},
+                {"error": "featureIds is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if not datasets:
+            return Response(
+                {"error": "at least one dataset is required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         all_task_ids: set[int] = set()
         warnings: list[str] = []
+        valid_datasets: list[dict] = []
 
-        for item in items:
-            feature_ids = item.get("featureIds") or []
-            dataset_name = (item.get("datasetName") or "").strip()
-            extract_types = item.get("extractTypes") or []
-            resources = item.get("resources") or []
+        for ds in datasets:
+            dataset_name = (ds.get("datasetName") or "").strip()
+            extract_types = ds.get("extractTypes") or []
+            resources = ds.get("resources") or []
 
-            if not feature_ids or not dataset_name:
-                warnings.append(
-                    f"Skipped item missing featureIds or datasetName: {json.dumps(item)}"
-                )
+            if not dataset_name:
+                warnings.append(f"Skipped dataset missing datasetName: {ds}")
                 continue
 
             tasks = ExtractTask.objects.filter(
@@ -97,25 +98,31 @@ class RequestView(APIView):
                 continue
 
             all_task_ids.update(task_ids)
+            valid_datasets.append({
+                "dataset_name": dataset_name,
+                "dataset_type": (ds.get("datasetType") or "").strip() or None,
+                "extract_types": extract_types,
+                "resources": resources,
+                "resource_labels": ds.get("resourceLabels") or [],
+            })
 
         if not all_task_ids:
             return Response(
-                {"error": "No extract tasks found for the submitted items.", "warnings": warnings},
+                {"error": "No extract tasks found for the submitted datasets.", "warnings": warnings},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        info_payload = {
-            "selection_label": (request.data.get("selectionLabel") or "").strip() or None,
-            "selection_detail": (request.data.get("selectionDetail") or "").strip() or None,
-            "items": items,
-        }
 
         req = Request.objects.create(
             contact=email,
             custom_name=name or None,
             source="web",
             status=-1,
-            info=json.dumps(info_payload),
+            data={
+                "selection_label": (request.data.get("selectionLabel") or "").strip() or None,
+                "selection_detail": (request.data.get("selectionDetail") or "").strip() or None,
+                "feature_ids": feature_ids,
+                "datasets": valid_datasets,
+            },
         )
 
         RequestMap.objects.bulk_create([
@@ -151,20 +158,7 @@ class RequestDetailView(APIView):
         except Request.DoesNotExist:
             return Response({"error": "Not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        try:
-            raw = json.loads(req.info) if req.info else {}
-        except (json.JSONDecodeError, TypeError):
-            raw = {}
-
-        # Support old format (bare list) and new format (dict with items key)
-        if isinstance(raw, list):
-            items = raw
-            selection_label = None
-            selection_detail = None
-        else:
-            items = raw.get("items", [])
-            selection_label = raw.get("selection_label")
-            selection_detail = raw.get("selection_detail")
+        req_data = req.data or {}
 
         data = {
             "id": str(req.id),
@@ -174,9 +168,12 @@ class RequestDetailView(APIView):
             "submit_time": req.submit_time,
             "complete_time": req.complete_time,
             "task_count": RequestMap.objects.filter(request=req).count(),
-            "selection_label": selection_label,
-            "selection_detail": selection_detail,
-            "items": items,
+            "data": {
+                "selection_label": req_data.get("selection_label"),
+                "selection_detail": req_data.get("selection_detail"),
+                "feature_ids": req_data.get("feature_ids", []),
+                "datasets": req_data.get("datasets", []),
+            },
         }
 
         if req.status == 1:

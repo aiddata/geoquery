@@ -9,3 +9,7 @@ logs/*.log
 build/
 
 /site
+/src/
+/old/
+k8s/helm_chart/extra_templates/old/
+/results/

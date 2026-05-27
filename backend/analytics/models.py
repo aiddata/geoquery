@@ -134,6 +134,8 @@ class Request(models.Model):
     process_time = models.DateTimeField(blank=True, null=True)
     complete_time = models.DateTimeField(blank=True, null=True)
 
+    data = models.JSONField(blank=True, null=True)
+
     class Meta:
         db_table = "requests"
 

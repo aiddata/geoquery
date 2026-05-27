@@ -2538,7 +2538,7 @@ wheels = [
 [[package]]
 name = "rasterstats"
 version = "0.19.0"
-source = { git = "https://github.com/aiddata/geoquery-python-rasterstats?rev=main#9d466f24f0c1142aad9278e312bdadbf263ab5aa" }
+source = { git = "https://github.com/aiddata/geoquery-python-rasterstats?rev=main#6330de19091b0defb197df5a839587de597cfbe8" }
 dependencies = [
     { name = "affine" },
     { name = "click" },

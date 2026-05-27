@@ -74,14 +74,13 @@
 				email,
 				selectionLabel: $selectionSummary?.label,
 				selectionDetail: $selectionSummary?.detail,
-				items: $cart.map((item) => ({
-					featureIds: resolvedFeatureIds,
+				featureIds: resolvedFeatureIds,
+				datasets: $cart.map((item) => ({
 					datasetName: item.datasetName,
 					datasetType: item.datasetType,
 					extractTypes: item.extractTypes,
 					resources: item.resources,
-					resourceLabels: item.resourceLabels,
-					filters: item.filters
+					resourceLabels: item.resourceLabels
 				}))
 			});
 			submitted = result;
