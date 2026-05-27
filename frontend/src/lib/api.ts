@@ -129,14 +129,12 @@ export async function fetchDatasetCategories(): Promise<DatasetCategory[]> {
 
 // ── Requests ───────────────────────────────────────────────────
 
-export interface RequestItem {
-	featureIds: number[];
+export interface RequestDataset {
 	datasetName: string;
 	datasetType: string;
 	extractTypes?: string[];
 	resources?: string[];
 	resourceLabels?: string[];
-	filters?: Record<string, string[]>;
 }
 
 export interface SubmittedRequest {
@@ -157,12 +155,25 @@ export interface PastRequest {
 	submit_time: string;
 }
 
+export interface StoredDataset {
+	dataset_name: string;
+	dataset_type: string | null;
+	extract_types?: string[];
+	resources?: string[];
+	resource_labels?: string[];
+}
+
+export interface RequestDetailData {
+	selection_label: string | null;
+	selection_detail: string | null;
+	feature_ids: number[];
+	datasets: StoredDataset[];
+}
+
 export interface RequestDetail extends PastRequest {
 	complete_time: string | null;
 	task_count: number;
-	selection_label: string | null;
-	selection_detail: string | null;
-	items: RequestItem[];
+	data: RequestDetailData;
 	download_url?: string;
 }
 
@@ -171,7 +182,8 @@ export async function submitRequest(payload: {
 	email: string;
 	selectionLabel?: string;
 	selectionDetail?: string;
-	items: RequestItem[];
+	featureIds: number[];
+	datasets: RequestDataset[];
 }): Promise<SubmittedRequest> {
 	const response = await fetch('/api/analytics/requests/', {
 		method: 'POST',
