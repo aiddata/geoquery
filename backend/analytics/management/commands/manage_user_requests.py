@@ -21,6 +21,7 @@ from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
 from analytics.tasks.email import GeoEmail
 from analytics.tasks.documentation import DocBuilder
 from analytics.tasks.merge import merge_task_results, merge_task_features
+from visualize.builder import VizBuilder
 
 class Command(BaseCommand):
     help = "Handles the generation of extract tasks."
@@ -322,6 +323,14 @@ class Command(BaseCommand):
             raise Exception(f'\tError building documentation for request {request_id}. Status: {bd_status}')
         else:
             self.stdout.write(f'\tDocumentation generated for request {request_id}')
+
+        request_visualization = request_dir / "{0}_visualization.html".format(request_id)
+        viz = VizBuilder(request, merge_df, request_visualization)
+        viz_status = viz.build_viz()
+        if viz_status != "Success":
+            self.stdout.write(self.style.WARNING(f'\tVisualization skipped: {viz_status}'))
+        else:
+            self.stdout.write(f'\tVisualization generated for request {request_id}')
 
         with open(request_json, "w") as rdoc_file:
             json.dump(

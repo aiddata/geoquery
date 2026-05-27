@@ -5,7 +5,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Collapsible from '$lib/components/ui/collapsible';
-	import { ArrowLeft, Download, RefreshCw, ChevronRight } from '@lucide/svelte';
+	import { ArrowLeft, Download, RefreshCw, ChevronRight, Map } from '@lucide/svelte';
 
 	const TERMINAL_STATUSES = new Set([1, -2]);
 
@@ -120,6 +120,12 @@
 								<Download class="mr-2 h-4 w-4" />
 								Download Results
 							</Button>
+							{#if request.visualization_url}
+								<Button variant="outline" href={request.visualization_url} target="_blank" rel="noopener noreferrer">
+									<Map class="mr-2 h-4 w-4" />
+									View Map
+								</Button>
+							{/if}
 							{#if request.documentation_url}
 								<Button variant="outline" href={request.documentation_url} target="_blank" rel="noopener noreferrer">
 									View Documentation

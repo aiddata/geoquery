@@ -185,5 +185,8 @@ class RequestDetailView(APIView):
                 data["documentation_url"] = (
                     f"{base}/data/geoquery_results/{req.id}/{req.id}_documentation.html"
                 )
+                data["visualization_url"] = (
+                    f"{base}/data/geoquery_results/{req.id}/{req.id}_visualization.html"
+                )
 
         return Response(data)
