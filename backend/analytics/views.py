@@ -1,11 +1,15 @@
+from datetime import timedelta
+
 from django.conf import settings
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import ExtractTask, Request, RequestMap
+from analytics.tasks.email import GeoEmail
+from .models import ExtractTask, Request, RequestMap, RequestToken
 
 _STATUS_LABELS = {
     -2: "error",
@@ -26,25 +30,7 @@ class RequestView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        email = request.query_params.get("email", "").strip()
-        if not email:
-            return Response(
-                {"error": "email parameter is required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        qs = Request.objects.filter(contact=email).order_by("-submit_time")
-        data = [
-            {
-                "id": str(r.id),
-                "name": r.custom_name,
-                "status": r.status,
-                "status_label": _STATUS_LABELS.get(r.status, "unknown"),
-                "submit_time": r.submit_time,
-            }
-            for r in qs
-        ]
-        return Response(data)
+        return Response({"error": "Not found"}, status=status.HTTP_404_NOT_FOUND)
 
     @transaction.atomic
     def post(self, request):
@@ -189,4 +175,78 @@ class RequestDetailView(APIView):
                     f"{base}/data/geoquery_results/{req.id}/{req.id}_visualization.html"
                 )
 
+        return Response(data)
+
+
+class RequestTokenView(APIView):
+    """
+    POST /api/analytics/request-token/ — issue or refresh a magic-link token for an email
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = (request.data.get("email") or "").strip().lower()
+        if not email:
+            return Response({"error": "email is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        expiry_months = getattr(settings, "TOKEN_EXPIRY_MONTHS", 6)
+        expires_at = timezone.now() + timedelta(days=30 * expiry_months)
+
+        token_obj, _ = RequestToken.objects.update_or_create(
+            email=email,
+            defaults={"expires_at": expires_at},
+        )
+        # update_or_create won't call save() for new tokens so generate token manually
+        if not token_obj.token:
+            import secrets
+            token_obj.token = secrets.token_urlsafe(32)
+            token_obj.save(update_fields=["token"])
+
+        base_url = getattr(settings, "FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+        magic_link = f"{base_url}/requests/{token_obj.token}"
+
+        subject = "Your GeoQuery request history link"
+        message = (
+            f"Here is your personal link to view your GeoQuery request history:\n\n"
+            f"{magic_link}\n\n"
+            f"This link will expire on {expires_at.strftime('%B %d, %Y')}.\n\n"
+            f"If you did not request this link, you can safely ignore this email."
+        )
+        send_status, _, exc = GeoEmail().send_email(email, subject, message)
+        if not send_status:
+            return Response({"error": "Failed to send email. Please try again later."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({"detail": "Link sent. Check your email."}, status=status.HTTP_200_OK)
+
+
+class RequestHistoryView(APIView):
+    """
+    GET /api/analytics/history/<token>/ — return request history for a valid token
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        try:
+            token_obj = RequestToken.objects.get(token=token)
+        except RequestToken.DoesNotExist:
+            return Response({"error": "Invalid or expired link."}, status=status.HTTP_404_NOT_FOUND)
+
+        if token_obj.is_expired:
+            return Response({"error": "This link has expired. Please request a new one."}, status=status.HTTP_410_GONE)
+
+        qs = Request.objects.filter(contact=token_obj.email).order_by("-submit_time")
+        data = [
+            {
+                "id": str(r.id),
+                "name": r.custom_name,
+                "status": r.status,
+                "status_label": _STATUS_LABELS.get(r.status, "unknown"),
+                "submit_time": r.submit_time,
+            }
+            for r in qs
+        ]
         return Response(data)

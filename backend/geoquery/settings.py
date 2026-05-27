@@ -145,6 +145,8 @@ CORS_ALLOW_CREDENTIALS = True
 # Results
 RESULTS_DIR = Path(os.environ.get("RESULTS_DIR", str(BASE_DIR.parent / "results")))
 DOWNLOAD_BASE_URL = os.environ.get("DOWNLOAD_BASE_URL", "http://localhost:8000")
+FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173")
+TOKEN_EXPIRY_MONTHS = int(os.environ.get("TOKEN_EXPIRY_MONTHS", "6"))
 
 # Protomaps
 PROTOMAPS_API_KEY = os.environ.get("PROTOMAPS_API_KEY", "c1f661e43ad06f34")

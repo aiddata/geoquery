@@ -1,6 +1,9 @@
+import secrets
 import uuid
+from datetime import timedelta
 
 from django.db import models
+from django.utils import timezone
 
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature
@@ -154,3 +157,27 @@ class RequestMap(models.Model):
 
     def __str__(self):
         return f"RequestMap: Request {self.request_id} - Task {self.task_id}"
+
+
+class RequestToken(models.Model):
+    """Magic-link tokens for email-based request history access."""
+
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    email = models.EmailField(unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "request_tokens"
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+
+    def __str__(self):
+        return f"RequestToken({self.email}, expires={self.expires_at.date()})"

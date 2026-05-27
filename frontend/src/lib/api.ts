@@ -207,11 +207,25 @@ export async function fetchRequestDetail(id: string): Promise<RequestDetail> {
 	return response.json();
 }
 
-export async function fetchRequestsByEmail(email: string): Promise<PastRequest[]> {
-	const params = new URLSearchParams({ email });
-	const response = await fetch(`/api/analytics/requests/?${params}`);
+export async function requestHistoryLink(email: string): Promise<void> {
+	const response = await fetch('/api/analytics/request-token/', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ email })
+	});
 	if (!response.ok) {
-		throw new Error(`Failed to fetch requests: ${response.status}`);
+		const err = await response.json().catch(() => ({}));
+		throw new Error(err.error || `Failed to send link: ${response.status}`);
+	}
+}
+
+export async function fetchRequestsByToken(token: string): Promise<PastRequest[]> {
+	const response = await fetch(`/api/analytics/history/${encodeURIComponent(token)}/`);
+	if (response.status === 410) {
+		throw new Error('expired');
+	}
+	if (!response.ok) {
+		throw new Error('invalid');
 	}
 	return response.json();
 }
