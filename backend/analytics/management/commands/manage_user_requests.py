@@ -165,7 +165,8 @@ class Command(BaseCommand):
 
                 try:
                     # build request output/docs/zip/etc
-                    self.build_output(updated_request_obj, merge_list, options['download_server'], options['assets_dir'])
+                    # self.build_output(updated_request_obj, merge_list, options['download_server'], options['assets_dir'])
+                    pass
                 except Exception as e:
                     request_error(request_id, f"Error while building request output: {e}")
                     raise e
@@ -262,7 +263,7 @@ class Command(BaseCommand):
         mail_status = GE.send_email(mail_to, mail_subject, mail_message)
 
         if not mail_status[0]:
-            self.stdout.write(self.style.ERROR(mail_status[1]))
+            self.stdout.write(self.style.ERROR(f"{mail_status[1]}: {mail_status[2]}"))
             update_status = Request.objects.filter(id=request_id).update(status=-2)
             # raise mail_status[2]
 
