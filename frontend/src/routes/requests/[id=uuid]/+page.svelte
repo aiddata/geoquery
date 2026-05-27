@@ -115,10 +115,17 @@
 				{#if request.download_url}
 					<div class="mt-4 rounded-md border border-green-200 bg-green-50 p-4">
 						<p class="mb-3 text-sm font-medium text-green-800">Your data is ready to download.</p>
-						<Button href={request.download_url} target="_blank" rel="noopener noreferrer">
-							<Download class="mr-2 h-4 w-4" />
-							Download Results
-						</Button>
+						<div class="flex flex-wrap gap-2">
+							<Button href={request.download_url} target="_blank" rel="noopener noreferrer">
+								<Download class="mr-2 h-4 w-4" />
+								Download Results
+							</Button>
+							{#if request.documentation_url}
+								<Button variant="outline" href={request.documentation_url} target="_blank" rel="noopener noreferrer">
+									View Documentation
+								</Button>
+							{/if}
+						</div>
 					</div>
 				{:else if request.status_label === 'completed'}
 					<p class="mt-4 text-sm text-muted-foreground">Your data is ready. Check your email for a download link.</p>

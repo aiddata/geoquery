@@ -175,6 +175,7 @@ export interface RequestDetail extends PastRequest {
 	task_count: number;
 	data: RequestDetailData;
 	download_url?: string;
+	documentation_url?: string;
 }
 
 export async function submitRequest(payload: {
