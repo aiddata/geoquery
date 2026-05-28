@@ -22,7 +22,7 @@
 	<div class="flex h-20 items-center justify-between px-4">
 		<!-- Logo -->
 		<a href="/" class="flex items-center -ml-7">
-			<img src={geoqueryLogo} alt="GeoQuery" class="h-24" />
+			<img src={geoqueryLogo} alt="GeoQuery" class="h-14 w-auto sm:h-18 md:h-24" />
 		</a>
 
 		<!-- Navigation Buttons -->
