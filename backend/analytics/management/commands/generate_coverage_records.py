@@ -10,21 +10,22 @@ from features.models import Feature
 
 
 class Command(BaseCommand):
-    help = "Generate missing coverage records and kick off spatial coverage testing"
+    help = "Generate missing coverage records and kick off spatial coverage checks"
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--test",
+            "--check",
             action="store_true",
-            help="Also dispatch Celery tasks to test spatial coverage for untested records",
+            help="Also dispatch Celery tasks to check spatial coverage for unchecked records",
         )
         parser.add_argument(
-            "--test-sync",
+            "--check-sync",
             action="store_true",
-            help="Test spatial coverage synchronously instead of dispatching Celery tasks",
+            help="Check spatial coverage synchronously instead of dispatching Celery tasks",
         )
 
     def handle(self, *args, **options):
+
         if not Feature.objects.exists():
             self.stdout.write("No features found in database")
             return
@@ -33,6 +34,16 @@ class Command(BaseCommand):
             self.stdout.write("No datasets found in database")
             return
 
+        # Generate missing coverage records
+        num_records = self._gen_coverage_records()
+        self.stdout.write(self.style.SUCCESS(f"Generated {num_records} missing coverage records"))
+
+        # Optionally kick off coverage checks
+        if options["check"] or options["check_sync"]:
+            self._test_all_missing_coverage(options)
+
+
+    def _gen_coverage_records(self):
         # Find all (feature, dataset) pairs that don't yet have a coverage record
         t_start = time.perf_counter()
 
@@ -43,7 +54,7 @@ class Command(BaseCommand):
                 FROM features f
                 CROSS JOIN datasets d
                 LEFT JOIN coverage c ON c.geom_id = f.id AND c.dataset_id = d.id
-                WHERE c.geom_id IS NULL
+                WHERE c.geom_id IS NULL OR c.status = -1
                 """
             )
             missing_pairs = cursor.fetchall()
@@ -64,38 +75,30 @@ class Command(BaseCommand):
                 )
             )
 
-        # Optionally kick off coverage testing
-        if options["test"] or options["test_sync"]:
-            untested_dataset_ids = list(
-                Coverage.objects.filter(status=-1)
-                .values_list("dataset_id", flat=True)
-                .distinct()
-            )
+        return len(records)
 
-            if not untested_dataset_ids:
-                self.stdout.write("No untested coverage records to process")
-                return
 
-            if options["test_sync"]:
-                self.stdout.write(
-                    f"Testing coverage synchronously for {len(untested_dataset_ids)} datasets..."
-                )
-                t_start = time.perf_counter()
-                for did in untested_dataset_ids:
-                    result = test_coverage_for_dataset(did)
-                    self.stdout.write(
-                        f"  Dataset {did}: {result['covered']} covered, "
-                        f"{result['not_covered']} not covered"
-                    )
-                elapsed = time.perf_counter() - t_start
-                self.stdout.write(
-                    self.style.SUCCESS(f"Coverage testing complete in {elapsed:.2f}s")
-                )
+    def _test_all_missing_coverage(self, options):
+        t_start = time.perf_counter()
+
+        untested_dataset_ids = list(
+            Coverage.objects.filter(status=-1)
+            .values_list("dataset_id", flat=True)
+            .distinct()
+        )
+
+        if not untested_dataset_ids:
+            self.stdout.write("No untested coverage records to process")
+            return
+
+        for did in untested_dataset_ids:
+
+            if options["check_sync"]:
+                result = test_coverage_for_dataset(did)
+                self.stdout.write(f"Dataset {did}: {result['covered']} covered, {result['not_covered']} not covered")
             else:
-                for did in untested_dataset_ids:
-                    test_coverage_for_dataset.delay(did)
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"Dispatched {len(untested_dataset_ids)} coverage test tasks to Celery"
-                    )
-                )
+                test_coverage_for_dataset.delay(did)
+                self.stdout.write(f"Dispatched coverage check for dataset {did}")
+
+        elapsed = time.perf_counter() - t_start
+        self.stdout.write(self.style.SUCCESS(f"Coverage checking completed/dispatched in {elapsed:.2f}s"))
