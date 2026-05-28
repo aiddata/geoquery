@@ -158,6 +158,13 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+STALE_TASK_MINUTES = int(os.environ.get("STALE_TASK_MINUTES", "30"))
+CELERY_BEAT_SCHEDULE = {
+    "free-stale-processing-tasks": {
+        "task": "analytics.tasks.maintenance.free_stale_processing_tasks",
+        "schedule": 3600,  # every hour
+    },
+}
 
 # Django REST Framework settings
 REST_FRAMEWORK = {

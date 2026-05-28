@@ -1,7 +1,10 @@
 import time
-
+import logging
 from django.core.management.base import BaseCommand
 from django.db import connection
+
+
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
@@ -25,41 +28,41 @@ class Command(BaseCommand):
         """
         Replaces gqcore.utils.db.extract_task_watch.free_dangling_tasks.
         """
-        with connection.cursor() as cursor:
-            if options["dry_run"]:
-                cursor.execute(
-                    """
-                    SELECT COUNT(*) FROM extract_tasks
-                    WHERE status = 2
-                    AND update_time < NOW() - INTERVAL '%s minutes'
-                    """,
-                    [options["minutes"]],
-                )
-                freed = cursor.fetchone()[0]
+        if options["dry_run"]:
 
-                self.stdout.write(
-                    self.style.WARNING(
-                        f"Would free {freed} stale extract tasks (disable --dry-run to actually free them)"
+            with connection.cursor() as cursor:
+                    cursor.execute(
+                        """
+                        SELECT COUNT(*) FROM extract_tasks
+                        WHERE status = 2
+                        AND update_time < NOW() - INTERVAL '%s minutes'
+                        """,
+                        [options["minutes"]],
                     )
-                )
+                    freed = cursor.fetchone()[0]
 
-            else:
-                cursor.execute(
-                    """
-                    UPDATE extract_tasks
-                    SET status = 0, update_time = NOW()
-                    WHERE status = 2
-                    AND update_time < NOW() - INTERVAL '%s minutes'
-                    """,
-                    [options["minutes"]],
-                )
-                freed = cursor.rowcount
-                freed = freed if freed is not None else 0  # rowcount can be None in some cases
-
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"Freed {freed} stale extract tasks"
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Would free {freed} stale extract tasks (disable --dry-run to actually free them)"
+                        )
                     )
-                )
+        else:
+            freed = _free_stale_tasks(options["minutes"])
+            self.stdout.write(self.style.SUCCESS(f"Freed {freed} stale extract tasks"))
 
         return
+
+
+def _free_stale_tasks(minutes):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE extract_tasks
+            SET status = 0, update_time = NOW()
+            WHERE status = 2
+            AND update_time < NOW() - INTERVAL '%s minutes'
+            """,
+            [minutes],
+        )
+        freed = cursor.rowcount
+        return freed if freed is not None else 0
