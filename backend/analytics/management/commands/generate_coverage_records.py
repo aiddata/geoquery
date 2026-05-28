@@ -29,12 +29,8 @@ class Command(BaseCommand):
             self.stdout.write("No features found in database")
             return
 
-        dataset_ids = list(
-            Dataset.objects.filter(coverage_dependency__isnull=True)
-            .values_list("id", flat=True)
-        )
-        if not dataset_ids:
-            self.stdout.write("No datasets without coverage dependencies found")
+        if not Dataset.objects.exists():
+            self.stdout.write("No datasets found in database")
             return
 
         # Find all (feature, dataset) pairs that don't yet have a coverage record
@@ -47,9 +43,7 @@ class Command(BaseCommand):
                 FROM features f
                 CROSS JOIN datasets d
                 LEFT JOIN coverage c ON c.geom_id = f.id AND c.dataset_id = d.id
-                WHERE d.coverage_dependency_id IS NULL
-                  AND (c.geom_id IS NULL
-                    OR c.status = -1)
+                WHERE c.geom_id IS NULL
                 """
             )
             missing_pairs = cursor.fetchall()

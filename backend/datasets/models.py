@@ -33,13 +33,6 @@ class Dataset(models.Model):
     ingest_src = models.CharField(max_length=200, blank=True, null=True)
     variable_description = models.CharField(max_length=500, blank=True, null=True)
     variable_factor = models.FloatField(blank=True, null=True)
-    coverage_dependency = models.ForeignKey(
-        "self",
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-        related_name="dependent_datasets",
-    )
     mapped = models.BooleanField(default=False)
     type = models.CharField(max_length=100)
 
