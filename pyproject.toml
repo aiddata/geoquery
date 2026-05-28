@@ -8,6 +8,15 @@ dependencies = [
     "zensical>=0.0.23",
 ]
 
+[dependency-groups]
+docs = ["zensical~=0.0.43"]
+
+[tool.uv]
+default-groups = ["docs"]
+required-environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'"
+]
+
 [project.urls]
 "Source Code" = "https://github.com/aiddata/geoquery-update"
 "Bug Tracker" = "https://github.com/aiddata/geoquery-update/issues"
