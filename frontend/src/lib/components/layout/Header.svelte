@@ -2,7 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { openSidebar, currentStep, type Step } from '$lib/stores/ui';
 	import { CircleHelp, History, MapPin, Star, ClipboardList } from '@lucide/svelte';
-	import geoqueryLogo from '$lib/assets/geoquery_logo.svg';
+	import geoqueryLogo from '$lib/assets/aiddata_geoquery_wordmark.png';
 
 	interface Props {
 		showSteps?: boolean;
