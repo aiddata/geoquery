@@ -7,7 +7,46 @@ from django.db import connection
 
 logger = logging.getLogger(__name__)
 
-def create_missing_coverage_records(self):
+
+def create_coverage_records_for_dataset(dataset_id):
+    """Insert coverage rows (status=-1) for a dataset against all existing features."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO coverage (geom_id, dataset_id, status)
+            SELECT f.id, %s, -1
+            FROM features f
+            WHERE NOT EXISTS (
+                SELECT 1 FROM coverage c WHERE c.geom_id = f.id AND c.dataset_id = %s
+            )
+            """,
+            [dataset_id, dataset_id],
+        )
+        created = cursor.rowcount
+    logger.info("Created %d coverage records for dataset %s", created, dataset_id)
+    return created
+
+
+def create_coverage_records_for_feature(feature_id):
+    """Insert coverage rows (status=-1) for a feature against all existing datasets."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO coverage (geom_id, dataset_id, status)
+            SELECT %s, d.id, -1
+            FROM datasets d
+            WHERE NOT EXISTS (
+                SELECT 1 FROM coverage c WHERE c.geom_id = %s AND c.dataset_id = d.id
+            )
+            """,
+            [feature_id, feature_id],
+        )
+        created = cursor.rowcount
+    logger.info("Created %d coverage records for feature %s", created, feature_id)
+    return created
+
+
+def create_missing_coverage_records():
     # Find all (feature, dataset) pairs that don't yet have a coverage record
     t_start = time.perf_counter()
 
@@ -62,6 +101,35 @@ def run_missing_coverage_checks(self, sync=False):
 
         elapsed = time.perf_counter() - t_start
         logger.info(f"Coverage checking completed/dispatched in {elapsed:.2f}s")
+
+
+def test_single_coverage_record(feature_id, dataset_id):
+    """Test coverage for a single feature-dataset pair."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE coverage
+            SET status = CASE
+                WHEN ST_Contains(
+                    (SELECT spatial_extent FROM datasets WHERE id = %s),
+                    (SELECT shape FROM features WHERE id = %s)
+                ) THEN 1
+                ELSE 0
+            END
+            WHERE geom_id = %s AND dataset_id = %s AND status = -1
+            RETURNING status;
+            """,
+            [dataset_id, feature_id, feature_id, dataset_id],
+        )
+        row = cursor.fetchone()
+
+    if row is None:
+        logger.warning("No coverage record found for feature %s and dataset %s", feature_id, dataset_id)
+        return None
+
+    status = row[0]
+    logger.info("Coverage tested for feature %s and dataset %s: status=%d", feature_id, dataset_id, status)
+    return {"feature_id": feature_id, "dataset_id": dataset_id, "status": status}
 
 
 def _test_coverage_for_feature(feature_id):
