@@ -109,7 +109,7 @@
 
 <div class="rounded-lg border bg-card p-6 shadow-lg">
 	<h2 class="mb-4 text-xl font-semibold text-primary">
-		Select a Boundary to Begin Data Extraction
+		Select Boundaries to Begin Data Extraction
 	</h2>
 
 	<!-- Search Input -->

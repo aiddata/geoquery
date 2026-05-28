@@ -12,6 +12,7 @@
 #
 # Read more: https://zensical.org/docs/setup/basics/#site_name
 site_name = "GeoQuery Docs"
+dev_addr = "127.0.0.1:8001"
 
 # The site_description is included in the HTML head and should contain a
 # meaningful description of the site content for use by search engines.
@@ -44,10 +45,33 @@ Copyright &copy; 2025 AidData
 # can be defined using TOML syntax.
 #
 # Read more: https://zensical.org/docs/setup/navigation/
-# nav = [
-#   { "Get started" = "index.md" },
-#   { "Markdown in 5min" = "markdown.md" },
-# ]
+nav = [
+  { "Home" = "index.md" },
+  { "Using GeoQuery" = "using-geoquery.md" },
+  { "FAQ" = "faq.md" },
+  { "Citing GeoQuery" = "citing.md" },
+  { "Developer Docs" = [
+    { "Overview" = "dev/index.md" },
+    { "Development" = "dev/development.md" },
+    { "Deploying" = [
+      { "Local" = "dev/deploying/local-deployment.md" },
+      { "Kubernetes" = [
+        { "Overview" = "dev/deploying/kubernetes/index.md" },
+        { "Container" = "dev/deploying/kubernetes/container.md" },
+        { "Helm Chart" = "dev/deploying/kubernetes/helm-chart.md" },
+        { "ArgoCD" = "dev/deploying/kubernetes/argocd.md" },
+        { "Development" = "dev/deploying/kubernetes/development.md" },
+        { "Ingest Data" = "dev/deploying/kubernetes/ingest-data.md" },
+      ]},
+    ]},
+    { "Services" = [
+      { "Grafana" = [
+        { "Overview" = "dev/services/grafana/index.md" },
+        { "Installation" = "dev/services/grafana/installation.md" },
+      ]},
+    ]},
+  ]},
+]
 
 # With the "extra_css" option you can add your own CSS styling to customize
 # your Zensical project according to your needs. You can add any number of
