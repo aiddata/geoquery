@@ -17,32 +17,32 @@ def _test_coverage_for_feature(feature_id):
         cursor.execute(
             """
             UPDATE coverage
-            SET status = 1
-            WHERE status = -1 AND geom_id = %s AND dataset_id = ANY(
-                SELECT datasets.id
-                FROM datasets
-                JOIN features ON ST_Contains(datasets.spatial_extent, features.shape)
-                WHERE features.id = %s
-            );
+            SET status = CASE
+                WHEN dataset_id = ANY(
+                    SELECT datasets.id
+                    FROM datasets
+                    JOIN features ON ST_Contains(datasets.spatial_extent, features.shape)
+                    WHERE features.id = %s
+                ) THEN 1
+                ELSE 0
+            END
+            WHERE geom_id = %s AND status = -1
+            RETURNING dataset_id, status;
             """,
             [feature_id, feature_id],
         )
-        matched = cursor.rowcount
+        rows = cursor.fetchall()
 
-        cursor.execute(
-            """
-            UPDATE coverage
-            SET status = 0
-            WHERE geom_id = %s AND status = -1;
-            """,
-            [feature_id],
-        )
-        unmatched = cursor.rowcount
 
-    logger.info(
-        "Feature %s: %d covered, %d not covered", feature_id, matched, unmatched
-    )
-    return {"feature_id": feature_id, "covered": matched, "not_covered": unmatched}
+    covered = [dataset_id for dataset_id, status in rows if status == 1]
+    not_covered = [dataset_id for dataset_id, status in rows if status == 0]
+    logger.info("Coverage tested for feature %s (%d records updated). covered: %s, not covered: %s", feature_id, len(rows), covered, not_covered)
+    return {
+        "feature_id": feature_id,
+        "updated": len(rows),
+        "covered": len(covered),
+        "not_covered": len(not_covered),
+    }
 
 
 @shared_task
