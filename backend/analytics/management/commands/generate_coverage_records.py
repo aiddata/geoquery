@@ -1,7 +1,7 @@
 
 from django.core.management.base import BaseCommand
 
-from analytics.tasks.coverage import create_coverage_records, test_all_missing_coverage
+from analytics.tasks.coverage import create_missing_coverage_records, run_missing_coverage_checks
 from datasets.models import Dataset
 from features.models import Feature
 
@@ -32,9 +32,9 @@ class Command(BaseCommand):
             return
 
         # Generate missing coverage records
-        result = create_coverage_records()
+        result = create_missing_coverage_records()
         self.stdout.write(self.style.SUCCESS(f"Generated {result['created']} missing coverage records"))
 
         # Optionally kick off coverage checks
         if options["check"] or options["check_sync"]:
-            test_all_missing_coverage(sync=options["check_sync"])
+            run_missing_coverage_checks(sync=options["check_sync"])

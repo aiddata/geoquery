@@ -7,7 +7,7 @@ from django.db import connection
 
 logger = logging.getLogger(__name__)
 
-def create_coverage_records(self):
+def create_missing_coverage_records(self):
     # Find all (feature, dataset) pairs that don't yet have a coverage record
     t_start = time.perf_counter()
 
@@ -38,7 +38,7 @@ def create_coverage_records(self):
     return {"created": len(records)}
 
 
-def test_all_missing_coverage(self, sync=False):
+def run_missing_coverage_checks(self, sync=False):
         t_start = time.perf_counter()
 
         untested_dataset_ids = list(
