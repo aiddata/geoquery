@@ -1053,7 +1053,7 @@ requires-dist = [
     { name = "pydantic" },
     { name = "pyproj" },
     { name = "rasterio" },
-    { name = "rasterstats", git = "https://github.com/aiddata/geoquery-python-rasterstats?rev=main" },
+    { name = "rasterstats", git = "https://github.com/aiddata/geoquery-python-rasterstats?rev=main#80ab2f2a01d0aa99d935ca7fe7ed422b9f52f9b7" },
     { name = "reportlab" },
     { name = "shapely" },
     { name = "toml" },
@@ -2549,7 +2549,7 @@ wheels = [
 [[package]]
 name = "rasterstats"
 version = "0.19.0"
-source = { git = "https://github.com/aiddata/geoquery-python-rasterstats?rev=main#6330de19091b0defb197df5a839587de597cfbe8" }
+source = { git = "https://github.com/aiddata/geoquery-python-rasterstats?rev=main#80ab2f2a01d0aa99d935ca7fe7ed422b9f52f9b7" }
 dependencies = [
     { name = "affine" },
     { name = "click" },
