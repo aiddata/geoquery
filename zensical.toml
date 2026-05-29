@@ -50,6 +50,11 @@ nav = [
   { "Using GeoQuery" = "using-geoquery.md" },
   { "FAQ" = "faq.md" },
   { "Citing GeoQuery" = "citing.md" },
+  { "Data Documentation" = [
+    { "Overview" = "data_documentation/index.md" },
+    { "Datasets" = "data_documentation/datasets/index.md" },
+    { "Boundaries" = "data_documentation/boundaries/index.md" },
+  ]},
   { "Developer Docs" = [
     { "Overview" = "dev/index.md" },
     { "Development" = "dev/development.md" },

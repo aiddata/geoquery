@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 
+from celery.schedules import crontab
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -144,6 +146,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 # Results
 RESULTS_DIR = Path(os.environ.get("RESULTS_DIR", str(BASE_DIR.parent / "results")))
+DOCS_DIR = Path(os.environ.get("DOCS_DIR", str(BASE_DIR.parent / "docs")))
 DOWNLOAD_BASE_URL = os.environ.get("DOWNLOAD_BASE_URL", "http://localhost:8000")
 FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173")
 TOKEN_EXPIRY_MONTHS = int(os.environ.get("TOKEN_EXPIRY_MONTHS", "6"))
@@ -163,6 +166,14 @@ CELERY_BEAT_SCHEDULE = {
     "free-stale-processing-tasks": {
         "task": "analytics.tasks.maintenance.free_stale_processing_tasks",
         "schedule": 3600,  # every hour
+    },
+    "build-dataset-docs": {
+        "task": "datasets.tasks.build_dataset_docs_task",
+        "schedule": crontab(hour=2, minute=0),
+    },
+    "build-boundary-docs": {
+        "task": "features.tasks.build_boundary_docs_task",
+        "schedule": crontab(hour=2, minute=15),
     },
 }
 
