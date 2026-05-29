@@ -38,15 +38,21 @@ class Command(BaseCommand):
         """
         This command identifies extract tasks that are in an error state (status values specified by --error-values) and resets them to pending (status=0) so they can be reprocessed and increments the attempt count for each task. This allows tasks that may have failed due to transient issues to be retried.
         """
+        _manage_processing_task_errors(
+            error_values=options["error_values"],
+            dry_run=options["dry_run"],
+        )
 
-        if isinstance(options["error_values"], int):
-            error_values = [options["error_values"]]
+
+def _manage_processing_task_errors(error_values: Union[int, str], dry_run: bool = False):
+        if isinstance(error_values, int):
+            error_values = [error_values]
         else:
-            error_values = [int(val.strip()) for val in options["error_values"].split(",")]
+            error_values = [int(val.strip()) for val in error_values.split(",")]
 
         with connection.cursor() as cursor:
             for ev in error_values:
-                if options["dry_run"]:
+                if dry_run:
                     cursor.execute(
                         """
                         SELECT COUNT(*) FROM extract_tasks
@@ -55,10 +61,8 @@ class Command(BaseCommand):
                         [ev],
                     )
                     count = cursor.fetchone()[0]
-                    self.stdout.write(
-                        self.style.WARNING(
+                    logger.info(
                             f"Would update {count} tasks with status {ev} (disable --dry-run to actually update them)"
-                        )
                     )
 
                 else:
@@ -73,10 +77,8 @@ class Command(BaseCommand):
                     updated = cursor.rowcount
                     updated = updated if updated is not None else 0  # rowcount can be None in some cases
 
-                    self.stdout.write(
-                        self.style.SUCCESS(
-                            f"Updated {updated} tasks with status {ev} to pending and incremented attempts"
-                        )
+                    logger.info(
+                        f"Updated {updated} tasks with status {ev} to pending and incremented attempts"
                     )
 
         return
