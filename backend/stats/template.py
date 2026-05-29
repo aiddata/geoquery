@@ -169,6 +169,83 @@ TEMPLATE = """<!DOCTYPE html>
       font-size: 13px;
       color: #94a3b8;
     }
+
+    /* ── Live status panel ── */
+    .live-panel {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 28px;
+    }
+    .live-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .live-panel-title { font-size: 15px; font-weight: 600; color: #0f172a; }
+    .live-updated { font-size: 11px; color: #94a3b8; }
+    .live-dot {
+      display: inline-block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+      margin-right: 6px;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+
+    .live-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 600px) { .live-grid { grid-template-columns: 1fr; } }
+
+    .live-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #94a3b8;
+      margin-bottom: 10px;
+    }
+
+    /* Queue meters */
+    .queue-rows { display: flex; flex-direction: column; gap: 8px; }
+    .queue-row  { display: flex; align-items: center; justify-content: space-between; }
+    .queue-label { font-size: 13px; color: #475569; }
+    .queue-val   { font-size: 18px; font-weight: 700; color: #0f172a; min-width: 40px; text-align: right; }
+    .queue-val.active  { color: #2563eb; }
+    .queue-val.pending { color: #d97706; }
+
+    /* Worker cards */
+    .worker-list { display: flex; flex-direction: column; gap: 8px; }
+    .worker-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .worker-indicator {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-top: 4px;
+      flex-shrink: 0;
+    }
+    .worker-indicator.online  { background: #22c55e; }
+    .worker-indicator.offline { background: #94a3b8; }
+    .worker-name  { font-size: 12px; font-weight: 600; color: #0f172a; }
+    .worker-tasks { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .worker-empty { font-size: 13px; color: #94a3b8; }
   </style>
 </head>
 <body>
@@ -208,6 +285,43 @@ TEMPLATE = """<!DOCTYPE html>
       <div class="card-label">Error</div>
       <div class="card-value" id="val-error">—</div>
       <div class="card-pct" id="pct-error"></div>
+    </div>
+  </div>
+
+  <!-- Live status panel -->
+  <div class="live-panel">
+    <div class="live-panel-header">
+      <div class="live-panel-title"><span class="live-dot"></span>Live Status</div>
+      <div class="live-updated" id="live-updated">Updating…</div>
+    </div>
+    <div class="live-grid">
+      <div>
+        <div class="live-section-title">Queues</div>
+        <div class="queue-rows">
+          <div class="queue-row">
+            <span class="queue-label">Requests queued</span>
+            <span class="queue-val pending" id="q-req-queued">—</span>
+          </div>
+          <div class="queue-row">
+            <span class="queue-label">Requests processing</span>
+            <span class="queue-val active" id="q-req-processing">—</span>
+          </div>
+          <div class="queue-row">
+            <span class="queue-label">Extract tasks pending</span>
+            <span class="queue-val pending" id="q-ext-pending">—</span>
+          </div>
+          <div class="queue-row">
+            <span class="queue-label">Extract tasks running</span>
+            <span class="queue-val active" id="q-ext-processing">—</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="live-section-title">Workers</div>
+        <div class="worker-list" id="worker-list">
+          <div class="worker-empty">Loading…</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -350,6 +464,48 @@ TEMPLATE = """<!DOCTYPE html>
   });
 
   updateChart();
+
+  // ── Live worker polling ───────────────────────────────────────────────────
+  async function refreshLive() {
+    try {
+      const res = await fetch('/stats/workers/');
+      if (!res.ok) throw new Error(res.status);
+      const d = await res.json();
+
+      document.getElementById('q-req-queued').textContent     = (d.queues.requests_queued || 0).toLocaleString();
+      document.getElementById('q-req-processing').textContent = (d.queues.requests_processing || 0).toLocaleString();
+      document.getElementById('q-ext-pending').textContent    = (d.queues.extract_pending || 0).toLocaleString();
+      document.getElementById('q-ext-processing').textContent = (d.queues.extract_processing || 0).toLocaleString();
+
+      const list = document.getElementById('worker-list');
+      if (!d.workers || d.workers.length === 0) {
+        list.innerHTML = '<div class="worker-empty">No workers online.</div>';
+      } else {
+        list.innerHTML = d.workers.map(w => {
+          const taskText = w.running > 0
+            ? w.running_tasks.join(', ') || w.running + ' task(s)'
+            : 'Idle';
+          const reserved = w.reserved > 0 ? ` &nbsp;·&nbsp; ${w.reserved} reserved` : '';
+          return `<div class="worker-card">
+            <div class="worker-indicator online"></div>
+            <div>
+              <div class="worker-name">${w.name}</div>
+              <div class="worker-tasks">${taskText}${reserved}</div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+
+      const now = new Date();
+      document.getElementById('live-updated').textContent =
+        'Updated ' + now.toLocaleTimeString();
+    } catch (e) {
+      document.getElementById('live-updated').textContent = 'Update failed';
+    }
+  }
+
+  refreshLive();
+  setInterval(refreshLive, 10000);
 </script>
 </body>
 </html>

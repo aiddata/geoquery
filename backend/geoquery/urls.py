@@ -21,10 +21,11 @@ from django.urls import include, path, re_path
 from django.views.static import serve
 
 from geoquery.views import ConfigView
-from stats.views import stats_view
+from stats.views import stats_view, workers_view
 
 urlpatterns = [
     path("stats/", stats_view, name="stats"),
+    path("stats/workers/", workers_view, name="stats-workers"),
     path("admin/", admin.site.urls),
     path("api/config/", ConfigView.as_view(), name="config"),
     path("api/features/", include("features.urls")),
