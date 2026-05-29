@@ -165,7 +165,11 @@ STALE_TASK_MINUTES = int(os.environ.get("STALE_TASK_MINUTES", "30"))
 CELERY_BEAT_SCHEDULE = {
     "free-stale-processing-tasks": {
         "task": "analytics.tasks.maintenance.free_stale_processing_tasks",
-        "schedule": 3600,  # every hour
+        "schedule": 3600,
+    },
+    "manage-processing-task-errors": {
+        "task": "analytics.tasks.maintenance.manage_processing_task_errors",
+        "schedule": 3600,
     },
     "build-dataset-docs": {
         "task": "datasets.tasks.build_dataset_docs_task",
