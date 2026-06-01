@@ -2,7 +2,7 @@
     import { page } from "$app/state";
     import { goto } from "$app/navigation";
     import { Button } from "$lib/components/ui/button";
-    import { ArrowLeft, Search, Mail } from "@lucide/svelte";
+    import { ArrowLeft, Search, Mail, BarChart2 } from "@lucide/svelte";
     import { requestHistoryLink, fetchRequestsByToken, type PastRequest } from "$lib/api";
 
     const token = $derived(page.params.token ?? "");
@@ -196,4 +196,16 @@
         {/if}
 
     </div>
+
+    <a
+        href="/stats"
+        class="mt-4 flex items-center gap-3 rounded-lg border bg-card px-5 py-3 shadow-sm transition-colors hover:bg-muted/50"
+    >
+        <BarChart2 class="h-5 w-5 shrink-0 text-muted-foreground" />
+        <div class="flex-1">
+            <p class="text-sm font-medium">System Status</p>
+            <p class="text-xs text-muted-foreground">View processing queue and system stats</p>
+        </div>
+        <ArrowLeft class="h-4 w-4 rotate-180 text-muted-foreground" />
+    </a>
 </div>
