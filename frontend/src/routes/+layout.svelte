@@ -4,6 +4,7 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import Header from '$lib/components/layout/Header.svelte';
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
+	import StatusBanner from '$lib/components/layout/StatusBanner.svelte';
 	import { TooltipProvider } from '$lib/components/ui/tooltip';
 	let { children } = $props();
 
@@ -27,6 +28,7 @@
 
 <TooltipProvider>
 	<div class="flex min-h-screen flex-col font-sans">
+		<StatusBanner />
 		<Header {showSteps} />
 
 		<main class="flex-1">
