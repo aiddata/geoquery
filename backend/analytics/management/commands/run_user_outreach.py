@@ -38,7 +38,7 @@ class Command(BaseCommand):
             help="Whether to just flag users for manual contact by staff, or to automatically send emails to users. Options are 'manual' and 'auto'. Manual is the default and recommended mode.",
         )
         parser.add_argument(
-            "--days",
+            "--ndays",
             type=int,
             default=365,
             help="Number of days to look back when searching for users to contact. Default is 365.",
@@ -67,14 +67,7 @@ class Command(BaseCommand):
         """
         This command identifies users who satisfy criteria for contact (e.g. multiple requests within timeframe but no contact or comments requested flags) and either automatically sends them an email requesting comments or flags them for manual contact by staff.
         """
-        # filters for searching requests
-        f = {
-            "n_days": options["days"],
-            "request_count": options["request_count"],
-            "earliest_request": options["earliest_request"],
-            "latest_request": options["latest_request"]
-        }
-        _run_user_outreach(f["n_days"], f["request_count"], f["earliest_request"], f["latest_request"], options["mode"], options["limit"], options["dry_run"])
+        _run_user_outreach(options["days"], options["request_count"], options["earliest_request"], options["latest_request"], options["mode"], options["limit"], options["dry_run"])
 
 
 def _run_user_outreach(n_days, request_count, earliest_request, latest_request, mode="manual", email_limit=50, dry_run=False):
