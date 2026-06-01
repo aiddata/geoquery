@@ -24,6 +24,24 @@ def free_stale_processing_tasks():
 
 
 @shared_task
+def dispatch_processing_tasks():
+    """Dispatch pending extract tasks (status=0) to Celery workers."""
+    from analytics.management.commands.run_processing_tasks import _run_processing_tasks
+    return _run_processing_tasks()
+
+
+@shared_task
+def process_user_requests():
+    """Check request queue and advance any requests that are ready."""
+    from analytics.management.commands.manage_user_requests import _manage_user_requests
+    from django.conf import settings
+    _manage_user_requests(
+        download_server=getattr(settings, "DOWNLOAD_BASE_URL", "geoquery.aiddata.wm.edu"),
+        results_dir=str(settings.RESULTS_DIR),
+    )
+
+
+@shared_task
 def build_stats_report():
     """Regenerate the HTML statistics report."""
     from stats.builder import StatsBuilder

@@ -179,6 +179,14 @@ CELERY_BEAT_SCHEDULE = {
         "task": "features.tasks.build_boundary_docs_task",
         "schedule": crontab(hour=2, minute=15),
     },
+    "dispatch-processing-tasks": {
+        "task": "analytics.tasks.maintenance.dispatch_processing_tasks",
+        "schedule": crontab(minute="0,5,10,15,20,25,30,35,40,45,50,55"),
+    },
+    "process-user-requests": {
+        "task": "analytics.tasks.maintenance.process_user_requests",
+        "schedule": crontab(minute="2,7,12,17,22,27,32,37,42,47,52,57"),
+    },
     "build-stats-report": {
         "task": "analytics.tasks.maintenance.build_stats_report",
         "schedule": 3600,
