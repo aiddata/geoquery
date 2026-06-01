@@ -46,5 +46,5 @@ def sweep_coverage_records():
 @shared_task
 def run_user_outreach():
     """Flag users who qualify for outreach (manual mode, default criteria)."""
-    from django.core.management import call_command
-    call_command("run_user_outreach", mode="manual")
+    from analytics.management.commands.run_user_outreach import _run_user_outreach
+    _run_user_outreach(n_days=365, request_count=3, earliest_request=14, latest_request=7, mode="manual")
