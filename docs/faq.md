@@ -2,14 +2,11 @@
 
 ## Getting started
 
-### How do I submit a request?
-Click **Submit Request** in the upper right of the application, enter your email address, and click the **Submit** button.
-
-### Can I use my own boundary files?
-Yes. You can submit an extract using your own boundary file using the custom boundary upload form in the application.
+<!-- ### Can I use my own boundary files? -->
+<!-- Yes. You can submit an extract using your own boundary file using the custom boundary upload form in the application. -->
 
 ### Can I select data for multiple boundaries?
-Currently, you can only submit one boundary per request. Submit multiple requests to cover additional regions. Previously processed selections are cached and will be returned faster on repeat submission.
+Yes, you can select as many entire boundaries at a time as you like (e.g., Ghana ADM1, Ghana ADM2, Tanzania ADM1), but individual feature selection is only available when using a single boundary (e.g., Ghana ADM1).
 
 ### Can I edit or resubmit a previous request?
 Modifying previous requests is not currently supported. You can submit a new request at any time, and any previously cached data will be returned quickly without reprocessing.
@@ -39,7 +36,7 @@ You can read the GeoQuery paper or visit [aiddata.org/geoquery](https://aiddata.
 ## Research and examples
 
 ### Do you have examples of analyses conducted using GeoQuery data?
-Yes — examples of reports and publications using GeoQuery are available at [aiddata.org/geo](https://aiddata.org/geo).
+Yes — examples of reports and publications using GeoQuery are available at [aiddata.org/geo](https://aiddata.org/geoquery).
 
 ### Do you conduct research using this tool?
 Yes. AidData works with a wide range of organizations to analyze spatial information. See examples at [aiddata.org](https://aiddata.org) or contact us at [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu) to learn more.
@@ -49,7 +46,7 @@ Yes. AidData works with a wide range of organizations to analyze spatial informa
 ## Support and feedback
 
 ### Do you have tutorials or additional learning resources?
-Yes — tutorial videos, research applications, and more are available at [aiddata.org/geo](https://aiddata.org/geo).
+Yes — tutorial videos, research applications, and more are available at [aiddata.org/geoquery](https://aiddata.org/geoquery).
 
 ### How can I get help or ask a question?
 Email us at [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu).
