@@ -227,6 +227,8 @@ def _check_request_tasks(request, dry_run=False):
         extract_task = ExtractTask.objects.filter(id=task_item.task_id).first()
         if extract_task.status != 1:
             pending_task_count += 1
+            # increase priority of pending tasks to ensure they get processed before non request tasks
+            extract_task.priority = 1
         else:
             completed_task_list.append(extract_task.id)
 
