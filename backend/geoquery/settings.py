@@ -179,6 +179,18 @@ CELERY_BEAT_SCHEDULE = {
         "task": "features.tasks.build_boundary_docs_task",
         "schedule": crontab(hour=2, minute=15),
     },
+    "build-stats-report": {
+        "task": "analytics.tasks.maintenance.build_stats_report",
+        "schedule": 3600,
+    },
+    "sweep-coverage-records": {
+        "task": "analytics.tasks.maintenance.sweep_coverage_records",
+        "schedule": crontab(hour=3, minute=0),
+    },
+    "run-user-outreach": {
+        "task": "analytics.tasks.maintenance.run_user_outreach",
+        "schedule": crontab(hour=6, minute=0, day_of_week=2),
+    },
 }
 
 # Django REST Framework settings
