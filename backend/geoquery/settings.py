@@ -195,6 +195,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "analytics.tasks.maintenance.sweep_coverage_records",
         "schedule": crontab(hour=3, minute=0),
     },
+    "build-extract-tasks": {
+        "task": "analytics.tasks.maintenance.build_extract_tasks",
+        "schedule": crontab(hour=3, minute=30),
+    },
     "run-user-outreach": {
         "task": "analytics.tasks.maintenance.run_user_outreach",
         "schedule": crontab(hour=6, minute=0, day_of_week=2),

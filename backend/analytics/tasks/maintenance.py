@@ -52,6 +52,13 @@ def build_stats_report():
 
 
 @shared_task
+def build_extract_tasks():
+    """Create ExtractTask rows for any covered (status=1) dataset/feature pairs that don't have one yet."""
+    from analytics.management.commands.build_extract_tasks import _build_extract_tasks
+    return _build_extract_tasks()
+
+
+@shared_task
 def sweep_coverage_records():
     """Create any missing coverage records and dispatch checks for unchecked ones."""
     from analytics.tasks.coverage import create_missing_coverage_records, run_missing_coverage_checks
