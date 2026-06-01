@@ -5,8 +5,9 @@ from .models import Dataset
 
 
 @receiver(post_save, sender=Dataset)
-def on_dataset_created(sender, instance, created, **kwargs):
+def on_dataset_created(_sender, instance, created, **_kwargs):
     if not created:
         return
-    from analytics.tasks.coverage import create_coverage_records_for_dataset
+    from analytics.tasks.coverage import create_coverage_records_for_dataset, test_coverage_for_dataset
     create_coverage_records_for_dataset(instance.id)
+    test_coverage_for_dataset.delay(instance.id)

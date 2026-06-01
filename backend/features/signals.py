@@ -8,8 +8,9 @@ from .models import Feature, FeatureCollection
 def on_feature_created(_sender, instance, created, **_kwargs):
     if not created:
         return
-    from analytics.tasks.coverage import create_coverage_records_for_feature
+    from analytics.tasks.coverage import create_coverage_records_for_feature, test_coverage_for_feature
     create_coverage_records_for_feature(instance.id)
+    test_coverage_for_feature.delay(instance.id)
 
 
 @receiver(post_save, sender=FeatureCollection)
