@@ -1,9 +1,11 @@
-import time
+from logging import getLogger
 
 from django.core.management.base import BaseCommand
 from django.db import connection
 
 from analytics.tasks.processing import run_extract_task
+
+logger = getLogger(__name__)
 
 
 class Command(BaseCommand):
@@ -24,44 +26,32 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        """
-        This is the replacement for the Dask/ProcessPoolExecutor dispatch loop.
-        Call it periodically (e.g. via celery-beat) or from a management command.
-        """
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT id FROM extract_tasks
-                WHERE status = 0
-                ORDER BY priority DESC, submit_time ASC
-                LIMIT %s
-                """,
-                [options["limit"]],
-            )
-            task_ids = [row[0] for row in cursor.fetchall()]
+        _run_processing_tasks(limit=options["limit"], dry_run=options["dry_run"])
 
-        if not task_ids:
-            self.stdout.write(
-                self.style.WARNING(
-                    "No pending extract tasks to dispatch"
-                )
-            )
-            return
 
-        if not options["dry_run"]:
-            for tid in task_ids:
-                run_extract_task.delay(tid)
+def _run_processing_tasks(limit=1000, dry_run=False):
+    """Dispatch pending extract tasks (status=0) to Celery workers."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT id FROM extract_tasks
+            WHERE status = 0
+            ORDER BY priority DESC, submit_time ASC
+            LIMIT %s
+            """,
+            [limit],
+        )
+        task_ids = [row[0] for row in cursor.fetchall()]
 
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"Dispatched {len(task_ids)} extract tasks"
-                )
-            )
-        else:
-            self.stdout.write(
-                self.style.WARNING(
-                    f"Would dispatch {len(task_ids)} extract tasks (disable --dry-run to actually dispatch them)"
-                )
-            )
+    if not task_ids:
+        logger.info("No pending extract tasks to dispatch")
+        return {"dispatched": 0}
 
-        return
+    if not dry_run:
+        for tid in task_ids:
+            run_extract_task.delay(tid)
+        logger.info("Dispatched %d extract tasks", len(task_ids))
+    else:
+        logger.info("Would dispatch %d extract tasks (dry-run)", len(task_ids))
+
+    return {"dispatched": len(task_ids), "dry_run": dry_run}

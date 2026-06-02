@@ -35,7 +35,7 @@ dependencies = [
     "geopandas",
     "shapely",
     "rasterio",
-    "rasterstats @ git+https://github.com/aiddata/geoquery-python-rasterstats@main",
+    "rasterstats @ git+https://github.com/aiddata/geoquery-python-rasterstats@80ab2f2a01d0aa99d935ca7fe7ed422b9f52f9b7",
     "dask[array,distributed] == 2024.10.0",
     "dask_kubernetes == 2024.9.0",
     "reportlab",

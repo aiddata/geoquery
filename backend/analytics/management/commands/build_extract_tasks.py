@@ -1,15 +1,18 @@
 import time
+from logging import getLogger
 
 from django.core.management.base import BaseCommand
 from django.db import connection
 
-from datasets.models import Dataset, DatasetResource
-from features.models import Feature, FeatMap, FeatureCollection
+from datasets.models import DatasetResource
+from features.models import FeatMap
 from analytics.models import ExtractTask, ProcessingOption
+
+logger = getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Handles the generation of extract tasks."
+    help = "Create ExtractTask rows for covered dataset/feature pairs that don't have one yet."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -18,20 +21,30 @@ class Command(BaseCommand):
             help="Whether to overwrite existing extract tasks (not yet implemented)",
         )
 
-    def handle(self, *args, **options):
-        if not Feature.objects.exists():
-            self.stdout.write("No features found in database")
-            return
+    def handle(self, *_args, **_options):
+        result = _build_extract_tasks()
+        self.stdout.write(self.style.SUCCESS(
+            f"Generated {result['added']} new extract tasks in {result['elapsed']:.2f}s"
+        ))
 
-        if not Dataset.objects.exists():
-            self.stdout.write("No datasets with coverage available were found in database")
-            return
 
-        # Find all (feature, dataset) pairs that don't yet have a extract task
-        t_start = time.perf_counter()
+def _build_extract_tasks():
+    from features.models import Feature
+    from datasets.models import Dataset
 
-        # INSERT INTO extract_tasks (resource_id, fm_id, po_id)
-        select_task_query = """
+    if not Feature.objects.exists():
+        logger.info("No features found in database")
+        return {"added": 0, "elapsed": 0}
+
+    if not Dataset.objects.exists():
+        logger.info("No datasets found in database")
+        return {"added": 0, "elapsed": 0}
+
+    t_start = time.perf_counter()
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
             SELECT
                 dataset_resources.id AS resource_id,
                 coverage.geom_id AS fm_id,
@@ -51,50 +64,22 @@ class Command(BaseCommand):
             AND processing_options.active = TRUE
             AND feature_collections.active = TRUE
             AND datasets.active = TRUE
-            ;
-        """
-        # ON CONFLICT (resource_id, fm_id, po_id)
-        # DO NOTHING
-        # RETURNING id
-
-        result = None
-        with connection.cursor() as cursor:
-            # if overwrite:
-            #     cur.execute("DELETE FROM extract_tasks;")
-            cursor.execute(select_task_query)
-            result = cursor.fetchall()
-            count_extracts = len(result)
-
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"Identified {count_extracts} potential extract tasks to generate"
-                )
-            )
-
-        added_tasks = 0
-        for et in result:
-
-            if not ExtractTask.objects.filter(
-                resource=et[0],
-                fm=et[1],
-                po=et[2]
-            ).exists():
-                new_task = ExtractTask(
-                    resource=DatasetResource.objects.get(id=et[0]),
-                    fm=FeatMap.objects.get(id=et[1]),
-                    po=ProcessingOption.objects.get(id=et[2])
-                )
-                new_task.save()
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"Created extract task for resource {et[0]}, feature {et[1]}, processing option {et[2]}"
-                    )
-                )
-                added_tasks += 1
-
-        t_end = time.perf_counter()
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Generated {added_tasks} new extract tasks in {t_end - t_start:.2f} seconds"
-            )
+            """
         )
+        candidates = cursor.fetchall()
+
+    logger.info("Identified %d potential extract tasks", len(candidates))
+
+    added = 0
+    for resource_id, fm_id, po_id in candidates:
+        if not ExtractTask.objects.filter(resource_id=resource_id, fm_id=fm_id, po_id=po_id).exists():
+            ExtractTask.objects.create(
+                resource=DatasetResource.objects.get(id=resource_id),
+                fm=FeatMap.objects.get(id=fm_id),
+                po=ProcessingOption.objects.get(id=po_id),
+            )
+            added += 1
+
+    elapsed = time.perf_counter() - t_start
+    logger.info("Generated %d new extract tasks in %.2fs", added, elapsed)
+    return {"added": added, "elapsed": elapsed}

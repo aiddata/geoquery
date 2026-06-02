@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 
+from celery.schedules import crontab
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -151,6 +153,13 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
+# Results
+RESULTS_DIR = Path(os.environ.get("RESULTS_DIR", str(BASE_DIR.parent / "results")))
+DOCS_DIR = Path(os.environ.get("DOCS_DIR", str(BASE_DIR.parent / "docs")))
+DOWNLOAD_BASE_URL = os.environ.get("DOWNLOAD_BASE_URL", "http://localhost:8000")
+FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173")
+TOKEN_EXPIRY_MONTHS = int(os.environ.get("TOKEN_EXPIRY_MONTHS", "6"))
+
 # Protomaps
 PROTOMAPS_API_KEY = os.environ.get("PROTOMAPS_API_KEY", "c1f661e43ad06f34")
 
@@ -161,6 +170,49 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+STALE_TASK_MINUTES = int(os.environ.get("STALE_TASK_MINUTES", "30"))
+CELERY_BEAT_SCHEDULE = {
+    "free-stale-processing-tasks": {
+        "task": "analytics.tasks.maintenance.free_stale_processing_tasks",
+        "schedule": 3600,
+    },
+    "manage-processing-task-errors": {
+        "task": "analytics.tasks.maintenance.manage_processing_task_errors",
+        "schedule": 3600,
+    },
+    "build-dataset-docs": {
+        "task": "datasets.tasks.build_dataset_docs_task",
+        "schedule": crontab(hour=2, minute=0),
+    },
+    "build-boundary-docs": {
+        "task": "features.tasks.build_boundary_docs_task",
+        "schedule": crontab(hour=2, minute=15),
+    },
+    "dispatch-processing-tasks": {
+        "task": "analytics.tasks.maintenance.dispatch_processing_tasks",
+        "schedule": crontab(minute="0,5,10,15,20,25,30,35,40,45,50,55"),
+    },
+    "process-user-requests": {
+        "task": "analytics.tasks.maintenance.process_user_requests",
+        "schedule": crontab(minute="2,7,12,17,22,27,32,37,42,47,52,57"),
+    },
+    "build-stats-report": {
+        "task": "analytics.tasks.maintenance.build_stats_report",
+        "schedule": 3600,
+    },
+    "sweep-coverage-records": {
+        "task": "analytics.tasks.maintenance.sweep_coverage_records",
+        "schedule": crontab(hour=3, minute=0),
+    },
+    "build-extract-tasks": {
+        "task": "analytics.tasks.maintenance.build_extract_tasks",
+        "schedule": crontab(hour=3, minute=30),
+    },
+    "run-user-outreach": {
+        "task": "analytics.tasks.maintenance.run_user_outreach",
+        "schedule": crontab(hour=6, minute=0, day_of_week=2),
+    },
+}
 
 # Django REST Framework settings
 REST_FRAMEWORK = {

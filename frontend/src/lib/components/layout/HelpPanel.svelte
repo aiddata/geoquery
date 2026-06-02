@@ -5,18 +5,18 @@
 		{
 			question: 'Do you have tutorials, videos, or additional resources where I can learn more?',
 			answer:
-				'Yes, check out <a href="https://www.aiddata.org/geo" class="text-primary underline">aiddata.org/geo</a> for a range of tutorial videos, research applications, and more.'
+				'Yes, check out <a href="https://www.aiddata.org/geoquery" class="text-primary underline">aiddata.org/geo</a> for a range of tutorial videos, research applications, and more.'
 		},
 		{
 			question: 'How can I contact you for help or with questions I have?',
 			answer:
 				'Please email us at <a href="mailto:geo@aiddata.wm.edu" class="text-primary underline">geo@aiddata.wm.edu</a>'
 		},
-		{
-			question: 'Can I request data extracts using my own boundary files?',
-			answer:
-				'You can request an extract with your own boundary file using the form found <a href="https://www.aiddata.org/geoquery/custom-requests" class="text-primary underline">HERE</a>.'
-		},
+		// {
+		// 	question: 'Can I request data extracts using my own boundary files?',
+		// 	answer:
+		// 		'You can request an extract with your own boundary file using the form found <a href="https://www.aiddata.org/geoquery/custom-requests" class="text-primary underline">HERE</a>.'
+		// },
 		{
 			question: 'Where can I go to provide feedback or request new datasets?',
 			answer:
@@ -25,12 +25,12 @@
 		{
 			question: 'Can I select data for multiple boundaries?',
 			answer:
-				'Right now, you can only download data for one boundary at a time, but can put in multiple requests to get data on additional regions. We hope to improve this functionality in later releases.'
+				'Yes, you can select as many entire boundaries at a time as you like (e.g., Ghana ADM1, Ghana ADM2, Tanzania ADM1), but individual feature selection is only available when using a single boundary (e.g., Ghana ADM1).'
 		},
 		{
 			question: 'What format will I receive data in?',
 			answer:
-				'We will email you a CSV for use in common programs (Excel, STATA, SPSS, etc), shape boundary information if you prefer use in GIS programs, and a PDF metadata file.'
+				'We will email you a CSV for use in common programs (Excel, STATA, SPSS, etc), shape boundary information if you prefer use in GIS programs, and a PDF metadata/documentation file.'
 		},
 		{
 			question: 'How do I cite data I receive from this tool?',
@@ -59,19 +59,9 @@
 				'Yes, we work with a wide range of organizations to analyze spatial information. Many examples can be seen <a href="https://www.aiddata.org/geoquery/research" class="text-primary underline">HERE</a>. You can also contact us at <a href="mailto:geo@aiddata.wm.edu" class="text-primary underline">geo@aiddata.wm.edu</a> to learn more.'
 		},
 		{
-			question: 'How do I submit my request?',
-			answer:
-				'Click the Submit Request at the upper-right then enter your email and click the big Submit button.'
-		},
-		{
 			question: 'Can I edit/update/resubmit previous requests?',
 			answer:
-				'While we hope to implement this feature at a later date, you currently cannot modify previous requests. However, you can input multiple requests into the system, and requests you previously made will be cached (and thus will not need to be processed again, and be returned to you quicker).'
-		},
-		{
-			question: 'Why are some years not listed in the filter for the aid dataset I selected?',
-			answer:
-				'Our filters are dynamically generated based on the underlying aid data and some datasets simply do not have projects for all years.'
+				'You cannot modify previous requests. However, you can input multiple requests into the system, and requests you previously made will be cached (and thus will not need to be processed again, and be returned to you quicker).'
 		},
 		{
 			question:

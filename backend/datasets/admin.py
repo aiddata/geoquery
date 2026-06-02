@@ -89,12 +89,6 @@ class DatasetAdmin(GISModelAdmin):
             },
         ),
         (
-            "Dependencies",
-            {
-                "fields": ("coverage_dependency",),
-            },
-        ),
-        (
             "Spatial",
             {
                 "fields": ("spatial_extent",),

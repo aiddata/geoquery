@@ -1,14 +1,14 @@
 """
-TODO: Placeholder for processing of user requests
+Manage processing of user requests
 Includes: updating status, handling errors, queue management and task submissions, doc/request building, emails, etc.)
 """
-import sys
 import os
 import json
 import shutil
 import textwrap
 import time
 import zipfile
+from logging import getLogger
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
@@ -21,6 +21,10 @@ from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
 from analytics.tasks.email import GeoEmail
 from analytics.tasks.documentation import DocBuilder
 from analytics.tasks.merge import merge_task_results, merge_task_features
+from visualize.builder import VizBuilder
+
+logger = getLogger(__name__)
+
 
 class Command(BaseCommand):
     help = "Handles the generation of extract tasks."
@@ -53,331 +57,251 @@ class Command(BaseCommand):
             help="The directory containing assets for the request (e.g. documentation templates, example docs, etc.)",
         )
 
-    @transaction.atomic
     def handle(self, *args, **options):
-
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"""
-                =======================================
-                Starting User Request Management Script
-                {time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())}
-                """
-            )
+        _manage_user_requests(
+            request_id=options["id"] or None,
+            download_server=options["download_server"],
+            results_dir=options["results_dir"],
+            assets_dir=options["assets_dir"],
+            dry_run=options["dry_run"],
         )
 
-        if options["id"]:
-            request_id = options["id"]
-            self.stdout.write(f"Processing request with id: {request_id}")
-        else:
-            self.stdout.write("Processing all requests in queue")
-            request_id = None
 
-        request_objects = []
+def _manage_user_requests(
+    request_id=None,
+    download_server="geoquery.aiddata.wm.edu",
+    results_dir="../results",
+    assets_dir="../assets",
+    dry_run=False,
+):
+    logger.info("Starting User Request Management Script %s", time.strftime("%Y-%m-%d %H:%M:%S"))
 
+    if request_id:
+        logger.info("Processing request with id: %s", request_id)
+    else:
+        logger.info("Processing all requests in queue")
 
-        # from geoquery_requests import QueueToolBox
-        # queue = QueueToolBox()
+    request_objects = []
 
-        # run if given a request_id via input arg
-        if request_id:
-            request = Request.objects.get(id=request_id)
-
-            # check for request with given id
-            # return request data object if request exists else None
-            if not request:
-                self.stdout.write(self.style.ERROR(f"Error finding request with id ({request_id})"))
-                return
-
-            request_objects += [request]
-
-        else:
-            # get list of requests in queue based on status, priority and submit time
-            #
-            # check for new unprocessed requests (status -1) first, before
-            # checking status of requests with items already in queue (status 0)
-            #   - new requests may have items that need to be added to queue, or might already be done
-
-            request_objects += Request.objects.filter(status=-1).order_by("-priority", "submit_time")
-            request_objects += Request.objects.filter(status=0).order_by("-priority", "submit_time")
-
-
-        # verify that we have some requests
-        if len(request_objects) == 0:
-            self.stdout.write(self.style.WARNING("Request queue is empty"))
+    if request_id:
+        request = Request.objects.get(id=request_id)
+        if not request:
+            logger.error("Error finding request with id (%s)", request_id)
             return
+        request_objects.append(request)
+    else:
+        request_objects += list(Request.objects.filter(status=-1).order_by("-priority", "submit_time"))
+        request_objects += list(Request.objects.filter(status=0).order_by("-priority", "submit_time"))
 
-        def request_error(request_id, message):
-            self.stdout.write(self.style.ERROR(f"Error with request (id: {request_id}): {message}"))
-            Request.objects.filter(id=request_id).update(status=-2)
+    if not request_objects:
+        logger.warning("Request queue is empty")
+        return
 
-        # go through found requests, checking status of items in processing queue,
-        # building final output when ready and emailing user who requested data
-        for request_obj in request_objects:
+    for request_obj in request_objects:
+        request_id = str(request_obj.id)
+        logger.info("Request (id: %s)\n%s", request_id, request_obj)
 
-            request_id = str(request_obj.id)
+        try:
+            with transaction.atomic():
+                if not request_obj.data:
+                    _request_error(request_id, "Invalid request (missing items field)")
+                    continue
+                if not request_obj.data["feature_ids"]:
+                    _request_error(request_id, "Invalid request (missing features)")
+                    continue
+                if not request_obj.data["datasets"]:
+                    _request_error(request_id, "Invalid request (missing dataset details)")
+                    continue
 
-            self.stdout.write(f"\n---------------------------------------")
-            self.stdout.write(f"Request (id: {request_id})\n{request_obj}\n")
+                logger.info("Features: %s (%s)", request_obj.data["selection_label"], request_obj.data["selection_label"])
 
-            if not request_obj.data:
-                request_error(request_id, "Invalid request (missing items field)")
-                continue
-            if not request_obj.data["feature_ids"]:
-                request_error(request_id, "Invalid request (missing features)")
-                continue
-            if not request_obj.data["datasets"]:
-                request_error(request_id, "Invalid request (missing dataset details)")
-                continue
+                original_status = Request.objects.get(id=request_id).status
 
-            self.stdout.write(f"Features: {request_obj.data['selection_label']} ({request_obj.data['selection_label']})")
+                if original_status == -1:
+                    Request.objects.filter(id=request_id).update(prepare_time=timezone.now())
+                    _notify_user(request_id, request_obj.contact, 0, download_server)
 
-            original_status = Request.objects.get(id=request_id).status
+                Request.objects.filter(id=request_id).update(status=2, process_time=timezone.now())
 
-            if original_status == -1:
-                # update initial prepare_time
-                Request.objects.filter(id=request_id).update(prepare_time=timezone.now())
-                # send email that request was received
-                self.notify_user(request_id, request_obj.contact, 0, options['download_server'])
+                missing_items, merge_list = _check_request_tasks(request_obj, dry_run=dry_run)
 
-            # set status 2 (no email)
-            Request.objects.filter(id=request_id).update(status=2)
-
-            # run core checks to see if request is ready to be built and emailed, and get list of missing items if not ready
-            try:
-                missing_items, merge_list = self.check_request_tasks(request_obj, dry_run=options['dry_run'])
-            except Exception as e:
-                request_error(request_id, f"Error while running check_request_tasks: {e}")
-                raise
-
-            if missing_items > 0:
-                # set status 0 (do not send an email)
-                Request.objects.filter(id=request_id).update(status=0)
-                self.stdout.write(self.style.WARNING(f"Request not ready (id: {request_id})"))
-
-            else:
-
-                # pull request again, since check_request_tasks may have updated fields
-                try:
+                if missing_items > 0:
+                    Request.objects.filter(id=request_id).update(status=0)
+                    logger.warning("Request not ready (id: %s)", request_id)
+                else:
                     updated_request_obj = Request.objects.get(id=request_id)
-                except Exception as e:
-                    request_error(request_id, f"Error while checking for updated request: {e}")
-                    raise
+                    _build_output(updated_request_obj, merge_list, download_server, results_dir, assets_dir)
+                    Request.objects.filter(id=request_id).update(status=1, complete_time=timezone.now())
+                    _notify_user(request_id, updated_request_obj.contact, 1, download_server)
+                    logger.info("Request completed (id: %s)", request_id)
 
-                if updated_request_obj is None:
-                    self.stdout.write(self.style.ERROR(f"Error getting updated request: Request with id does not exist ({request_id})"))
-                    raise Exception(f"Error getting updated request: Request with id does not exist ({request_id})")
+                if dry_run:
+                    Request.objects.filter(id=request_id).update(status=original_status)
 
-                try:
-                    # build request output/docs/zip/etc
-                    self.build_output(updated_request_obj, merge_list, options['download_server'], options['results_dir'], options['assets_dir'])
-                    pass
-                except Exception as e:
-                    request_error(request_id, f"Error while building request output: {e}")
-                    raise e
+        except Exception as e:
+            _request_error(request_id, f"Unhandled exception: {e}")
+            logger.error("Skipping request (id: %s) due to error", request_id)
 
-                # set status 1 and send email that request is completed
-                Request.objects.filter(id=request_id).update(status=1)
-                self.notify_user(request_id, updated_request_obj.contact, 1, options['download_server'])
+    logger.info("Finished User Request Management Script %s", time.strftime("%Y-%m-%d %H:%M:%S"))
 
-                self.stdout.write(self.style.SUCCESS(f"Request completed (id: {request_id})"))
 
-            ###
-            # for testing
-            if options['dry_run']:
-                Request.objects.filter(id=request_id).update(status=original_status)
-            ###
+def _request_error(request_id, message):
+    logger.error("Error with request (id: %s): %s", request_id, message)
+    Request.objects.filter(id=request_id).update(status=-2)
 
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"""
-                =======================================
-                Finished User Request Management Script
-                {time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())}
-                """
-            )
+
+def _notify_user(request_id, mail_to, status, download_server):
+    """Send email that request was received (status=0) or completed (status=1)."""
+    if status not in [0, 1]:
+        raise ValueError(f"Invalid status for _notify_user: {status}. Status must be 0 or 1.")
+
+    status_text = "Received" if status == 0 else "Completed"
+    mail_subject = f"AidData GeoQuery- Request {request_id[:7]}.. {status_text}"
+
+    received_message = textwrap.dedent(f"""
+        Thanks for using GeoQuery. This is an automated email to let you
+        know that we received your request and will process your data as
+        soon as we can. We will send another email when your data is ready.
+
+        You can view the status of this data request here:
+        http://{download_server}/query/#!/status/{request_id}
+
+        You can also keep track of all of the data requests that you've
+        submitted with this email address here:
+        http://{download_server}/query/#!/requests/{mail_to}
+
+        Thank you,
+        \tAidData's GeoQuery Team
+    """)
+
+    completed_message = textwrap.dedent(f"""
+        Thanks again for using GeoQuery. This is another automated email to let you know that
+        your data is ready.
+
+        You can review your request, and download the results and documentation here:
+        \thttp://{download_server}/query/#!/status/{request_id}
+
+        Or download the results directly (this link will always be available):
+        \thttp://{download_server}/data/geoquery_results/{request_id}/{request_id}.zip
+
+        You can also view all your current and previous requests using:
+        \thttp://{download_server}/query/#!/requests/{mail_to}
+
+        Also, one quick reminder about citations. Don't forget to cite both AidData's GeoQuery
+        tool as well as each dataset you selected within GeoQuery. All citations can be found
+        in the Documentation PDF at the link above. Here's the correct citation for GeoQuery:
+
+            Goodman, S., BenYishay, A., Lv, Z., & Runfola, D. (2019).
+            GeoQuery: Integrating HPC systems and public web-based
+            geospatial data tools. Computers & Geosciences, 122, 103-112.
+
+        Thank you in advance for citing us when you publish your research.
+        This helps us to demonstrate how GeoQuery is making a difference
+        as a freely available public good.
+
+        Thank you,
+        \tAidData's GeoQuery Team
+    """)
+
+    mail_message = received_message if status == 0 else completed_message
+
+    mail_status = GeoEmail().send_email(mail_to, mail_subject, mail_message)
+    if not mail_status[0]:
+        logger.error("%s: %s", mail_status[1], mail_status[2])
+        Request.objects.filter(id=request_id).update(status=-2)
+
+
+def _check_request_tasks(request, dry_run=False):
+    """Check entire request for completion.
+
+    Returns count of tasks still pending and list of completed extract task IDs.
+    """
+    pending_task_count = 0
+    completed_task_list = []
+
+    logger.info("Checking status of processing tasks (dry_run=%s)...", dry_run)
+
+    task_list = RequestMap.objects.filter(request=request.id)
+
+    for task_item in task_list:
+        extract_task = ExtractTask.objects.filter(id=task_item.task_id).first()
+        if extract_task.status != 1:
+            pending_task_count += 1
+            # increase priority of pending tasks to ensure they get processed before non request tasks
+            extract_task.priority = 1
+        else:
+            completed_task_list.append(extract_task.id)
+
+    logger.info("Processing tasks pending: %d/%d", pending_task_count, len(task_list))
+
+    return pending_task_count, completed_task_list
+
+
+def _build_output(request, task_list, download_server, results_dir, assets_dir):
+    """Merge extracts, generate documentation, build zip."""
+    results_dir = Path(results_dir)
+    assets_dir = Path(assets_dir)
+
+    request_id = str(request.id)
+    request_dir = results_dir / request_id
+
+    shutil.rmtree(request_dir, ignore_errors=True)
+    request_dir.mkdir(parents=True, exist_ok=True)
+
+    request_csv = request_dir / f"{request_id}_results.csv"
+    request_documentation = request_dir / f"{request_id}_documentation.html"
+    request_json = request_dir / "request_details.json"
+
+    merge_status, merge_df = merge_task_results(task_list)
+    if merge_status != "Success":
+        raise Exception(f"No extracts merged for request {request_id}. Merge status: {merge_status}")
+    logger.info("Merge completed for request %s", request_id)
+    merge_df.to_csv(request_csv, index=False)
+
+    doc = DocBuilder(request, request_documentation, download_server)
+    bd_status = doc.build_doc()
+    if bd_status != "Success":
+        raise Exception(f"Error building documentation for request {request_id}. Status: {bd_status}")
+    logger.info("Documentation generated for request %s", request_id)
+
+    request_visualization = request_dir / f"{request_id}_visualization.html"
+    viz = VizBuilder(request, merge_df, request_visualization)
+    viz_status = viz.build_viz()
+    if viz_status != "Success":
+        logger.warning("Visualization skipped: %s", viz_status)
+    else:
+        logger.info("Visualization generated for request %s", request_id)
+
+    with open(request_json, "w") as rdoc_file:
+        json.dump(
+            {k: v for k, v in request.__dict__.items() if not k.startswith("_")},
+            rdoc_file,
+            indent=4,
+            default=str,
         )
 
+    pdf_src = assets_dir / "other/GeoQuery_Goodman2019.pdf"
+    pdf_dst = request_dir / "GeoQuery_Goodman2019.pdf"
+    shutil.copyfile(pdf_src, pdf_dst)
 
-    def notify_user(self, request_id, mail_to, status, download_server):
-        """send email that request was received or completed
-        """
-        GE = GeoEmail()
+    features_status, features_gdf = merge_task_features(task_list)
+    if features_status == "Success":
+        features_gdf.to_file(request_dir / "request_features.gpkg", driver="GPKG")
+    elif features_status == "Empty":
+        logger.info("No features to merge for request %s", request_id)
+    else:
+        raise Exception(f"Error merging features for request {request_id}. Status: {features_status}")
 
-        if status not in [0, 1]:
-            raise ValueError(f"Invalid status for notify_user: {status}. Status must be 0 or 1.")
+    make_zipfile(request_dir, request_dir)
+    shutil.move(str(request_dir) + ".zip", str(request_dir))
+    os.remove(pdf_dst)
 
-        status_text = "Received" if status == 0 else "Completed"
-
-        mail_subject = (f"AidData GeoQuery- Request {request_id[:7]}.. {status_text}")
-
-        received_message = (
-            f"""
-            Thanks for using GeoQuery. This is an automated email to let you
-            know that we received your request and will process your data as
-            soon as we can. We will send another email when your data is ready.
-
-            You can view the status of this data request here:
-            http://{0}/query/#!/status/{1}
-
-            You can also keep track of all of the data requests that you've
-            submitted with this email address here:
-            http://{0}/query/#!/requests/{2}
-
-            Thank you,
-            \tAidData's GeoQuery Team
-            """).format(download_server, request_id, mail_to)
-
-        completed_message = (
-            """
-            Thanks again for using GeoQuery. This is another automated email to let you know that
-            your data is ready.
-
-            You can review your request, and download the results and documentation here:
-            \thttp://{0}/query/#!/status/{1}
-
-            Or download the results directly (this link will always be available):
-            \thttp://{0}/data/geoquery_results/{1}/{1}.zip
-
-            You can also view all your current and previous requests using:
-            \thttp://{0}/query/#!/requests/{2}
-
-            Also, one quick reminder about citations. Don't forget to cite both AidData's GeoQuery
-            tool as well as each dataset you selected within GeoQuery. All citations can be found
-            in the Documentation PDF at the link above. Here's the correct citation for GeoQuery:
-
-                Goodman, S., BenYishay, A., Lv, Z., & Runfola, D. (2019).
-                GeoQuery: Integrating HPC systems and public web-based
-                geospatial data tools. Computers & Geosciences, 122, 103-112.
-
-            Thank you in advance for citing us when you publish your research.
-            This helps us to demonstrate how GeoQuery is making a difference
-            as a freely available public good.
-
-            Thank you,
-            \tAidData's GeoQuery Team
-            """).format(download_server, request_id, mail_to)
-
-        if status == 0:
-            mail_message = received_message
-        else:
-            mail_message = completed_message
-
-        mail_message = textwrap.dedent(mail_message)
-
-        mail_status = GE.send_email(mail_to, mail_subject, mail_message)
-
-        if not mail_status[0]:
-            self.stdout.write(self.style.ERROR(f"{mail_status[1]}: {mail_status[2]}"))
-            update_status = Request.objects.filter(id=request_id).update(status=-2)
-            # raise mail_status[2]
-
-
-    def check_request_tasks(self, request, dry_run=False):
-        """check entire request for completion
-
-        return count of tasks still pending and list of processing tasks to merge
-        """
-        pending_task_count = 0
-        completed_task_list = []
-
-        self.stdout.write("\nChecking status of processing tasks (dry=run = {})...".format(dry_run))
-
-        # TODO: combine the RequestMap and ExtractTask queries into one
-        task_list = RequestMap.objects.filter(request=request.id)
-
-        for task_item in task_list:
-            extract_task = ExtractTask.objects.filter(id=task_item.task_id).first()
-            if extract_task.status != 1:
-                pending_task_count += 1
-            else:
-                completed_task_list.append(extract_task.id)
-
-        self.stdout.write('Processing tasks pending: {0}/{1}'.format(pending_task_count, len(task_list)))
-
-        return pending_task_count, completed_task_list
-
-
-    def build_output(self, request, task_list, download_server, results_dir,assets_dir):
-        """build output
-
-        merge extracts, generate documentation, update status,
-            cleanup working directory, send final email
-        """
-        results_dir = Path(results_dir) # "/path/to/request_data"
-        assets_dir = Path(assets_dir)
-
-        request_id = str(request.id)
-        request_dir = results_dir / request_id
-
-        # clear any existing files in request dir
-        shutil.rmtree(request_dir, ignore_errors=True)
-        # create request dir
-        request_dir.mkdir(parents=True, exist_ok=True)
-
-        request_csv = request_dir / "{0}_results.csv".format(request_id)
-        request_documentation = request_dir / "{0}_documentation.pdf".format(request_id)
-        request_json = request_dir / "request_details.json"
-
-        # merge cached results if all are available
-        merge_status, merge_df = merge_task_results(task_list)
-
-        if merge_status != "Success":
-            raise Exception(f'\tWarning: no extracts merged for request {request_id}. Merge status: {merge_status}')
-        else:
-            self.stdout.write(f'\tMerge completed for request {request_id}')
-            merge_df.to_csv(request_csv, index=False)
-
-        # # TODO: generate documentation. Update to markdown/pandocs or something similar?
-        # doc = DocBuilder(request, request_documentation, download_server)
-        # bd_status = doc.build_doc()
-
-        # if bd_status != "Success":
-        #     raise Exception(f'\tError building documentation for request {request_id}. Status: {bd_status}')
-        # else:
-        #     self.stdout.write(f'\tDocumentation generated for request {request_id}')
-
-        with open(request_json, "w") as rdoc_file:
-            json.dump(
-                {k: v for k, v in request.__dict__.items() if not k.startswith('_')},
-                rdoc_file,
-                indent=4,
-                default=str,
-            )
-
-        pdf_src = assets_dir / "other/GeoQuery_Goodman2019.pdf"
-        pdf_dst = request_dir / "GeoQuery_Goodman2019.pdf"
-        shutil.copyfile(pdf_src, pdf_dst)
-
-        # dump all feature data into a GPKG in request dir
-        features_status, features_gdf = merge_task_features(task_list)
-        if features_status == "Success":
-            features_dst = request_dir / "request_features.gpkg"
-            features_gdf.to_file(features_dst, driver="GPKG")
-        elif features_status == "Empty":
-            self.stdout.write(f'\tNo features to merge for request {request_id}')
-        else:
-            raise Exception(f'\tError merging features for request {request_id}. Status: {features_status}')
-
-        # make zip of request dir
-        # shutil.make_archive(request_dir, "zip", request_dir)
-        make_zipfile(request_dir, request_dir)
-
-        # move zip of request dir into request dir
-        shutil.move(str(request_dir) + ".zip", str(request_dir))
-
-        # remove unzipped files which do not need direct access
-        os.remove(pdf_dst)
-
-        # set permissions
-        os.chmod(request_dir, 0o775)
-        for ro, di, fi in os.walk(request_dir):
-            for d in di:
-                os.chmod(os.path.join(ro, d), 0o775)
-            for f in fi:
-                os.chmod(os.path.join(ro, f), 0o664)
-
-        return
+    os.chmod(request_dir, 0o775)
+    for ro, di, fi in os.walk(request_dir):
+        for d in di:
+            os.chmod(os.path.join(ro, d), 0o775)
+        for f in fi:
+            os.chmod(os.path.join(ro, f), 0o664)
 
 
 def make_zipfile(base_name, base_dir):

@@ -11,6 +11,9 @@ from django.db import connection
 from analytics.tasks.email import GeoEmail
 from analytics.models import Request
 
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 class Command(BaseCommand):
     help = "Send email to admin about users who satisfy criteria for contact (e.g. multiple requests within timeframe but no contact or comments requested flags)"
@@ -35,7 +38,7 @@ class Command(BaseCommand):
             help="Whether to just flag users for manual contact by staff, or to automatically send emails to users. Options are 'manual' and 'auto'. Manual is the default and recommended mode.",
         )
         parser.add_argument(
-            "--days",
+            "--ndays",
             type=int,
             default=365,
             help="Number of days to look back when searching for users to contact. Default is 365.",
@@ -64,130 +67,177 @@ class Command(BaseCommand):
         """
         This command identifies users who satisfy criteria for contact (e.g. multiple requests within timeframe but no contact or comments requested flags) and either automatically sends them an email requesting comments or flags them for manual contact by staff.
         """
+        _run_user_outreach(options["days"], options["request_count"], options["earliest_request"], options["latest_request"], options["mode"], options["limit"], options["dry_run"])
 
-        current_timestamp = int(time.time())
 
-        # filters for searching requests
-        f = {
-            "n_days": options["days"],
-            "request_count": options["request_count"],
-            "earliest_request": options["earliest_request"],
-            "latest_request": options["latest_request"]
+def _run_user_outreach(n_days, request_count, earliest_request, latest_request, mode="manual", email_limit=50, dry_run=False):
+    current_timestamp = int(time.time())
+
+    def to_seconds(days):
+        """convert days to seconds"""
+        return days*24*60*60
+
+    # get timestamp for ndays before present time
+    # used to get requests for past n days
+    search_timestamp = current_timestamp - to_seconds(n_days)
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT id FROM requests
+            WHERE submit_time > to_timestamp(%s)
+            """,
+            [search_timestamp],
+        )
+        request_objects = cursor.fetchall()
+
+    if not request_objects:
+        logger.warning(f"No requests found within past {n_days} days. Exiting.")
+        return
+
+    # convert to dataframe
+    request_df_data = []
+
+    for r in request_objects:
+        request_dict = {
+            'contact': r.contact,
+            'contact_flag': r.contact_flag,
+            'request_time': r.submit_time,
+            'complete_time': r.complete_time,
+            'status': r.status,
+            'count': 1
         }
 
-        def to_seconds(days):
-            """convert days to seconds"""
-            return days*24*60*60
+        if 'comments_requested' in r:
+            request_dict['comments_requested'] = r['comments_requested']
+        else:
+            request_dict['comments_requested'] = 0
 
-        # get timestamp for ndays before present time
-        # used to get requests for past n days
-        search_timestamp = current_timestamp - to_seconds(f["n_days"])
+        if 'contact_flag' in r:
+            request_dict['contact_flag'] = r['contact_flag']
+        else:
+            request_dict['contact_flag'] = 0
 
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT id FROM requests
-                WHERE submit_time > to_timestamp(%s)
-                """,
-                [search_timestamp],
+        request_df_data.append(request_dict)
+
+
+    request_df = pd.DataFrame(request_df_data)
+
+    # time_field = "request_time"
+    time_field = "complete_time"
+
+    request_df["earliest_time"] = request_df[time_field]
+    request_df["latest_time"] = request_df[time_field]
+
+
+    # convert to user aggregated dataframe
+    user_df = request_df.groupby('contact', as_index=False).agg({
+        "count": "sum",
+        "comments_requested": "sum",
+        "contact_flag": "sum",
+        "earliest_time": "min",
+        "latest_time": "max"
+    })
+
+    # filter
+    valid_df = user_df.loc[
+        (user_df["comments_requested"] == 0) &
+        (user_df["contact_flag"] == 0) &
+        (user_df["count"] > request_count) &
+        (current_timestamp - user_df["earliest_time"] > to_seconds(earliest_request)) &
+        (current_timestamp - user_df["latest_time"] > to_seconds(latest_request))
+    ]
+
+    valid_user_count = len(valid_df)
+
+    logger.info(
+        f"{valid_user_count} valid users found for contact within past {n_days} days with at least {request_count} requests, earliest request at least {earliest_request} days ago, and latest request at least {latest_request} days ago."
+    )
+
+    valid_df.reset_index(drop=True, inplace=True)
+
+    email = GeoEmail(None)
+
+    # send list of users to staff emails
+    if not dry_run and mode == "manual" and valid_user_count > 0:
+
+        email_list = valid_df["email"].tolist()
+        email_list_str = "\n\t".join(email_list)
+
+        mail_to = "geo@aiddata.org, info@aiddata.org"
+
+        mail_subject = ("Your weekly list of GeoQuery user emails")
+
+        mail_message = (
+            """
+            Hello there team!
+
+            Below you will find the list of users who satisfy the criteria for contact. For details
+            on what these criteria actually are, contact your GeoQuery Admin. At the end of this email
+            is some sample language for contacting users.
+
+            --------------------
+            {}
+            --------------------
+
+            Hello there!
+
+            We would like to hear about your experience using AidData's GeoQuery tool. Would you
+            please respond to this email with a couple sentences about how GeoQuery has helped you?
+
+            We are able to make GeoQuery freely available thanks to the generosity of donors and
+            open source data providers. These people love to hear about new research enabled by
+            GeoQuery, and what kind of difference this research is making in the world.
+
+            Also, we love feedback of all kinds. If something did not go the way you expected, we
+            want to hear about that too.
+
+            Thanks!
+            \tAidData's GeoQuery Team
+            """).format(email_list_str)
+
+
+        mail_message = textwrap.dedent(mail_message)
+
+        mail_status = email.send_email(mail_to, mail_subject, mail_message)
+
+        if not mail_status[0]:
+            logger.error(
+                f"Error sending email to staff for manual contact. Error message: {mail_status[1]}"
             )
-            request_objects = cursor.fetchall()
+            raise mail_status[2]
 
-        if not request_objects:
-            self.stdout.write(
-                self.style.WARNING(
-                    f"No requests found within past {f['n_days']} days. Exiting."
-                )
+
+    # email any users who pass above filtering with request for comments
+    # add "comments_requested" = 1 flag to all of their existing requests
+    for ix, user_info in valid_df.iterrows():
+
+        user_email = user_info["email"]
+
+        if mode == "auto" and ix >= email_limit:
+            logger.warning(
+                "\n Warning: maximum emails reached. Exiting."
             )
-            return
+            break
 
-        # convert to dataframe
-        request_df_data = []
-
-        for r in request_objects:
-            request_dict = {
-                'contact': r['contact'],
-                'contact_flag': r['contact_flag'],
-                'request_time': r['submit_time'],
-                'complete_time': r['complete_time'],
-                'status': r['status'],
-                'count': 1
-            }
-
-            if 'comments_requested' in r:
-                request_dict['comments_requested'] = r['comments_requested']
-            else:
-                request_dict['comments_requested'] = 0
-
-            if 'contact_flag' in r:
-                request_dict['contact_flag'] = r['contact_flag']
-            else:
-                request_dict['contact_flag'] = 0
-
-            request_df_data.append(request_dict)
-
-
-        request_df = pd.DataFrame(request_df_data)
-
-        # time_field = "request_time"
-        time_field = "complete_time"
-
-        request_df["earliest_time"] = request_df[time_field]
-        request_df["latest_time"] = request_df[time_field]
-
-
-        # convert to user aggregated dataframe
-        user_df = request_df.groupby('contact', as_index=False).agg({
-            "count": "sum",
-            "comments_requested": "sum",
-            "contact_flag": "sum",
-            "earliest_time": "min",
-            "latest_time": "max"
-        })
-
-        # filter
-        valid_df = user_df.loc[
-            (user_df["comments_requested"] == 0) &
-            (user_df["contact_flag"] == 0) &
-            (user_df["count"] > f["request_count"]) &
-            (current_timestamp - user_df["earliest_time"] > to_seconds(f["earliest_request"])) &
-            (current_timestamp - user_df["latest_time"] > to_seconds(f["latest_request"]))
-        ]
-
-        valid_user_count = len(valid_df)
-
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"{valid_user_count} valid users found for contact within past {f['n_days']} days with at least {f['request_count']} requests, earliest request at least {f['earliest_request']} days ago, and latest request at least {f['latest_request']} days ago."
-            )
+        logger.info(
+            f'\t{ix}: {user_email}'
         )
 
-        valid_df.reset_index(drop=True, inplace=True)
+        # automated request for comments
+        if not dry_run and mode == "auto":
 
-        email = GeoEmail(None)
+            logger.info(
+                "sending emails..."
+            )
 
-        # send list of users to staff emails
-        if not options["dry-run"] and options["mode"] == "manual" and valid_user_count > 0:
+            # avoid gmail email per second limits
+            time.sleep(1)
 
-            email_list = valid_df["email"].tolist()
-            email_list_str = "\n\t".join(email_list)
+            user_mail_subject = ("Was GeoQuery helpful?")
 
-            mail_to = "geo@aiddata.org, info@aiddata.org, eteare@aiddata.wm.edu"
-
-            mail_subject = ("Your weekly list of GeoQuery user emails")
-
-            mail_message = (
+            user_mail_message = (
                 """
-                Hello there team!
-
-                Below you will find the list of users who satisfy the criteria for contact. For details
-                on what these criteria actually are, contact your GeoQuery Admin. At the end of this email
-                is some sample language for contacting users.
-
-                --------------------
-                {}
-                --------------------
-
                 Hello there!
 
                 We would like to hear about your experience using AidData's GeoQuery tool. Would you
@@ -202,110 +252,40 @@ class Command(BaseCommand):
 
                 Thanks!
                 \tAidData's GeoQuery Team
-                """).format(email_list_str)
-
-
-            mail_message = textwrap.dedent(mail_message)
-
-            mail_status = email.send_email(mail_to, mail_subject, mail_message)
-
-            if not mail_status[0]:
-                self.stdout.write(
-                    self.style.ERROR(
-                        f"Error sending email to staff for manual contact. Error message: {mail_status[1]}"
-                    )
-                )
-                raise mail_status[2]
-
-
-        # email any users who pass above filtering with request for comments
-        # add "comments_requested" = 1 flag to all of their existing requests
-        for ix, user_info in valid_df.iterrows():
-
-            user_email = user_info["email"]
-
-            if options["mode"] == "auto" and ix >= options["email_limit"]:
-                self.stdout.write(
-                    self.style.WARNING(
-                        "\n Warning: maximum emails reached. Exiting."
-                    )
-                )
-                break
-
-            self.stdout.write(
-                self.style.INFO(
-                    f'\t{ix}: {user_email}'
-                )
-            )
-
-            # automated request for comments
-            if not options["dry-run"] and options["mode"] == "auto":
-
-                self.stdout.write(
-                    self.style.INFO(
-                        "sending emails..."
-                    )
-                )
-
-                # avoid gmail email per second limits
-                time.sleep(1)
-
-
-                user_mail_subject = ("Was GeoQuery{0} helpful?").format(self.dev)
-
-                user_mail_message = (
-                    """
-                    Hello there!
-
-                    We would like to hear about your experience using AidData's GeoQuery tool. Would you
-                    please respond to this email with a couple sentences about how GeoQuery has helped you?
-
-                    We are able to make GeoQuery freely available thanks to the generosity of donors and
-                    open source data providers. These people love to hear about new research enabled by
-                    GeoQuery, and what kind of difference this research is making in the world.
-
-                    Also, we love feedback of all kinds. If something did not go the way you expected, we
-                    want to hear about that too.
-
-                    Thanks!
-                    \tAidData's GeoQuery Team
-                    """
-                )
-                user_mail_message = textwrap.dedent(user_mail_message)
-
-                mail_status = email.send_email(user_email, user_mail_subject, user_mail_message)
-
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        """
-                        UPDATE requests
-                        SET comments_requested = 1
-                        WHERE contact = %s
-                        """,
-                        [user_email],
-                    )
-
-            # flag as being included in list for staff to manually email
-            elif not options["dry-run"] and options["mode"] == "manual":
-
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        """
-                        UPDATE requests
-                        SET contact_flag = 1
-                        WHERE contact = %s
-                        """,
-                        [user_email],
-                    )
-
-
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"""
-                ---------------------------------------
-                Finished checking requests"
-                {time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())}
-                ---------------------------------------
                 """
             )
-        )
+            user_mail_message = textwrap.dedent(user_mail_message)
+
+            mail_status = email.send_email(user_email, user_mail_subject, user_mail_message)
+
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE requests
+                    SET comments_requested = 1
+                    WHERE contact = %s
+                    """,
+                    [user_email],
+                )
+
+        # flag as being included in list for staff to manually email
+        elif not dry_run and mode == "manual":
+
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE requests
+                    SET contact_flag = 1
+                    WHERE contact = %s
+                    """,
+                    [user_email],
+                )
+
+    logger.info(
+        f"""
+        ---------------------------------------
+        Finished checking requests"
+        {time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())}
+        ---------------------------------------
+        """
+    )

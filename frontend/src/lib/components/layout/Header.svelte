@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { openSidebar, currentStep, type Step } from '$lib/stores/ui';
-	import { CircleHelp, History, MapPin, Star, ClipboardList } from '@lucide/svelte';
-	import geoqueryLogo from '$lib/assets/geoquery_logo.svg';
+	import { CircleHelp, History, MapPin, Star, ClipboardList, BookOpen } from '@lucide/svelte';
+	import geoqueryLogo from '$lib/assets/aiddata_geoquery_wordmark.png';
 
 	interface Props {
 		showSteps?: boolean;
@@ -22,11 +22,16 @@
 	<div class="flex h-20 items-center justify-between px-4">
 		<!-- Logo -->
 		<a href="/" class="flex items-center -ml-7">
-			<img src={geoqueryLogo} alt="GeoQuery" class="h-24" />
+			<img src={geoqueryLogo} alt="GeoQuery" class="h-14 w-auto sm:h-18 md:h-24" />
 		</a>
 
 		<!-- Navigation Buttons -->
 		<div class="flex items-center gap-2">
+			<Button variant="ghost" href="https://aiddata.github.io/geoquery-update/" target="_blank" rel="noopener noreferrer">
+				<BookOpen />
+				<span class="hidden sm:inline">Docs</span>
+			</Button>
+
 			<Button variant="ghost" onclick={() => openSidebar('help')}>
 				<CircleHelp />
 				<span class="hidden sm:inline">Help</span>

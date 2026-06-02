@@ -1,0 +1,24 @@
+from django.core.management.base import BaseCommand
+
+from datasets.tasks.create_docs import build_dataset_docs
+
+
+class Command(BaseCommand):
+    help = "Generate Markdown documentation pages for all public datasets."
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--all",
+            action="store_true",
+            help="Include non-public and inactive datasets",
+        )
+
+    def handle(self, *args, **options):
+        public_only = not options["all"]
+        self.stdout.write("Building dataset documentation...")
+        result = build_dataset_docs(public_only=public_only)
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Done: {len(result['pages'])} dataset pages + index → {result['index']}"
+            )
+        )
