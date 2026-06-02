@@ -28,6 +28,12 @@ DEBUG = True
 
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
+# Prometheus metrics (disabled by default)
+PROMETHEUS_ENABLED = os.getenv("PROMETHEUS_ENABLED", "False").lower() in (
+    "true",
+    "1",
+    "yes",
+)
 
 # Application definition
 INSTALLED_APPS = [
@@ -78,18 +84,21 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "geoquery.wsgi.application"
 
-
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 DATABASES = {
     "default": {
-        "ENGINE": "django.contrib.gis.db.backends.postgis",
-        "NAME": "geoquery",
-        "USER": "django_user",
-        "PASSWORD": "dev_password",
-        "HOST": os.environ.get("DB_HOST", "localhost"),
-        "PORT": "5432",
-    },
+        "ENGINE": "django_prometheus.db.backends.postgis"
+        if PROMETHEUS_ENABLED
+        else "django.contrib.gis.db.backends.postgis",
+        "NAME": os.getenv("PG_DBNAME", "geoquery"),
+        "USER": os.getenv("PG_USER", "django_user"),
+        "PASSWORD": os.getenv("PG_PASSWORD", ""),
+        "HOST": os.getenv("PG_HOST", "localhost"),
+        "PORT": os.getenv("PG_PORT", "5432"),
+        "OPTIONS": {
+            "sslmode": os.getenv("PG_SSL_MODE", "prefer"),
+        },
+        "CONN_MAX_AGE": 0,  # New connection per request
+    }
 }
 
 
