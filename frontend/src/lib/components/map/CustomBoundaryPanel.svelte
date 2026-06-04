@@ -208,14 +208,12 @@
 				</button>
 			</div>
 
-			<Button class="w-full" disabled>
-				Continue to Operations
-				<!-- Enabled in Phase 2 -->
-			</Button>
-
-			<p class="text-center text-xs text-muted-foreground">
-				Geospatial editing tools coming in the next step.
-			</p>
+			<div class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+				<p class="font-medium">Boundary loaded successfully.</p>
+				<p class="mt-0.5 text-amber-700">
+					Geospatial editing tools (buffering, simplify, union) are coming in the next step and are not yet available.
+				</p>
+			</div>
 		{/if}
 	</div>
 </div>
