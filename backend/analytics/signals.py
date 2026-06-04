@@ -10,4 +10,4 @@ def on_request_submitted(sender, instance, created, **kwargs):
     if not created:
         return
     from analytics.tasks.maintenance import process_user_requests, dispatch_processing_tasks
-    chain(process_user_requests.s(), dispatch_processing_tasks.s()).delay()
+    chain(process_user_requests.si(), dispatch_processing_tasks.si()).delay()
