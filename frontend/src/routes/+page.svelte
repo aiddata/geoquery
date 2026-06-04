@@ -54,7 +54,8 @@
 		return { staged: { mode: 'multi', fcs: [...sel.fcs] }, bbox };
 	}
 
-	const _init = initFromStore();
+	// Don't restore a standard boundary if custom mode is active — the two are mutually exclusive
+	const _init = get(customBoundary).active ? { staged: null, bbox: null } : initFromStore();
 
 	$effect(() => {
 		currentStep.set('map');
@@ -415,9 +416,9 @@
 	<MapFrame
 		bind:this={mapFrame}
 		class="flex-1"
-		fcNames={mapFcNames}
-		{activeFcName}
-		selectedFeatureIds={displaySelectedFeatureIds}
+		fcNames={$customBoundary.active ? [] : mapFcNames}
+		activeFcName={$customBoundary.active ? null : activeFcName}
+		selectedFeatureIds={$customBoundary.active ? [] : displaySelectedFeatureIds}
 		bbox={userBbox ?? currentBbox}
 		onFeatureClick={handleFeatureClick}
 		userGeoJSON={$customBoundary.active ? $customBoundary.finalFeatures : null}
