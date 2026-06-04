@@ -30,7 +30,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--error-values",
             type=str,
-            default=-2,
+            default=-1,
             help="Error status values to update.",
         )
 
