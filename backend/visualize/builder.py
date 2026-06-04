@@ -19,7 +19,8 @@ class VizBuilder:
     color scheme, classification method) is client-side JavaScript.
     """
 
-    def __init__(self, request, merged_df: pd.DataFrame, output_path, base_url: str | None = None):
+    def __init__(self, request, merged_df: pd.DataFrame, output_path, base_url: str | None = None,
+                 geojson_filename: str | None = None):
         self.request = request
         self.df = merged_df
         self.output_path = Path(output_path).with_suffix(".html")
@@ -27,11 +28,15 @@ class VizBuilder:
             base_url or getattr(settings, "DOWNLOAD_BASE_URL", "http://localhost:8000")
         ).rstrip("/")
         self.protomaps_api_key = getattr(settings, "PROTOMAPS_API_KEY", "")
+        self.geojson_filename = geojson_filename
 
     def build_viz(self) -> str:
         try:
-            data = self._build_data()
-            html = self._render(data)
+            if self.geojson_filename:
+                html = self._render_custom()
+            else:
+                data = self._build_data()
+                html = self._render(data)
             with open(self.output_path, "w", encoding="utf-8") as f:
                 f.write(html)
             return "Success"
@@ -110,3 +115,47 @@ class VizBuilder:
     def _render(data: dict) -> str:
         from .template import TEMPLATE
         return TEMPLATE.replace("__GQ_DATA__", json.dumps(data, default=str))
+
+    def _render_custom(self) -> str:
+        from .template_custom import TEMPLATE_CUSTOM
+
+        df = self.df
+        meta_cols = {"feature_collection", "geom_id"}
+        data_cols = [c for c in df.columns if c not in meta_cols]
+
+        features: dict[str, dict] = {}
+        for _, row in df.iterrows():
+            geom_id = str(int(row["geom_id"]))
+            record: dict = {}
+            for col in data_cols:
+                val = row[col]
+                record[col] = float(val) if isinstance(val, (int, float)) and pd.notna(val) else (None if pd.isna(val) else str(val))
+            features[geom_id] = record
+
+        req_data = self.request.data or {}
+        bbox = None
+        try:
+            geom_ids = df["geom_id"].dropna().astype(int).tolist()
+            extent = Feature.objects.filter(id__in=geom_ids).aggregate(extent=Extent("shape"))["extent"]
+            if extent:
+                bbox = list(extent)
+        except Exception:
+            pass
+
+        data = {
+            "features": features,
+            "columns": data_cols,
+            "bbox": bbox,
+        }
+
+        title = self.request.custom_name or str(self.request.id)[:8]
+        selection_label = req_data.get("selection_label") or "Custom boundary"
+        feat_count = len(features)
+
+        html = TEMPLATE_CUSTOM
+        html = html.replace("__GQ_DATA__", json.dumps(data, default=str))
+        html = html.replace("__GQ_GEOJSON__", self.geojson_filename)
+        html = html.replace("__GQ_TITLE__", title)
+        html = html.replace("__GQ_FC__", selection_label)
+        html = html.replace("__GQ_FEAT_COUNT__", str(feat_count))
+        return html

@@ -264,8 +264,11 @@ def _build_output(request, task_list, download_server, results_dir, assets_dir):
         raise Exception(f"Error building documentation for request {request_id}. Status: {bd_status}")
     logger.info("Documentation generated for request %s", request_id)
 
+    is_custom = (request.data or {}).get("is_custom_boundary", False)
+    geojson_filename = "request_features.geojson" if is_custom else None
+
     request_visualization = request_dir / f"{request_id}_visualization.html"
-    viz = VizBuilder(request, merge_df, request_visualization)
+    viz = VizBuilder(request, merge_df, request_visualization, geojson_filename=geojson_filename)
     viz_status = viz.build_viz()
     if viz_status != "Success":
         logger.warning("Visualization skipped: %s", viz_status)
@@ -287,6 +290,8 @@ def _build_output(request, task_list, download_server, results_dir, assets_dir):
     features_status, features_gdf = merge_task_features(task_list)
     if features_status == "Success":
         features_gdf.to_file(request_dir / "request_features.gpkg", driver="GPKG")
+        if is_custom:
+            features_gdf.to_file(request_dir / "request_features.geojson", driver="GeoJSON")
     elif features_status == "Empty":
         logger.info("No features to merge for request %s", request_id)
     else:
