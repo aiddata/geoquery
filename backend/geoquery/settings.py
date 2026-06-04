@@ -56,6 +56,8 @@ INSTALLED_APPS = [
     "analytics",
 ]
 
+if PROMETHEUS_ENABLED:
+    INSTALLED_APPS.insert(0, "django_prometheus")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
