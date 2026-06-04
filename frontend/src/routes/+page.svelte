@@ -10,9 +10,11 @@
 	import ZoomControls from '$lib/components/map/ZoomControls.svelte';
 	import MapFrame from '$lib/components/map/MapFrame.svelte';
 	import WelcomeModal from '$lib/components/map/WelcomeModal.svelte';
+	import CustomBoundaryPanel from '$lib/components/map/CustomBoundaryPanel.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { PlusCircle, ArrowRight } from '@lucide/svelte';
+	import { customBoundary } from '$lib/stores/customBoundary';
 
 	// ── Local staged selection types ────────────────────────────────────────────
 	// The map page edits a local "staged" selection. Nothing is written to the
@@ -333,41 +335,54 @@
 		{/if}
 
 		{#if !staged || addingAnother}
-			<!-- Search panel (initial selection or adding another) -->
-			{#key addingAnother}
-				<GeographySearch
-					featuredBoundaries={addingAnother ? [] : featuredBoundaries}
-					proceedLabel={pendingFeatureIds.length > 0 ? 'Save Selected' : 'Save All'}
-					proceedTooltip={pendingFeatureIds.length > 0
-						? 'Individual feature selections are limited to one boundary collection.'
-						: 'Save this boundary. You can then add another boundary to combine multiple collections.'}
-					onSelect={handleSelect}
-					onProceed={handleProceed}
-				/>
-			{/key}
+			{#if $customBoundary.active && !addingAnother}
+				<!-- Custom boundary upload panel -->
+				<CustomBoundaryPanel />
+			{:else}
+				<!-- Search panel (initial selection or adding another) -->
+				{#key addingAnother}
+					<GeographySearch
+						featuredBoundaries={addingAnother ? [] : featuredBoundaries}
+						proceedLabel={pendingFeatureIds.length > 0 ? 'Save Selected' : 'Save All'}
+						proceedTooltip={pendingFeatureIds.length > 0
+							? 'Individual feature selections are limited to one boundary collection.'
+							: 'Save this boundary. You can then add another boundary to combine multiple collections.'}
+						onSelect={handleSelect}
+						onProceed={handleProceed}
+					/>
+				{/key}
 
-			<!-- Feature-selection hint once a boundary is previewed -->
-			{#if pendingBoundary && !addingAnother}
-				<div class="rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground shadow">
-					{#if pendingFeatureIds.length === 0}
-						Click features on the map to narrow your selection, then press
-						<strong>Save Selected</strong>. Or press <strong>Save All</strong> now to use the
-						entire collection.
-					{:else}
-						<strong>{pendingFeatureIds.length}</strong>
-						{pendingFeatureIds.length === 1 ? 'feature' : 'features'} selected — click more to
-						add, or click a selected feature to deselect it.
-					{/if}
-				</div>
-			{/if}
+				<!-- Feature-selection hint once a boundary is previewed -->
+				{#if pendingBoundary && !addingAnother}
+					<div class="rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground shadow">
+						{#if pendingFeatureIds.length === 0}
+							Click features on the map to narrow your selection, then press
+							<strong>Save Selected</strong>. Or press <strong>Save All</strong> now to use the
+							entire collection.
+						{:else}
+							<strong>{pendingFeatureIds.length}</strong>
+							{pendingFeatureIds.length === 1 ? 'feature' : 'features'} selected — click more to
+							add, or click a selected feature to deselect it.
+						{/if}
+					</div>
+				{/if}
 
-			{#if addingAnother}
-				<button
-					class="px-1 text-sm text-muted-foreground underline hover:text-foreground"
-					onclick={() => { addingAnother = false; pendingBoundary = null; }}
-				>
-					Cancel
-				</button>
+				{#if addingAnother}
+					<button
+						class="px-1 text-sm text-muted-foreground underline hover:text-foreground"
+						onclick={() => { addingAnother = false; pendingBoundary = null; }}
+					>
+						Cancel
+					</button>
+				{:else}
+					<!-- Toggle to custom boundary mode -->
+					<button
+						class="w-full rounded-md border bg-card px-3 py-2.5 text-xs text-muted-foreground shadow hover:bg-muted/50 hover:text-foreground transition-colors text-center"
+						onclick={() => customBoundary.activate()}
+					>
+						Use my own boundary file instead →
+					</button>
+				{/if}
 			{/if}
 		{/if}
 	</div>
