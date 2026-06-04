@@ -8,11 +8,8 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  redis:
-    image: redis:7-alpine
-    command: redis-server --appendonly yes
-    volumes:
-      - redisdata:/data
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
 
   backend:
     build:
@@ -23,7 +20,7 @@ services:
       - ./backend:/app/backend
       - ./results:/app/results
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
       - DB_HOST=db
       - ALLOWED_HOSTS=localhost,127.0.0.1,backend
       - RESULTS_DIR=/app/results
@@ -36,7 +33,7 @@ services:
       - PG_SSL_MODE=disable
     depends_on:
       - db
-      - redis
+      - rabbitmq
 
   worker:
     build:
@@ -47,7 +44,7 @@ services:
       - ./backend:/app/backend
       - ./data:/app/backend/dev_data
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
       - DB_HOST=db
       - PG_DBNAME=geoquery
       - PG_USER=django_user
@@ -57,7 +54,7 @@ services:
       - PG_SSL_MODE=disable
     depends_on:
       - db
-      - redis
+      - rabbitmq
 
   beat:
     build:
@@ -67,11 +64,17 @@ services:
     volumes:
       - ./backend:/app/backend
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
       - DB_HOST=db
+      - PG_DBNAME=geoquery
+      - PG_USER=django_user
+      - PG_PASSWORD=dev_password
+      - PG_HOST=db
+      - PG_PORT=5432
+      - PG_SSL_MODE=disable
     depends_on:
       - db
-      - redis
+      - rabbitmq
 
   frontend:
     build:
@@ -90,4 +93,3 @@ services:
 
 volumes:
   pgdata:
-  redisdata:
