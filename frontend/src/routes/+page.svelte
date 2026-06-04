@@ -85,6 +85,7 @@
 	let currentBbox = $state<[number, number, number, number] | null>(_init.bbox);
 
 	let userBbox = $derived.by(() => {
+		if (!$customBoundary.active) return null;
 		const fc = $customBoundary.finalFeatures;
 		if (!fc || fc.features.length === 0) return null;
 		try { return turfBbox(fc) as [number, number, number, number]; } catch { return null; }
@@ -411,6 +412,6 @@
 		selectedFeatureIds={displaySelectedFeatureIds}
 		bbox={userBbox ?? currentBbox}
 		onFeatureClick={handleFeatureClick}
-		userGeoJSON={$customBoundary.finalFeatures}
+		userGeoJSON={$customBoundary.active ? $customBoundary.finalFeatures : null}
 	/>
 </div>
