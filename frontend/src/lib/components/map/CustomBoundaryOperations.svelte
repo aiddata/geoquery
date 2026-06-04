@@ -213,7 +213,7 @@
 				size="sm"
 				variant="outline"
 				class="gap-1"
-				disabled={$customBoundary.operations.length === 0}
+				disabled={false}
 				onclick={() => customBoundary.clearOperations()}
 			>
 				<RefreshCw class="h-3.5 w-3.5" />
@@ -223,7 +223,7 @@
 				size="sm"
 				variant="outline"
 				class="flex-1"
-				disabled={$customBoundary.operations.length === 0 || applying}
+				disabled={applying}
 				onclick={applyOperations}
 			>
 				{applying ? 'Applying…' : 'Apply & Preview'}
