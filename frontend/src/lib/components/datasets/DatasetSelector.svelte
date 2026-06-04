@@ -12,9 +12,10 @@
 		categories: DatasetCategory[];
 		selectedDataset: DatasetSummary | null;
 		onSelect: (dataset: DatasetSummary) => void;
+		outOfRangeNames?: Set<string>;
 	}
 
-	let { datasets, categories, selectedDataset, onSelect }: Props = $props();
+	let { datasets, categories, selectedDataset, onSelect, outOfRangeNames = new Set() }: Props = $props();
 
 	let searchText = $state('');
 	let searchFocused = $state(false);
@@ -154,9 +155,12 @@
 								<p class="text-sm font-medium leading-snug">
 									{dataset.title ?? dataset.name}
 								</p>
-								<p class="mt-0.5 text-xs text-muted-foreground">
-									Raster
-								</p>
+								<div class="mt-0.5 flex items-center gap-1.5">
+									<p class="text-xs text-muted-foreground">Raster</p>
+									{#if outOfRangeNames.has(dataset.name)}
+										<span class="rounded px-1 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700">out of range</span>
+									{/if}
+								</div>
 							</div>
 							<button
 								class="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"

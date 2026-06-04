@@ -63,6 +63,7 @@ export interface DatasetSummary {
 	temporal_start: string | null;
 	temporal_end: string | null;
 	date_updated: string;
+	bbox: [number, number, number, number] | null;
 }
 
 export interface DatasetResource {
@@ -105,6 +106,14 @@ export async function fetchFeatureIds(fcIds: number[]): Promise<number[]> {
 export async function fetchDatasetsForFeatures(featureIds: number[]): Promise<DatasetSummary[]> {
 	const params = new URLSearchParams({ features: featureIds.join(',') });
 	const response = await fetch(`/api/datasets/?${params}`);
+	if (!response.ok) {
+		throw new Error(`Failed to fetch datasets: ${response.status}`);
+	}
+	return response.json();
+}
+
+export async function fetchAllDatasets(): Promise<DatasetSummary[]> {
+	const response = await fetch('/api/datasets/');
 	if (!response.ok) {
 		throw new Error(`Failed to fetch datasets: ${response.status}`);
 	}

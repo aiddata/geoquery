@@ -12,6 +12,7 @@
 	} from '$lib/stores/selection';
 	import {
 		fetchDatasetsForFeatures,
+		fetchAllDatasets,
 		fetchDatasetDetail,
 		fetchDatasetCategories,
 		fetchFeatureIds,
@@ -19,6 +20,9 @@
 		type DatasetDetail,
 		type DatasetCategory
 	} from '$lib/api';
+	import { customBoundary } from '$lib/stores/customBoundary';
+	import { bbox as turfBbox } from '@turf/bbox';
+	import { TriangleAlert } from '@lucide/svelte';
 	import DatasetSelector from '$lib/components/datasets/DatasetSelector.svelte';
 	import RasterOptions from '$lib/components/datasets/RasterOptions.svelte';
 	import SelectionSummary from '$lib/components/datasets/SelectionSummary.svelte';
@@ -33,9 +37,11 @@
 	// Determine selection mode from URL params
 	let isSingleMode = $derived(page.url.searchParams.has('selection'));
 	let isMultiMode = $derived(!!page.url.searchParams.get('fc'));
+	let isCustomMode = $derived($customBoundary.saved);
 
 	// Validate selection against the store; redirect to map if stale/missing
 	$effect(() => {
+		if (isCustomMode) return;
 		if (isSingleMode && $selection?.mode !== 'single') goto('/');
 		else if (isMultiMode && $selection?.mode !== 'multi') goto('/');
 		else if (!isSingleMode && !isMultiMode) goto('/');
@@ -57,10 +63,34 @@
 
 	// Human-readable label for the top bar
 	let selectionLabel = $derived.by(() => {
+		if (isCustomMode) return $customBoundary.fileName || 'Custom boundary';
 		if ($selection?.mode === 'single') return $selection.fc.title ?? $selection.fc.name;
 		if ($selection?.mode === 'multi')
 			return $selection.fcs.map((fc) => fc.title ?? fc.name).join(', ');
 		return '';
+	});
+
+	// Bbox of the user's uploaded boundary for out-of-range flagging
+	let userBbox = $derived.by((): [number, number, number, number] | null => {
+		if (!isCustomMode || !$customBoundary.finalFeatures) return null;
+		try { return turfBbox($customBoundary.finalFeatures) as [number, number, number, number]; }
+		catch { return null; }
+	});
+
+	function bboxesIntersect(
+		a: [number, number, number, number],
+		b: [number, number, number, number]
+	): boolean {
+		return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+	}
+
+	let outOfRangeNames = $derived.by((): Set<string> => {
+		if (!userBbox) return new Set();
+		return new Set(
+			datasets
+				.filter((d) => d.bbox !== null && !bboxesIntersect(userBbox!, d.bbox!))
+				.map((d) => d.name)
+		);
 	});
 
 	// Data loading state
@@ -80,21 +110,26 @@
 		resources: []
 	});
 
-	// Fetch datasets when resolved feature IDs become available
+	// Fetch datasets when resolved feature IDs become available (standard) or in custom mode
 	$effect(() => {
 		const ids = resolvedIds;
-		if (!ids.length) return;
+		const custom = isCustomMode;
+		if (!ids.length && !custom) return;
 
 		loadError = null;
 
-		Promise.all([fetchDatasetsForFeatures(ids), fetchDatasetCategories()])
+		const datasetPromise = custom ? fetchAllDatasets() : fetchDatasetsForFeatures(ids);
+
+		Promise.all([datasetPromise, fetchDatasetCategories()])
 			.then(([ds, cats]) => {
 				datasets = ds;
 				categories = cats;
-				const covered = new Set(ds.map((d) => d.name));
-				const current = get(cart);
-				if (current.length > 0) {
-					cart.setItems(current.filter((item) => covered.has(item.datasetName)));
+				if (!custom) {
+					const covered = new Set(ds.map((d) => d.name));
+					const current = get(cart);
+					if (current.length > 0) {
+						cart.setItems(current.filter((item) => covered.has(item.datasetName)));
+					}
 				}
 			})
 			.catch((err) => {
@@ -180,7 +215,17 @@
 		{/if}
 	</div>
 
-	{#if !resolvedIds.length}
+	{#if isCustomMode}
+		<div class="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+			<TriangleAlert class="h-3.5 w-3.5 shrink-0 text-amber-600" />
+			<span>
+				<strong>Custom boundary:</strong> Precise coverage cannot be verified. All datasets are shown.
+				Datasets flagged <span class="font-medium">out of range</span> likely have no data for your area.
+			</span>
+		</div>
+	{/if}
+
+	{#if !resolvedIds.length && !isCustomMode}
 		<!-- Waiting for feature IDs to resolve -->
 		<div class="flex flex-1 items-center justify-center">
 			<p class="text-muted-foreground">Loading available datasets…</p>
@@ -203,6 +248,7 @@
 					{categories}
 					selectedDataset={selectedDatasetSummary}
 					onSelect={handleDatasetSelect}
+					{outOfRangeNames}
 				/>
 			</div>
 

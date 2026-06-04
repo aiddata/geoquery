@@ -10,6 +10,14 @@ class DatasetResourceSerializer(serializers.ModelSerializer):
 
 
 class DatasetSummarySerializer(serializers.ModelSerializer):
+    bbox = serializers.SerializerMethodField()
+
+    def get_bbox(self, obj):
+        if obj.spatial_extent is None:
+            return None
+        xmin, ymin, xmax, ymax = obj.spatial_extent.extent
+        return [xmin, ymin, xmax, ymax]
+
     class Meta:
         model = Dataset
         fields = [
@@ -26,6 +34,7 @@ class DatasetSummarySerializer(serializers.ModelSerializer):
             "temporal_start",
             "temporal_end",
             "date_updated",
+            "bbox",
         ]
 
 
