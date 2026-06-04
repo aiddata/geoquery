@@ -389,7 +389,14 @@
 					<!-- Toggle to custom boundary mode -->
 					<button
 						class="w-full rounded-md border bg-card px-3 py-2.5 text-xs text-muted-foreground shadow hover:bg-muted/50 hover:text-foreground transition-colors text-center"
-						onclick={() => customBoundary.activate()}
+						onclick={() => {
+							customBoundary.activate();
+							staged = null;
+							selectionModified = false;
+							stagedNeedsConfirm = false;
+							pendingBoundary = null;
+							pendingFeatureIds = [];
+						}}
 					>
 						Use my own boundary file instead →
 					</button>
