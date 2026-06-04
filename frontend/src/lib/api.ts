@@ -188,6 +188,13 @@ export interface RequestDetail extends PastRequest {
 	visualization_url?: string;
 }
 
+export interface CustomBoundaryPayload {
+	features: object;
+	operations: { id: string; type: string; params: Record<string, unknown> }[];
+	fileName: string;
+	featureCount: number;
+}
+
 export async function submitRequest(payload: {
 	name: string;
 	email: string;
@@ -195,6 +202,7 @@ export async function submitRequest(payload: {
 	selectionDetail?: string;
 	featureIds: number[];
 	datasets: RequestDataset[];
+	customBoundary?: CustomBoundaryPayload;
 }): Promise<SubmittedRequest> {
 	const response = await fetch('/api/analytics/requests/', {
 		method: 'POST',

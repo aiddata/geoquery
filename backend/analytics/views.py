@@ -8,6 +8,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from analytics.ingest import ingest_custom_boundary
 from analytics.tasks.email import GeoEmail
 from .models import ExtractTask, Request, RequestMap, RequestToken
 
@@ -38,19 +39,69 @@ class RequestView(APIView):
         email = (request.data.get("email") or "").strip()
         feature_ids = request.data.get("featureIds") or []
         datasets = request.data.get("datasets") or []
+        custom_boundary = request.data.get("customBoundary")
 
         if not email:
             return Response(
                 {"error": "email is required"}, status=status.HTTP_400_BAD_REQUEST
             )
-        if not feature_ids:
-            return Response(
-                {"error": "featureIds is required"}, status=status.HTTP_400_BAD_REQUEST
-            )
         if not datasets:
             return Response(
                 {"error": "at least one dataset is required"},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── Custom boundary submission path ───────────────────────────────────────
+        if custom_boundary:
+            geojson_fc = custom_boundary.get("features")
+            if not geojson_fc or geojson_fc.get("type") != "FeatureCollection":
+                return Response(
+                    {"error": "customBoundary.features must be a GeoJSON FeatureCollection"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not geojson_fc.get("features"):
+                return Response(
+                    {"error": "customBoundary.features has no features"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            try:
+                req, task_count, warnings = ingest_custom_boundary(
+                    geojson_fc=geojson_fc,
+                    datasets=datasets,
+                    contact=email,
+                    name=name or None,
+                    selection_label=(request.data.get("selectionLabel") or "").strip() or None,
+                    selection_detail=(request.data.get("selectionDetail") or "").strip() or None,
+                    upload_metadata={
+                        "fileName": custom_boundary.get("fileName"),
+                        "featureCount": custom_boundary.get("featureCount"),
+                        "operations": custom_boundary.get("operations") or [],
+                    },
+                )
+            except ValueError as e:
+                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response(
+                    {"error": f"Failed to ingest custom boundary: {e}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            response_data = {
+                "id": str(req.id),
+                "name": req.custom_name,
+                "status": req.status,
+                "status_label": _STATUS_LABELS.get(req.status, "unknown"),
+                "submit_time": req.submit_time,
+                "task_count": task_count,
+            }
+            if warnings:
+                response_data["warnings"] = warnings
+            return Response(response_data, status=status.HTTP_201_CREATED)
+
+        # ── Standard boundary submission path ─────────────────────────────────────
+        if not feature_ids:
+            return Response(
+                {"error": "featureIds is required"}, status=status.HTTP_400_BAD_REQUEST
             )
 
         all_task_ids: set[int] = set()

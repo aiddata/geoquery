@@ -4,7 +4,7 @@
 	import { cart, cartCount } from '$lib/stores/cart';
 	import { selection, selectionSummary } from '$lib/stores/selection';
 	import { customBoundary } from '$lib/stores/customBoundary';
-	import { submitRequest, type SubmittedRequest } from '$lib/api';
+	import { submitRequest, type SubmittedRequest, type CustomBoundaryPayload } from '$lib/api';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -78,6 +78,15 @@
 		submitError = null;
 
 		try {
+			const customBoundaryPayload: CustomBoundaryPayload | undefined = isCustomMode && $customBoundary.finalFeatures
+				? {
+					features: $customBoundary.finalFeatures,
+					operations: $customBoundary.operations,
+					fileName: $customBoundary.fileName,
+					featureCount: $customBoundary.featureCount,
+				}
+				: undefined;
+
 			const result = await submitRequest({
 				name: requestName,
 				email,
@@ -86,6 +95,7 @@
 					? `Custom upload · ${$customBoundary.featureCount} features`
 					: $selectionSummary?.detail,
 				featureIds: resolvedFeatureIds,
+				customBoundary: customBoundaryPayload,
 				datasets: $cart.map((item) => ({
 					datasetName: item.datasetName,
 					datasetType: item.datasetType,
