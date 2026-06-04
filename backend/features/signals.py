@@ -5,7 +5,7 @@ from .models import Feature, FeatureCollection
 
 
 @receiver(post_save, sender=Feature)
-def on_feature_created(_sender, instance, created, **_kwargs):
+def on_feature_created(sender, instance, created, **kwargs):
     if not created:
         return
     # User-upload features are created via bulk_create, which does not fire signals,
@@ -16,7 +16,7 @@ def on_feature_created(_sender, instance, created, **_kwargs):
 
 
 @receiver(post_save, sender=FeatureCollection)
-def on_feature_collection_saved(_sender, instance, **_kwargs):
+def on_feature_collection_saved(sender, instance, **kwargs):
     if instance.is_user_upload:
         return
     from features.matviews import refresh_materialized_views

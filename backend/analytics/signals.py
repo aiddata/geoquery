@@ -6,7 +6,7 @@ from .models import Request
 
 
 @receiver(post_save, sender=Request)
-def on_request_submitted(_sender, instance, created, **_kwargs):
+def on_request_submitted(sender, instance, created, **kwargs):
     if not created:
         return
     from analytics.tasks.maintenance import process_user_requests, dispatch_processing_tasks
