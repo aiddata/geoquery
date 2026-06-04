@@ -278,78 +278,79 @@
 <div class="relative flex h-[calc(100vh-8rem)] flex-col">
 	<!-- Left panel: search + selection status -->
 	<div class="absolute left-4 top-4 z-10 w-96 max-w-[calc(100vw-2rem)] space-y-2">
-		{#if staged}
-			<!-- Staged selection summary -->
-			<div class="rounded-lg border bg-card p-4 shadow-lg">
-				<div class="flex items-start justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate font-semibold">{stagedSummary?.label}</p>
-						<p class="text-sm text-muted-foreground">{stagedSummary?.detail}</p>
-						<p class="mt-0.5 text-xs text-muted-foreground">
-							{#if datasetCountLoading}
-								Checking coverage…
-							{:else if datasetCount !== null}
-								<strong>{datasetCount}</strong> dataset{datasetCount === 1 ? '' : 's'} available
-							{/if}
-						</p>
+		{#if $customBoundary.active}
+			<!-- Custom boundary mode — exclusively shown, no normal boundary UI -->
+			<CustomBoundaryPanel />
+		{:else}
+			<!-- Normal boundary mode -->
+			{#if staged}
+				<!-- Staged selection summary -->
+				<div class="rounded-lg border bg-card p-4 shadow-lg">
+					<div class="flex items-start justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate font-semibold">{stagedSummary?.label}</p>
+							<p class="text-sm text-muted-foreground">{stagedSummary?.detail}</p>
+							<p class="mt-0.5 text-xs text-muted-foreground">
+								{#if datasetCountLoading}
+									Checking coverage…
+								{:else if datasetCount !== null}
+									<strong>{datasetCount}</strong> dataset{datasetCount === 1 ? '' : 's'} available
+								{/if}
+							</p>
+						</div>
+						<Button
+							size="sm"
+							variant="ghost"
+							onclick={() => { staged = null; selectionModified = false; stagedNeedsConfirm = false; addingAnother = false; pendingBoundary = null; pendingFeatureIds = []; }}
+							class="shrink-0 text-muted-foreground hover:text-destructive"
+						>
+							Reset
+						</Button>
 					</div>
-					<Button
-						size="sm"
-						variant="ghost"
-						onclick={() => { staged = null; selectionModified = false; stagedNeedsConfirm = false; addingAnother = false; pendingBoundary = null; pendingFeatureIds = []; }}
-						class="shrink-0 text-muted-foreground hover:text-destructive"
-					>
-						Reset
-					</Button>
-				</div>
 
-				{#if staged.mode === 'single'}
-					<p class="mt-2 text-xs text-muted-foreground">
-						Click features on the map to sub-select, or leave all to use the entire collection.
-					</p>
-				{/if}
-
-				{#if selectionModified && $cartCount > 0}
-					<p class="mt-2 text-xs text-amber-700 dark:text-amber-400">
-						Your selection has changed. Actual dataset coverage may vary across selected features.
-					</p>
-				{/if}
-
-				<div class="mt-3 flex gap-2">
-					{#if !addingAnother && !hasIndividualFeatures && !stagedNeedsConfirm}
-						<Button
-							size="sm"
-							variant="outline"
-							onclick={() => { addingAnother = true; pendingBoundary = null; }}
-						>
-							<PlusCircle class="mr-1 h-3.5 w-3.5" />
-							Add Boundary
-						</Button>
+					{#if staged.mode === 'single'}
+						<p class="mt-2 text-xs text-muted-foreground">
+							Click features on the map to sub-select, or leave all to use the entire collection.
+						</p>
 					{/if}
-					{#if stagedNeedsConfirm && staged?.mode === 'single'}
-						<Button
-							size="sm"
-							class="flex-1"
-							onclick={() => { stagedNeedsConfirm = false; }}
-						>
-							{staged.featureIds.length > 0 ? 'Save Selected' : 'Save All'}
-							<ArrowRight class="ml-1 h-3.5 w-3.5" />
-						</Button>
-					{:else}
-						<Button size="sm" class="flex-1" disabled={findingData} onclick={handleFindData}>
-							{findingData ? 'Loading…' : 'Find Data'}
-							{#if !findingData}<ArrowRight class="ml-1 h-3.5 w-3.5" />{/if}
-						</Button>
-					{/if}
-				</div>
-			</div>
-		{/if}
 
-		{#if !staged || addingAnother}
-			{#if $customBoundary.active && !addingAnother}
-				<!-- Custom boundary upload panel -->
-				<CustomBoundaryPanel />
-			{:else}
+					{#if selectionModified && $cartCount > 0}
+						<p class="mt-2 text-xs text-amber-700 dark:text-amber-400">
+							Your selection has changed. Actual dataset coverage may vary across selected features.
+						</p>
+					{/if}
+
+					<div class="mt-3 flex gap-2">
+						{#if !addingAnother && !hasIndividualFeatures && !stagedNeedsConfirm}
+							<Button
+								size="sm"
+								variant="outline"
+								onclick={() => { addingAnother = true; pendingBoundary = null; }}
+							>
+								<PlusCircle class="mr-1 h-3.5 w-3.5" />
+								Add Boundary
+							</Button>
+						{/if}
+						{#if stagedNeedsConfirm && staged?.mode === 'single'}
+							<Button
+								size="sm"
+								class="flex-1"
+								onclick={() => { stagedNeedsConfirm = false; }}
+							>
+								{staged.featureIds.length > 0 ? 'Save Selected' : 'Save All'}
+								<ArrowRight class="ml-1 h-3.5 w-3.5" />
+							</Button>
+						{:else}
+							<Button size="sm" class="flex-1" disabled={findingData} onclick={handleFindData}>
+								{findingData ? 'Loading…' : 'Find Data'}
+								{#if !findingData}<ArrowRight class="ml-1 h-3.5 w-3.5" />{/if}
+							</Button>
+						{/if}
+					</div>
+				</div>
+			{/if}
+
+			{#if !staged || addingAnother}
 				<!-- Search panel (initial selection or adding another) -->
 				{#key addingAnother}
 					<GeographySearch
