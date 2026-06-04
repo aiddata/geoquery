@@ -230,10 +230,10 @@
 			</Button>
 		</div>
 
-		<Button class="w-full gap-1" onclick={onSave}>
+		<Button class="w-full gap-1" disabled={applying} onclick={async () => { await applyOperations(); onSave(); }}>
 			<Save class="h-4 w-4" />
-			Save Boundary
-			<ArrowRight class="h-4 w-4" />
+			{applying ? 'Applying…' : 'Save Boundary'}
+			{#if !applying}<ArrowRight class="h-4 w-4" />{/if}
 		</Button>
 
 	</div>
