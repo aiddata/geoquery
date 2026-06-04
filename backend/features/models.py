@@ -33,6 +33,8 @@ class FeatureCollection(models.Model):
     group_title = models.CharField(max_length=100, blank=True, null=True)
     group_class = models.CharField(max_length=100, blank=True, null=True)
     group_level = models.IntegerField(blank=True, null=True)
+    is_user_upload = models.BooleanField(default=False)
+    upload_metadata = models.JSONField(blank=True, null=True)
 
     class Meta:
         db_table = "feature_collections"

@@ -57,7 +57,12 @@ def create_missing_coverage_records():
             FROM features f
             CROSS JOIN datasets d
             LEFT JOIN coverage c ON c.geom_id = f.id AND c.dataset_id = d.id
-            WHERE c.geom_id IS NULL OR c.status = -1
+            WHERE (c.geom_id IS NULL OR c.status = -1)
+            AND NOT EXISTS (
+                SELECT 1 FROM feat_map fm
+                JOIN feature_collections fc ON fm.fc_id = fc.id
+                WHERE fm.geom_id = f.id AND fc.is_user_upload = TRUE
+            )
             """
         )
         missing_pairs = cursor.fetchall()

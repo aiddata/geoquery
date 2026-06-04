@@ -63,6 +63,7 @@ def _build_extract_tasks():
             WHERE coverage.status = 1
             AND processing_options.active = TRUE
             AND feature_collections.active = TRUE
+            AND feature_collections.is_user_upload = FALSE
             AND datasets.active = TRUE
             """
         )

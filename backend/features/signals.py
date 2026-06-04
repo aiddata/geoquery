@@ -8,12 +8,16 @@ from .models import Feature, FeatureCollection
 def on_feature_created(_sender, instance, created, **_kwargs):
     if not created:
         return
+    # User-upload features are created via bulk_create, which does not fire signals,
+    # so no guard is needed here — this handler only runs for standard ingest.
     from analytics.tasks.coverage import create_coverage_records_for_feature, test_coverage_for_feature
     create_coverage_records_for_feature(instance.id)
     test_coverage_for_feature.delay(instance.id)
 
 
 @receiver(post_save, sender=FeatureCollection)
-def on_feature_collection_saved(_sender, _instance, **_kwargs):
+def on_feature_collection_saved(_sender, instance, **_kwargs):
+    if instance.is_user_upload:
+        return
     from features.matviews import refresh_materialized_views
     refresh_materialized_views()
