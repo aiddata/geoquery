@@ -58,6 +58,15 @@ function createCustomBoundaryStore() {
 				operations: [],
 				saved: false,
 			})),
+		addOperation: (op: Operation) =>
+			update((s) => ({ ...s, operations: [...s.operations, op] })),
+		removeOperation: (id: string) =>
+			update((s) => ({ ...s, operations: s.operations.filter((o) => o.id !== id) })),
+		clearOperations: () =>
+			update((s) => ({ ...s, operations: [], finalFeatures: s.originalFeatures })),
+		setFinalFeatures: (features: FeatureCollection) =>
+			update((s) => ({ ...s, finalFeatures: features })),
+		save: () => update((s) => ({ ...s, saved: true })),
 		reset: () => set(initial),
 	};
 }

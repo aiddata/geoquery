@@ -3,6 +3,10 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Upload, FileCheck, X, ArrowLeft, AlertCircle } from '@lucide/svelte';
 	import type { FeatureCollection, Geometry } from 'geojson';
+	import CustomBoundaryOperations from './CustomBoundaryOperations.svelte';
+	import { goto } from '$app/navigation';
+
+	let step = $state<'upload' | 'operations'>('upload');
 
 	const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB
 
@@ -15,6 +19,11 @@
 	let dragOver = $state(false);
 	let error = $state('');
 	let uploaded = $derived($customBoundary.originalFeatures !== null);
+
+	function handleSave() {
+		customBoundary.save();
+		goto('/customize');
+	}
 
 	function validate(raw: string): FeatureCollection {
 		let parsed: unknown;
@@ -139,6 +148,12 @@
 	}
 </script>
 
+{#if step === 'operations'}
+	<CustomBoundaryOperations
+		onSave={handleSave}
+		onBack={() => { step = 'upload'; }}
+	/>
+{:else}
 <div class="rounded-lg border bg-card shadow-lg">
 	<!-- Header -->
 	<div class="flex items-center justify-between border-b px-4 py-3">
@@ -208,12 +223,10 @@
 				</button>
 			</div>
 
-			<div class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
-				<p class="font-medium">Boundary loaded successfully.</p>
-				<p class="mt-0.5 text-amber-700">
-					Geospatial editing tools (buffering, simplify, union) are coming in the next step and are not yet available.
-				</p>
-			</div>
+			<Button class="w-full" onclick={() => { step = 'operations'; }}>
+				Continue to Operations →
+			</Button>
 		{/if}
 	</div>
 </div>
+{/if}

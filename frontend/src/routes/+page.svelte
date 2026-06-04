@@ -15,6 +15,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { PlusCircle, ArrowRight } from '@lucide/svelte';
 	import { customBoundary } from '$lib/stores/customBoundary';
+	import { bbox as turfBbox } from '@turf/bbox';
 
 	// ── Local staged selection types ────────────────────────────────────────────
 	// The map page edits a local "staged" selection. Nothing is written to the
@@ -82,6 +83,12 @@
 	let pendingBoundary = $state<BoundaryResult | null>(null);
 	let pendingFeatureIds = $state<number[]>([]);
 	let currentBbox = $state<[number, number, number, number] | null>(_init.bbox);
+
+	let userBbox = $derived.by(() => {
+		const fc = $customBoundary.finalFeatures;
+		if (!fc || fc.features.length === 0) return null;
+		try { return turfBbox(fc) as [number, number, number, number]; } catch { return null; }
+	});
 	let addingAnother = $state(false);
 
 	// Async state
@@ -399,7 +406,8 @@
 		fcNames={mapFcNames}
 		{activeFcName}
 		selectedFeatureIds={displaySelectedFeatureIds}
-		bbox={currentBbox}
+		bbox={userBbox ?? currentBbox}
 		onFeatureClick={handleFeatureClick}
+		userGeoJSON={$customBoundary.finalFeatures}
 	/>
 </div>

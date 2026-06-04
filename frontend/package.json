@@ -31,6 +31,10 @@
 	"type": "module",
 	"dependencies": {
 		"@protomaps/basemaps": "^5.7.0",
+		"@turf/bbox": "^7.3.5",
+		"@turf/buffer": "^7.3.5",
+		"@turf/simplify": "^7.3.5",
+		"@turf/union": "^7.3.5",
 		"maplibre-gl": "^5.15.0"
 	}
 }

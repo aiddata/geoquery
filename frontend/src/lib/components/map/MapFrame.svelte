@@ -4,6 +4,7 @@
 	import 'maplibre-gl/dist/maplibre-gl.css';
 	import { layers, namedFlavor } from '@protomaps/basemaps';
 	import { boundaryTileUrl, fetchConfig } from '$lib/api';
+	import type { FeatureCollection } from 'geojson';
 
 	interface Props {
 		class?: string;
@@ -12,6 +13,7 @@
 		selectedFeatureIds?: number[];
 		bbox?: [number, number, number, number] | null;
 		onFeatureClick?: (featureId: number) => void;
+		userGeoJSON?: FeatureCollection | null;
 	}
 
 	let {
@@ -20,8 +22,13 @@
 		activeFcName = null,
 		selectedFeatureIds = [],
 		bbox = null,
-		onFeatureClick
+		onFeatureClick,
+		userGeoJSON = null,
 	}: Props = $props();
+
+	const USER_SOURCE = 'user-upload';
+	const USER_FILL = 'user-upload-fill';
+	const USER_LINE = 'user-upload-line';
 
 	let mapContainer: HTMLDivElement;
 	let map: maplibregl.Map | null = $state(null);
@@ -244,6 +251,38 @@
 			],
 			{ padding: 40, maxZoom: 12 }
 		);
+	});
+
+	// Sync user-uploaded GeoJSON layer
+	$effect(() => {
+		if (!map || !mapReady) return;
+		const m = map;
+		const geojson = userGeoJSON;
+
+		if (!geojson) {
+			if (m.getLayer(USER_FILL)) m.removeLayer(USER_FILL);
+			if (m.getLayer(USER_LINE)) m.removeLayer(USER_LINE);
+			if (m.getSource(USER_SOURCE)) m.removeSource(USER_SOURCE);
+			return;
+		}
+
+		if (m.getSource(USER_SOURCE)) {
+			(m.getSource(USER_SOURCE) as maplibregl.GeoJSONSource).setData(geojson);
+		} else {
+			m.addSource(USER_SOURCE, { type: 'geojson', data: geojson });
+			m.addLayer({
+				id: USER_FILL,
+				type: 'fill',
+				source: USER_SOURCE,
+				paint: { 'fill-color': '#f97316', 'fill-opacity': 0.25 },
+			});
+			m.addLayer({
+				id: USER_LINE,
+				type: 'line',
+				source: USER_SOURCE,
+				paint: { 'line-color': '#ea580c', 'line-width': 2 },
+			});
+		}
 	});
 
 	export function zoomIn() {
