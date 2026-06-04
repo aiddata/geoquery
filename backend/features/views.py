@@ -63,18 +63,32 @@ def feature_collection_vector_tiles(request, fc_name, z, x, y):
     - z, x, y: Tile coordinates (zoom, x, y)
 
     Returns Mapbox Vector Tile (MVT) format for use with MapLibre GL JS.
-    Uses pre-simplified geometries at lower zoom levels for performance.
+    Standard FCs use pre-simplified matviews. User-upload FCs use per-request
+    dynamic simplification to avoid rebuilding shared matviews for unknown geometry.
     """
+    is_upload = FeatureCollection.objects.filter(
+        name=fc_name, is_user_upload=True
+    ).exists()
 
-    # Choose the geometry source based on zoom level
-    if z <= 5:
-        sql = _mvt_sql_simplified("features_simplified_z0_5")
-    elif z <= 9:
-        sql = _mvt_sql_simplified("features_simplified_z6_9")
-    elif z <= 12:
-        sql = _mvt_sql_simplified("features_simplified_z10_12")
+    if is_upload:
+        # Dynamic simplify at request time — tolerances match matview tiers
+        if z <= 5:
+            sql = _mvt_sql_dynamic_simplify(0.044)
+        elif z <= 9:
+            sql = _mvt_sql_dynamic_simplify(0.003)
+        elif z <= 12:
+            sql = _mvt_sql_dynamic_simplify(0.0003)
+        else:
+            sql = _mvt_sql_user_upload_raw()
     else:
-        sql = _mvt_sql_raw()
+        if z <= 5:
+            sql = _mvt_sql_simplified("features_simplified_z0_5")
+        elif z <= 9:
+            sql = _mvt_sql_simplified("features_simplified_z6_9")
+        elif z <= 12:
+            sql = _mvt_sql_simplified("features_simplified_z10_12")
+        else:
+            sql = _mvt_sql_raw()
 
     # Param order: layer_name, z/x/y (AsMVTGeom), fc_name, z/x/y (&&), z/x/y (Intersects)
     params = [fc_name, z, x, y, fc_name, z, x, y, z, x, y]
@@ -171,6 +185,67 @@ def _mvt_sql_raw():
             WHERE fm.fc_id = (
                     SELECT id FROM feature_collections
                     WHERE name = %s AND active AND public
+                    LIMIT 1
+                )
+                AND f.shape && ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
+                AND ST_Intersects(
+                    f.shape,
+                    ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
+                )
+        ) mvtgeoms
+        WHERE mvtgeoms.geom IS NOT NULL
+    """
+
+
+def _mvt_sql_dynamic_simplify(tolerance: float) -> str:
+    """SQL for user-upload FCs: ST_Simplify applied per request at the given
+    degree tolerance. Does not require public=True. No matview needed."""
+    return f"""
+        SELECT ST_AsMVT(mvtgeoms.*, %s) AS mvt FROM (
+            SELECT
+                ST_AsMVTGeom(
+                    ST_Transform(ST_Simplify(f.shape, {tolerance}), 3857),
+                    ST_TileEnvelope(%s, %s, %s),
+                    4096, 256, true
+                ) AS geom,
+                f.id,
+                fm.name,
+                fm.attr
+            FROM feat_map fm
+            JOIN features f ON fm.geom_id = f.id
+            WHERE fm.fc_id = (
+                    SELECT id FROM feature_collections
+                    WHERE name = %s AND active AND is_user_upload
+                    LIMIT 1
+                )
+                AND f.shape && ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
+                AND ST_Intersects(
+                    f.shape,
+                    ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
+                )
+        ) mvtgeoms
+        WHERE mvtgeoms.geom IS NOT NULL
+    """
+
+
+def _mvt_sql_user_upload_raw() -> str:
+    """Raw geometry for user-upload FCs at high zoom. Does not require public=True."""
+    return """
+        SELECT ST_AsMVT(mvtgeoms.*, %s) AS mvt FROM (
+            SELECT
+                ST_AsMVTGeom(
+                    ST_Transform(f.shape, 3857),
+                    ST_TileEnvelope(%s, %s, %s),
+                    4096, 256, true
+                ) AS geom,
+                f.id,
+                fm.name,
+                fm.attr
+            FROM feat_map fm
+            JOIN features f ON fm.geom_id = f.id
+            WHERE fm.fc_id = (
+                    SELECT id FROM feature_collections
+                    WHERE name = %s AND active AND is_user_upload
                     LIMIT 1
                 )
                 AND f.shape && ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
