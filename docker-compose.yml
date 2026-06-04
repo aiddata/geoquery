@@ -44,9 +44,14 @@ services:
     volumes:
       - ./backend:/app/backend
       - ./data:/app/backend/dev_data
+      - ./results:/app/results
+      - ./assets:/app/assets
     environment:
       - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
       - DB_HOST=db
+      - RESULTS_DIR=/app/results
+      - ASSETS_DIR=/app/assets
+      - DOWNLOAD_BASE_URL=http://localhost:8000
     depends_on:
       - db
       - rabbitmq

@@ -38,6 +38,7 @@ def process_user_requests():
     _manage_user_requests(
         download_server=getattr(settings, "DOWNLOAD_BASE_URL", "geoquery.aiddata.wm.edu"),
         results_dir=str(settings.RESULTS_DIR),
+        assets_dir=str(settings.ASSETS_DIR),
     )
 
 
