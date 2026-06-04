@@ -8,9 +8,9 @@ logger = logging.getLogger(__name__)
 
 @shared_task
 def manage_processing_task_errors():
-    """Reset errored extract tasks (status=-2) back to pending for retry."""
+    """Reset errored extract tasks (status=-1) back to pending for retry."""
     from analytics.management.commands.manage_processing_task_errors import _manage_processing_task_errors
-    _manage_processing_task_errors(error_values=-2)
+    _manage_processing_task_errors(error_values=-1)
 
 
 @shared_task
