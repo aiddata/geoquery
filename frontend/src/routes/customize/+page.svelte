@@ -37,7 +37,7 @@
 	// Determine selection mode from URL params
 	let isSingleMode = $derived(page.url.searchParams.has('selection'));
 	let isMultiMode = $derived(!!page.url.searchParams.get('fc'));
-	let isCustomMode = $derived($customBoundary.saved);
+	let isCustomMode = $derived($customBoundary.saved && $customBoundary.active);
 
 	// Validate selection against the store; redirect to map if stale/missing
 	$effect(() => {

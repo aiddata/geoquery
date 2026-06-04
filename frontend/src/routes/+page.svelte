@@ -207,6 +207,9 @@
 	async function commitAndNavigate() {
 		findingData = true;
 		try {
+			// Deactivate custom boundary mode when committing a standard boundary
+			customBoundary.deactivate();
+
 			// Write staged selection to the store
 			selection.clear();
 			if (staged!.mode === 'single') {

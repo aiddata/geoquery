@@ -3,6 +3,7 @@
 	import { currentStep } from '$lib/stores/ui';
 	import { cart, cartCount } from '$lib/stores/cart';
 	import { selection, selectionSummary } from '$lib/stores/selection';
+	import { customBoundary } from '$lib/stores/customBoundary';
 	import { submitRequest, type SubmittedRequest } from '$lib/api';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -33,7 +34,14 @@
 	let submitted = $state<SubmittedRequest | null>(null);
 
 	let resolvedFeatureIds = $derived($selection?.resolvedFeatureIds ?? []);
-	let canSubmit = $derived(requestName.trim() !== '' && email.trim() !== '' && $cartCount > 0 && resolvedFeatureIds.length > 0 && !submitting);
+	let isCustomMode = $derived($customBoundary.saved && $customBoundary.active);
+	let canSubmit = $derived(
+		requestName.trim() !== '' &&
+		email.trim() !== '' &&
+		$cartCount > 0 &&
+		(resolvedFeatureIds.length > 0 || isCustomMode) &&
+		!submitting
+	);
 
 	function formatResources(resources: string[], labels?: string[]): string {
 		const display = labels ?? resources;
@@ -56,6 +64,7 @@
 	}
 
 	function customizeUrl(): string {
+		if (isCustomMode) return '/customize';
 		if ($selection?.mode === 'single') return '/customize?selection';
 		if ($selection?.mode === 'multi') {
 			return `/customize?fc=${$selection.fcs.map((fc) => fc.id).join(',')}`;
@@ -72,8 +81,10 @@
 			const result = await submitRequest({
 				name: requestName,
 				email,
-				selectionLabel: $selectionSummary?.label,
-				selectionDetail: $selectionSummary?.detail,
+				selectionLabel: isCustomMode ? $customBoundary.fileName : $selectionSummary?.label,
+				selectionDetail: isCustomMode
+					? `Custom upload · ${$customBoundary.featureCount} features`
+					: $selectionSummary?.detail,
 				featureIds: resolvedFeatureIds,
 				datasets: $cart.map((item) => ({
 					datasetName: item.datasetName,
@@ -86,6 +97,7 @@
 			submitted = result;
 			cart.clear();
 			selection.clear();
+			customBoundary.reset();
 		} catch (err) {
 			submitError = err instanceof Error ? err.message : 'Submission failed. Please try again.';
 		} finally {
@@ -147,7 +159,30 @@
 		<div class="flex-1 overflow-auto p-4 md:p-6">
 			<div class="mx-auto max-w-2xl space-y-4">
 
-				{#if $selectionSummary}
+				{#if isCustomMode}
+					<Card.Root class="bg-muted/40">
+						<Card.Header class="pb-3">
+							<div class="flex items-start justify-between gap-2">
+								<div class="min-w-0 flex-1">
+									<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Custom Boundary</p>
+									<p class="mt-1 truncate font-semibold">{$customBoundary.fileName}</p>
+									<p class="text-sm text-muted-foreground">
+										{$customBoundary.featureCount} feature{$customBoundary.featureCount === 1 ? '' : 's'}
+									</p>
+									{#if $customBoundary.operations.length > 0}
+										<p class="mt-1 text-xs text-muted-foreground">
+											{$customBoundary.operations.length} operation{$customBoundary.operations.length === 1 ? '' : 's'} applied:
+											{$customBoundary.operations.map((o) => o.type).join(' → ')}
+										</p>
+									{/if}
+								</div>
+								<Button variant="ghost" size="sm" onclick={() => goto('/')}>
+									Change
+								</Button>
+							</div>
+						</Card.Header>
+					</Card.Root>
+				{:else if $selectionSummary}
 					<Card.Root class="bg-muted/40">
 						<Card.Header class="pb-3">
 							<div class="flex items-start justify-between gap-2">
