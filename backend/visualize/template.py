@@ -211,22 +211,13 @@ TEMPLATE = """<!DOCTYPE html>
   // ── Visibility state ───────────────────────────────────────────────────────
   const hiddenFCs = new Set();
 
-  function applyVisibility(idStr) {
-    const feat = DATA.features[idStr];
-    if (!feat) return;
-    map.setFeatureState(
-      { source: 'fc-' + feat.fc, sourceLayer: feat.fc, id: parseInt(idStr) },
-      { hidden: hiddenFCs.has(feat.fc) }
-    );
-  }
-
   function onFCToggle(el) {
     const fc = el.dataset.fc;
-    if (el.checked) hiddenFCs.delete(fc);
-    else hiddenFCs.add(fc);
-    for (const [idStr, feat] of Object.entries(DATA.features)) {
-      if (feat.fc === fc) applyVisibility(idStr);
-    }
+    if (el.checked) hiddenFCs.delete(fc); else hiddenFCs.add(fc);
+    const vis = el.checked ? 'visible' : 'none';
+    map.setLayoutProperty('fc-fill-' + fc, 'visibility', vis);
+    map.setLayoutProperty('fc-line-' + fc, 'visibility', vis);
+    applyColors();
   }
 
   // ── Visualization state ────────────────────────────────────────────────────
@@ -351,10 +342,9 @@ TEMPLATE = """<!DOCTYPE html>
         paint: {
           'fill-color': ['case',
             ['boolean', ['feature-state', 'hover'], false], '#fff',
-            ['coalesce', ['feature-state', 'color'], '#cbd5e1']
+            '#cbd5e1'
           ],
           'fill-opacity': ['case',
-            ['boolean', ['feature-state', 'hidden'], false], 0,
             ['boolean', ['feature-state', 'hover'], false], 0.88,
             0.72
           ]
@@ -369,9 +359,7 @@ TEMPLATE = """<!DOCTYPE html>
         paint: {
           'line-color': '#334155',
           'line-width': 0.75,
-          'line-opacity': ['case',
-            ['boolean', ['feature-state', 'hidden'], false], 0, 1
-          ]
+          'line-opacity': 1
         }
       });
     }
@@ -406,6 +394,16 @@ TEMPLATE = """<!DOCTYPE html>
   }
 
   // ── Apply choropleth colors ────────────────────────────────────────────────
+  function buildColorExpression(fc, column, breaks, palette) {
+    const expr = ['match', ['get', 'id']];
+    for (const [idStr, feat] of Object.entries(DATA.features)) {
+      if (feat.fc !== fc) continue;
+      expr.push(parseInt(idStr), getColor(feat[column], breaks, palette));
+    }
+    expr.push('#cbd5e1');
+    return expr;
+  }
+
   function applyColors() {
     if (!currentColumn || !map) return;
 
@@ -413,6 +411,7 @@ TEMPLATE = """<!DOCTYPE html>
     const n = palette.length;
 
     const values = Object.values(DATA.features)
+      .filter(f => !hiddenFCs.has(f.fc))
       .map(f => f[currentColumn])
       .filter(v => v !== null && v !== undefined && !isNaN(Number(v)))
       .map(Number);
@@ -428,14 +427,12 @@ TEMPLATE = """<!DOCTYPE html>
     else if (currentMethod === 'equal') breaks = equalBreaks(values, n);
     else breaks = ss.jenks(values, n);
 
-    for (const [idStr, feat] of Object.entries(DATA.features)) {
-      const id = parseInt(idStr);
-      const color = getColor(feat[currentColumn], breaks, palette);
-      // setFeatureState merges — does not overwrite 'hidden' state
-      map.setFeatureState(
-        { source: 'fc-' + feat.fc, sourceLayer: feat.fc, id },
-        { color }
-      );
+    for (const fc of DATA.fc_names) {
+      map.setPaintProperty('fc-fill-' + fc, 'fill-color', [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false], '#fff',
+        buildColorExpression(fc, currentColumn, breaks, palette)
+      ]);
     }
 
     renderLegend(breaks, palette);
@@ -490,7 +487,8 @@ TEMPLATE = """<!DOCTYPE html>
 
         const f  = e.features[0];
         const id = f.id;
-        const feat = DATA.features[String(id)];
+        const attrId = f.properties?.id ?? id;
+        const feat = DATA.features[String(attrId)];
 
         if (hoveredId !== null) {
           map.setFeatureState(
@@ -501,7 +499,7 @@ TEMPLATE = """<!DOCTYPE html>
         hoveredId = id; hoveredFc = fc;
         map.setFeatureState({ source: 'fc-' + fc, sourceLayer: fc, id }, { hover: true });
 
-        const name = feat ? feat.name : ('Feature ' + id);
+        const name = feat ? feat.name : ('Feature ' + attrId);
         const val  = feat ? feat[currentColumn] : null;
         const colLabel = currentColumn && currentColumn.includes('.')
           ? currentColumn.split('.').slice(1).join('.')
