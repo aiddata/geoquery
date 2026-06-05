@@ -340,3 +340,7 @@ toggle.name = "Switch to light mode"
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
 link = "https://github.com/aiddata/geoquery-update"
+
+[project.extra.analytics]
+provider = "google"
+property = "G-XZ0HS7XED1"
