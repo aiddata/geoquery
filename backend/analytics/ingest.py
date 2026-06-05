@@ -137,6 +137,9 @@ def ingest_custom_boundary(
             "datasets": valid_datasets,
             "is_custom_boundary": True,
             "fc_id": fc.id,
+            "boundary_file_name": (upload_metadata or {}).get("fileName"),
+            "boundary_operations": (upload_metadata or {}).get("operations") or [],
+            "boundary_feature_count": (upload_metadata or {}).get("featureCount"),
         },
     )
 

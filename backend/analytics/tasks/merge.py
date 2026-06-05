@@ -56,7 +56,11 @@ def merge_task_results(task_list):
 
         key = (fc_name, geom_id)
         if key not in rows:
-            rows[key] = {"feature_collection": fc_name, "geom_id": geom_id}
+            row_base = {"feature_collection": fc_name, "geom_id": geom_id}
+            if fm_item.attr:
+                for attr_key, attr_val in fm_item.attr.items():
+                    row_base[f"boundary.{attr_key}"] = attr_val
+            rows[key] = row_base
 
         for td in task_data:
             if td.data_column == "int":

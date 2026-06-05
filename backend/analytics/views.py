@@ -197,6 +197,28 @@ class RequestDetailView(APIView):
 
         req_data = req.data or {}
 
+        is_custom = req_data.get("is_custom_boundary", False)
+
+        # Resolve boundary metadata: prefer request.data fields (new requests),
+        # fall back to fc.upload_metadata for requests submitted before ingest stored them.
+        boundary_operations = req_data.get("boundary_operations")
+        boundary_file_name = req_data.get("boundary_file_name")
+        boundary_feature_count = req_data.get("boundary_feature_count")
+        if is_custom and boundary_operations is None:
+            fc_id = req_data.get("fc_id")
+            if fc_id:
+                try:
+                    from features.models import FeatureCollection
+                    fc = FeatureCollection.objects.filter(id=fc_id).first()
+                    if fc and fc.upload_metadata:
+                        boundary_operations = fc.upload_metadata.get("operations") or []
+                        boundary_file_name = boundary_file_name or fc.upload_metadata.get("fileName")
+                        boundary_feature_count = boundary_feature_count or fc.upload_metadata.get("featureCount")
+                except Exception:
+                    pass
+        if boundary_operations is None:
+            boundary_operations = []
+
         data = {
             "id": str(req.id),
             "name": req.custom_name,
@@ -210,6 +232,10 @@ class RequestDetailView(APIView):
                 "selection_detail": req_data.get("selection_detail"),
                 "feature_ids": req_data.get("feature_ids", []),
                 "datasets": req_data.get("datasets", []),
+                "is_custom_boundary": is_custom,
+                "boundary_file_name": boundary_file_name,
+                "boundary_feature_count": boundary_feature_count,
+                "boundary_operations": boundary_operations,
             },
         }
 
