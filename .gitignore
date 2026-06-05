@@ -13,3 +13,4 @@ build/
 k8s/helm_chart/extra_templates/old/
 /results/
 /site/
+postgres/
