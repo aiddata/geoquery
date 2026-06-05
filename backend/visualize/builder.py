@@ -43,7 +43,7 @@ class VizBuilder:
     def _build_data(self) -> dict:
         df = self.df
         meta_cols = {"feature_collection", "geom_id"}
-        data_cols = [c for c in df.columns if c not in meta_cols]
+        data_cols = [c for c in df.columns if c not in meta_cols and not c.startswith("boundary.")]
 
         fc_names: list[str] = df["feature_collection"].dropna().unique().tolist()
         geom_ids: list[int] = df["geom_id"].dropna().astype(int).tolist()
