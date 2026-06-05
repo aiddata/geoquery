@@ -2,7 +2,7 @@
 	import { customBoundary, type Operation, type OperationType } from '$lib/stores/customBoundary';
 	import { Button } from '$lib/components/ui/button';
 	import * as Collapsible from '$lib/components/ui/collapsible';
-	import { ChevronDown, Trash2, RefreshCw, Save, ArrowRight, TriangleAlert } from '@lucide/svelte';
+	import { ChevronDown, Trash2, RefreshCw, Save, ArrowRight, TriangleAlert, Loader2 } from '@lucide/svelte';
 	import type { FeatureCollection, Feature, Polygon, MultiPolygon } from 'geojson';
 
 	interface Props {
@@ -213,7 +213,7 @@
 				size="sm"
 				variant="outline"
 				class="gap-1"
-				disabled={false}
+				disabled={applying}
 				onclick={() => customBoundary.clearOperations()}
 			>
 				<RefreshCw class="h-3.5 w-3.5" />
@@ -222,18 +222,28 @@
 			<Button
 				size="sm"
 				variant="outline"
-				class="flex-1"
+				class="flex-1 gap-1"
 				disabled={applying}
 				onclick={applyOperations}
 			>
-				{applying ? 'Applying…' : 'Apply & Preview'}
+				{#if applying}
+					<Loader2 class="h-3.5 w-3.5 animate-spin" />
+					Applying…
+				{:else}
+					Apply &amp; Preview
+				{/if}
 			</Button>
 		</div>
 
 		<Button class="w-full gap-1" disabled={applying} onclick={async () => { await applyOperations(); onSave(); }}>
-			<Save class="h-4 w-4" />
-			{applying ? 'Applying…' : 'Save Boundary'}
-			{#if !applying}<ArrowRight class="h-4 w-4" />{/if}
+			{#if applying}
+				<Loader2 class="h-4 w-4 animate-spin" />
+				Applying…
+			{:else}
+				<Save class="h-4 w-4" />
+				Save Boundary
+				<ArrowRight class="h-4 w-4" />
+			{/if}
 		</Button>
 
 	</div>

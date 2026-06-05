@@ -32,6 +32,7 @@
 	let submitting = $state(false);
 	let submitError = $state<string | null>(null);
 	let submitted = $state<SubmittedRequest | null>(null);
+	let boundaryConsent = $state(false);
 
 	let resolvedFeatureIds = $derived($selection?.resolvedFeatureIds ?? []);
 	let isCustomMode = $derived($customBoundary.saved && $customBoundary.active);
@@ -40,6 +41,7 @@
 		email.trim() !== '' &&
 		$cartCount > 0 &&
 		(resolvedFeatureIds.length > 0 || isCustomMode) &&
+		(!isCustomMode || boundaryConsent) &&
 		!submitting
 	);
 
@@ -61,6 +63,20 @@
 		return groups
 			.map((g) => (g.length > 2 ? `${g[0]}-${g[g.length - 1]}` : g.join(', ')))
 			.join(', ');
+	}
+
+	function formatOperation(op: { type: string; params: Record<string, unknown> }): string {
+		if (op.type === 'buffer') {
+			const d = op.params.distance ?? '';
+			const u = op.params.units ?? 'km';
+			return `Buffer — ${d} ${u}`;
+		}
+		if (op.type === 'simplify') {
+			const t = op.params.tolerance ?? '';
+			return `Simplify — tolerance ${t}°`;
+		}
+		if (op.type === 'union') return 'Union features';
+		return op.type;
 	}
 
 	function customizeUrl(): string {
@@ -180,10 +196,16 @@
 										{$customBoundary.featureCount} feature{$customBoundary.featureCount === 1 ? '' : 's'}
 									</p>
 									{#if $customBoundary.operations.length > 0}
-										<p class="mt-1 text-xs text-muted-foreground">
-											{$customBoundary.operations.length} operation{$customBoundary.operations.length === 1 ? '' : 's'} applied:
-											{$customBoundary.operations.map((o) => o.type).join(' → ')}
-										</p>
+										<div class="mt-2">
+											<p class="text-xs font-medium text-muted-foreground">
+												Operations applied ({$customBoundary.operations.length})
+											</p>
+											<ol class="mt-1 space-y-0.5 pl-4 text-xs text-muted-foreground list-decimal">
+												{#each $customBoundary.operations as op}
+													<li>{formatOperation(op)}</li>
+												{/each}
+											</ol>
+										</div>
 									{/if}
 								</div>
 								<Button variant="ghost" size="sm" onclick={() => goto('/')}>
@@ -320,6 +342,28 @@
 							: `${resolvedFeatureIds.length} features`}.
 					Actual dataset coverage may vary across selected features.
 				</p>
+
+				{#if isCustomMode}
+					<div class="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-3">
+						<p class="font-semibold">Custom boundary data notice</p>
+						<p>
+							Your uploaded boundary will be stored on GeoQuery's servers and included with your
+							request results. Anyone with your request link can view it — results pages are not
+							publicly listed, but are not access-controlled beyond the request ID.
+						</p>
+						<p>
+							Result files are stored on W&amp;M's computing infrastructure which are not publically available but also not protected by explicit security measures.
+						</p>
+						<label class="flex items-start gap-2 cursor-pointer">
+							<input
+								type="checkbox"
+								bind:checked={boundaryConsent}
+								class="mt-0.5 shrink-0 accent-amber-700"
+							/>
+							<span>I understand and consent to my boundary data being stored and shared as described above.</span>
+						</label>
+					</div>
+				{/if}
 
 				{#if submitError}
 					<p class="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">

@@ -83,17 +83,42 @@ class DocBuilder:
         ]
         return f"<section><h2>Request Info</h2>{self._table(rows)}</section>"
 
+    @staticmethod
+    def _fmt_operation(op: dict) -> str:
+        t = op.get("type", "")
+        p = op.get("params") or {}
+        if t == "buffer":
+            return f"Buffer — {p.get('distance', '')} {p.get('units', 'km')}"
+        if t == "simplify":
+            return f"Simplify — tolerance {p.get('tolerance', '')}°"
+        if t == "union":
+            return "Union features"
+        return t
+
     def _section_selection(self) -> str:
         data = self.request.data or {}
+        is_custom = data.get("is_custom_boundary", False)
         label = data.get("selection_label") or "—"
         detail = data.get("selection_detail") or ""
         feature_ids = data.get("feature_ids") or []
 
-        rows = [self._kv("Selection", self._esc(label))]
+        heading = "Custom Boundary" if is_custom else "Geographic Selection"
+        rows = [self._kv("Boundary" if is_custom else "Selection", self._esc(label))]
         if detail:
             rows.append(self._kv("Detail", self._esc(detail)))
         rows.append(self._kv("Feature count", str(len(feature_ids))))
-        return f"<section><h2>Geographic Selection</h2>{self._table(rows)}</section>"
+
+        if is_custom and data.get("boundary_file_name"):
+            rows.append(self._kv("Source file", self._esc(data["boundary_file_name"])))
+
+        ops = data.get("boundary_operations") or []
+        if ops:
+            ops_html = "<ol style='margin:0;padding-left:1.2em;'>" + "".join(
+                f"<li>{self._esc(self._fmt_operation(op))}</li>" for op in ops
+            ) + "</ol>"
+            rows.append(self._kv(f"Operations ({len(ops)})", ops_html))
+
+        return f"<section><h2>{heading}</h2>{self._table(rows)}</section>"
 
     def _section_datasets(self) -> str:
         datasets = (self.request.data or {}).get("datasets") or []

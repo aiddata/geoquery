@@ -65,6 +65,13 @@
 	}
 
 	let featureCount = $derived(request?.data?.feature_ids?.length ?? 0);
+
+	function formatOperation(op: { type: string; params: Record<string, unknown> }): string {
+		if (op.type === 'buffer') return `Buffer — ${op.params.distance ?? ''} ${op.params.units ?? 'km'}`;
+		if (op.type === 'simplify') return `Simplify — tolerance ${op.params.tolerance ?? ''}°`;
+		if (op.type === 'union') return 'Union features';
+		return op.type;
+	}
 </script>
 
 <div class="container mx-auto max-w-2xl px-4 py-8">
@@ -150,7 +157,9 @@
 			{#if request.data?.selection_label}
 				<Card.Root class="bg-muted/40">
 					<Card.Header class="pb-3">
-						<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Geographic Selection</p>
+						<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+							{request.data.is_custom_boundary ? 'Custom Boundary' : 'Geographic Selection'}
+						</p>
 						<p class="mt-1 font-semibold">{request.data.selection_label}</p>
 						{#if request.data.selection_detail}
 							<p class="text-sm text-muted-foreground">{request.data.selection_detail}</p>
@@ -159,6 +168,18 @@
 							<p class="mt-0.5 text-xs text-muted-foreground">
 								{featureCount} feature{featureCount === 1 ? '' : 's'} total
 							</p>
+						{/if}
+						{#if request.data.boundary_operations?.length > 0}
+							<div class="mt-2 border-t pt-2">
+								<p class="text-xs font-medium text-muted-foreground">
+									Operations applied ({request.data.boundary_operations.length})
+								</p>
+								<ol class="mt-1 space-y-0.5 pl-4 text-xs text-muted-foreground list-decimal">
+									{#each request.data.boundary_operations as op}
+										<li>{formatOperation(op)}</li>
+									{/each}
+								</ol>
+							</div>
 						{/if}
 					</Card.Header>
 				</Card.Root>
