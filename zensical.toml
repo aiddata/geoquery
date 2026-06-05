@@ -30,6 +30,9 @@ site_author = "Jacob Hall"
 # Read more: https://zensical.org/docs/setup/basics/#site_url
 #site_url = "https://www.example.com/"
 
+repo_url = "https://github.com/aiddata/geoquery-update"
+repo_name = "aiddata/geoquery-update"
+
 # The copyright notice appears in the page footer and can contain an HTML
 # fragment.
 #
@@ -334,6 +337,6 @@ toggle.name = "Switch to light mode"
 # ----------------------------------------------------------------------------
 # The "extra" section contains miscellaneous settings.
 # ----------------------------------------------------------------------------
-#[[project.extra.social]]
-#icon = "fontawesome/brands/github"
-#link = "https://github.com/user/repo"
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/aiddata/geoquery-update"
