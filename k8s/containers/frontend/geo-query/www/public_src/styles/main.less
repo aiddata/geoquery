@@ -1,0 +1,40 @@
+@import (less) "../libs/bower_components/angular-material/angular-material.min.css";
+@import (less) "../libs/bower_components/bootstrap/less/bootstrap.less";
+@import (less) "../libs/bower_components/leaflet/dist/leaflet.css";
+@import (less) "../libs/bower_components/font-awesome/css/font-awesome.css";
+@import (less) "../libs/bower_components/angularjs-slider/dist/rzslider.min.css";
+@import (less) "../libs/bower_components/ngAnimate/css/ng-animation.css";
+
+@import "variables.less";
+@import "header.less";
+@import "material.less";
+@import "map.less";
+@import "search.less";
+@import "checkout.less";
+@import "status.less";
+@import "util.less";
+@import "sliders.less";
+@import "forms.less";
+@import "buttons.less";
+@import "breadcrumbs.less";
+@import "badges.less";
+@import "mixins/mixins.less";
+
+html,body {
+  height: 100vh;
+  width: 100%;
+  min-width: 800px;
+  overflow-y: hidden;
+  overflow-x: auto;
+  background-color: lighten(@steelBlue, 60%);
+
+  &.md-dialog-is-showing {
+    .map-overlay {
+      color: transparent;
+    }
+  }
+}
+
+button, html, input, select, textarea {
+  font-family: @font-family-sans-serif;
+}

@@ -1,0 +1,137 @@
+<div layout="column"
+    ng-repeat="filter in filterOrder"
+    ng-init="hideSubHeader = true; dataset.fields[filter].searchText = ''"
+    flex="33"
+    style="flex-shrink:0;"
+    ng-if="dataset.fields[filter].distinct.length">
+
+  <!-- Header -->
+  <md-card flex="100" class="filter-card rotate-in"
+      ng-show="dataset.fields[filter].isActive">
+    <md-card-header layout-align="none center">
+
+        <!-- Title -->
+        <md-card-header-text flex="100">
+          <small class="md-subhead">{{dataset.fields[filter].display | capitalize }}
+            <small class="text-muted" ng-show="dataset.fields[filter].filter_type === 'list'">({{ dataset.fields[filter].filtered.length || 0 }})</small>
+          </small>
+        </md-card-header-text>
+
+        <span flex></span>
+
+        <!-- Buttons -->
+        <a href="" class="context-danger"
+            ng-click="removeFilter(filter)">
+            <md-tooltip md-delay="500"> Remove Filter Field </md-tooltip>
+            <i class="fa fa-minus-circle fa-lg" aria-hidden="true"></i>
+        </a>
+
+        <a href="" class="toolbar-link"
+            ng-hide="filters[filter].length === 1  && filters[filter][0] === 'All'"
+            ng-click="toggleAll(filter)">
+            <md-tooltip md-delay="500"> Reset Filter Field </md-tooltip>
+          <i class="fa fa-refresh fa-lg" aria-hidden="true"></i>
+        </a>
+
+        <a href="" class="toolbar-link context-info"
+            ng-hide="dataset.fields[filter].filter_type !== 'list'"
+            ng-click="hideSubHeader = !hideSubHeader">
+            <md-tooltip md-delay="500"> Search Filter Options </md-tooltip>
+          <i class="fa fa-search fa-lg" aria-hidden="true"></i>
+        </a>
+      </md-card-header>
+
+
+    <!-- SubHeader -->
+    <div uib-collapse="hideSubHeader">
+      <md-subheader>
+
+        <md-input-container class="condensed no-label md-primary" md-no-float>
+          <input
+              aria-label="Search {{ dataset.fields[filter].display }}"
+              placeholder="Search {{ dataset.fields[filter].display }}"
+              ng-model="dataset.fields[filter].searchText">
+        </md-input-container>
+
+          <a href="" class="md-primary"
+              ng-show="dataset.fields[filter].searchText"
+              ng-click="dataset.fields[filter].searchText = '';">
+
+            <md-tooltip md-delay="500"> Clear Search </md-tooltip>
+
+            <i class="fa fa-times" aria-hidden="true"></i>
+          </a>
+      </md-subheader>
+      <md-divider></md-divider>
+    </div>
+
+
+    <!-- Content -->
+  <div ng-switch="dataset.fields[filter].filter_type"
+        layout="column"
+        flex
+        style="max-width: 100%; overflow-x: hidden;">
+
+
+      <search-filters-list
+          ng-switch-when="list"
+          filter-data="dataset.fields[filter]"
+          filter-options="filterOptions.distinct[filter]"
+          active-filters="filters[filter]"></search-filters-list>
+
+      <search-filters-range
+          ng-if="filterOptions.distinct[filter]"
+          ng-switch-when="slider"
+          filter-data="dataset.fields[filter]"
+          filter-options="filterOptions.distinct[filter]"
+          active-filters="filters[filter]"></search-filters-range>
+
+    </div>
+
+  </md-card>
+</div>
+
+
+<!-- Add Filter Button -->
+<div id="addFilterButton"
+    layout="column"
+    ng-init="hideSubHeader = true; dataset.fields[filter].searchText = ''"
+    flex="33"
+    style="flex-shrink:0;">
+
+  <md-card flex="100" class="filter-card">
+    <md-menu layout="row" flex="100" layout-align="center center">
+
+      <button md-no-ink
+          class="md-primary md-hue-3 hover-text-btn"
+          ng-click="$mdMenu.open($event)">
+
+        <p class="hover-text">Create more filters </p><br>
+        <i class="fa fa-plus fa-5x" aria-hidden="true"></i>
+      </button>
+
+      <md-menu-content>
+
+        <md-menu-item>
+          <md-button disabled="true">
+            <strong>Select a field to filter</strong>
+          </md-button>
+        </md-menu-item>
+
+        <md-divider></md-divider>
+        <md-menu-item
+            ng-repeat="(key, field) in dataset.fields"
+            ng-show="!filters[key]">
+
+          <md-button md-menu-align-target
+              ng-click="filters[key] = [ 'All' ]; filterOrder.push(key);">
+            {{ field.display | capitalize }}
+          </md-button>
+
+        </md-menu-item>
+      </md-menu-content>
+
+    </md-menu>
+  </md-card>
+
+</div>

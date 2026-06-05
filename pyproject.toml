@@ -1,83 +1,25 @@
-[build-system]
-requires = [
-    "setuptools>=61",
-    "wheel"
-]
-build-backend = "setuptools.build_meta"
-
-
 [project]
-name = "gqcore"
-description = "Core utilities for GeoQuery"
-authors = [
-    {name = "Seth Goodman", email = "sgoodman@aiddata.wm.edu"},
-    {name = "Jacob Hall", email = "jhall@aiddata.wm.edu"},
-]
+name = "geoquery"
+version = "0.1.0"
+description = "A tool for accessing and extracting geospatial datae"
 readme = "README.md"
-keywords = ["geoquery", "geospatial", "gis", "geographic"]
-dynamic = ["version"]
-license = {text = "BSD-3-Clause"}
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: BSD License",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Topic :: Utilities",
-    "Topic :: Scientific/Engineering :: GIS",
-]
-requires-python = ">=3.8"
+requires-python = ">=3.12"
 dependencies = [
-    "pyproj >=2.1.0",
-    "shapely",
-    "pydantic",
-    "psycopg",
-    "pandas",
-    "geopandas",
-    "shapely",
-    "rasterio",
-    "rasterstats @ git+https://github.com/aiddata/geoquery-python-rasterstats@main",
-    "dask[array,distributed] == 2023.11.0",
-    "dask_kubernetes",
-    "reportlab",
-    "fastapi",
-    "loguru",
-    "toml",
-    "lz4 == 4.3.2",
-    "msgpack == 1.0.6",
-    "numpy == 1.26.0",
-    "pandas == 2.1.2",
-    "tornado == 6.3.3",
-    "kubernetes"
+    "zensical>=0.0.23",
 ]
 
+[dependency-groups]
+docs = ["zensical~=0.0.43"]
 
-[project.optional-dependencies]
-test = [
-    "coverage",
-    "pytest >=4.6",
-    "pytest-cov >=2.2.0",
+[tool.uv]
+default-groups = ["docs"]
+required-environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'"
 ]
-dev = [
-    "gqcore[test]",
-    "twine",
-]
-
 
 [project.urls]
 "Source Code" = "https://github.com/aiddata/geoquery-update"
 "Bug Tracker" = "https://github.com/aiddata/geoquery-update/issues"
 
-[tool.setuptools.dynamic]
-version = {attr = "gqcore.__init__.__version__"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.isort]
-profile = "black"
-known_first_party = ["gqcore"]
+[tool.uv.workspace]
+members = ["backend"]

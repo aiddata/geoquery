@@ -1,0 +1,22 @@
+/* Badges */
+.badge {
+  &.unknown {
+    .progressBadge(@unknownColor);
+  }
+
+  &.submit,
+  &.submitted {
+    .progressBadge(@submitColor);
+  }
+
+  &.process,
+  &.processing,
+  &.processed {
+    .progressBadge(@processColor);
+  }
+
+  &.complete,
+  &.completed {
+    .progressBadge(@completeColor);
+  }
+}

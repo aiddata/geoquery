@@ -1,0 +1,40 @@
+<script lang="ts">
+	import { page } from '$app/state';
+	import './layout.css';
+	import favicon from '$lib/assets/favicon.svg';
+	import Header from '$lib/components/layout/Header.svelte';
+	import Sidebar from '$lib/components/layout/Sidebar.svelte';
+	import StatusBanner from '$lib/components/layout/StatusBanner.svelte';
+	import { TooltipProvider } from '$lib/components/ui/tooltip';
+	let { children } = $props();
+
+	// Only show steps on main workflow pages
+	const workflowPaths = ['/', '/customize', '/review'];
+	let showSteps = $derived(
+		workflowPaths.some((path) => page.url.pathname === path || page.url.pathname.startsWith(path + '/'))
+	);
+</script>
+
+<svelte:head>
+	<link rel="icon" href={favicon} />
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+	<link
+		href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,700;1,400&display=swap"
+		rel="stylesheet"
+	/>
+	<title>GeoQuery - AidData</title>
+</svelte:head>
+
+<TooltipProvider>
+	<div class="flex min-h-screen flex-col font-sans">
+		<StatusBanner />
+		<Header {showSteps} />
+
+		<main class="flex-1">
+			{@render children()}
+		</main>
+
+		<Sidebar />
+	</div>
+</TooltipProvider>

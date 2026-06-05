@@ -1,4 +1,3 @@
-
 kind: ServiceAccount
 apiVersion: v1
 metadata:
@@ -7,7 +6,7 @@ metadata:
 
 ---
 
-kind: ClusterRole
+kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: super-user-role
@@ -42,10 +41,10 @@ rules:
 
 ---
 
-kind: ClusterRole
+kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: dask-cluster-role
+  name: dask-role
 rules:
   # Application: watching & handling for the custom resource we declare.
   - apiGroups: [kubernetes.dask.org]
@@ -72,13 +71,13 @@ rules:
 ---
 
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
-  name: dask-cluster-role-binding
+  name: dask-role-binding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: dask-cluster-role
+  kind: Role
+  name: dask-role
 subjects:
   - kind: ServiceAccount
     namespace: {{ .Release.Namespace }}
@@ -86,12 +85,12 @@ subjects:
 ---
 
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: super-user-role-binding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: super-user-role
 subjects:
   - kind: ServiceAccount

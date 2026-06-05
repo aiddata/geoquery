@@ -1,0 +1,78 @@
+ <md-content class="md-padding scroll-hidden" layout="column" flex md-whiteframe="6">
+  <form ng-submit="$event.preventDefault()">
+
+    <h4 class="md-primary">Select a Boundary to Begin Data Extraction</h4>
+
+    <md-autocomplete
+        md-no-cache="false"
+        md-selected-item="formData.boundary"
+        md-search-text="formData.searchText"
+        md-items="item in boundaries | filter: { search: formData.searchText } | orderBy: 'name'"
+        md-selected-item-change="selectedItemChange(item)"
+        md-select-on-match="true"
+        md-match-case-insensitive="true"
+        md-item-text="item.name || item.title"
+        md-min-length="0"
+        placeholder="Select boundaries"
+        ng-class="!formData.boundary ? 'autocomplete-empty' : 'autocomplete-selected'">
+
+      <md-item-template>
+        <span md-highlight-text="formData.searchText" md-highlight-flags="ig">
+        {{ item.title || item.name }}
+        </span>
+      </md-item-template>
+
+      <md-not-found>
+        No boundaries matching "{{formData.searchText}}" were found.
+      </md-not-found>
+    </md-autocomplete>
+
+    <div ng-hide="formData.boundary">
+      <br>
+      <p class="text-muted">
+        <strong>Featured Boundaries </strong>
+        <em ng-repeat="item in featuredBoundaries.slice(0,5)">
+          <a href="" aria-label="select featured boundary"
+              ng-click="selectFromFeatured(item)">
+              {{ $last ? item.name : item.name +', ' }}</a>
+        </em>
+      </p>
+    </div>
+
+    <div ng-hide="!formData.subboundary">
+      <md-divider></md-divider>
+      <br>
+      <br>
+      <md-radio-group ng-model="formData.subboundary">
+        <label>Select a Subboundary</label>
+        <md-radio-button
+            ng-repeat="sub in subBoundaries"
+            ng-value="sub.name"
+            aria-label="{{ sub.title }}">
+          {{ sub.title }}
+        </md-radio-button>
+      </md-radio-group>
+
+
+      <md-divider></md-divider>
+      <br>
+
+      <div class="col-md-12">
+        <div class="row">
+          <div class="col-md-6">
+            <md-button md-no-ink class="md-primary" ng-click="formData.searchText = ''">
+              <i class="fa fa-angle-double-left" aria-hidden="true"></i> Back
+            </md-button>
+          </div>
+          <div class="col-md-6">
+            <md-button md-no-ink class="md-raised md-primary pull-right" ng-click="defineBoundary()">
+              Search Datasets <i class="fa fa-angle-double-right" aria-hidden="true"></i>
+            </md-button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </form>
+
+</md-content>

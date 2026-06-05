@@ -1,4 +1,41 @@
 {{ if .Values.dev.enabled -}}
+{{- $pvname := printf "%s-%s" "geo-datasets-pv-workbench" .Release.Name }}
+{{- $pvexists := lookup "v1" "persistentvolume" .Release.Namespace $pvname }}
+{{- if not $pvexists -}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ $pvname }}
+spec:
+  capacity:
+    storage: 100Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  claimRef:
+    namespace: {{ .Release.Namespace }}
+    name: geo-datasets-pvc-workbench
+  {{- toYaml .Values.geo_datasets_volume | nindent 2 }}
+{{- end }}
+---
+{{- $pvcexists := lookup "v1" "PersistentVolumeClaim" .Release.Namespace "geo-datasets-pvc-workbench" }}
+{{- if not $pvcexists }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: geo-datasets-pvc-workbench
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  storageClassName: {{ .Values.geo_datasets_volume.storageClassName }}
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+{{- end }}
+---
 apiVersion: v1
 kind: Pod
 metadata:
@@ -8,9 +45,6 @@ spec:
   serviceAccount: geoquery-super
   serviceAccountName: geoquery-super
   volumes:
-  - name: geoquery-pv
-    hostPath:
-      path: /tmp/geoquery-update
   - name: gq-config-vol
     configMap:
       name: gq-config
@@ -22,20 +56,23 @@ spec:
     secret:
       secretName: geoquery-gmail
       optional: true
+  - name: geo-datasets
+    persistentVolumeClaim:
+      claimName: geo-datasets-pvc-workbench
   containers:
   - name: python
-    image: {{.Values.default_image}}
+    image: {{ .Values.backend_image }}
     command: [ "/bin/bash", "-c", "--" ]
     args: [ "while true; do sleep 30; done;" ]
     volumeMounts:
-    - name: geoquery-pv
-      mountPath: /tmp/geoquery-update
     - name: gq-config-vol
       mountPath: /config
     - name: postgis-secret-vol
       mountPath: /secrets/db
     - name: email-secret-vol
       mountPath: /secrets/email
+    - name: geo-datasets
+      mountPath: /geo-datasets
     resources:
       requests:
         cpu: 6

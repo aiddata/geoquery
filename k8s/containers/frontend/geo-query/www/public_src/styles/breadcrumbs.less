@@ -1,0 +1,53 @@
+.breadcrumb-progress {
+  list-style: none;
+  overflow: hidden;
+  padding: 0px;
+  li {
+    flex: .30;
+    float: left;
+    a {
+      color: white;
+      display: block;
+      float: left;
+      padding: 10px 0 10px 45px;
+      position: relative;
+      text-decoration: none;
+      text-transform: capitalize;
+      line-height: 20px;
+      text-align: center;
+      &::after {
+        .arrow;
+        z-index: 2;
+      }
+      &::before {
+        .arrow;
+        margin-left: 5px;
+        z-index: 1;
+      }
+      &.unknown {
+        .step(@unknownColor);
+      }
+      &.submit,
+      &.submitted {
+        .step(@submitColor);
+      }
+      &.process,
+      &.processing,
+      &.processed {
+        .step(@processColor);
+      }
+      &.complete,
+      &.completed {
+        .step(@completeColor);
+      }
+    }
+  }
+  &.justified {
+    li {
+      width: calc(33% ~"-" 12px);
+    }
+    a {
+      width: 100%;
+    }
+  }
+}

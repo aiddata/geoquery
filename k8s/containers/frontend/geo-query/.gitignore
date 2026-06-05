@@ -1,0 +1,15 @@
+.DS_Store
+.vagrant
+
+node_modules
+
+www/grunt_tmp
+
+www/public/scripts/dist
+www/public/scripts/app.js
+www/public_src/libs/bower_components
+
+www/public/styles/*.css
+www/public/fonts
+
+npm-debug.log

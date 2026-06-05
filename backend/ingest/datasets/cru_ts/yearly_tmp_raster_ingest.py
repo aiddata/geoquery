@@ -1,0 +1,11 @@
+from pathlib import Path
+
+from gqcore.utils.ingest.ingest_dataset import ingest_dataset
+from gqcore.utils.logs import get_logger
+
+get_logger("ingest")
+
+ingest_dataset(
+    json_data=Path("/tmp/geoquery-update/data/cru_ts/yearly_tmp_raster_ingest.json"),
+    update_or_insert=True,
+)

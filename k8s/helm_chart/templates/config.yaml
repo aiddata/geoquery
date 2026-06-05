@@ -2,12 +2,13 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: gq-config
-  namespace: {{.Release.Namespace }}
+  namespace: {{ .Release.Namespace }}
 data:
   namespace: "{{ .Release.Namespace }}"
   data_root: "{{ .Values.data_root }}"
   devtag: "{{ .Values.documentation.devtag }}"
   request_url: "{{ .Values.documentation.request_url }}"
+  postgis_address: "{{ .Values.postgis.name }}-rw.{{ .Release.Namespace }}.svc.cluster.local"
   postgis_name: {{ .Values.postgis.name }}
   postgis_port: "{{ .Values.postgis.port }}"
   postgis_dbname: "{{ .Values.postgis.dbname }}"

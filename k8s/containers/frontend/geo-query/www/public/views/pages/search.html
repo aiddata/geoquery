@@ -1,0 +1,18 @@
+<div class="remaining-height" id="search-content">
+  <div class="row-fluid">
+    <div class="col-xs-4">
+      <div class="row">
+        <md-content flex="100" ui-view="datasetSelector" id="datasetSelector" md-whiteframe="4"></md-content>
+      </div>
+    </div>
+    <div class="col-xs-8">
+      <div id="searchContent">
+        <div class="row-fluid" ui-view="selectionText"></div>
+        <h4 class="md-primary" ng-if="state.current.name !== 'search'">Customization</h4>
+        <div class="row-fluid" id="searchRow" ng-if="state.current.name !== 'search'">
+          <div layout="row" ui-view id="searchModuleView"> </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

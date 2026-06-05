@@ -1,0 +1,64 @@
+[ui-view="header"] {
+  #det-header {
+    height: @headerHeight;
+    background-color: @defaultBackground;
+    .md-toolbar-tools {
+      height: @headerHeight;
+      max-height: @headerHeight;
+      line-height: @headerHeight;
+    }
+
+    .md-button {
+      font-size: .8em;
+      text-transform: capitalize;
+      transition: background-color 300ms cubic-bezier(0.55, 0.09, 0.68, 0.53);
+      padding: 4px 10px;
+    }
+
+    .header-button {
+      color: @themeDefault;
+    }
+
+    .badge.selection-count-badge {
+      background-color: transparent;
+      border: 1px solid white;
+      margin-left: 4px;
+    }
+  }
+
+  .logo {
+    max-height: calc(@headerHeight ~"-"10px);
+    cursor: pointer;
+  }
+}
+
+
+
+/* Select Boundary > Customize Datasets > Checkout */
+md-toolbar.process-header {
+  height: @processHeaderHeight;
+  min-height: @processHeaderHeight;
+  z-index: 12;
+  cursor: default;
+
+  .md-toolbar-tools,
+  .md-toolbar-tools .md-button.process-button{
+    line-height: @processHeaderHeight;
+    font-size: 12px;
+    color: fade(@inverseText, 60%);
+    word-spacing: 2px;
+  }
+  .md-button.process-button.current {
+    color: @inverseText;
+    letter-spacing: .1em;
+    font-weight: bold;
+  }
+
+  .homepage-button:hover{
+    color: fade(@inverseText, 85%);
+  }
+}
+md-sidenav {
+  width: 425px;
+  z-index: 9999;
+}

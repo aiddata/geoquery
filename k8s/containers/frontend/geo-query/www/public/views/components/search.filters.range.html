@@ -1,0 +1,20 @@
+<md-card-content>
+
+  <div layout="row">
+    <md-input-container ng-repeat="(key, value) in range">
+      <input
+          aria-label="{{ key }} ($)"
+          placeholder="{{ key }} ($)"
+          type="number"
+          ng-model="value"
+          ng-blur="range[key]=value; updateRange()">
+    </md-input-container>
+  </div>
+
+  <rzslider
+    ng-if="sliderOptions.visible"
+    rz-slider-model="range.min"
+    rz-slider-high="range.max"
+    rz-slider-options="sliderOptions"></rzslider>
+
+</md-card-content>

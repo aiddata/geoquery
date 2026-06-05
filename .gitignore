@@ -1,14 +1,16 @@
-__pycache__/
+# Claude
+.claude
+
+# Local test data
+dev_data/
 data/
-load.py
-old/
-*egg*
-src/gqcore/config.toml
-logs
-k8s/charts
-k8s/extra_templates
-k8s/helm_chart/Chart.lock
-k8s/helm_chart/charts
+
+logs/*.log
 build/
-k8s/helm_chart/my_values.yaml
-/site
+
+/src/
+/old/
+k8s/helm_chart/extra_templates/old/
+/results/
+/site/
+postgres/

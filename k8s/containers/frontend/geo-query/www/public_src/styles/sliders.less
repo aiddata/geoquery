@@ -1,0 +1,36 @@
+.rzslider {
+  /* Handles */
+  .rz-pointer {
+    background-color: @brand-primary;
+    transition: width 100ms linear,
+      height 100ms linear;
+    top: -6px;
+    width: 16px;
+    height: 16px;
+
+    &::after {
+      transition: background-color 300ms linear,
+        width 100ms linear,
+        height 100ms linear;
+      top: 3px;
+      left: 3px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    &.rz-active {
+      &::after {
+        background-color: white;
+      }
+    }
+  }
+
+  /* Track */
+  .rz-bar {
+    background: @brand-info;
+    &.rz-selection {
+      background: @aidDataNavy;
+    }
+  }
+}
