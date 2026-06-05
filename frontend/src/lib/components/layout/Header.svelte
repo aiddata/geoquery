@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { openSidebar, currentStep, type Step } from '$lib/stores/ui';
-	import { CircleHelp, History, MapPin, Star, ClipboardList, BookOpen, Github } from '@lucide/svelte';
+	import { CircleHelp, History, MapPin, Star, ClipboardList, BookOpen } from '@lucide/svelte';
 	import geoqueryLogo from '$lib/assets/aiddata_geoquery_wordmark.png';
 
 	interface Props {
@@ -32,11 +32,7 @@
 				<span class="hidden sm:inline">Docs</span>
 			</Button>
 
-			<Button variant="ghost" href="https://github.com/aiddata/geoquery-update" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
-				<Github />
-			</Button>
-
-			<Button variant="ghost" onclick={() => openSidebar('help')}>
+<Button variant="ghost" onclick={() => openSidebar('help')}>
 				<CircleHelp />
 				<span class="hidden sm:inline">Help</span>
 			</Button>
