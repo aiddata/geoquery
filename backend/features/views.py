@@ -209,8 +209,7 @@ def _mvt_sql_dynamic_simplify(tolerance: float) -> str:
                     4096, 256, true
                 ) AS geom,
                 f.id,
-                fm.name,
-                fm.attr
+                fm.name
             FROM feat_map fm
             JOIN features f ON fm.geom_id = f.id
             WHERE fm.fc_id = (
@@ -239,8 +238,7 @@ def _mvt_sql_user_upload_raw() -> str:
                     4096, 256, true
                 ) AS geom,
                 f.id,
-                fm.name,
-                fm.attr
+                fm.name
             FROM feat_map fm
             JOIN features f ON fm.geom_id = f.id
             WHERE fm.fc_id = (
