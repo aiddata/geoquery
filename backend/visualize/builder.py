@@ -9,6 +9,8 @@ from django.conf import settings
 from django.contrib.gis.db.models import Extent
 
 from features.models import Feature, FeatMap, FeatureCollection
+from datasets.models import DatasetResource
+from analytics.models import ProcessingOption
 
 
 class VizBuilder:
@@ -84,6 +86,29 @@ class VizBuilder:
             group = col.split(".", 1)[0]
             col_groups.setdefault(group, []).append(col)
 
+        # Map column name → ProcessingOption description (units) — 2 queries total
+        col_descriptions: dict[str, str] = {}
+        dotted = {col: (col.split(".", 1)[0], col.split(".", 1)[1]) for col in data_cols if "." in col}
+        if dotted:
+            dr_names = {v[0] for v in dotted.values()}
+            dr_map = {
+                dr.name: dr.dataset_id
+                for dr in DatasetResource.objects.filter(name__in=dr_names)
+            }
+            po_short_names = {v[1] for v in dotted.values()}
+            po_map = {
+                (po.dataset_id, po.short_name): po.description
+                for po in ProcessingOption.objects.filter(
+                    dataset_id__in=set(dr_map.values()),
+                    short_name__in=po_short_names,
+                )
+                if po.description
+            }
+            for col, (dr_name, po_short) in dotted.items():
+                ds_id = dr_map.get(dr_name)
+                if ds_id and (ds_id, po_short) in po_map:
+                    col_descriptions[col] = po_map[(ds_id, po_short)]
+
         # Bounding box from Feature geometries for auto-zoom
         bbox = None
         extent = Feature.objects.filter(id__in=geom_ids).aggregate(
@@ -100,6 +125,7 @@ class VizBuilder:
             "fc_names": fc_names,
             "columns": data_cols,
             "col_groups": col_groups,
+            "col_descriptions": col_descriptions,
             "features": features,
             "bbox": bbox,
             "tile_base_url": self.base_url,

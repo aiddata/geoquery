@@ -130,6 +130,7 @@ TEMPLATE = """<!DOCTYPE html>
     .popup-name { font-weight: 600; margin-bottom: 3px; color: #0f172a; }
     .popup-col { color: #64748b; font-size: 11px; }
     .popup-val { color: #1e293b; font-weight: 500; }
+    .popup-desc { color: #94a3b8; font-size: 10px; margin-top: 3px; font-style: italic; }
   </style>
 </head>
 <body>
@@ -505,11 +506,13 @@ TEMPLATE = """<!DOCTYPE html>
           ? currentColumn.split('.').slice(1).join('.')
           : (currentColumn || '');
         const valStr = (val !== null && val !== undefined) ? fmt(Number(val)) : '—';
+        const colDesc = DATA.col_descriptions?.[currentColumn] || '';
 
         popup.setLngLat(e.lngLat).setHTML(
           '<div class="popup-name">' + name + '</div>' +
           '<span class="popup-col">' + colLabel + ': </span>' +
-          '<span class="popup-val">' + valStr + '</span>'
+          '<span class="popup-val">' + valStr + '</span>' +
+          (colDesc ? '<div class="popup-desc">' + colDesc + '</div>' : '')
         ).addTo(map);
       });
 
