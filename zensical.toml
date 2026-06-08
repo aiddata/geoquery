@@ -62,6 +62,7 @@ nav = [
     { "Boundaries" = "data_documentation/boundaries/index.md" },
   ]},
   { "Get Involved" = [
+    { "Overview" = "get-involved/index.md" },
     { "Contributing" = [
       { "Overview" = "contributing/index.md" },
       { "Developer Docs" = [
