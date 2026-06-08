@@ -1,4 +1,4 @@
-# Using GeoQuery
+# Getting Started
 
 ## Submitting a request
 
