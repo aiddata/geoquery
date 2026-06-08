@@ -52,7 +52,11 @@ nav = [
   { "Home" = "index.md" },
   { "Using GeoQuery" = [
     { "Getting Started" = "using-geoquery/getting-started.md" },
-    { "Tutorials" = "using-geoquery/tutorials/index.md" },
+    { "Tutorials" = [
+      { "Overview" = "using-geoquery/tutorials/index.md" },
+      { "Example A" = "using-geoquery/tutorials/example-a.md" },
+      { "Example B" = "using-geoquery/tutorials/example-b.md" },
+    ]},
   ]},
   { "FAQ" = "faq.md" },
   { "Citing GeoQuery" = "citing.md" },
