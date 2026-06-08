@@ -50,12 +50,12 @@ Copyright &copy; 2025 AidData
 # Read more: https://zensical.org/docs/setup/navigation/
 nav = [
   { "Home" = "index.md" },
-  { "Using GeoQuery" = "using-geoquery.md" },
+  { "Using GeoQuery" = [
+    { "Getting Started" = "using-geoquery/getting-started.md" },
+    { "Tutorials" = "using-geoquery/tutorials/index.md" },
+  ]},
   { "FAQ" = "faq.md" },
   { "Citing GeoQuery" = "citing.md" },
-  { "Tutorials" = [
-    { "Overview" = "tutorials/index.md" },
-  ]},
   { "Data Documentation" = [
     { "Overview" = "data_documentation/index.md" },
     { "Datasets" = "data_documentation/datasets/index.md" },
@@ -63,25 +63,25 @@ nav = [
   ]},
   { "Contributing" = [
     { "Overview" = "contributing/index.md" },
-  ]},
-  { "Developer Docs" = [
-    { "Overview" = "dev/index.md" },
-    { "Development" = "dev/development.md" },
-    { "Deploying" = [
-      { "Local" = "dev/deploying/local-deployment.md" },
-      { "Kubernetes" = [
-        { "Overview" = "dev/deploying/kubernetes/index.md" },
-        { "Container" = "dev/deploying/kubernetes/container.md" },
-        { "Helm Chart" = "dev/deploying/kubernetes/helm-chart.md" },
-        { "ArgoCD" = "dev/deploying/kubernetes/argocd.md" },
-        { "Development" = "dev/deploying/kubernetes/development.md" },
-        { "Ingest Data" = "dev/deploying/kubernetes/ingest-data.md" },
+    { "Developer Docs" = [
+      { "Overview" = "contributing/dev/index.md" },
+      { "Development" = "contributing/dev/development.md" },
+      { "Deploying" = [
+        { "Local" = "contributing/dev/deploying/local-deployment.md" },
+        { "Kubernetes" = [
+          { "Overview" = "contributing/dev/deploying/kubernetes/index.md" },
+          { "Container" = "contributing/dev/deploying/kubernetes/container.md" },
+          { "Helm Chart" = "contributing/dev/deploying/kubernetes/helm-chart.md" },
+          { "ArgoCD" = "contributing/dev/deploying/kubernetes/argocd.md" },
+          { "Development" = "contributing/dev/deploying/kubernetes/development.md" },
+          { "Ingest Data" = "contributing/dev/deploying/kubernetes/ingest-data.md" },
+        ]},
       ]},
-    ]},
-    { "Services" = [
-      { "Grafana" = [
-        { "Overview" = "dev/services/grafana/index.md" },
-        { "Installation" = "dev/services/grafana/installation.md" },
+      { "Services" = [
+        { "Grafana" = [
+          { "Overview" = "contributing/dev/services/grafana/index.md" },
+          { "Installation" = "contributing/dev/services/grafana/installation.md" },
+        ]},
       ]},
     ]},
   ]},
