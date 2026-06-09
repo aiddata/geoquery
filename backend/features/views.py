@@ -82,9 +82,12 @@ def feature_collection_vector_tiles(request, fc_name, z, x, y):
     ).exists()
 
     if is_upload:
-        # Dynamic simplify at request time — tolerances match matview tiers
+        # Dynamic simplify at request time. The z<=5 tier uses a finer
+        # tolerance than the matview equivalent because custom requests
+        # typically render fewer / smaller features, so the per-tile vertex
+        # budget can afford more detail without hurting render performance.
         if z <= 5:
-            sql = _mvt_sql_dynamic_simplify(0.044)
+            sql = _mvt_sql_dynamic_simplify(0.01)
         elif z <= 9:
             sql = _mvt_sql_dynamic_simplify(0.003)
         elif z <= 12:
