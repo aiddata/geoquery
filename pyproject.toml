@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "zensical>=0.0.23",
+    "geoquery-backend",
 ]
 
 [dependency-groups]
@@ -23,3 +24,6 @@ required-environments = [
 
 [tool.uv.workspace]
 members = ["backend"]
+
+[tool.uv.sources]
+geoquery-backend = { workspace = true }
