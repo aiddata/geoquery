@@ -6,6 +6,16 @@
 	import { tick } from 'svelte';
 	import type { FeatureCollection, Feature, Polygon, MultiPolygon } from 'geojson';
 
+	// Intermediate result cache, keyed by the cumulative chain of op ids.
+	// Lets append/remove/tweak cycles reuse prior work instead of recomputing
+	// every operation from the original upload on each Apply.
+	const intermediateCache = new Map<string, FeatureCollection>();
+	let cachedOriginal: FeatureCollection | null = null;
+
+	function prefixKey(ops: Operation[], upTo: number): string {
+		return ops.slice(0, upTo).map((o) => o.id).join('|');
+	}
+
 	interface Props {
 		onSave: () => void;
 		onBack: () => void;
@@ -58,9 +68,28 @@
 
 		try {
 			const ops = $customBoundary.operations;
-			let result: FeatureCollection = $customBoundary.originalFeatures!;
+			const original = $customBoundary.originalFeatures!;
 
-			for (const op of ops) {
+			// Invalidate cache when the underlying upload changes
+			if (cachedOriginal !== original) {
+				intermediateCache.clear();
+				cachedOriginal = original;
+			}
+
+			// Find the longest cached prefix and resume from there
+			let result: FeatureCollection = original;
+			let startIdx = 0;
+			for (let i = ops.length; i > 0; i--) {
+				const cached = intermediateCache.get(prefixKey(ops, i));
+				if (cached) {
+					result = cached;
+					startIdx = i;
+					break;
+				}
+			}
+
+			for (let i = startIdx; i < ops.length; i++) {
+				const op = ops[i];
 				if (op.type === 'buffer') {
 					const buffered = buffer(result, op.params.distance as number, {
 						units: op.params.units as 'kilometers' | 'miles' | 'meters',
@@ -82,6 +111,7 @@
 					if (!unioned) throw new Error('Union operation produced no output.');
 					result = featureCollection([unioned]) as FeatureCollection;
 				}
+				intermediateCache.set(prefixKey(ops, i + 1), result);
 			}
 
 			customBoundary.setFinalFeatures(result);
