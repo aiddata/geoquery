@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Collapsible from '$lib/components/ui/collapsible';
 	import { ChevronDown, Trash2, RefreshCw, Save, ArrowRight, TriangleAlert, Loader2 } from '@lucide/svelte';
+	import { tick } from 'svelte';
 	import type { FeatureCollection, Feature, Polygon, MultiPolygon } from 'geojson';
 
 	interface Props {
@@ -52,6 +53,7 @@
 
 		applying = true;
 		applyError = '';
+		await tick(); // flush DOM before synchronous turf work blocks the thread
 		try {
 			const ops = $customBoundary.operations;
 			let result: FeatureCollection = $customBoundary.originalFeatures!;
