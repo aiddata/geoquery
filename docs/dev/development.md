@@ -12,14 +12,16 @@ This guide covers running the full GeoQuery stack locally with Docker Compose.
 docker compose up --build
 ```
 
-This starts five services:
+This starts seven services:
 
 | Service | Description | Port |
 |---|---|---|
 | **db** | PostGIS 17 database | 5432 |
 | **rabbitmq** | Message broker for Celery | 5672 (AMQP), 15672 (management UI) |
 | **backend** | Django REST API | 8000 |
-| **worker** | Celery task worker | — |
+| **worker-processing** | Celery worker on the `processing` queue (raster extracts; mounts `/data`) | — |
+| **worker-background** | Celery worker on the `background` queue (coverage, docs, maintenance) | — |
+| **beat** | Celery beat scheduler | — |
 | **frontend** | SvelteKit + Vite dev server | 5173 |
 
 Open [http://localhost:5173](http://localhost:5173) to access the frontend.

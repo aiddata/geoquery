@@ -28,7 +28,9 @@ DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("true", "1", "yes")
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
 if not SECRET_KEY:
     if DEBUG:
-        SECRET_KEY = "django-insecure-(5al+g1afse8_v9fhhwv1m&wslqe31x(fz_!&wdn557r9y3@as"
+        SECRET_KEY = (
+            "django-insecure-(5al+g1afse8_v9fhhwv1m&wslqe31x(fz_!&wdn557r9y3@as"
+        )
     else:
         raise RuntimeError("DJANGO_SECRET_KEY must be set when DEBUG is off")
 
@@ -179,6 +181,15 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+
+# Two-queue split: only the raster extract task (which needs /data) runs on the
+# "processing" queue; everything else (coverage, docs, beat/maintenance) defaults
+# to "background". New tasks fail safe onto background unless explicitly routed.
+CELERY_TASK_DEFAULT_QUEUE = "background"
+CELERY_TASK_ROUTES = {
+    "analytics.tasks.processing.run_extract_task": {"queue": "processing"},
+}
+
 STALE_TASK_MINUTES = int(os.environ.get("STALE_TASK_MINUTES", "30"))
 CELERY_BEAT_SCHEDULE = {
     "free-stale-processing-tasks": {

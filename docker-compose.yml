@@ -18,14 +18,14 @@ services:
     command: uv run python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./backend:/app/backend
-      - ./results:/app/results
+      - ./results:/results
       - ./data:/data
     environment:
       - DJANGO_DEBUG=true
       - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
       - DB_HOST=db
       - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,backend
-      - RESULTS_DIR=/app/results
+      - RESULTS_DIR=/results
       - DOWNLOAD_BASE_URL=http://localhost:8000
       - PG_DBNAME=geoquery
       - PG_USER=django_user
@@ -37,18 +37,45 @@ services:
       - db
       - rabbitmq
 
-  worker:
+  worker-processing:
     build:
       context: .
       dockerfile: backend/Containerfile
-    command: uv run celery -A geoquery worker --loglevel=info
+    command: uv run celery -A geoquery worker -Q processing --loglevel=info
     volumes:
       - ./backend:/app/backend
-      - ./data:/data
+      - ./data:/data:ro
+      - ./results:/results
     environment:
       - DJANGO_DEBUG=true
       - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
       - DB_HOST=db
+      - RESULTS_DIR=/results
+      - DOWNLOAD_BASE_URL=http://localhost:8000
+      - PG_DBNAME=geoquery
+      - PG_USER=django_user
+      - PG_PASSWORD=dev_password
+      - PG_HOST=db
+      - PG_PORT=5432
+      - PG_SSL_MODE=disable
+    depends_on:
+      - db
+      - rabbitmq
+
+  worker-background:
+    build:
+      context: .
+      dockerfile: backend/Containerfile
+    command: uv run celery -A geoquery worker -Q background --loglevel=info
+    volumes:
+      - ./backend:/app/backend
+      - ./results:/results
+    environment:
+      - DJANGO_DEBUG=true
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
+      - DB_HOST=db
+      - RESULTS_DIR=/results
+      - DOWNLOAD_BASE_URL=http://localhost:8000
       - PG_DBNAME=geoquery
       - PG_USER=django_user
       - PG_PASSWORD=dev_password
