@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { customBoundary } from '$lib/stores/customBoundary';
 	import { Button } from '$lib/components/ui/button';
-	import { Upload, FileCheck, X, ArrowLeft, AlertCircle } from '@lucide/svelte';
+	import { Upload, FileCheck, X, AlertCircle } from '@lucide/svelte';
 	import type { FeatureCollection, Geometry } from 'geojson';
 	import CustomBoundaryOperations from './CustomBoundaryOperations.svelte';
 	import { goto } from '$app/navigation';
@@ -154,20 +154,7 @@
 		onBack={() => { step = 'upload'; }}
 	/>
 {:else}
-<div class="rounded-lg border bg-card shadow-lg">
-	<!-- Header -->
-	<div class="flex items-center justify-between border-b px-4 py-3">
-		<p class="font-semibold text-sm">Use My Own Boundary</p>
-		<button
-			class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-			onclick={() => customBoundary.deactivate()}
-		>
-			<ArrowLeft class="h-3 w-3" />
-			Back to search
-		</button>
-	</div>
-
-	<div class="p-4 space-y-3">
+<div class="space-y-3">
 		{#if !uploaded}
 			<!-- Drop zone -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -227,6 +214,5 @@
 				Continue to Operations →
 			</Button>
 		{/if}
-	</div>
 </div>
 {/if}

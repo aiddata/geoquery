@@ -25,6 +25,22 @@ export interface BoundaryResult {
 	title: string | null;
 	description: string | null;
 	bbox: [number, number, number, number] | null;
+	group_name: string | null;
+	group_title: string | null;
+	group_class: string | null;
+	group_level: number | null;
+	source_name: string | null;
+	tags: string[];
+	date_added: string | null;
+}
+
+export interface BoundaryPreset {
+	name: string;
+	description?: string | null;
+	group_class?: string | null;
+	group_level?: number | null;
+	tags: string[];
+	sort_order: number;
 }
 
 export async function searchBoundaries(
@@ -38,6 +54,14 @@ export async function searchBoundaries(
 	const response = await fetch(`/api/features/autocomplete/?${params}`);
 	if (!response.ok) {
 		throw new Error(`Autocomplete request failed: ${response.status}`);
+	}
+	return response.json();
+}
+
+export async function fetchBoundaryPresets(): Promise<BoundaryPreset[]> {
+	const response = await fetch('/api/features/presets/');
+	if (!response.ok) {
+		throw new Error(`Failed to fetch presets: ${response.status}`);
 	}
 	return response.json();
 }
