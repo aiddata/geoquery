@@ -2,7 +2,7 @@
 	import { customBoundary, type Operation, type OperationType } from '$lib/stores/customBoundary';
 	import { Button } from '$lib/components/ui/button';
 	import * as Collapsible from '$lib/components/ui/collapsible';
-	import { ChevronDown, Trash2, RefreshCw, Save, ArrowRight, TriangleAlert, Loader2 } from '@lucide/svelte';
+	import { ChevronDown, Trash2, RefreshCw, Save, ArrowRight, TriangleAlert } from '@lucide/svelte';
 	import { tick } from 'svelte';
 	import type { FeatureCollection, Feature, Polygon, MultiPolygon } from 'geojson';
 
@@ -231,7 +231,7 @@
 				onclick={applyOperations}
 			>
 				{#if applying}
-					<Loader2 class="h-3.5 w-3.5 animate-spin" />
+					<span class="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
 					Applying…
 				{:else}
 					Apply &amp; Preview
@@ -241,7 +241,7 @@
 
 		<Button class="w-full gap-1" disabled={applying} onclick={async () => { if ($customBoundary.needsApply) await applyOperations(); onSave(); }}>
 			{#if applying}
-				<Loader2 class="h-4 w-4 animate-spin" />
+				<span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
 				Applying…
 			{:else}
 				<Save class="h-4 w-4" />
