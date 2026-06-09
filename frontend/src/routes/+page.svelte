@@ -9,7 +9,8 @@
 	import GeographySearch from '$lib/components/map/GeographySearch.svelte';
 	import BoundaryBrowsePanel from '$lib/components/map/BoundaryBrowsePanel.svelte';
 	import ZoomControls from '$lib/components/map/ZoomControls.svelte';
-	import MapFrame from '$lib/components/map/MapFrame.svelte';
+	import MapFrame, { type FcStyle } from '$lib/components/map/MapFrame.svelte';
+	import { colorForIndex, lineWidthForLevel } from '$lib/utils/boundaryStyle';
 	import WelcomeModal from '$lib/components/map/WelcomeModal.svelte';
 	import CustomBoundaryPanel from '$lib/components/map/CustomBoundaryPanel.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -207,6 +208,19 @@
 		if (pendingBoundary && !names.includes(pendingBoundary.name))
 			names.push(pendingBoundary.name);
 		return names;
+	});
+
+	// Per-FC display styles: distinct color cycled by index, line width by ADM level.
+	// Falls back gracefully for boundaries without a group_level.
+	let mapFcStyles = $derived.by<FcStyle[]>(() => {
+		return mapFcNames.map((name, idx) => {
+			const meta = allBoundaries.find((b) => b.name === name);
+			return {
+				name,
+				color: colorForIndex(idx),
+				lineWidth: lineWidthForLevel(meta?.group_level)
+			};
+		});
 	});
 
 	// Pending boundary preview takes priority over the committed staged FC so
@@ -582,7 +596,7 @@
 	<MapFrame
 		bind:this={mapFrame}
 		class="flex-1"
-		fcNames={$customBoundary.active ? [] : mapFcNames}
+		fcStyles={$customBoundary.active ? [] : mapFcStyles}
 		activeFcName={$customBoundary.active ? null : activeFcName}
 		selectedFeatureIds={$customBoundary.active ? [] : displaySelectedFeatureIds}
 		bbox={userBbox ?? currentBbox}

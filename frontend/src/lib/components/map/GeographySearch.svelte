@@ -3,6 +3,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { ChevronLeft, ChevronRight, Search, X } from '@lucide/svelte';
 	import { searchBoundaries, type BoundaryResult } from '$lib/api';
+	import { colorForIndex } from '$lib/utils/boundaryStyle';
 
 	interface Props {
 		featuredBoundaries?: BoundaryResult[];
@@ -104,8 +105,13 @@
 	<!-- Selected chips -->
 	{#if selectedBoundaries.length > 0}
 		<div class="max-h-20 overflow-y-auto flex flex-wrap gap-1">
-			{#each selectedBoundaries as boundary (boundary.id)}
+			{#each selectedBoundaries as boundary, idx (boundary.id)}
 				<div class="inline-flex items-center gap-1 rounded-md bg-primary/15 px-2 py-0.5 text-xs font-medium">
+					<span
+						class="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
+						style="background-color: {colorForIndex(idx)}"
+						aria-hidden="true"
+					></span>
 					<span class="truncate max-w-xs">{boundary.title || boundary.name}</span>
 					<button
 						class="inline-flex rounded p-0.5 hover:bg-primary/30 transition-colors"
