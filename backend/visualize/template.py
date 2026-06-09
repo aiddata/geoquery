@@ -8,6 +8,7 @@ TEMPLATE = """<!DOCTYPE html>
   <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@protomaps/basemaps@5.7.0/dist/basemaps.js"></script>
   <script src="https://unpkg.com/simple-statistics@7/dist/simple-statistics.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -115,6 +116,32 @@ TEMPLATE = """<!DOCTYPE html>
     .toggle-item .toggle-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
     .toggle-item .toggle-count { font-size: 10px; color: #94a3b8; flex-shrink: 0; }
 
+    /* ── Drag-and-drop reordering (SortableJS) ── */
+    .toggle-item { cursor: grab; }
+    .toggle-item:active { cursor: grabbing; }
+    .toggle-item input[type="checkbox"] { cursor: pointer; }
+    .toggle-item .drag-handle {
+      flex-shrink: 0;
+      color: #cbd5e1;
+      font-size: 11px;
+      line-height: 1;
+      letter-spacing: -1px;
+      width: 10px;
+      text-align: center;
+      user-select: none;
+    }
+    .toggle-item.sortable-ghost {
+      opacity: 0.4;
+      background: #eff6ff;
+    }
+    .toggle-item.sortable-chosen { background: #f1f5f9; }
+    #fc-order-hint {
+      font-size: 10px;
+      color: #94a3b8;
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+
     /* ── Map ── */
     #map-container { flex: 1; position: relative; }
     #map { position: absolute; inset: 0; }
@@ -183,6 +210,7 @@ TEMPLATE = """<!DOCTYPE html>
     <div class="panel" id="fc-panel">
       <div class="panel-title">Feature Collections</div>
       <div id="fc-toggles"></div>
+      <div id="fc-order-hint">Drag to reorder — top of list draws on top of the map.</div>
     </div>
 
   </div>
@@ -211,6 +239,12 @@ TEMPLATE = """<!DOCTYPE html>
 
   // ── Visibility state ───────────────────────────────────────────────────────
   const hiddenFCs = new Set();
+
+  // ── Layer order (top of list = drawn on top) ───────────────────────────────
+  // Initialized from DATA.fc_names but mutable via drag-and-drop reordering.
+  // Note: addFeatureLayers() adds layers in DATA.fc_names order — last added
+  // ends up on top — so the initial top-of-list display matches the last name.
+  let fcOrder = [...DATA.fc_names].reverse();
 
   function onFCToggle(el) {
     const fc = el.dataset.fc;
@@ -267,23 +301,66 @@ TEMPLATE = """<!DOCTYPE html>
       fcCounts[feat.fc] = (fcCounts[feat.fc] || 0) + 1;
     }
     const container = document.getElementById('fc-toggles');
-    for (const fc of DATA.fc_names) {
-      const label = document.createElement('label');
-      label.className = 'toggle-item';
+    container.innerHTML = '';
+    for (const fc of fcOrder) {
+      const row = document.createElement('div');
+      row.className = 'toggle-item';
+      row.dataset.fc = fc;
+
+      const grip = document.createElement('span');
+      grip.className = 'drag-handle';
+      grip.textContent = '⋮⋮';
+      grip.setAttribute('aria-hidden', 'true');
+
       const cb = document.createElement('input');
       cb.type = 'checkbox';
-      cb.checked = true;
+      cb.checked = !hiddenFCs.has(fc);
       cb.dataset.fc = fc;
       cb.onchange = function() { onFCToggle(this); };
+
       const name = document.createElement('span');
       name.className = 'toggle-label';
       name.textContent = fc;
       name.title = fc;
+
       const count = document.createElement('span');
       count.className = 'toggle-count';
       count.textContent = (fcCounts[fc] || 0) + ' features';
-      label.append(cb, name, count);
-      container.appendChild(label);
+
+      row.append(grip, cb, name, count);
+      container.appendChild(row);
+    }
+
+    // (Re-)initialize SortableJS on the rebuilt container.
+    // The whole row is draggable; only the checkbox is filtered out so
+    // clicking it toggles visibility instead of starting a drag.
+    if (container._sortable) container._sortable.destroy();
+    container._sortable = Sortable.create(container, {
+      animation: 150,
+      filter: 'input[type="checkbox"]',
+      preventOnFilter: false,
+      ghostClass: 'sortable-ghost',
+      chosenClass: 'sortable-chosen',
+      onEnd: function () {
+        // Read the new order from the DOM and apply to map
+        fcOrder = Array.from(container.children).map((el) => el.dataset.fc);
+        applyLayerOrder();
+      }
+    });
+  }
+
+  // Reorder map layers to match fcOrder (top of list = drawn on top).
+  // moveLayer with no beforeId puts the layer at the top of the stack, so
+  // walking the list in reverse order and moving each one rebuilds the
+  // bottom-to-top stacking deterministically.
+  function applyLayerOrder() {
+    if (!map) return;
+    for (let i = fcOrder.length - 1; i >= 0; i--) {
+      const fc = fcOrder[i];
+      const fillId = 'fc-fill-' + fc;
+      const lineId = 'fc-line-' + fc;
+      if (map.getLayer(fillId)) map.moveLayer(fillId);
+      if (map.getLayer(lineId)) map.moveLayer(lineId);
     }
   }
 
