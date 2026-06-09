@@ -53,7 +53,8 @@
 
 		applying = true;
 		applyError = '';
-		await tick(); // flush DOM before synchronous turf work blocks the thread
+		await tick();
+		await new Promise((resolve) => setTimeout(resolve, 0)); // yield to browser paint before turf blocks thread
 		try {
 			const ops = $customBoundary.operations;
 			let result: FeatureCollection = $customBoundary.originalFeatures!;
