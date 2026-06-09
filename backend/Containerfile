@@ -22,3 +22,8 @@ COPY --chown=app:app backend/ backend/
 RUN uv sync --frozen --package geoquery-backend
 
 WORKDIR /app/backend
+
+# Collect static files (admin CSS/JS, etc.) for WhiteNoise to serve. Uses a
+# throwaway secret key since collectstatic needs settings to load but no DB.
+RUN DJANGO_SECRET_KEY=collectstatic-build-only \
+    uv run python manage.py collectstatic --noinput

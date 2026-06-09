@@ -44,6 +44,7 @@ dependencies = [
     "pandas",
     "kubernetes",
     "django>=5.2.6",
+    "whitenoise>=6.8.2",
     "psycopg2-binary>=2.9.10",
     "djangorestframework>=3.16.1",
     "djangorestframework-gis>=1.2.0",
