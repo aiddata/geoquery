@@ -1,0 +1,32 @@
+# Boundary Presets Configuration
+#
+# Each preset combines filter criteria (group_class, group_level, tags) to create
+# reusable selections. The frontend resolves these client-side against the full
+# boundary list fetched from the autocomplete endpoint.
+#
+# Filter logic: All specified fields are AND-ed together.
+# - group_class: null means any source
+# - group_level: null means any level
+# - tags: empty array means any tags; non-empty means ALL tags must be present
+
+presets:
+  - name: "geoBoundaries ADM0"
+    description: "All geoBoundaries administrative level 0 (national)"
+    group_class: "geoboundaries"
+    group_level: 0
+    tags: []
+    sort_order: 1
+
+  - name: "geoBoundaries ADM1"
+    description: "All geoBoundaries administrative level 1 (state)"
+    group_class: "geoboundaries"
+    group_level: 1
+    tags: []
+    sort_order: 2
+
+  - name: "geoBoundaries ADM2"
+    description: "All geoBoundaries administrative level 2 (district)"
+    group_class: "geoboundaries"
+    group_level: 2
+    tags: []
+    sort_order: 3

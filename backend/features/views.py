@@ -1,3 +1,5 @@
+from pathlib import Path
+import yaml
 from django.db import connection
 from django.db.models import Q
 from django.http import HttpResponse
@@ -18,7 +20,7 @@ class FeatureCollectionAutocompleteView(generics.ListAPIView):
 
     Query parameters:
     - q: Search query string (searches in name, title, and description)
-    - limit: Maximum number of results to return (default: 10)
+    - limit: Maximum number of results to return (default: 10; 0 = no limit)
     """
 
     def get(self, request, *args, **kwargs):
@@ -36,10 +38,12 @@ class FeatureCollectionAutocompleteView(generics.ListAPIView):
                 | Q(description__icontains=query)
             )
 
-        # Order by name and limit results
-        queryset = queryset.order_by("name")[:limit]
+        # Order by name and limit results (limit=0 means no limit)
+        queryset = queryset.order_by("name")
+        if limit > 0:
+            queryset = queryset[:limit]
 
-        # Return simplified data for autocomplete
+        # Return simplified data for autocomplete with grouping info
         results = [
             {
                 "id": fc.id,
@@ -47,6 +51,13 @@ class FeatureCollectionAutocompleteView(generics.ListAPIView):
                 "title": fc.title,
                 "description": fc.description,
                 "bbox": list(fc.spatial_extent.extent) if fc.spatial_extent else None,
+                "group_name": fc.group_name,
+                "group_title": fc.group_title,
+                "group_class": fc.group_class,
+                "group_level": fc.group_level,
+                "source_name": fc.source_name,
+                "tags": fc.tags or [],
+                "date_added": fc.date_added.isoformat() if fc.date_added else None,
             }
             for fc in queryset
         ]
@@ -162,6 +173,51 @@ class FeatureIdsView(APIView):
             .distinct()
         )
         return Response({"featureIds": feature_ids})
+
+
+class BoundaryPresetsView(APIView):
+    """
+    GET /api/features/presets/
+
+    Returns boundary presets loaded from config/boundary_presets.yaml.
+    Each preset defines filter criteria (group_class, group_level, tags) that
+    the frontend can use to batch-select boundaries client-side.
+
+    The YAML is cached but reloaded automatically when the file's mtime changes,
+    so edits are picked up without restarting the backend.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    _presets_cache = None
+    _cache_mtime = None
+
+    @classmethod
+    def _load_presets(cls):
+        """Load boundary presets from YAML, reloading if the file has changed."""
+        config_path = Path(__file__).parent.parent / "config" / "boundary_presets.yaml"
+        try:
+            current_mtime = config_path.stat().st_mtime
+        except FileNotFoundError:
+            cls._presets_cache = []
+            cls._cache_mtime = None
+            return cls._presets_cache
+
+        if cls._presets_cache is not None and cls._cache_mtime == current_mtime:
+            return cls._presets_cache
+
+        with open(config_path, "r") as f:
+            data = yaml.safe_load(f) or {}
+            cls._presets_cache = sorted(
+                data.get("presets", []), key=lambda p: p.get("sort_order", 999)
+            )
+            cls._cache_mtime = current_mtime
+            return cls._presets_cache
+
+    def get(self, request):
+        presets = self._load_presets()
+        return Response(presets)
 
 
 def _mvt_sql_raw():
