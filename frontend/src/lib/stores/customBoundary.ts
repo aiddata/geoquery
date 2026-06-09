@@ -18,6 +18,8 @@ export type CustomBoundaryState = {
 	/** Ordered list of operations applied to originalFeatures to produce finalFeatures. */
 	operations: Operation[];
 	finalFeatures: FeatureCollection | null;
+	/** True when operations have changed since the last apply — finalFeatures is stale. */
+	needsApply: boolean;
 	saved: boolean;
 };
 
@@ -28,6 +30,7 @@ const initial: CustomBoundaryState = {
 	originalFeatures: null,
 	operations: [],
 	finalFeatures: null,
+	needsApply: false,
 	saved: false,
 };
 
@@ -46,6 +49,7 @@ function createCustomBoundaryStore() {
 				originalFeatures: features,
 				finalFeatures: features,
 				operations: [],
+				needsApply: false,
 				saved: false,
 			})),
 		clearUpload: () =>
@@ -56,16 +60,17 @@ function createCustomBoundaryStore() {
 				originalFeatures: null,
 				finalFeatures: null,
 				operations: [],
+				needsApply: false,
 				saved: false,
 			})),
 		addOperation: (op: Operation) =>
-			update((s) => ({ ...s, operations: [...s.operations, op] })),
+			update((s) => ({ ...s, operations: [...s.operations, op], needsApply: true })),
 		removeOperation: (id: string) =>
-			update((s) => ({ ...s, operations: s.operations.filter((o) => o.id !== id) })),
+			update((s) => ({ ...s, operations: s.operations.filter((o) => o.id !== id), needsApply: true })),
 		clearOperations: () =>
-			update((s) => ({ ...s, operations: [], finalFeatures: s.originalFeatures })),
+			update((s) => ({ ...s, operations: [], finalFeatures: s.originalFeatures, needsApply: false })),
 		setFinalFeatures: (features: FeatureCollection) =>
-			update((s) => ({ ...s, finalFeatures: features })),
+			update((s) => ({ ...s, finalFeatures: features, needsApply: false })),
 		save: () => update((s) => ({ ...s, saved: true })),
 		reset: () => set(initial),
 	};

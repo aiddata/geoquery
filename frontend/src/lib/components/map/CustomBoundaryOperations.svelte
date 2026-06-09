@@ -235,7 +235,7 @@
 			</Button>
 		</div>
 
-		<Button class="w-full gap-1" disabled={applying} onclick={async () => { await applyOperations(); onSave(); }}>
+		<Button class="w-full gap-1" disabled={applying} onclick={async () => { if ($customBoundary.needsApply) await applyOperations(); onSave(); }}>
 			{#if applying}
 				<Loader2 class="h-4 w-4 animate-spin" />
 				Applying…
