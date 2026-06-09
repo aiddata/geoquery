@@ -46,15 +46,16 @@
 	}
 
 	async function applyOperations() {
+		applying = true;
+		applyError = '';
+		await tick();
+		await new Promise((resolve) => setTimeout(resolve, 0)); // yield to browser paint before turf blocks thread
+
 		const { default: buffer } = await import('@turf/buffer');
 		const { default: simplify } = await import('@turf/simplify');
 		const { union } = await import('@turf/union');
 		const { featureCollection } = await import('@turf/helpers');
 
-		applying = true;
-		applyError = '';
-		await tick();
-		await new Promise((resolve) => setTimeout(resolve, 0)); // yield to browser paint before turf blocks thread
 		try {
 			const ops = $customBoundary.operations;
 			let result: FeatureCollection = $customBoundary.originalFeatures!;
