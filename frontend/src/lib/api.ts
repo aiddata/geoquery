@@ -38,6 +38,7 @@ export interface BoundaryResult {
 export interface BoundaryPreset {
 	name: string;
 	description?: string | null;
+	source_name?: string | null;
 	group_class?: string | null;
 	group_level?: number | null;
 	tags: string[];

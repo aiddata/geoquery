@@ -12,21 +12,24 @@
 presets:
   - name: "geoBoundaries ADM0"
     description: "All geoBoundaries administrative level 0 (national)"
-    group_class: "geoboundaries"
+    source_name: "geoBoundaries"
+    group_class: null
     group_level: 0
-    tags: []
+    tags: ['geoboundaries']
     sort_order: 1
 
   - name: "geoBoundaries ADM1"
     description: "All geoBoundaries administrative level 1 (state)"
-    group_class: "geoboundaries"
+    source_name: "geoBoundaries"
+    group_class: null
     group_level: 1
-    tags: []
+    tags: ['geoboundaries']
     sort_order: 2
 
   - name: "geoBoundaries ADM2"
     description: "All geoBoundaries administrative level 2 (district)"
-    group_class: "geoboundaries"
+    source_name: "geoBoundaries"
+    group_class: null
     group_level: 2
-    tags: []
+    tags: ['geoboundaries']
     sort_order: 3

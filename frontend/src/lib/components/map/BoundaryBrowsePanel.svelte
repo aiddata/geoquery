@@ -88,6 +88,7 @@
 	function applyPreset(preset: BoundaryPreset) {
 		const matchingIds = allBoundaries
 			.filter((b) => {
+				if (preset.source_name && b.source_name !== preset.source_name) return false;
 				if (preset.group_class && b.group_class !== preset.group_class) return false;
 				if (preset.group_level !== undefined && preset.group_level !== null && b.group_level !== preset.group_level) {
 					return false;
