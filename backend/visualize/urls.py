@@ -10,4 +10,14 @@ urlpatterns = [
         views.RequestVisualizationDataView.as_view(),
         name="request-data",
     ),
+    path(
+        "explore/available/",
+        views.ExploreAvailableView.as_view(),
+        name="explore-available",
+    ),
+    path(
+        "explore/",
+        views.ExploreDataView.as_view(),
+        name="explore-data",
+    ),
 ]

@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 
 from analytics.models import Request
 
-from .data import build_request_data
+from .data import build_explore_available, build_explore_data, build_request_data
 
 
 class RequestVisualizationDataView(APIView):
@@ -26,3 +26,52 @@ class RequestVisualizationDataView(APIView):
             return Response({"error": "Request not found"}, status=404)
 
         return Response(build_request_data(req))
+
+
+class ExploreAvailableView(APIView):
+    """
+    GET /api/visualize/explore/available/?fc=1,2,3
+
+    Returns datasets + processing options that have completed extracts for
+    the given FC IDs. Used to populate the option picker in /viz/explore.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        fc_param = request.query_params.get("fc", "").strip()
+        if not fc_param:
+            return Response({"error": "fc parameter is required"}, status=400)
+        try:
+            fc_ids = [int(v) for v in fc_param.split(",") if v.strip()]
+        except ValueError:
+            return Response({"error": "fc must be a comma-separated list of integers"}, status=400)
+
+        return Response(build_explore_available(fc_ids))
+
+
+class ExploreDataView(APIView):
+    """
+    GET /api/visualize/explore/?fc=1,2&po=3,4
+
+    Returns the visualization payload for an ad-hoc selection of feature
+    collections and processing options. Same shape as the request viz payload
+    minus request-specific fields (request_id, request_status, etc.).
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        fc_param = request.query_params.get("fc", "").strip()
+        po_param = request.query_params.get("po", "").strip()
+        if not fc_param or not po_param:
+            return Response({"error": "fc and po parameters are required"}, status=400)
+        try:
+            fc_ids = [int(v) for v in fc_param.split(",") if v.strip()]
+            po_ids = [int(v) for v in po_param.split(",") if v.strip()]
+        except ValueError:
+            return Response({"error": "fc and po must be comma-separated integers"}, status=400)
+
+        return Response(build_explore_data(fc_ids, po_ids))
