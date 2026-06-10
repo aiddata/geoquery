@@ -1,3 +1,5 @@
+<svelte:head><title>GeoQuery - AidData</title></svelte:head>
+
 <script lang="ts">
 	import { get } from 'svelte/store';
 	import { goto } from '$app/navigation';
