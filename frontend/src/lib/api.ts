@@ -260,6 +260,34 @@ export async function requestHistoryLink(email: string): Promise<void> {
 	}
 }
 
+// ── Visualization ──────────────────────────────────────────────
+
+export interface VisualizationFeature {
+	name: string;
+	fc: string;
+	[column: string]: string | number | null;
+}
+
+export interface VisualizationData {
+	request_id: string;
+	request_name: string;
+	selection_label: string;
+	fc_names: string[];
+	columns: string[];
+	col_groups: Record<string, string[]>;
+	col_descriptions: Record<string, string>;
+	features: Record<string, VisualizationFeature>;
+	bbox: [number, number, number, number] | null;
+}
+
+export async function fetchVisualizationData(requestId: string): Promise<VisualizationData> {
+	const response = await fetch(`/api/visualize/request/${encodeURIComponent(requestId)}/`);
+	if (!response.ok) {
+		throw new Error(`Failed to fetch visualization data: ${response.status}`);
+	}
+	return response.json();
+}
+
 export async function fetchRequestsByToken(token: string): Promise<PastRequest[]> {
 	const response = await fetch(`/api/analytics/history/${encodeURIComponent(token)}/`);
 	if (response.status === 410) {

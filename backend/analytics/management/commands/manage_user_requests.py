@@ -21,7 +21,6 @@ from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
 from analytics.tasks.email import GeoEmail
 from analytics.tasks.documentation import DocBuilder
 from analytics.tasks.merge import merge_task_results, merge_task_features
-from visualize.builder import VizBuilder
 
 logger = getLogger(__name__)
 
@@ -287,14 +286,6 @@ def _build_output(request, task_list, download_server, results_dir, assets_dir):
     make_zipfile(request_dir, request_dir)
     shutil.move(str(request_dir) + ".zip", str(request_dir))
     os.remove(pdf_dst)
-
-    request_visualization = request_dir / f"{request_id}_visualization.html"
-    viz = VizBuilder(request, merge_df, request_visualization)
-    viz_status = viz.build_viz()
-    if viz_status != "Success":
-        logger.warning("Visualization skipped: %s", viz_status)
-    else:
-        logger.info("Visualization generated for request %s", request_id)
 
     os.chmod(request_dir, 0o775)
     for ro, di, fi in os.walk(request_dir):
