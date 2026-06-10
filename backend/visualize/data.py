@@ -51,6 +51,7 @@ def build_request_data(request) -> dict:
         .values(
             "extract_task__fm__geom_id",
             "extract_task__resource__name",
+            "extract_task__resource__label",
             "extract_task__resource__dataset__short_name",
             "extract_task__resource__dataset__title",
             "extract_task__resource__dataset__name",
@@ -65,6 +66,7 @@ def build_request_data(request) -> dict:
     data_cols_set: set[str] = set()
     po_keys_per_col: dict[str, tuple[int, str]] = {}
     col_dataset_titles: dict[str, str] = {}
+    col_temporal: dict[str, str] = {}
 
     for dr in data_rows:
         col = f"{dr['extract_task__resource__name']}.{dr['name']}"
@@ -80,6 +82,8 @@ def build_request_data(request) -> dict:
                 or dr["extract_task__resource__dataset__name"]
                 or ""
             )
+        if col not in col_temporal and dr["extract_task__resource__label"]:
+            col_temporal[col] = dr["extract_task__resource__label"]
 
         geom_id = dr["extract_task__fm__geom_id"]
         record = features.get(str(geom_id))
@@ -146,6 +150,7 @@ def build_request_data(request) -> dict:
         "col_groups": col_groups,
         "col_descriptions": col_descriptions,
         "col_dataset_titles": col_dataset_titles,
+        "col_temporal": col_temporal,
         "features": features,
         "bbox": bbox,
     }
@@ -189,6 +194,7 @@ def build_explore_data(fc_ids: list[int], po_ids: list[int]) -> dict:
         .values(
             "extract_task__fm__geom_id",
             "extract_task__resource__name",
+            "extract_task__resource__label",
             "extract_task__resource__dataset__short_name",
             "extract_task__resource__dataset__title",
             "extract_task__resource__dataset__name",
@@ -203,6 +209,7 @@ def build_explore_data(fc_ids: list[int], po_ids: list[int]) -> dict:
     data_cols_set: set[str] = set()
     po_keys_per_col: dict[str, tuple[int, str]] = {}
     col_dataset_titles: dict[str, str] = {}
+    col_temporal: dict[str, str] = {}
 
     for dr in data_rows:
         col = f"{dr['extract_task__resource__name']}.{dr['name']}"
@@ -218,6 +225,8 @@ def build_explore_data(fc_ids: list[int], po_ids: list[int]) -> dict:
                 or dr["extract_task__resource__dataset__name"]
                 or ""
             )
+        if col not in col_temporal and dr["extract_task__resource__label"]:
+            col_temporal[col] = dr["extract_task__resource__label"]
         geom_id = dr["extract_task__fm__geom_id"]
         record = features.get(str(geom_id))
         if record is None:
@@ -275,6 +284,7 @@ def build_explore_data(fc_ids: list[int], po_ids: list[int]) -> dict:
         "col_groups": col_groups,
         "col_descriptions": col_descriptions,
         "col_dataset_titles": col_dataset_titles,
+        "col_temporal": col_temporal,
         "features": features,
         "bbox": bbox,
     }
