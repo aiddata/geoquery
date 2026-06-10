@@ -23,6 +23,7 @@ export interface BoundaryResult {
 	id: number;
 	name: string;
 	title: string | null;
+	short_name: string | null;
 	description: string | null;
 	bbox: [number, number, number, number] | null;
 	group_name: string | null;
@@ -268,17 +269,22 @@ export interface VisualizationFeature {
 	[column: string]: string | number | null;
 }
 
-export interface VisualizationData {
-	request_id: string;
-	request_name: string;
-	selection_label: string;
-	request_status: number | null;
+// Fields shared by both request viz and explore viz payloads.
+export interface VizPayload {
 	fc_names: string[];
 	columns: string[];
 	col_groups: Record<string, string[]>;
 	col_descriptions: Record<string, string>;
+	col_dataset_titles: Record<string, string>;
 	features: Record<string, VisualizationFeature>;
 	bbox: [number, number, number, number] | null;
+}
+
+export interface VisualizationData extends VizPayload {
+	request_id: string;
+	request_name: string;
+	selection_label: string;
+	request_status: number | null;
 }
 
 export async function fetchVisualizationData(requestId: string): Promise<VisualizationData> {
@@ -286,6 +292,35 @@ export async function fetchVisualizationData(requestId: string): Promise<Visuali
 	if (!response.ok) {
 		throw new Error(`Failed to fetch visualization data: ${response.status}`);
 	}
+	return response.json();
+}
+
+// ── Explore viz ──────────────────────────────────────────────────
+
+export interface ExploreOption {
+	po_id: number;
+	short_name: string;
+	description: string;
+}
+
+export interface ExploreDataset {
+	dataset_id: number;
+	dataset_name: string;
+	dataset_title: string;
+	options: ExploreOption[];
+}
+
+export async function fetchExploreAvailable(fcIds: number[]): Promise<ExploreDataset[]> {
+	const response = await fetch(`/api/visualize/explore/available/?fc=${fcIds.join(',')}`);
+	if (!response.ok) throw new Error(`Failed to fetch available options: ${response.status}`);
+	return response.json();
+}
+
+export async function fetchExploreData(fcIds: number[], poIds: number[]): Promise<VizPayload> {
+	const response = await fetch(
+		`/api/visualize/explore/?fc=${fcIds.join(',')}&po=${poIds.join(',')}`
+	);
+	if (!response.ok) throw new Error(`Failed to fetch explore data: ${response.status}`);
 	return response.json();
 }
 
