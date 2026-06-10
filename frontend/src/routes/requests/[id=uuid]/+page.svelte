@@ -128,7 +128,7 @@
 								Download Results
 							</Button>
 							{#if request.visualization_url}
-								<Button variant="outline" href={request.visualization_url} target="_blank" rel="noopener noreferrer">
+								<Button variant="outline" href={request.visualization_url}>
 									<Map class="mr-2 h-4 w-4" />
 									View Map
 								</Button>

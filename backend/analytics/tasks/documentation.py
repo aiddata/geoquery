@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
+from django.conf import settings
+
 from datasets.models import Dataset
 from analytics.models import ProcessingOption
 from analytics.models import Request
@@ -82,6 +84,12 @@ class DocBuilder:
             self._kv("Completed", self._fmt_dt(req.complete_time)),
             self._kv("Download", f'<a href="{self._esc(dl_url)}">{self._esc(dl_url)}</a>'),
         ]
+        frontend_base = getattr(settings, "FRONTEND_BASE_URL", "").rstrip("/")
+        if frontend_base:
+            viz_url = f"{frontend_base}/viz/{req.id}"
+            rows.append(
+                self._kv("Visualization", f'<a href="{self._esc(viz_url)}">{self._esc(viz_url)}</a>')
+            )
         return f"<section><h2>Request Info</h2>{self._table(rows)}</section>"
 
     @staticmethod

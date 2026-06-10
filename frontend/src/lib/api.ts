@@ -272,6 +272,7 @@ export interface VisualizationData {
 	request_id: string;
 	request_name: string;
 	selection_label: string;
+	request_status: number | null;
 	fc_names: string[];
 	columns: string[];
 	col_groups: Record<string, string[]>;

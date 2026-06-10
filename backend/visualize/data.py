@@ -131,6 +131,7 @@ def build_request_data(request) -> dict:
         "request_id": str(request.id),
         "request_name": request.custom_name or str(request.id)[:8],
         "selection_label": req_data.get("selection_label") or "",
+        "request_status": request.status,
         "fc_names": fc_names,
         "columns": data_cols,
         "col_groups": col_groups,

@@ -399,6 +399,29 @@
 			<AlertCircle class="h-4 w-4" />
 			{loadError}
 		</div>
+	{:else if data && data.request_status !== 1}
+		<div class="mx-auto flex max-w-md flex-col items-center justify-center gap-3 px-6 text-center">
+			<AlertCircle class="h-6 w-6 text-amber-500" />
+			<p class="text-base font-semibold text-foreground">Request not yet complete</p>
+			<p class="text-sm text-muted-foreground">
+				This request is still processing and does not have visualization data available yet.
+				Check back once it finishes.
+			</p>
+			<a
+				href={`/requests/${requestId}`}
+				class="text-sm text-primary underline hover:no-underline"
+			>
+				View request status →
+			</a>
+		</div>
+	{:else if data && data.columns.length === 0}
+		<div class="mx-auto flex max-w-md flex-col items-center justify-center gap-3 px-6 text-center">
+			<AlertCircle class="h-6 w-6 text-amber-500" />
+			<p class="text-base font-semibold text-foreground">No visualization data</p>
+			<p class="text-sm text-muted-foreground">
+				This request completed but no extract values were produced — there's nothing to map.
+			</p>
+		</div>
 	{:else if data}
 		<!-- Sidebar -->
 		<aside class="w-72 shrink-0 overflow-y-auto border-r bg-card">
