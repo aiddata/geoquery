@@ -5,7 +5,12 @@
 	import 'maplibre-gl/dist/maplibre-gl.css';
 	import { layers, namedFlavor } from '@protomaps/basemaps';
 	import { fetchVisualizationData, fetchConfig, boundaryTileUrl, type VisualizationData } from '$lib/api';
-	import { GripVertical, AlertCircle } from '@lucide/svelte';
+	import {
+		PALETTES, quantileBreaks, equalBreaks, buildColorExpression,
+		fmt, prettyColumn, escapeHtml, computeStats,
+	} from '$lib/viz';
+	import { parseFormula, evaluateFormula, formulaColumns } from '$lib/formula';
+	import { GripVertical, AlertCircle, Plus, X } from '@lucide/svelte';
 
 	const requestId = page.params.id;
 
@@ -18,44 +23,93 @@
 	let map: maplibregl.Map | null = $state(null);
 	let mapReady = $state(false);
 
-	let currentColumn = $state<string | null>(null);
+	// Multi-column: set of checked columns; activeColumn is what the choropleth shows.
+	let checkedColumns = $state<Set<string>>(new Set());
+	let activeColumn = $state<string | null>(null);
+
 	let currentPalette = $state<string>('YlOrRd');
 	let currentMethod = $state<'quantile' | 'equal' | 'jenks'>('quantile');
-
-	// Active break thresholds for the current view — drives the legend
 	let currentBreaks = $state<number[] | null>(null);
-
-	// Visibility + order. Top of list = drawn on top of the map.
 	let hiddenFCs = $state<Set<string>>(new Set());
 	let fcOrder = $state<string[]>([]);
-
-	// Stats for the current column
 	let stats = $state<{ min: number; max: number; mean: number; n: number } | null>(null);
-
-	// Hover popup
 	let popup: maplibregl.Popup | null = null;
 
-	// ── Palettes (5-class ColorBrewer) ───────────────────────────────────────
-	const PALETTES: Record<string, { label: string; colors: string[] }> = {
-		YlOrRd:  { label: 'Yellow → Orange → Red',  colors: ['#ffffb2','#fecc5c','#fd8d3c','#f03b20','#bd0026'] },
-		Blues:   { label: 'Blues',                   colors: ['#eff3ff','#bdd7e7','#6baed6','#3182bd','#08519c'] },
-		Greens:  { label: 'Greens',                  colors: ['#edf8e9','#bae4b3','#74c476','#31a354','#006d2c'] },
-		Purples: { label: 'Purples',                 colors: ['#f2f0f7','#cbc9e2','#9e9ac8','#756bb1','#54278f'] },
-		Oranges: { label: 'Oranges',                 colors: ['#feedde','#fdbe85','#fd8d3c','#e6550d','#a63603'] },
-		YlGn:    { label: 'Yellow → Green',          colors: ['#ffffcc','#c2e699','#78c679','#31a354','#006837'] },
-		RdYlGn:  { label: 'Red → Yellow → Green ↔', colors: ['#d7191c','#fdae61','#ffffbf','#a6d96a','#1a9641'] },
-		RdBu:    { label: 'Red → Blue ↔',           colors: ['#ca0020','#f4a582','#f7f7f7','#92c5de','#0571b0'] },
-		PuOr:    { label: 'Purple → Orange ↔',      colors: ['#5e3696','#b2abd2','#f7f7f7','#fdb863','#e66101'] },
-		BrBG:    { label: 'Brown → Blue-Green ↔',   colors: ['#8c510a','#d8b365','#f5f5f5','#5ab4ac','#01665e'] }
-	};
+	// ── Custom indices ────────────────────────────────────────────────────────
+	interface CustomIndex {
+		name: string;
+		formula: string;
+		values: Record<string, number | null>;
+		nullCount: number;
+	}
+	let customIndices = $state<CustomIndex[]>([]);
+	let showIndexBuilder = $state(false);
+	let indexName = $state('');
+	let indexFormula = $state('');
+	let indexError = $state('');
+
+	function resolveValue(featureId: string, col: string): unknown {
+		if (col.startsWith('~')) {
+			return customIndices.find((c) => `~${c.name}` === col)?.values[featureId] ?? null;
+		}
+		return data?.features[featureId]?.[col] ?? null;
+	}
+
+	function addCustomIndex() {
+		indexError = '';
+		if (!indexName.trim()) { indexError = 'Name required.'; return; }
+		if (customIndices.some((c) => c.name === indexName.trim())) {
+			indexError = 'Name already used.'; return;
+		}
+		let expr;
+		try { expr = parseFormula(indexFormula); } catch (e) {
+			indexError = e instanceof Error ? e.message : 'Parse error'; return;
+		}
+		const cols = formulaColumns(expr);
+		const allCols = new Set([...(data?.columns ?? []), ...customIndices.map((c) => c.name)]);
+		const missing = cols.filter((c) => !allCols.has(c));
+		if (missing.length) { indexError = `Unknown columns: ${missing.join(', ')}`; return; }
+
+		const values: Record<string, number | null> = {};
+		let nullCount = 0;
+		for (const [id, feat] of Object.entries(data?.features ?? {})) {
+			const v = evaluateFormula(expr, feat as Record<string, unknown>);
+			values[id] = v;
+			if (v === null) nullCount++;
+		}
+
+		const name = indexName.trim();
+		customIndices = [...customIndices, { name, formula: indexFormula, values, nullCount }];
+		checkedColumns = new Set([...checkedColumns, `~${name}`]);
+		activeColumn = `~${name}`;
+		indexName = '';
+		indexFormula = '';
+		showIndexBuilder = false;
+	}
+
+	function removeCustomIndex(name: string) {
+		customIndices = customIndices.filter((c) => c.name !== name);
+		const key = `~${name}`;
+		const next = new Set(checkedColumns);
+		next.delete(key);
+		checkedColumns = next;
+		if (activeColumn === key) activeColumn = [...checkedColumns][0] ?? null;
+	}
+
+	function insertColumn(col: string) {
+		indexFormula += `[${col}]`;
+	}
 
 	// ── Data load ────────────────────────────────────────────────────────────
 	onMount(async () => {
 		try {
 			const result = await fetchVisualizationData(requestId);
 			data = result;
-			currentColumn = result.columns[0] ?? null;
-			// Top of list = drawn on top, so reverse the API order
+			const firstCol = result.columns[0] ?? null;
+			if (firstCol) {
+				checkedColumns = new Set([firstCol]);
+				activeColumn = firstCol;
+			}
 			fcOrder = [...result.fc_names].reverse();
 		} catch (err) {
 			loadError = err instanceof Error ? err.message : 'Failed to load visualization.';
@@ -106,34 +160,21 @@
 		for (const fc of data.fc_names) {
 			map.addSource(`fc-${fc}`, {
 				type: 'vector',
-				tiles: [`${window.location.origin}/api/features/tiles/${fc}/{z}/{x}/{y}.mvt`],
-				minzoom: 0,
-				maxzoom: 12,
+				tiles: [boundaryTileUrl(fc)],
+				minzoom: 0, maxzoom: 12,
 				promoteId: { [fc]: 'id' }
 			});
-
 			map.addLayer({
-				id: `fc-fill-${fc}`,
-				type: 'fill',
-				source: `fc-${fc}`,
-				'source-layer': fc,
+				id: `fc-fill-${fc}`, type: 'fill',
+				source: `fc-${fc}`, 'source-layer': fc,
 				paint: {
-					'fill-color': ['case',
-						['boolean', ['feature-state', 'hover'], false], '#fff',
-						'#cbd5e1'
-					],
-					'fill-opacity': ['case',
-						['boolean', ['feature-state', 'hover'], false], 0.9,
-						0.75
-					]
+					'fill-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#fff', '#cbd5e1'],
+					'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.9, 0.75]
 				}
 			});
-
 			map.addLayer({
-				id: `fc-line-${fc}`,
-				type: 'line',
-				source: `fc-${fc}`,
-				'source-layer': fc,
+				id: `fc-line-${fc}`, type: 'line',
+				source: `fc-${fc}`, 'source-layer': fc,
 				paint: { 'line-color': '#334155', 'line-width': 0.75 }
 			});
 		}
@@ -145,59 +186,22 @@
 		map.fitBounds([[w, s], [e, n]], { padding: 40, maxZoom: 10, duration: 0 });
 	}
 
-	// ── Classification + coloring ────────────────────────────────────────────
-	function quantileBreaks(values: number[], n: number): number[] {
-		const sorted = [...values].sort((a, b) => a - b);
-		if (sorted[0] === sorted[sorted.length - 1]) {
-			return Array.from({ length: n + 1 }, () => sorted[0]);
-		}
-		const breaks = [sorted[0]];
-		for (let i = 1; i <= n; i++) {
-			breaks.push(sorted[Math.round((i / n) * (sorted.length - 1))]);
-		}
-		return breaks;
-	}
-
-	function equalBreaks(values: number[], n: number): number[] {
-		const min = Math.min(...values), max = Math.max(...values);
-		const step = (max - min) / n;
-		return Array.from({ length: n + 1 }, (_, i) => min + i * step);
-	}
-
-	function getColor(value: unknown, breaks: number[], palette: string[]): string {
-		if (value === null || value === undefined || isNaN(Number(value))) return '#cbd5e1';
-		const v = Number(value);
-		for (let i = 1; i < breaks.length; i++) {
-			if (v <= breaks[i]) return palette[i - 1];
-		}
-		return palette[palette.length - 1];
-	}
-
-	function buildColorExpression(fc: string, column: string, breaks: number[], palette: string[]) {
-		const expr: unknown[] = ['match', ['get', 'id']];
-		for (const [idStr, feat] of Object.entries(data!.features)) {
-			if (feat.fc !== fc) continue;
-			expr.push(parseInt(idStr), getColor(feat[column], breaks, palette));
-		}
-		expr.push('#cbd5e1');
-		return expr;
-	}
-
 	async function applyColors() {
-		if (!map || !mapReady || !data || !currentColumn) return;
+		if (!map || !mapReady || !data || !activeColumn) return;
 
-		// Gather numeric values for the current column across all visible features
+		const overrides = activeColumn.startsWith('~')
+			? customIndices.find((c) => `~${c.name}` === activeColumn)?.values
+			: undefined;
+
 		const values: number[] = [];
-		for (const feat of Object.values(data.features)) {
+		for (const [id, feat] of Object.entries(data.features)) {
 			if (hiddenFCs.has(feat.fc)) continue;
-			const v = feat[currentColumn];
+			const v = overrides ? (overrides[id] ?? null) : feat[activeColumn];
 			if (v !== null && v !== undefined && !isNaN(Number(v))) values.push(Number(v));
 		}
 
 		if (values.length === 0) {
-			stats = null;
-			currentBreaks = null;
-			// Reset to neutral fill
+			stats = null; currentBreaks = null;
 			for (const fc of data.fc_names) {
 				map.setPaintProperty(`fc-fill-${fc}`, 'fill-color', '#cbd5e1');
 			}
@@ -205,40 +209,26 @@
 		}
 
 		let breaks: number[];
-		if (currentMethod === 'quantile') {
-			breaks = quantileBreaks(values, 5);
-		} else if (currentMethod === 'equal') {
-			breaks = equalBreaks(values, 5);
-		} else {
-			// Jenks via simple-statistics — code-split since it's only used here
-			const ss = await import('simple-statistics');
-			breaks = ss.jenks(values, 5) as number[];
-		}
-		const palette = PALETTES[currentPalette].colors;
+		if (currentMethod === 'quantile') breaks = quantileBreaks(values, 5);
+		else if (currentMethod === 'equal') breaks = equalBreaks(values, 5);
+		else { const ss = await import('simple-statistics'); breaks = ss.jenks(values, 5) as number[]; }
 
+		const palette = PALETTES[currentPalette].colors;
 		for (const fc of data.fc_names) {
-			const expr = buildColorExpression(fc, currentColumn, breaks, palette);
-			// Hover treatment: white fill, otherwise the choropleth expression
+			const expr = buildColorExpression(fc, activeColumn, breaks, palette, data.features, overrides);
 			map.setPaintProperty(`fc-fill-${fc}`, 'fill-color', [
-				'case',
-				['boolean', ['feature-state', 'hover'], false], '#fff',
-				expr
+				'case', ['boolean', ['feature-state', 'hover'], false], '#fff', expr
 			]);
 		}
-
 		currentBreaks = breaks;
-		const min = Math.min(...values), max = Math.max(...values);
-		const mean = values.reduce((a, b) => a + b, 0) / values.length;
-		stats = { min, max, mean, n: values.length };
+		stats = computeStats(values);
 	}
 
-	// React to control changes
 	$effect(() => {
-		void currentColumn; void currentPalette; void currentMethod; void hiddenFCs;
+		void activeColumn; void currentPalette; void currentMethod; void hiddenFCs;
 		if (mapReady) applyColors();
 	});
 
-	// ── Visibility toggle ────────────────────────────────────────────────────
 	function toggleFC(fc: string, visible: boolean) {
 		if (!map) return;
 		const next = new Set(hiddenFCs);
@@ -249,12 +239,9 @@
 		map.setLayoutProperty(`fc-line-${fc}`, 'visibility', vis);
 	}
 
-	// ── Layer order — driven by fcOrder; reapplied to map on change ──────────
 	$effect(() => {
 		if (!mapReady || !map) return;
-		const m = map;
-		const order = fcOrder;
-		// Walk reverse so the last-moved is on top
+		const m = map; const order = fcOrder;
 		for (let i = order.length - 1; i >= 0; i--) {
 			const fc = order[i];
 			if (m.getLayer(`fc-fill-${fc}`)) m.moveLayer(`fc-fill-${fc}`);
@@ -262,10 +249,8 @@
 		}
 	});
 
-	// ── Drag-to-reorder via SortableJS (loaded on demand) ────────────────────
 	let fcListEl: HTMLDivElement | null = $state(null);
 	let sortable: { destroy: () => void } | null = null;
-
 	$effect(() => {
 		if (!fcListEl || !data) return;
 		let cancelled = false;
@@ -274,113 +259,74 @@
 			if (cancelled || !fcListEl) return;
 			sortable?.destroy();
 			sortable = Sortable.create(fcListEl, {
-				animation: 150,
-				filter: 'input[type="checkbox"]',
-				preventOnFilter: false,
-				ghostClass: 'fc-row-ghost',
-				chosenClass: 'fc-row-chosen',
+				animation: 150, filter: 'input[type="checkbox"]', preventOnFilter: false,
+				ghostClass: 'fc-row-ghost', chosenClass: 'fc-row-chosen',
 				onEnd: () => {
 					if (!fcListEl) return;
-					const newOrder = Array.from(fcListEl.children)
+					fcOrder = Array.from(fcListEl.children)
 						.map((el) => (el as HTMLElement).dataset.fc)
 						.filter((v): v is string => !!v);
-					fcOrder = newOrder;
 				}
 			});
 		})();
-		return () => {
-			cancelled = true;
-			sortable?.destroy();
-			sortable = null;
-		};
+		return () => { cancelled = true; sortable?.destroy(); sortable = null; };
 	});
 
 	// ── Hover popup ──────────────────────────────────────────────────────────
 	function setupHover() {
 		if (!map || !data) return;
 		const m = map;
-
 		for (const fc of data.fc_names) {
 			const fillId = `fc-fill-${fc}`;
 			let hoveredId: number | null = null;
-
 			m.on('mousemove', fillId, (e) => {
 				if (!e.features?.length) return;
-				const f = e.features[0];
-				const fid = f.id as number;
-				if (hoveredId !== null && hoveredId !== fid) {
+				const f = e.features[0]; const fid = f.id as number;
+				if (hoveredId !== null && hoveredId !== fid)
 					m.setFeatureState({ source: `fc-${fc}`, sourceLayer: fc, id: hoveredId }, { hover: false });
-				}
 				hoveredId = fid;
 				m.setFeatureState({ source: `fc-${fc}`, sourceLayer: fc, id: fid }, { hover: true });
-
 				const record = data!.features[String(fid)];
 				if (record) {
-					const html = renderPopupHtml(record);
 					if (!popup) popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, maxWidth: '280px' });
-					popup.setLngLat(e.lngLat).setHTML(html).addTo(m);
+					popup.setLngLat(e.lngLat).setHTML(renderPopupHtml(record, String(fid))).addTo(m);
 				}
 			});
-
 			m.on('mouseleave', fillId, () => {
 				if (hoveredId !== null) {
 					m.setFeatureState({ source: `fc-${fc}`, sourceLayer: fc, id: hoveredId }, { hover: false });
 					hoveredId = null;
 				}
-				popup?.remove();
-				popup = null;
+				popup?.remove(); popup = null;
 			});
 		}
 	}
 
-	function renderPopupHtml(record: { name: string; fc: string; [k: string]: unknown }): string {
-		const lines: string[] = [`<div class="popup-name">${escapeHtml(record.name)}</div>`];
-		lines.push(`<div class="popup-fc">${escapeHtml(record.fc)}</div>`);
-		if (currentColumn !== null) {
-			const val = record[currentColumn];
-			const valStr = (val === null || val === undefined) ? '—' : String(val);
-			const desc = data?.col_descriptions[currentColumn];
-			lines.push(`<div class="popup-row"><span class="popup-col">${escapeHtml(prettyColumn(currentColumn))}</span><span class="popup-val">${escapeHtml(valStr)}</span></div>`);
-			if (desc) lines.push(`<div class="popup-desc">${escapeHtml(desc)}</div>`);
+	function renderPopupHtml(record: { name: string; fc: string; [k: string]: unknown }, featureId: string): string {
+		const lines: string[] = [
+			`<div class="popup-name">${escapeHtml(record.name)}</div>`,
+			`<div class="popup-fc">${escapeHtml(record.fc)}</div>`,
+		];
+		for (const col of checkedColumns) {
+			const val = resolveValue(featureId, col);
+			const valStr = val === null || val === undefined ? '—' : String(val);
+			const label = col.startsWith('~') ? col.slice(1) : prettyColumn(col);
+			const isActive = col === activeColumn;
+			lines.push(`<div class="popup-row${isActive ? ' popup-row-active' : ''}"><span class="popup-col">${escapeHtml(label)}</span><span class="popup-val">${escapeHtml(valStr)}</span></div>`);
+			if (!col.startsWith('~')) {
+				const dsName = data?.col_dataset_titles?.[col];
+				if (dsName) lines.push(`<div class="popup-desc">${escapeHtml(dsName)}</div>`);
+			}
 		}
 		return lines.join('');
 	}
 
-	function prettyColumn(col: string): string {
-		const parts = col.split('.');
-		return parts.length > 1 ? parts.slice(1).join('.') : col;
-	}
-
-	function escapeHtml(s: string): string {
-		return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
-	}
-
-	// ── Cleanup ──────────────────────────────────────────────────────────────
-	onMount(() => () => {
-		map?.remove();
-		map = null;
-		popup?.remove();
-		popup = null;
-		sortable?.destroy();
-	});
-
-	// ── Display helpers ──────────────────────────────────────────────────────
-	function fmt(n: number | null | undefined): string {
-		if (n === null || n === undefined || !isFinite(n)) return '—';
-		const abs = Math.abs(n);
-		if (abs >= 10000) return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
-		if (abs >= 100) return n.toFixed(1);
-		if (abs >= 1) return n.toFixed(3);
-		if (n === 0) return '0';
-		return n.toPrecision(3);
-	}
+	onMount(() => () => { map?.remove(); map = null; popup?.remove(); popup = null; sortable?.destroy(); });
 
 	function fcFeatureCount(fc: string): number {
 		if (!data) return 0;
 		let count = 0;
-		for (const feat of Object.values(data.features)) {
-			if (feat.fc === fc) count++;
-		}
+		for (const feat of Object.values(data.features)) { if (feat.fc === fc) count++; }
 		return count;
 	}
 </script>
@@ -396,58 +342,139 @@
 		</div>
 	{:else if loadError}
 		<div class="flex w-full items-center justify-center gap-2 text-sm text-destructive">
-			<AlertCircle class="h-4 w-4" />
-			{loadError}
+			<AlertCircle class="h-4 w-4" />{loadError}
 		</div>
 	{:else if data && data.request_status !== 1}
 		<div class="mx-auto flex max-w-md flex-col items-center justify-center gap-3 px-6 text-center">
 			<AlertCircle class="h-6 w-6 text-amber-500" />
-			<p class="text-base font-semibold text-foreground">Request not yet complete</p>
-			<p class="text-sm text-muted-foreground">
-				This request is still processing and does not have visualization data available yet.
-				Check back once it finishes.
-			</p>
-			<a
-				href={`/requests/${requestId}`}
-				class="text-sm text-primary underline hover:no-underline"
-			>
-				View request status →
-			</a>
+			<p class="text-base font-semibold">Request not yet complete</p>
+			<p class="text-sm text-muted-foreground">Check back once it finishes.</p>
+			<a href={`/requests/${requestId}`} class="text-sm text-primary underline hover:no-underline">View request status →</a>
 		</div>
 	{:else if data && data.columns.length === 0}
 		<div class="mx-auto flex max-w-md flex-col items-center justify-center gap-3 px-6 text-center">
 			<AlertCircle class="h-6 w-6 text-amber-500" />
-			<p class="text-base font-semibold text-foreground">No visualization data</p>
-			<p class="text-sm text-muted-foreground">
-				This request completed but no extract values were produced — there's nothing to map.
-			</p>
+			<p class="text-base font-semibold">No visualization data</p>
+			<p class="text-sm text-muted-foreground">This request completed but no extract values were produced.</p>
 		</div>
 	{:else if data}
-		<!-- Sidebar -->
 		<aside class="w-72 shrink-0 overflow-y-auto border-r bg-card">
+			<!-- Header -->
 			<div class="border-b px-4 py-3">
-				<p class="text-sm font-semibold text-foreground truncate">
-					{data.selection_label || data.request_name}
-				</p>
-				<p class="mt-0.5 font-mono text-[10px] text-muted-foreground">
-					Request {data.request_id.slice(0, 8)}…
-				</p>
+				<p class="truncate text-sm font-semibold">{data.selection_label || data.request_name}</p>
+				<p class="mt-0.5 font-mono text-[10px] text-muted-foreground">Request {data.request_id.slice(0, 8)}…</p>
 			</div>
 
-			<!-- Column picker -->
+			<!-- Column picker (checkboxes) -->
 			<div class="border-b px-4 py-3">
-				<div class="panel-title">Data Column</div>
-				<select bind:value={currentColumn} class="viz-select">
+				<div class="panel-title">Data Columns</div>
+				<div class="space-y-2">
 					{#each Object.entries(data.col_groups) as [group, cols]}
-						<optgroup label={group}>
+						<div>
+							<p class="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">{group}</p>
 							{#each cols as col}
-								<option value={col}>{prettyColumn(col)}</option>
+								<label class="col-row {activeColumn === col ? 'col-row-active' : ''}">
+									<input
+										type="checkbox"
+										checked={checkedColumns.has(col)}
+										onchange={(e) => {
+											const next = new Set(checkedColumns);
+											if ((e.target as HTMLInputElement).checked) {
+												next.add(col);
+												activeColumn = col;
+											} else {
+												next.delete(col);
+												if (activeColumn === col) activeColumn = [...next][0] ?? null;
+											}
+											checkedColumns = next;
+										}}
+									/>
+									<button
+										class="col-name flex-1 text-left"
+										onclick={() => { if (checkedColumns.has(col)) activeColumn = col; }}
+										title={data.col_descriptions[col] || col}
+									>{prettyColumn(col)}</button>
+									{#if activeColumn === col}
+										<span class="active-dot" title="Active choropleth column"></span>
+									{/if}
+								</label>
 							{/each}
-						</optgroup>
+						</div>
 					{/each}
-				</select>
-				{#if currentColumn && data.col_descriptions[currentColumn]}
-					<p class="mt-1.5 text-[11px] text-muted-foreground">{data.col_descriptions[currentColumn]}</p>
+
+					<!-- Custom indices -->
+					{#each customIndices as ci}
+						<label class="col-row {activeColumn === `~${ci.name}` ? 'col-row-active' : ''}">
+							<input
+								type="checkbox"
+								checked={checkedColumns.has(`~${ci.name}`)}
+								onchange={(e) => {
+									const key = `~${ci.name}`;
+									const next = new Set(checkedColumns);
+									if ((e.target as HTMLInputElement).checked) {
+										next.add(key); activeColumn = key;
+									} else {
+										next.delete(key);
+										if (activeColumn === key) activeColumn = [...next][0] ?? null;
+									}
+									checkedColumns = next;
+								}}
+							/>
+							<button
+								class="col-name flex-1 text-left italic"
+								onclick={() => { if (checkedColumns.has(`~${ci.name}`)) activeColumn = `~${ci.name}`; }}
+								title={ci.formula}
+							>{ci.name}</button>
+							{#if activeColumn === `~${ci.name}`}
+								<span class="active-dot"></span>
+							{/if}
+							<button
+								onclick={() => removeCustomIndex(ci.name)}
+								class="ml-1 text-muted-foreground hover:text-destructive"
+								title="Remove index"
+							><X class="h-3 w-3" /></button>
+						</label>
+					{/each}
+				</div>
+
+				<!-- Index builder toggle -->
+				<button
+					class="mt-2 flex items-center gap-1 text-[11px] text-primary hover:underline"
+					onclick={() => { showIndexBuilder = !showIndexBuilder; indexError = ''; }}
+				>
+					<Plus class="h-3 w-3" />
+					{showIndexBuilder ? 'Cancel' : 'Add custom index'}
+				</button>
+
+				{#if showIndexBuilder}
+					<div class="mt-2 space-y-1.5 rounded-md border bg-muted/30 p-2">
+						<input
+							type="text"
+							placeholder="Index name"
+							bind:value={indexName}
+							class="viz-input"
+						/>
+						<textarea
+							placeholder="Formula, e.g. [pop_count] / [land_area]"
+							bind:value={indexFormula}
+							rows="2"
+							class="viz-input resize-none font-mono text-[11px]"
+						></textarea>
+						<!-- Column insert chips -->
+						<div class="flex flex-wrap gap-1">
+							{#each data.columns as col}
+								<button
+									class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent"
+									onclick={() => insertColumn(col)}
+									title="Insert column reference"
+								>{prettyColumn(col)}</button>
+							{/each}
+						</div>
+						{#if indexError}
+							<p class="text-[11px] text-destructive">{indexError}</p>
+						{/if}
+						<button class="viz-btn-primary" onclick={addCustomIndex}>Add index</button>
+					</div>
 				{/if}
 			</div>
 
@@ -504,32 +531,24 @@
 				</div>
 			</div>
 
-			<!-- FC list with drag reorder -->
+			<!-- FC list -->
 			<div class="px-4 py-3">
 				<div class="panel-title">Feature Collections</div>
 				<div bind:this={fcListEl} class="space-y-0.5">
 					{#each fcOrder as fc (fc)}
 						<div class="fc-row" data-fc={fc}>
-							<span class="fc-grip" aria-hidden="true">
-								<GripVertical class="h-3.5 w-3.5" />
-							</span>
-							<input
-								type="checkbox"
-								checked={!hiddenFCs.has(fc)}
-								onchange={(e) => toggleFC(fc, (e.target as HTMLInputElement).checked)}
-							/>
+							<span class="fc-grip"><GripVertical class="h-3.5 w-3.5" /></span>
+							<input type="checkbox" checked={!hiddenFCs.has(fc)}
+								onchange={(e) => toggleFC(fc, (e.target as HTMLInputElement).checked)} />
 							<span class="fc-name" title={fc}>{fc}</span>
 							<span class="fc-count">{fcFeatureCount(fc)}</span>
 						</div>
 					{/each}
 				</div>
-				<p class="mt-2 text-[10px] text-muted-foreground">
-					Drag to reorder — top of list draws on top of the map.
-				</p>
+				<p class="mt-2 text-[10px] text-muted-foreground">Drag to reorder — top draws on top.</p>
 			</div>
 		</aside>
 
-		<!-- Map -->
 		<div class="relative flex-1">
 			<div bind:this={mapContainer} class="h-full w-full"></div>
 		</div>
@@ -538,71 +557,44 @@
 
 <style>
 	.panel-title {
-		font-size: 10px;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.07em;
-		color: #94a3b8;
-		margin-bottom: 6px;
+		font-size: 10px; font-weight: 600; text-transform: uppercase;
+		letter-spacing: 0.07em; color: #94a3b8; margin-bottom: 6px;
 	}
-
 	.viz-select {
-		width: 100%;
-		padding: 5px 8px;
-		border: 1px solid #e2e8f0;
-		border-radius: 6px;
-		font-size: 12px;
-		background: #fff;
-		color: #1e293b;
-		cursor: pointer;
+		width: 100%; padding: 5px 8px; border: 1px solid #e2e8f0;
+		border-radius: 6px; font-size: 12px; background: #fff; color: #1e293b; cursor: pointer;
 	}
 	.viz-select:focus { outline: 2px solid #3b82f6; outline-offset: -1px; }
+	.viz-input {
+		width: 100%; padding: 4px 7px; border: 1px solid #e2e8f0;
+		border-radius: 5px; font-size: 12px; background: #fff; color: #1e293b;
+	}
+	.viz-input:focus { outline: 2px solid #3b82f6; outline-offset: -1px; }
+	.viz-btn-primary {
+		padding: 4px 10px; background: #3b82f6; color: #fff;
+		border-radius: 5px; font-size: 12px; font-weight: 500;
+	}
+	.viz-btn-primary:hover { background: #2563eb; }
 
-	.stats-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 6px;
+	.col-row {
+		display: flex; align-items: center; gap: 5px;
+		padding: 2px 4px; border-radius: 4px; font-size: 12px; cursor: pointer;
 	}
-	.stat-label {
-		font-size: 9px;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: #94a3b8;
-	}
-	.stat-value {
-		font-size: 13px;
-		font-weight: 500;
-		color: #1e293b;
-		font-variant-numeric: tabular-nums;
-	}
+	.col-row:hover { background: #f8fafc; }
+	.col-row-active { background: #eff6ff; }
+	.col-row input[type="checkbox"] { flex-shrink: 0; accent-color: #3b82f6; cursor: pointer; }
+	.col-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1e293b; background: none; border: none; padding: 0; font-size: inherit; cursor: pointer; }
+	.active-dot { width: 6px; height: 6px; border-radius: 50%; background: #3b82f6; flex-shrink: 0; }
 
-	.legend-item {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: 11px;
-		color: #475569;
-		font-variant-numeric: tabular-nums;
-	}
+	.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+	.stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; }
+	.stat-value { font-size: 13px; font-weight: 500; color: #1e293b; font-variant-numeric: tabular-nums; }
+
+	.legend-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #475569; font-variant-numeric: tabular-nums; }
 	.legend-item.legend-nodata { opacity: 0.55; }
-	.legend-swatch {
-		width: 13px;
-		height: 13px;
-		border-radius: 2px;
-		flex-shrink: 0;
-		border: 1px solid rgba(0, 0, 0, 0.08);
-	}
+	.legend-swatch { width: 13px; height: 13px; border-radius: 2px; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.08); }
 
-	.fc-row {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		padding: 3px 2px;
-		border-radius: 4px;
-		font-size: 12px;
-		cursor: grab;
-		user-select: none;
-	}
+	.fc-row { display: flex; align-items: center; gap: 6px; padding: 3px 2px; border-radius: 4px; font-size: 12px; cursor: grab; user-select: none; }
 	.fc-row:active { cursor: grabbing; }
 	.fc-row:hover { background: #f8fafc; }
 	.fc-row input[type="checkbox"] { flex-shrink: 0; cursor: pointer; accent-color: #3b82f6; }
@@ -613,14 +605,11 @@
 	:global(.fc-row-ghost) { opacity: 0.4; background: #eff6ff; }
 	:global(.fc-row-chosen) { background: #f1f5f9; }
 
-	:global(.maplibregl-popup-content) {
-		font-size: 12px;
-		padding: 8px 10px;
-		border-radius: 6px;
-	}
+	:global(.maplibregl-popup-content) { font-size: 12px; padding: 8px 10px; border-radius: 6px; }
 	:global(.popup-name) { font-weight: 600; color: #0f172a; }
 	:global(.popup-fc) { font-size: 10px; color: #94a3b8; margin-bottom: 4px; }
 	:global(.popup-row) { display: flex; gap: 8px; justify-content: space-between; margin-top: 2px; }
+	:global(.popup-row-active) { font-weight: 500; }
 	:global(.popup-col) { color: #64748b; }
 	:global(.popup-val) { font-weight: 500; color: #1e293b; font-variant-numeric: tabular-nums; }
 	:global(.popup-desc) { font-size: 10px; color: #94a3b8; margin-top: 2px; }
