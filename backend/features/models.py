@@ -13,6 +13,7 @@ class FeatureCollection(models.Model):
     file_extension = models.CharField(max_length=10, blank=True, null=True)
     file_mask = models.CharField(max_length=100, blank=True, null=True)
     title = models.CharField(max_length=200, blank=True, null=True)
+    short_name = models.CharField(max_length=100, blank=True, null=True)
     description = models.CharField(max_length=1000, blank=True, null=True)
     details = models.CharField(max_length=1000, blank=True, null=True)
     tags = ArrayField(models.CharField(max_length=100), blank=True, null=True)

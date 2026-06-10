@@ -29,6 +29,7 @@ class FeatureCollectionAdmin(GISModelAdmin):
                 "fields": (
                     "name",
                     "title",
+                    "short_name",
                     "active",
                     "public",
                     "is_global",

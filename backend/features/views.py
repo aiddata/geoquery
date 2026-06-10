@@ -49,6 +49,7 @@ class FeatureCollectionAutocompleteView(generics.ListAPIView):
                 "id": fc.id,
                 "name": fc.name,
                 "title": fc.title,
+                "short_name": fc.short_name,
                 "description": fc.description,
                 "bbox": list(fc.spatial_extent.extent) if fc.spatial_extent else None,
                 "group_name": fc.group_name,
