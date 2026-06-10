@@ -6,9 +6,15 @@
 	import { boundaryTileUrl, fetchConfig } from '$lib/api';
 	import type { FeatureCollection } from 'geojson';
 
+	export interface FcStyle {
+		name: string;
+		color: string;
+		lineWidth: number;
+	}
+
 	interface Props {
 		class?: string;
-		fcNames?: string[];
+		fcStyles?: FcStyle[];
 		activeFcName?: string | null;
 		selectedFeatureIds?: number[];
 		bbox?: [number, number, number, number] | null;
@@ -18,13 +24,15 @@
 
 	let {
 		class: className = '',
-		fcNames = [],
+		fcStyles = [],
 		activeFcName = null,
 		selectedFeatureIds = [],
 		bbox = null,
 		onFeatureClick,
 		userGeoJSON = null,
 	}: Props = $props();
+
+	let fcNames = $derived(fcStyles.map((s) => s.name));
 
 	const USER_SOURCE = 'user-upload';
 	const USER_FILL = 'user-upload-fill';
@@ -101,7 +109,8 @@
 			}
 		}
 
-		for (const name of names) {
+		for (const style of fcStyles) {
+			const { name, color, lineWidth } = style;
 			if (existingFcNames.includes(name)) continue;
 
 			m.addSource(fcSourceId(name), {
@@ -118,21 +127,14 @@
 				source: fcSourceId(name),
 				'source-layer': name,
 				paint: {
-					'fill-color': [
-						'case',
-						['boolean', ['feature-state', 'selected'], false],
-						'#1e40af',
-						['boolean', ['feature-state', 'hover'], false],
-						'#2563eb',
-						'#3b82f6'
-					],
+					'fill-color': color,
 					'fill-opacity': [
 						'case',
 						['boolean', ['feature-state', 'selected'], false],
-						0.55,
+						0.5,
 						['boolean', ['feature-state', 'hover'], false],
-						0.45,
-						0.25
+						0.35,
+						0.15
 					]
 				}
 			});
@@ -143,10 +145,27 @@
 				source: fcSourceId(name),
 				'source-layer': name,
 				paint: {
-					'line-color': '#1e40af',
-					'line-width': 1.5
+					'line-color': color,
+					'line-width': lineWidth
 				}
 			});
+		}
+	});
+
+	// Keep paint props in sync for already-added FCs when their style metadata changes
+	$effect(() => {
+		if (!map || !mapReady) return;
+		const m = map;
+		for (const style of fcStyles) {
+			const fillId = fcFillId(style.name);
+			const lineId = fcLineId(style.name);
+			if (m.getLayer(fillId)) {
+				m.setPaintProperty(fillId, 'fill-color', style.color);
+			}
+			if (m.getLayer(lineId)) {
+				m.setPaintProperty(lineId, 'line-color', style.color);
+				m.setPaintProperty(lineId, 'line-width', style.lineWidth);
+			}
 		}
 	});
 

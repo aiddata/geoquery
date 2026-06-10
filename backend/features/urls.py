@@ -16,6 +16,11 @@ urlpatterns = [
         name="feature-ids",
     ),
     path(
+        "presets/",
+        views.BoundaryPresetsView.as_view(),
+        name="boundary-presets",
+    ),
+    path(
         "tiles/<str:fc_name>/<int:z>/<int:x>/<int:y>.mvt",
         views.feature_collection_vector_tiles,
         name="feature-collection-tiles",

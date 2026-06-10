@@ -248,9 +248,9 @@ class RequestDetailView(APIView):
                 data["documentation_url"] = (
                     f"{base}/data/geoquery_results/{req.id}/{req.id}_documentation.html"
                 )
-                data["visualization_url"] = (
-                    f"{base}/data/geoquery_results/{req.id}/{req.id}_visualization.html"
-                )
+            frontend_base = getattr(settings, "FRONTEND_BASE_URL", "").rstrip("/")
+            if frontend_base:
+                data["visualization_url"] = f"{frontend_base}/viz/{req.id}"
 
         return Response(data)
 

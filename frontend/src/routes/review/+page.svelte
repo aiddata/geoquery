@@ -5,6 +5,7 @@
 	import { selection, selectionSummary } from '$lib/stores/selection';
 	import { customBoundary } from '$lib/stores/customBoundary';
 	import { submitRequest, type SubmittedRequest, type CustomBoundaryPayload } from '$lib/api';
+	import { gtagEvent } from '$lib/analytics';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -121,6 +122,11 @@
 				}))
 			});
 			submitted = result;
+			gtagEvent('request_submitted', {
+				boundary_type: isCustomMode ? 'custom' : 'standard',
+				dataset_count: $cart.length,
+				feature_count: isCustomMode ? $customBoundary.featureCount : resolvedFeatureIds.length,
+			});
 			cart.clear();
 			selection.clear();
 			customBoundary.reset();

@@ -1,47 +1,45 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { ChevronLeft, ChevronRight, Search } from '@lucide/svelte';
+	import { ChevronLeft, ChevronRight, Search, X } from '@lucide/svelte';
 	import { searchBoundaries, type BoundaryResult } from '$lib/api';
+	import { colorForIndex } from '$lib/utils/boundaryStyle';
 
 	interface Props {
 		featuredBoundaries?: BoundaryResult[];
 		proceedLabel?: string;
 		proceedTooltip?: string;
-		onSelect?: (boundary: BoundaryResult | null) => void;
-		onProceed?: (boundary: BoundaryResult) => void;
+		selectedBoundaries?: BoundaryResult[]; // External selection state (optional)
+		onSelect?: (boundaries: BoundaryResult[]) => void;
+		onProceed?: (boundaries: BoundaryResult[]) => void;
 	}
 
-	let { featuredBoundaries = [], proceedLabel = 'Find Data', proceedTooltip, onSelect, onProceed }: Props = $props();
+	let {
+		featuredBoundaries = [],
+		proceedLabel = 'Find Data',
+		proceedTooltip,
+		selectedBoundaries: externalSelection = undefined,
+		onSelect,
+		onProceed
+	}: Props = $props();
 
+	let internalSelection = $state<BoundaryResult[]>([]);
 	let searchText = $state('');
-	let selectedBoundary = $state<BoundaryResult | null>(null);
 	let searchFocused = $state(false);
-	// Stashed boundary: holds the selection while the user is focused on the input,
-	// so we can restore it on blur if they didn't pick something new.
-	let stashedBoundary = $state<BoundaryResult | null>(null);
+
+	// Use external selection if provided, otherwise use internal
+	let selectedBoundaries = $derived(externalSelection ?? internalSelection);
 
 	let inputEl: HTMLInputElement | undefined;
 
 	let autocompleteResults = $state<BoundaryResult[]>([]);
 	let isLoading = $state(false);
 
-	let placeholderText = $derived.by(() => {
-		if (searchFocused) return 'Search boundaries...';
-		const b = stashedBoundary ?? selectedBoundary;
-		return b ? (b.title || b.name) : 'Search boundaries...';
-	});
-
 	// Debounced autocomplete from API
 	$effect(() => {
-		const query = searchText;
+		const query = searchText.trim();
 
-		// User started typing — abandon the stashed selection
-		if (query && stashedBoundary) {
-			stashedBoundary = null;
-		}
-
-		if (selectedBoundary || !query.trim()) {
+		if (!query) {
 			autocompleteResults = [];
 			return;
 		}
@@ -64,53 +62,68 @@
 		};
 	});
 
-	function selectBoundary(boundary: BoundaryResult) {
-		selectedBoundary = boundary;
-		stashedBoundary = null;
+	function addBoundary(boundary: BoundaryResult) {
+		// Avoid duplicates
+		if (!selectedBoundaries.some((b) => b.id === boundary.id)) {
+			const newSelection = [...selectedBoundaries, boundary];
+			if (externalSelection === undefined) {
+				internalSelection = newSelection;
+			}
+			onSelect?.(newSelection);
+		}
 		searchText = '';
 		autocompleteResults = [];
-		inputEl?.blur();
-		onSelect?.(boundary);
+		inputEl?.focus();
+	}
+
+	function removeBoundary(id: number) {
+		const newSelection = selectedBoundaries.filter((b) => b.id !== id);
+		if (externalSelection === undefined) {
+			internalSelection = newSelection;
+		}
+		onSelect?.(newSelection);
 	}
 
 	function goBack() {
-		selectedBoundary = null;
-		stashedBoundary = null;
+		const newSelection: BoundaryResult[] = [];
+		if (externalSelection === undefined) {
+			internalSelection = newSelection;
+		}
 		searchText = '';
 		autocompleteResults = [];
-		onSelect?.(null);
-	}
-
-	function handleFocus() {
-		searchFocused = true;
-		if (selectedBoundary) {
-			stashedBoundary = selectedBoundary;
-			selectedBoundary = null;
-			onSelect?.(null);
-		}
-	}
-
-	function handleBlur() {
-		searchFocused = false;
-		// If the user didn't type anything and we still have a stashed boundary, restore it.
-		if (!searchText && stashedBoundary) {
-			selectedBoundary = stashedBoundary;
-			stashedBoundary = null;
-			onSelect?.(selectedBoundary);
-		}
+		onSelect?.(newSelection);
 	}
 
 	function proceed() {
-		if (selectedBoundary) {
-			onProceed?.(selectedBoundary);
+		if (selectedBoundaries.length > 0) {
+			onProceed?.(selectedBoundaries);
 		}
 	}
 </script>
 
-<div class="rounded-lg border bg-card p-6 shadow-lg">
-	<h2 class="mb-4 text-xl font-semibold text-primary">
-		Select Boundaries to Begin Data Extraction
-	</h2>
+<div class="space-y-3">
+	<!-- Selected chips -->
+	{#if selectedBoundaries.length > 0}
+		<div class="max-h-20 overflow-y-auto flex flex-wrap gap-1">
+			{#each selectedBoundaries as boundary, idx (boundary.id)}
+				<div class="inline-flex items-center gap-1 rounded-md bg-primary/15 px-2 py-0.5 text-xs font-medium">
+					<span
+						class="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
+						style="background-color: {colorForIndex(idx)}"
+						aria-hidden="true"
+					></span>
+					<span class="truncate max-w-xs">{boundary.title || boundary.name}</span>
+					<button
+						class="inline-flex rounded p-0.5 hover:bg-primary/30 transition-colors"
+						onclick={() => removeBoundary(boundary.id)}
+						aria-label="Remove boundary"
+					>
+						<X class="h-3 w-3" />
+					</button>
+				</div>
+			{/each}
+		</div>
+	{/if}
 
 	<!-- Search Input -->
 	<div class="relative">
@@ -119,14 +132,14 @@
 			type="text"
 			bind:this={inputEl}
 			bind:value={searchText}
-			placeholder={placeholderText}
-			class="w-full rounded-md border bg-background py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-ring {!searchFocused && selectedBoundary ? 'placeholder:text-foreground' : ''}"
-			onfocus={handleFocus}
-			onblur={handleBlur}
+			placeholder="Search boundaries..."
+			class="w-full rounded-md border bg-background py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-ring"
+			onfocus={() => (searchFocused = true)}
+			onblur={() => (searchFocused = false)}
 		/>
 
 		<!-- Autocomplete dropdown -->
-		{#if searchText && !selectedBoundary}
+		{#if searchText.trim() && autocompleteResults.length > 0}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
 				class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover shadow-lg"
@@ -134,62 +147,67 @@
 			>
 				{#if isLoading}
 					<div class="px-4 py-2 text-sm text-muted-foreground">Searching...</div>
-				{:else if autocompleteResults.length > 0}
+				{:else}
 					{#each autocompleteResults as boundary}
 						<button
-							class="w-full px-4 py-2 text-left text-sm hover:bg-accent"
-							onclick={() => selectBoundary(boundary)}
+							class="w-full px-4 py-2 text-left text-sm hover:bg-accent disabled:opacity-50"
+							disabled={selectedBoundaries.some((b) => b.id === boundary.id)}
+							onclick={() => addBoundary(boundary)}
 						>
 							{boundary.title || boundary.name}
 						</button>
 					{/each}
-				{:else if searchText.trim().length > 0}
-					<div class="px-4 py-2 text-sm text-muted-foreground">
-						No boundaries matching "{searchText}" were found.
-					</div>
 				{/if}
+			</div>
+		{/if}
+
+		{#if searchText.trim() && autocompleteResults.length === 0 && !isLoading}
+			<div class="absolute z-10 mt-1 w-full rounded-md border bg-popover p-4 text-sm text-muted-foreground shadow-lg">
+				No boundaries matching "{searchText}" were found.
 			</div>
 		{/if}
 	</div>
 
-	<!-- Featured boundaries (shown when no selection) -->
-	{#if !selectedBoundary && featuredBoundaries.length > 0}
+	<!-- Featured boundaries (shown when no text in search) -->
+	{#if !searchText.trim() && featuredBoundaries.length > 0}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="mt-4" onmousedown={(e) => e.preventDefault()}>
+		<div onmousedown={(e) => e.preventDefault()}>
 			<p class="text-sm text-muted-foreground">
 				<strong>Featured Boundaries: </strong>
-				{#each featuredBoundaries.slice(0, 5) as boundary, i}
-					<button class="text-primary hover:underline" onclick={() => selectBoundary(boundary)}>
-						{boundary.title || boundary.name}{i < Math.min(featuredBoundaries.length, 5) - 1
-							? ', '
-							: ''}
+				{#each featuredBoundaries as boundary, i}
+					<button
+						class="text-primary hover:underline disabled:opacity-50"
+						disabled={selectedBoundaries.some((b) => b.id === boundary.id)}
+						onclick={() => addBoundary(boundary)}
+					>
+						{boundary.title || boundary.name}{i < featuredBoundaries.length - 1 ? ', ' : ''}
 					</button>
 				{/each}
 			</p>
 		</div>
 	{/if}
 
-	<!-- Proceed / Back buttons (when boundary selected) -->
-	{#if selectedBoundary}
-		<div class="mt-4 flex justify-between">
-			<Button variant="ghost" onclick={goBack}>
-				<ChevronLeft class="mr-2 h-4 w-4" />
-				Back
+	<!-- Action buttons -->
+	{#if selectedBoundaries.length > 0}
+		<div class="flex justify-between pt-2">
+			<Button variant="ghost" size="sm" onclick={goBack}>
+				<ChevronLeft class="mr-1 h-4 w-4" />
+				Clear
 			</Button>
 			{#if proceedTooltip}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
-						<Button onclick={proceed}>
+						<Button size="sm" onclick={proceed}>
 							{proceedLabel}
-							<ChevronRight class="ml-2 h-4 w-4" />
+							<ChevronRight class="ml-1 h-4 w-4" />
 						</Button>
 					</Tooltip.Trigger>
 					<Tooltip.Content>{proceedTooltip}</Tooltip.Content>
 				</Tooltip.Root>
 			{:else}
-				<Button onclick={proceed}>
+				<Button size="sm" onclick={proceed}>
 					{proceedLabel}
-					<ChevronRight class="ml-2 h-4 w-4" />
+					<ChevronRight class="ml-1 h-4 w-4" />
 				</Button>
 			{/if}
 		</div>

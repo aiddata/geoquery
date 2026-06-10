@@ -23,8 +23,26 @@ export interface BoundaryResult {
 	id: number;
 	name: string;
 	title: string | null;
+	short_name: string | null;
 	description: string | null;
 	bbox: [number, number, number, number] | null;
+	group_name: string | null;
+	group_title: string | null;
+	group_class: string | null;
+	group_level: number | null;
+	source_name: string | null;
+	tags: string[];
+	date_added: string | null;
+}
+
+export interface BoundaryPreset {
+	name: string;
+	description?: string | null;
+	source_name?: string | null;
+	group_class?: string | null;
+	group_level?: number | null;
+	tags: string[];
+	sort_order: number;
 }
 
 export async function searchBoundaries(
@@ -38,6 +56,14 @@ export async function searchBoundaries(
 	const response = await fetch(`/api/features/autocomplete/?${params}`);
 	if (!response.ok) {
 		throw new Error(`Autocomplete request failed: ${response.status}`);
+	}
+	return response.json();
+}
+
+export async function fetchBoundaryPresets(): Promise<BoundaryPreset[]> {
+	const response = await fetch('/api/features/presets/');
+	if (!response.ok) {
+		throw new Error(`Failed to fetch presets: ${response.status}`);
 	}
 	return response.json();
 }
@@ -234,6 +260,70 @@ export async function requestHistoryLink(email: string): Promise<void> {
 		const err = await response.json().catch(() => ({}));
 		throw new Error(err.error || `Failed to send link: ${response.status}`);
 	}
+}
+
+// ── Visualization ──────────────────────────────────────────────
+
+export interface VisualizationFeature {
+	name: string;
+	fc: string;
+	[column: string]: string | number | null;
+}
+
+// Fields shared by both request viz and explore viz payloads.
+export interface VizPayload {
+	fc_names: string[];
+	columns: string[];
+	col_groups: Record<string, string[]>;
+	col_descriptions: Record<string, string>;
+	col_dataset_titles: Record<string, string>;
+	col_temporal: Record<string, string>;
+	features: Record<string, VisualizationFeature>;
+	bbox: [number, number, number, number] | null;
+}
+
+export interface VisualizationData extends VizPayload {
+	request_id: string;
+	request_name: string;
+	selection_label: string;
+	request_status: number | null;
+}
+
+export async function fetchVisualizationData(requestId: string): Promise<VisualizationData> {
+	const response = await fetch(`/api/visualize/request/${encodeURIComponent(requestId)}/`);
+	if (!response.ok) {
+		throw new Error(`Failed to fetch visualization data: ${response.status}`);
+	}
+	return response.json();
+}
+
+// ── Explore viz ──────────────────────────────────────────────────
+
+export interface ExploreOption {
+	po_id: number;
+	short_name: string;
+	description: string;
+}
+
+export interface ExploreDataset {
+	dataset_id: number;
+	dataset_name: string;
+	dataset_title: string;
+	options: ExploreOption[];
+}
+
+export async function fetchExploreAvailable(fcIds: number[]): Promise<ExploreDataset[]> {
+	const response = await fetch(`/api/visualize/explore/available/?fc=${fcIds.join(',')}`);
+	if (!response.ok) throw new Error(`Failed to fetch available options: ${response.status}`);
+	return response.json();
+}
+
+export async function fetchExploreData(fcIds: number[], poIds: number[]): Promise<VizPayload> {
+	const response = await fetch(
+		`/api/visualize/explore/?fc=${fcIds.join(',')}&po=${poIds.join(',')}`
+	);
+	if (!response.ok) throw new Error(`Failed to fetch explore data: ${response.status}`);
+	return response.json();
 }
 
 export async function fetchRequestsByToken(token: string): Promise<PastRequest[]> {

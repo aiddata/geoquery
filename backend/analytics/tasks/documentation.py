@@ -1,7 +1,10 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
+from django.conf import settings
+
 from datasets.models import Dataset
+from analytics.models import ProcessingOption
 from analytics.models import Request
 
 GEOQUERY_CITATION = (
@@ -81,6 +84,12 @@ class DocBuilder:
             self._kv("Completed", self._fmt_dt(req.complete_time)),
             self._kv("Download", f'<a href="{self._esc(dl_url)}">{self._esc(dl_url)}</a>'),
         ]
+        frontend_base = getattr(settings, "FRONTEND_BASE_URL", "").rstrip("/")
+        if frontend_base:
+            viz_url = f"{frontend_base}/viz/{req.id}"
+            rows.append(
+                self._kv("Visualization", f'<a href="{self._esc(viz_url)}">{self._esc(viz_url)}</a>')
+            )
         return f"<section><h2>Request Info</h2>{self._table(rows)}</section>"
 
     @staticmethod
@@ -133,10 +142,6 @@ class DocBuilder:
                 self._kv("Type", self._esc(ds.get("dataset_type") or "—")),
             ]
 
-            extract_types = ds.get("extract_types") or []
-            if extract_types:
-                rows.append(self._kv("Extract types", self._esc(", ".join(extract_types))))
-
             resource_labels = ds.get("resource_labels") or ds.get("resources") or []
             if resource_labels:
                 rows.append(self._kv("Time periods", self._esc(", ".join(str(l) for l in resource_labels))))
@@ -147,6 +152,10 @@ class DocBuilder:
                 if db_ds:
                     if db_ds.description:
                         rows.append(self._kv("Description", self._esc(db_ds.description)))
+                    if db_ds.variable_description:
+                        rows.append(self._kv("Variable", self._esc(db_ds.variable_description)))
+                    if db_ds.details:
+                        rows.append(self._kv("Details", self._esc(db_ds.details)))
                     if db_ds.source_name:
                         src = self._esc(db_ds.source_name)
                         if db_ds.source_url:
@@ -154,10 +163,34 @@ class DocBuilder:
                         rows.append(self._kv("Source", src))
                     if db_ds.temporal_name and db_ds.temporal_name != "Temporally Invariant":
                         rows.append(self._kv("Temporal coverage", self._esc(db_ds.temporal_name)))
+                    if db_ds.citation:
+                        rows.append(self._kv("Dataset citation", self._esc(db_ds.citation)))
                     if db_ds.date_updated:
                         rows.append(self._kv("Last updated", self._esc(str(db_ds.date_updated))))
             except Exception:
                 pass
+
+            extract_types = ds.get("extract_types") or []
+            if extract_types:
+                try:
+                    po_desc = {
+                        p["short_name"]: p["description"] or ""
+                        for p in ProcessingOption.objects.filter(
+                            dataset__name=name, short_name__in=extract_types
+                        ).values("short_name", "description")
+                    }
+                except Exception:
+                    po_desc = {}
+                et_items = "".join(
+                    f"<li><strong>{self._esc(et)}</strong>"
+                    + (f" — {self._esc(po_desc[et])}" if po_desc.get(et) else "")
+                    + "</li>"
+                    for et in extract_types
+                )
+                rows.append(self._kv(
+                    f"Extract types ({len(extract_types)})",
+                    f"<ul style='margin:0;padding-left:1.2em;'>{et_items}</ul>",
+                ))
 
             cards.append(
                 f'<div class="dataset-card">'

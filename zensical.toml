@@ -50,40 +50,49 @@ Copyright &copy; 2025 AidData
 # Read more: https://zensical.org/docs/setup/navigation/
 nav = [
   { "Home" = "index.md" },
-  { "Using GeoQuery" = "using-geoquery.md" },
+  { "Using GeoQuery" = [
+    { "Overview" = "using-geoquery/index.md" },
+    { "Getting Started" = "using-geoquery/getting-started.md" },
+    { "Tutorials" = [
+      { "Overview" = "using-geoquery/tutorials/index.md" },
+      { "Example A" = "using-geoquery/tutorials/example-a.md" },
+      { "Example B" = "using-geoquery/tutorials/example-b.md" },
+    ]},
+  ]},
   { "FAQ" = "faq.md" },
   { "Citing GeoQuery" = "citing.md" },
-  { "Tutorials" = [
-    { "Overview" = "tutorials/index.md" },
-  ]},
   { "Data Documentation" = [
     { "Overview" = "data_documentation/index.md" },
     { "Datasets" = "data_documentation/datasets/index.md" },
     { "Boundaries" = "data_documentation/boundaries/index.md" },
   ]},
-  { "Contributing" = [
-    { "Overview" = "contributing/index.md" },
-  ]},
-  { "Developer Docs" = [
-    { "Overview" = "dev/index.md" },
-    { "Development" = "dev/development.md" },
-    { "Deploying" = [
-      { "Local" = "dev/deploying/local-deployment.md" },
-      { "Kubernetes" = [
-        { "Overview" = "dev/deploying/kubernetes/index.md" },
-        { "Container" = "dev/deploying/kubernetes/container.md" },
-        { "Helm Chart" = "dev/deploying/kubernetes/helm-chart.md" },
-        { "ArgoCD" = "dev/deploying/kubernetes/argocd.md" },
-        { "Development" = "dev/deploying/kubernetes/development.md" },
-        { "Ingest Data" = "dev/deploying/kubernetes/ingest-data.md" },
+  { "Get Involved" = [
+    { "Overview" = "get-involved/index.md" },
+    { "Contributing" = [
+      { "Overview" = "get-involved/contributing/index.md" },
+      { "Developer Docs" = [
+        { "Overview" = "get-involved/contributing/dev/index.md" },
+        { "Development" = "get-involved/contributing/dev/development.md" },
+        { "Deploying" = [
+          { "Local" = "get-involved/contributing/dev/deploying/local-deployment.md" },
+          { "Kubernetes" = [
+            { "Overview" = "get-involved/contributing/dev/deploying/kubernetes/index.md" },
+            { "Container" = "get-involved/contributing/dev/deploying/kubernetes/container.md" },
+            { "Helm Chart" = "get-involved/contributing/dev/deploying/kubernetes/helm-chart.md" },
+            { "ArgoCD" = "get-involved/contributing/dev/deploying/kubernetes/argocd.md" },
+            { "Development" = "get-involved/contributing/dev/deploying/kubernetes/development.md" },
+            { "Ingest Data" = "get-involved/contributing/dev/deploying/kubernetes/ingest-data.md" },
+          ]},
+        ]},
+        { "Services" = [
+          { "Grafana" = [
+            { "Overview" = "get-involved/contributing/dev/services/grafana/index.md" },
+            { "Installation" = "get-involved/contributing/dev/services/grafana/installation.md" },
+          ]},
+        ]},
       ]},
     ]},
-    { "Services" = [
-      { "Grafana" = [
-        { "Overview" = "dev/services/grafana/index.md" },
-        { "Installation" = "dev/services/grafana/installation.md" },
-      ]},
-    ]},
+    { "Partner with Us" = "get-involved/partner-with-us.md" },
   ]},
 ]
 
@@ -340,3 +349,7 @@ toggle.name = "Switch to light mode"
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
 link = "https://github.com/aiddata/geoquery-update"
+
+[project.extra.analytics]
+provider = "google"
+property = "G-XZ0HS7XED1"

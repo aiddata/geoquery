@@ -21,7 +21,6 @@ from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
 from analytics.tasks.email import GeoEmail
 from analytics.tasks.documentation import DocBuilder
 from analytics.tasks.merge import merge_task_results, merge_task_features
-from visualize.builder import VizBuilder
 
 logger = getLogger(__name__)
 
@@ -263,14 +262,6 @@ def _build_output(request, task_list, download_server, results_dir, assets_dir):
     if bd_status != "Success":
         raise Exception(f"Error building documentation for request {request_id}. Status: {bd_status}")
     logger.info("Documentation generated for request %s", request_id)
-
-    request_visualization = request_dir / f"{request_id}_visualization.html"
-    viz = VizBuilder(request, merge_df, request_visualization)
-    viz_status = viz.build_viz()
-    if viz_status != "Success":
-        logger.warning("Visualization skipped: %s", viz_status)
-    else:
-        logger.info("Visualization generated for request %s", request_id)
 
     with open(request_json, "w") as rdoc_file:
         json.dump(

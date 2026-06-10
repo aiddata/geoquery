@@ -40,6 +40,7 @@ class DatasetAdmin(GISModelAdmin):
                 "fields": (
                     "name",
                     "title",
+                    "short_name",
                     "type",
                     "active",
                     "public",

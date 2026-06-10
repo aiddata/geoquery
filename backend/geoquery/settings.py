@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "features",
     "datasets",
     "analytics",
+    "visualize",
 ]
 
 

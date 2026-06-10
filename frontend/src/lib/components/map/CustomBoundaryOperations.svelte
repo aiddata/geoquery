@@ -2,8 +2,19 @@
 	import { customBoundary, type Operation, type OperationType } from '$lib/stores/customBoundary';
 	import { Button } from '$lib/components/ui/button';
 	import * as Collapsible from '$lib/components/ui/collapsible';
-	import { ChevronDown, Trash2, RefreshCw, Save, ArrowRight, TriangleAlert, Loader2 } from '@lucide/svelte';
+	import { ChevronDown, Trash2, RefreshCw, Save, ArrowRight, TriangleAlert } from '@lucide/svelte';
+	import { tick } from 'svelte';
 	import type { FeatureCollection, Feature, Polygon, MultiPolygon } from 'geojson';
+
+	// Intermediate result cache, keyed by the cumulative chain of op ids.
+	// Lets append/remove/tweak cycles reuse prior work instead of recomputing
+	// every operation from the original upload on each Apply.
+	const intermediateCache = new Map<string, FeatureCollection>();
+	let cachedOriginal: FeatureCollection | null = null;
+
+	function prefixKey(ops: Operation[], upTo: number): string {
+		return ops.slice(0, upTo).map((o) => o.id).join('|');
+	}
 
 	interface Props {
 		onSave: () => void;
@@ -45,18 +56,40 @@
 	}
 
 	async function applyOperations() {
+		applying = true;
+		applyError = '';
+		await tick();
+		await new Promise((resolve) => setTimeout(resolve, 0)); // yield to browser paint before turf blocks thread
+
 		const { default: buffer } = await import('@turf/buffer');
 		const { default: simplify } = await import('@turf/simplify');
 		const { union } = await import('@turf/union');
 		const { featureCollection } = await import('@turf/helpers');
 
-		applying = true;
-		applyError = '';
 		try {
 			const ops = $customBoundary.operations;
-			let result: FeatureCollection = $customBoundary.originalFeatures!;
+			const original = $customBoundary.originalFeatures!;
 
-			for (const op of ops) {
+			// Invalidate cache when the underlying upload changes
+			if (cachedOriginal !== original) {
+				intermediateCache.clear();
+				cachedOriginal = original;
+			}
+
+			// Find the longest cached prefix and resume from there
+			let result: FeatureCollection = original;
+			let startIdx = 0;
+			for (let i = ops.length; i > 0; i--) {
+				const cached = intermediateCache.get(prefixKey(ops, i));
+				if (cached) {
+					result = cached;
+					startIdx = i;
+					break;
+				}
+			}
+
+			for (let i = startIdx; i < ops.length; i++) {
+				const op = ops[i];
 				if (op.type === 'buffer') {
 					const buffered = buffer(result, op.params.distance as number, {
 						units: op.params.units as 'kilometers' | 'miles' | 'meters',
@@ -78,6 +111,7 @@
 					if (!unioned) throw new Error('Union operation produced no output.');
 					result = featureCollection([unioned]) as FeatureCollection;
 				}
+				intermediateCache.set(prefixKey(ops, i + 1), result);
 			}
 
 			customBoundary.setFinalFeatures(result);
@@ -227,7 +261,7 @@
 				onclick={applyOperations}
 			>
 				{#if applying}
-					<Loader2 class="h-3.5 w-3.5 animate-spin" />
+					<span class="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
 					Applying…
 				{:else}
 					Apply &amp; Preview
@@ -235,9 +269,9 @@
 			</Button>
 		</div>
 
-		<Button class="w-full gap-1" disabled={applying} onclick={async () => { await applyOperations(); onSave(); }}>
+		<Button class="w-full gap-1" disabled={applying} onclick={async () => { if ($customBoundary.needsApply) await applyOperations(); onSave(); }}>
 			{#if applying}
-				<Loader2 class="h-4 w-4 animate-spin" />
+				<span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
 				Applying…
 			{:else}
 				<Save class="h-4 w-4" />

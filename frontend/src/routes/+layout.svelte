@@ -1,7 +1,18 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { afterNavigate } from '$app/navigation';
+	import { gtagEvent } from '$lib/analytics';
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
+
+	afterNavigate(({ to }) => {
+		if (to) {
+			gtagEvent('page_view', {
+				page_path: to.url.pathname + to.url.search,
+				page_title: document.title,
+			});
+		}
+	});
 	import Header from '$lib/components/layout/Header.svelte';
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
 	import StatusBanner from '$lib/components/layout/StatusBanner.svelte';
