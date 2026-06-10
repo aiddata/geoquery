@@ -312,11 +312,13 @@
 			const valStr = val === null || val === undefined ? '—' : String(val);
 			const label = col.startsWith('~') ? col.slice(1) : prettyColumn(col);
 			const isActive = col === activeColumn;
-			lines.push(`<div class="popup-row${isActive ? ' popup-row-active' : ''}"><span class="popup-col">${escapeHtml(label)}</span><span class="popup-val">${escapeHtml(valStr)}</span></div>`);
 			if (!col.startsWith('~')) {
 				const dsName = data?.col_dataset_titles?.[col];
-				if (dsName) lines.push(`<div class="popup-desc">${escapeHtml(dsName)}</div>`);
+				const temporal = data?.col_temporal?.[col];
+				const meta = [dsName, temporal].filter(Boolean).join(' · ');
+				if (meta) lines.push(`<div class="popup-desc">${escapeHtml(meta)}</div>`);
 			}
+			lines.push(`<div class="popup-row${isActive ? ' popup-row-active' : ''}"><span class="popup-col">${escapeHtml(label)}</span><span class="popup-val">${escapeHtml(valStr)}</span></div>`);
 		}
 		return lines.join('');
 	}
@@ -368,6 +370,7 @@
 			<!-- Column picker (checkboxes) -->
 			<div class="border-b px-4 py-3">
 				<div class="panel-title">Data Columns</div>
+				<p class="mb-2 text-[10px] text-muted-foreground">Check to include in popup · click name to set map layer</p>
 				<div class="space-y-2">
 					{#each Object.entries(data.col_groups) as [group, cols]}
 						<div>
@@ -395,7 +398,7 @@
 										title={data.col_descriptions[col] || col}
 									>{prettyColumn(col)}</button>
 									{#if activeColumn === col}
-										<span class="active-dot" title="Active choropleth column"></span>
+										<span class="active-badge">map</span>
 									{/if}
 								</label>
 							{/each}
@@ -426,7 +429,7 @@
 								title={ci.formula}
 							>{ci.name}</button>
 							{#if activeColumn === `~${ci.name}`}
-								<span class="active-dot"></span>
+								<span class="active-badge">map</span>
 							{/if}
 							<button
 								onclick={() => removeCustomIndex(ci.name)}
@@ -463,11 +466,14 @@
 						<!-- Column insert chips -->
 						<div class="flex flex-wrap gap-1">
 							{#each data.columns as col}
+								{@const meta = [data.col_dataset_titles[col], data.col_temporal[col]].filter(Boolean).join(' · ')}
 								<button
-									class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent"
+									class="rounded bg-muted px-1.5 py-0.5 text-left text-muted-foreground hover:bg-accent"
 									onclick={() => insertColumn(col)}
-									title="Insert column reference"
-								>{prettyColumn(col)}</button>
+								>
+									{#if meta}<span class="block text-[9px] opacity-60">{meta}</span>{/if}
+									<span class="block text-[10px]">{prettyColumn(col)}</span>
+								</button>
 							{/each}
 						</div>
 						{#if indexError}
@@ -584,7 +590,7 @@
 	.col-row-active { background: #eff6ff; }
 	.col-row input[type="checkbox"] { flex-shrink: 0; accent-color: #3b82f6; cursor: pointer; }
 	.col-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1e293b; background: none; border: none; padding: 0; font-size: inherit; cursor: pointer; }
-	.active-dot { width: 6px; height: 6px; border-radius: 50%; background: #3b82f6; flex-shrink: 0; }
+	.active-badge { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #2563eb; background: #dbeafe; border-radius: 3px; padding: 1px 5px; flex-shrink: 0; line-height: 1.4; }
 
 	.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 	.stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; }

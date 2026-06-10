@@ -67,6 +67,7 @@
 			data = null; checkedPoIds = new Set(); activeColumn = null;
 			checkedColumns = new Set(); partialCols = new Set();
 		} else {
+			refitMap();
 			void refreshAvailable();
 			if (checkedPoIds.size > 0) void loadExploreData();
 		}
@@ -265,10 +266,6 @@
 		});
 
 		fcOrder = [...fcOrder, fc.name];
-		if (fc.bbox) {
-			const [w, s, e, n] = fc.bbox;
-			map.fitBounds([[w, s], [e, n]], { padding: 40, maxZoom: 10 });
-		}
 	}
 
 	function removeFCFromMap(fcName: string) {
@@ -387,11 +384,13 @@
 			const valStr = val === null || val === undefined ? '—' : String(val);
 			const label = col.startsWith('~') ? col.slice(1) : prettyColumn(col);
 			const isActive = col === activeColumn;
-			lines.push(`<div class="popup-row${isActive ? ' popup-row-active' : ''}"><span class="popup-col">${escapeHtml(label)}</span><span class="popup-val">${escapeHtml(valStr)}</span></div>`);
 			if (!col.startsWith('~')) {
 				const dsName = data?.col_dataset_titles?.[col];
-				if (dsName) lines.push(`<div class="popup-desc">${escapeHtml(dsName)}</div>`);
+				const temporal = data?.col_temporal?.[col];
+				const meta = [dsName, temporal].filter(Boolean).join(' · ');
+				if (meta) lines.push(`<div class="popup-desc">${escapeHtml(meta)}</div>`);
 			}
+			lines.push(`<div class="popup-row${isActive ? ' popup-row-active' : ''}"><span class="popup-col">${escapeHtml(label)}</span><span class="popup-val">${escapeHtml(valStr)}</span></div>`);
 		}
 		return lines.join('');
 	}
@@ -512,10 +511,41 @@
 					{#if dataError}<p class="text-[11px] text-destructive">{dataError}</p>{/if}
 				{/if}
 
-				<!-- Column selector (appears after data loads) -->
+			</Collapsible.Content>
+		</Collapsible.Root>
+
+		<!-- ── STYLING ─────────────────────────────────────────────────────── -->
+		<Collapsible.Root bind:open={stylingOpen} class="border-b border-slate-200">
+			<Collapsible.Trigger class="section-trigger">
+				<ChevronDown class="section-chevron {stylingOpen ? 'rotate-180' : ''}" />
+				<span>Styling</span>
+			</Collapsible.Trigger>
+			<Collapsible.Content class="px-4 pb-4 pt-2 space-y-3">
+
+				<!-- Boundary layer reorder -->
+				{#if fcOrder.length > 0}
+					<div>
+						<div class="panel-title">Active Boundary Layers</div>
+						<p class="mb-2 text-[10px] text-muted-foreground">Drag to reorder — top draws on top.</p>
+						<div bind:this={fcListEl} class="space-y-0.5">
+							{#each fcOrder as fc (fc)}
+								<div class="fc-row" data-fc={fc}>
+									<span class="fc-grip"><GripVertical class="h-3.5 w-3.5" /></span>
+									<input type="checkbox" checked={!hiddenFCs.has(fc)}
+										onchange={(e) => toggleFC(fc, (e.target as HTMLInputElement).checked)} />
+									<span class="fc-name" title={fc}>{fc}</span>
+									{#if data}<span class="fc-count">{fcFeatureCount(fc)}</span>{/if}
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				<!-- Active layers (column selector) -->
 				{#if data && data.columns.length > 0}
-					<div class="border-t pt-3">
-						<p class="panel-title mb-2">Columns</p>
+					<div>
+						<p class="panel-title mb-1">Active Data Layers</p>
+						<p class="mb-2 text-[10px] text-muted-foreground">Check to include in popup · click name to set map layer</p>
 
 						{#if partialCols.size > 0}
 							<div class="mb-2 flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5">
@@ -542,7 +572,7 @@
 												title={[data.col_dataset_titles[col], data.col_descriptions[col]].filter(Boolean).join(' · ') || col}
 											>{prettyColumn(col)}</button>
 											{#if partialCols.has(col)}<span class="text-[10px] text-amber-500" title="Partial coverage">⚠</span>{/if}
-											{#if activeColumn === col}<span class="active-dot"></span>{/if}
+											{#if activeColumn === col}<span class="active-badge">map</span>{/if}
 										</label>
 									{/each}
 								</div>
@@ -562,7 +592,7 @@
 										onclick={() => { if (checkedColumns.has(`~${ci.name}`)) activeColumn = `~${ci.name}`; }}
 										title={ci.formula}>{ci.name}</button>
 									{#if ci.nullCount > 0}<span class="text-[10px] text-amber-500" title="{ci.nullCount} null results">⚠</span>{/if}
-									{#if activeColumn === `~${ci.name}`}<span class="active-dot"></span>{/if}
+									{#if activeColumn === `~${ci.name}`}<span class="active-badge">map</span>{/if}
 									<button onclick={() => removeCustomIndex(ci.name)} class="ml-1 text-muted-foreground hover:text-destructive"><X class="h-3 w-3" /></button>
 								</label>
 							{/each}
@@ -580,8 +610,12 @@
 									rows="2" class="viz-input resize-none font-mono text-[11px]"></textarea>
 								<div class="flex flex-wrap gap-1">
 									{#each data.columns as col}
-										<button class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent"
-											onclick={() => indexFormula += `[${col}]`}>{prettyColumn(col)}</button>
+										{@const meta = [data.col_dataset_titles[col], data.col_temporal[col]].filter(Boolean).join(' · ')}
+										<button class="rounded bg-muted px-1.5 py-0.5 text-left text-muted-foreground hover:bg-accent"
+											onclick={() => indexFormula += `[${col}]`}>
+											{#if meta}<span class="block text-[9px] opacity-60">{meta}</span>{/if}
+											<span class="block text-[10px]">{prettyColumn(col)}</span>
+										</button>
 									{/each}
 								</div>
 								{#if indexError}<p class="text-[11px] text-destructive">{indexError}</p>{/if}
@@ -590,16 +624,7 @@
 						{/if}
 					</div>
 				{/if}
-			</Collapsible.Content>
-		</Collapsible.Root>
 
-		<!-- ── STYLING ─────────────────────────────────────────────────────── -->
-		<Collapsible.Root bind:open={stylingOpen} class="border-b border-slate-200">
-			<Collapsible.Trigger class="section-trigger">
-				<ChevronDown class="section-chevron {stylingOpen ? 'rotate-180' : ''}" />
-				<span>Styling</span>
-			</Collapsible.Trigger>
-			<Collapsible.Content class="px-4 pb-4 pt-2 space-y-3">
 				<div>
 					<div class="panel-title">Color Palette</div>
 					<select bind:value={currentPalette} class="viz-select">
@@ -614,6 +639,7 @@
 						<option value="jenks">Natural Breaks (Jenks)</option>
 					</select>
 				</div>
+
 			</Collapsible.Content>
 		</Collapsible.Root>
 
@@ -655,24 +681,6 @@
 					</div>
 				</div>
 
-				<!-- Layer reorder -->
-				{#if fcOrder.length > 0}
-					<div>
-						<div class="panel-title">Layers</div>
-						<div bind:this={fcListEl} class="space-y-0.5">
-							{#each fcOrder as fc (fc)}
-								<div class="fc-row" data-fc={fc}>
-									<span class="fc-grip"><GripVertical class="h-3.5 w-3.5" /></span>
-									<input type="checkbox" checked={!hiddenFCs.has(fc)}
-										onchange={(e) => toggleFC(fc, (e.target as HTMLInputElement).checked)} />
-									<span class="fc-name" title={fc}>{fc}</span>
-									{#if data}<span class="fc-count">{fcFeatureCount(fc)}</span>{/if}
-								</div>
-							{/each}
-						</div>
-						<p class="mt-2 text-[10px] text-muted-foreground">Drag to reorder — top draws on top.</p>
-					</div>
-				{/if}
 			</Collapsible.Content>
 		</Collapsible.Root>
 	</aside>
@@ -727,7 +735,7 @@
 	.col-row-active { background:#eff6ff; }
 	.col-row input[type="checkbox"] { flex-shrink:0; accent-color:#3b82f6; cursor:pointer; }
 	.col-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#1e293b; background:none; border:none; padding:0; font-size:inherit; cursor:pointer; }
-	.active-dot { width:6px; height:6px; border-radius:50%; background:#3b82f6; flex-shrink:0; }
+	.active-badge { font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:#2563eb; background:#dbeafe; border-radius:3px; padding:1px 5px; flex-shrink:0; line-height:1.4; }
 
 	.stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
 	.stat-label { font-size:9px; text-transform:uppercase; letter-spacing:0.06em; color:#94a3b8; }
