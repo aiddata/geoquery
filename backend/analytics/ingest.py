@@ -43,10 +43,27 @@ def ingest_custom_boundary(
 
     # bulk_create bypasses post_save signals — intentional for user uploads
     raw_features = geojson_fc.get("features") or []
-    feature_objs = Feature.objects.bulk_create([
-        Feature(shape=GEOSGeometry(json.dumps(f["geometry"])))
-        for f in raw_features
-    ])
+    valid_raw: list[dict] = []
+    feature_objs_list: list[Feature] = []
+    warnings: list[str] = []
+    skipped = 0
+    for f in raw_features:
+        geom = f.get("geometry")
+        if not geom:
+            skipped += 1
+            continue
+        try:
+            shape = GEOSGeometry(json.dumps(geom))
+        except Exception:
+            skipped += 1
+            continue
+        valid_raw.append(f)
+        feature_objs_list.append(Feature(shape=shape))
+
+    if skipped:
+        warnings.append(f"{skipped} feature(s) skipped due to null or invalid geometry.")
+
+    feature_objs = Feature.objects.bulk_create(feature_objs_list)
 
     feat_map_objs = FeatMap.objects.bulk_create([
         FeatMap(
@@ -57,11 +74,10 @@ def ingest_custom_boundary(
                  or None,
             attr=raw.get("properties") or None,
         )
-        for feature, raw in zip(feature_objs, raw_features)
+        for feature, raw in zip(feature_objs, valid_raw)
     ])
 
     all_task_ids: set[int] = set()
-    warnings: list[str] = []
     valid_datasets: list[dict] = []
 
     for ds in datasets:

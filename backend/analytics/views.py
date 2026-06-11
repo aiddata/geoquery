@@ -76,9 +76,16 @@ class RequestView(APIView):
                     {"error": "customBoundary.features must be a GeoJSON FeatureCollection"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            if not geojson_fc.get("features"):
+            features_list = geojson_fc.get("features") or []
+            if not features_list:
                 return Response(
                     {"error": "customBoundary.features has no features"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            max_features = getattr(settings, "CUSTOM_BOUNDARY_MAX_FEATURES", 100_000)
+            if len(features_list) > max_features:
+                return Response(
+                    {"error": f"Custom boundary may not exceed {max_features:,} features."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             try:
