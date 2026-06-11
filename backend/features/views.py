@@ -3,7 +3,7 @@ import yaml
 from django.db import connection
 from django.db.models import Q
 from django.http import HttpResponse
-from rest_framework import generics
+from rest_framework import generics, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -25,7 +25,13 @@ class FeatureCollectionAutocompleteView(generics.ListAPIView):
 
     def get(self, request, *args, **kwargs):
         query = request.query_params.get("q", "").strip()
-        limit = int(request.query_params.get("limit", 10))
+        try:
+            limit = int(request.query_params.get("limit", 10))
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "limit must be an integer"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Start with active and public feature collections
         queryset = FeatureCollection.objects.filter(active=True, public=True)
