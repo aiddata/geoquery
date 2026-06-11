@@ -39,7 +39,7 @@
 	let isCustomMode = $derived($customBoundary.saved && $customBoundary.active);
 	let canSubmit = $derived(
 		requestName.trim() !== '' &&
-		email.trim() !== '' &&
+		/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(email) &&
 		$cartCount > 0 &&
 		(resolvedFeatureIds.length > 0 || isCustomMode) &&
 		(!isCustomMode || boundaryConsent) &&
