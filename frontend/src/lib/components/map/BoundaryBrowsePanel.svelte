@@ -28,7 +28,7 @@
 
 		if (groupingDimension === 'adm_level') {
 			for (const b of allBoundaries) {
-				const level = b.group_level !== null ? `Level ${b.group_level}` : 'Unspecified';
+				const level = b.group_level !== null ? b.group_level : 'Unspecified';
 				if (!groups.has(level)) groups.set(level, []);
 				groups.get(level)!.push(b);
 			}
@@ -53,12 +53,15 @@
 			}
 		}
 
-		// Sort groups by name
+		// Sort groups: ADM level uses numeric order (Unspecified last); others alphabetical
 		return new Map(
 			[...groups.entries()].sort((a, b) => {
-				const aKey = String(a[0]).toLowerCase();
-				const bKey = String(b[0]).toLowerCase();
-				return aKey.localeCompare(bKey);
+				if (groupingDimension === 'adm_level') {
+					const aNum = typeof a[0] === 'number' ? a[0] : Infinity;
+					const bNum = typeof b[0] === 'number' ? b[0] : Infinity;
+					return aNum - bNum;
+				}
+				return String(a[0]).toLowerCase().localeCompare(String(b[0]).toLowerCase());
 			})
 		);
 	});
@@ -176,7 +179,7 @@
 									onchange={() => toggleGroup(boundaries.map((b) => b.id))}
 								/>
 								<span class="truncate">
-									{groupName}
+									{typeof groupName === 'number' ? `Level ${groupName}` : groupName}
 									<span class="text-muted-foreground font-normal">({boundaries.length})</span>
 								</span>
 							</label>

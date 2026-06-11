@@ -216,8 +216,9 @@ class RequestDetailView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, pk):
+        from django.db.models import Count
         try:
-            req = Request.objects.get(id=pk)
+            req = Request.objects.annotate(task_count=Count("requestmap")).get(id=pk)
         except Request.DoesNotExist:
             return Response({"error": "Not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -252,7 +253,7 @@ class RequestDetailView(APIView):
             "status_label": _STATUS_LABELS.get(req.status, "unknown"),
             "submit_time": req.submit_time,
             "complete_time": req.complete_time,
-            "task_count": RequestMap.objects.filter(request=req).count(),
+            "task_count": req.task_count,
             "data": {
                 "selection_label": req_data.get("selection_label"),
                 "selection_detail": req_data.get("selection_detail"),
@@ -305,10 +306,10 @@ class RequestTokenView(APIView):
         expiry_months = getattr(settings, "TOKEN_EXPIRY_MONTHS", 6)
         expires_at = timezone.now() + timedelta(days=30 * expiry_months)
 
-        token_obj = RequestToken.objects.create(email=email, expires_at=expires_at)
+        _, raw_token = RequestToken.create_for_email(email=email, expires_at=expires_at)
 
         base_url = getattr(settings, "FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
-        magic_link = f"{base_url}/requests/{token_obj.token}"
+        magic_link = f"{base_url}/requests/{raw_token}"
 
         subject = "Your GeoQuery request history link"
         message = (
@@ -334,7 +335,7 @@ class RequestHistoryView(APIView):
 
     def get(self, request, token):
         try:
-            token_obj = RequestToken.objects.get(token=token)
+            token_obj = RequestToken.objects.get(token=RequestToken.hash_token(token))
         except RequestToken.DoesNotExist:
             return Response({"error": "Invalid or expired link."}, status=status.HTTP_404_NOT_FOUND)
 

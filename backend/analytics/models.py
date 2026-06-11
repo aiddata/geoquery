@@ -1,3 +1,4 @@
+import hashlib
 import secrets
 import uuid
 from datetime import timedelta
@@ -170,10 +171,21 @@ class RequestToken(models.Model):
     class Meta:
         db_table = "request_tokens"
 
-    def save(self, *args, **kwargs):
-        if not self.token:
-            self.token = secrets.token_urlsafe(32)
-        super().save(*args, **kwargs)
+    @classmethod
+    def create_for_email(cls, email: str, expires_at) -> tuple["RequestToken", str]:
+        """Create a token row and return (token_obj, raw_token).
+
+        Only the hash is stored; raw_token must be sent to the user immediately
+        and cannot be recovered later.
+        """
+        raw = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw.encode()).hexdigest()
+        obj = cls.objects.create(email=email, token=token_hash, expires_at=expires_at)
+        return obj, raw
+
+    @staticmethod
+    def hash_token(raw: str) -> str:
+        return hashlib.sha256(raw.encode()).hexdigest()
 
     @property
     def is_expired(self):

@@ -2,6 +2,7 @@
 
 <script lang="ts">
 	import { get } from 'svelte/store';
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
 	import { currentStep } from '$lib/stores/ui';
@@ -61,7 +62,7 @@
 	// Don't restore a standard boundary if custom mode is active — the two are mutually exclusive
 	const _init = get(customBoundary).active ? { staged: null, bbox: null } : initFromStore();
 
-	$effect(() => {
+	onMount(() => {
 		currentStep.set('map');
 	});
 
