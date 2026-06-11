@@ -1,6 +1,8 @@
 from datetime import timedelta
 
 from django.conf import settings
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
@@ -44,6 +46,13 @@ class RequestView(APIView):
         if not email:
             return Response(
                 {"error": "email is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            validate_email(email)
+        except ValidationError:
+            return Response(
+                {"error": "a valid email address is required"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
         if not isinstance(feature_ids, list) or not all(
             isinstance(i, int) for i in feature_ids
@@ -274,6 +283,13 @@ class RequestTokenView(APIView):
         email = (request.data.get("email") or "").strip().lower()
         if not email:
             return Response({"error": "email is required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            validate_email(email)
+        except ValidationError:
+            return Response(
+                {"error": "a valid email address is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         expiry_months = getattr(settings, "TOKEN_EXPIRY_MONTHS", 6)
         expires_at = timezone.now() + timedelta(days=30 * expiry_months)
