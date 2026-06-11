@@ -166,6 +166,7 @@
 
 	// Async state
 	let findingData = $state(false);
+	let findDataError = $state<string | null>(null);
 	// True when features have been changed post-commit; requires re-confirmation before Find Data
 	let stagedNeedsConfirm = $state(false);
 
@@ -383,6 +384,7 @@
 			}
 		} catch (err) {
 			console.error('Failed to commit selection:', err);
+			findDataError = 'Something went wrong. Please try again.';
 		} finally {
 			findingData = false;
 		}
@@ -489,10 +491,13 @@
 							<ArrowRight class="ml-1 h-3.5 w-3.5" />
 						</Button>
 					{:else}
-						<Button size="sm" class="flex-1" disabled={findingData} onclick={handleFindData}>
+						<Button size="sm" class="flex-1" disabled={findingData} onclick={() => { findDataError = null; handleFindData(); }}>
 							{findingData ? 'Loading…' : 'Find Data'}
 							{#if !findingData}<ArrowRight class="ml-1 h-3.5 w-3.5" />{/if}
 						</Button>
+						{#if findDataError}
+							<p class="text-xs text-destructive mt-1 w-full">{findDataError}</p>
+						{/if}
 					{/if}
 				</div>
 			</div>

@@ -203,6 +203,8 @@ export interface RequestDetailData {
 	selection_detail: string | null;
 	feature_ids: number[];
 	datasets: StoredDataset[];
+	is_custom_boundary?: boolean;
+	boundary_operations?: { id: string; type: string; params: Record<string, unknown> }[];
 }
 
 export interface RequestDetail extends PastRequest {

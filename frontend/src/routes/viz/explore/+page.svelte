@@ -78,7 +78,12 @@
 			checkedColumns = new Set(); partialCols = new Set();
 		} else {
 			refitMap();
-			void refreshAvailable();
+			await refreshAvailable();
+			// Filter out PO IDs that no longer exist in the updated available options
+			const validPoIds = new Set(
+				availableDatasets.flatMap((ds) => ds.options.map((o) => o.po_id))
+			);
+			checkedPoIds = new Set([...checkedPoIds].filter((id) => validPoIds.has(id)));
 			if (checkedPoIds.size > 0) void loadExploreData();
 		}
 	}
@@ -178,7 +183,8 @@
 		if (customIndices.some((c) => c.name === indexName.trim())) { indexError = 'Name already used.'; return; }
 		let expr;
 		try { expr = parseFormula(indexFormula); } catch (e) { indexError = e instanceof Error ? e.message : 'Parse error'; return; }
-		const missing = formulaColumns(expr).filter((c) => !data?.columns.includes(c));
+		const allCols = new Set([...(data?.columns ?? []), ...customIndices.map((c) => c.name)]);
+		const missing = formulaColumns(expr).filter((c) => !allCols.has(c));
 		if (missing.length) { indexError = `Unknown columns: ${missing.join(', ')}`; return; }
 		const values: Record<string, number | null> = {};
 		let nullCount = 0;
