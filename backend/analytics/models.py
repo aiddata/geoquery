@@ -163,7 +163,7 @@ class RequestToken(models.Model):
     """Magic-link tokens for email-based request history access."""
 
     token = models.CharField(max_length=64, unique=True, db_index=True)
-    email = models.EmailField(unique=True)
+    email = models.EmailField(db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
 

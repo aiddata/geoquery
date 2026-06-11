@@ -1,3 +1,4 @@
+import secrets
 from datetime import timedelta
 
 from django.conf import settings
@@ -294,15 +295,7 @@ class RequestTokenView(APIView):
         expiry_months = getattr(settings, "TOKEN_EXPIRY_MONTHS", 6)
         expires_at = timezone.now() + timedelta(days=30 * expiry_months)
 
-        token_obj, _ = RequestToken.objects.update_or_create(
-            email=email,
-            defaults={"expires_at": expires_at},
-        )
-        # update_or_create won't call save() for new tokens so generate token manually
-        if not token_obj.token:
-            import secrets
-            token_obj.token = secrets.token_urlsafe(32)
-            token_obj.save(update_fields=["token"])
+        token_obj = RequestToken.objects.create(email=email, expires_at=expires_at)
 
         base_url = getattr(settings, "FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
         magic_link = f"{base_url}/requests/{token_obj.token}"
