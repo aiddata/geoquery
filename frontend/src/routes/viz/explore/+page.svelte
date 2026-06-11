@@ -50,6 +50,7 @@
 	}
 
 	async function handleSelectionChange(newIds: Set<number>) {
+		layerError = '';
 		const newFCs = [...newIds]
 			.map((id) => allBoundaries.find((b) => b.id === id))
 			.filter((b): b is BoundaryResult => !!b);
@@ -58,11 +59,20 @@
 		const toAdd = newFCs.filter((fc) => !selectedFCs.some((s) => s.id === fc.id));
 
 		for (const fc of toRemove) removeFCFromMap(fc.name);
-		for (const fc of toAdd) await addFCToMap(fc);
 
-		selectedFCs = newFCs;
+		const failed: string[] = [];
+		for (const fc of toAdd) {
+			try {
+				await addFCToMap(fc);
+			} catch {
+				failed.push(fc.title || fc.name);
+			}
+		}
+		if (failed.length) layerError = `Failed to load layer(s): ${failed.join(', ')}`;
 
-		if (newFCs.length === 0) {
+		selectedFCs = newFCs.filter((fc) => !failed.includes(fc.title || fc.name));
+
+		if (selectedFCs.length === 0) {
 			availableDatasets = [];
 			data = null; checkedPoIds = new Set(); activeColumn = null;
 			checkedColumns = new Set(); partialCols = new Set();
@@ -96,6 +106,7 @@
 	let data = $state<VizPayload | null>(null);
 	let dataLoading = $state(false);
 	let dataError = $state('');
+	let layerError = $state('');
 	let partialCols = $state<Set<string>>(new Set());
 
 	async function togglePo(poId: number, checked: boolean) {
@@ -464,6 +475,9 @@
 				</div>
 
 				<!-- Browse panel (reuses the main app component) -->
+				{#if layerError}
+					<p class="text-xs text-destructive mb-2">{layerError}</p>
+				{/if}
 				<BoundaryBrowsePanel
 					allBoundaries={allBoundaries}
 					selectedIds={selectedIds}
