@@ -26,7 +26,8 @@ export function quantileBreaks(values: number[], n: number): number[] {
 }
 
 export function equalBreaks(values: number[], n: number): number[] {
-	const min = Math.min(...values), max = Math.max(...values);
+	const min = values.reduce((a, b) => (b < a ? b : a), values[0]);
+	const max = values.reduce((a, b) => (b > a ? b : a), values[0]);
 	const step = (max - min) / n;
 	return Array.from({ length: n + 1 }, (_, i) => min + i * step);
 }
@@ -82,8 +83,8 @@ export function escapeHtml(s: string): string {
 }
 
 export function computeStats(values: number[]): { min: number; max: number; mean: number; n: number } {
-	const min = Math.min(...values);
-	const max = Math.max(...values);
+	const min = values.reduce((a, b) => (b < a ? b : a), values[0]);
+	const max = values.reduce((a, b) => (b > a ? b : a), values[0]);
 	const mean = values.reduce((a, b) => a + b, 0) / values.length;
 	return { min, max, mean, n: values.length };
 }

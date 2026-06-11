@@ -151,7 +151,7 @@
 			setupHover();
 			fitToBbox();
 			mapReady = true;
-			applyColors();
+			void applyColors();
 		});
 	}
 
@@ -226,7 +226,7 @@
 
 	$effect(() => {
 		void activeColumn; void currentPalette; void currentMethod; void hiddenFCs;
-		if (mapReady) applyColors();
+		if (mapReady) void applyColors();
 	});
 
 	function toggleFC(fc: string, visible: boolean) {

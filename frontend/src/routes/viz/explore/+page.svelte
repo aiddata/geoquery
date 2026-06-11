@@ -140,7 +140,7 @@
 				checkedColumns = activeColumn ? new Set([activeColumn]) : new Set();
 			}
 			await tick();
-			if (mapReady) applyColors();
+			if (mapReady) void applyColors();
 		} catch (e) {
 			dataError = e instanceof Error ? e.message : 'Failed to load data.';
 		} finally { dataLoading = false; }
