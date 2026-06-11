@@ -67,6 +67,8 @@
 
 	let allBoundaries = $state<BoundaryResult[]>([]);
 	let boundaryPresets = $state<BoundaryPreset[]>([]);
+	let boundaryLoading = $state(true);
+	let boundaryLoadError = $state<string | null>(null);
 
 	// Active tab in the selection panel. 'custom' mirrors customBoundary.active.
 	type SelectionTab = 'explore' | 'browse' | 'custom';
@@ -118,14 +120,18 @@
 	);
 
 	$effect(() => {
-		// Fetch all boundaries (used for browse panel + derived featured)
-		searchBoundaries('', 0).then((results) => {
+		boundaryLoading = true;
+		boundaryLoadError = null;
+		Promise.all([
+			searchBoundaries('', 0),
+			fetchBoundaryPresets()
+		]).then(([results, presets]) => {
 			allBoundaries = results;
-		});
-
-		// Fetch presets
-		fetchBoundaryPresets().then((presets) => {
 			boundaryPresets = presets;
+		}).catch(() => {
+			boundaryLoadError = 'Failed to load boundaries. Please refresh the page.';
+		}).finally(() => {
+			boundaryLoading = false;
 		});
 	});
 
@@ -553,13 +559,17 @@
 							</div>
 						{/if}
 					{:else if activeTab === 'browse'}
-						<BoundaryBrowsePanel
-							allBoundaries={allBoundaries}
-							selectedIds={new Set(browseBoundaries.map((b) => b.id))}
-							presets={boundaryPresets}
-							onSelectionChange={handleBrowsePanelSelection}
-							loading={allBoundaries.length === 0}
-						/>
+						{#if boundaryLoadError}
+							<p class="text-sm text-destructive py-2">{boundaryLoadError}</p>
+						{:else}
+							<BoundaryBrowsePanel
+								allBoundaries={allBoundaries}
+								selectedIds={new Set(browseBoundaries.map((b) => b.id))}
+								presets={boundaryPresets}
+								onSelectionChange={handleBrowsePanelSelection}
+								loading={boundaryLoading}
+							/>
+						{/if}
 
 						{#if browseBoundaries.length > 0}
 							<div class="mt-4 pt-3 border-t flex justify-end">
