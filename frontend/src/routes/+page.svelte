@@ -463,7 +463,17 @@
 						<Button
 							size="sm"
 							variant="outline"
-							onclick={() => { addingAnother = true; pendingBoundary = null; }}
+							onclick={() => {
+								addingAnother = true;
+								pendingBoundary = null;
+								// Re-hydrate browseBoundaries from staged so chips and dedup work
+								const stagedIds = new Set(
+									staged?.mode === 'single'
+										? [staged.fc.id]
+										: (staged?.fcs.map((f) => f.id) ?? [])
+								);
+								browseBoundaries = allBoundaries.filter((b) => stagedIds.has(b.id));
+							}}
 						>
 							<PlusCircle class="mr-1 h-3.5 w-3.5" />
 							Add Boundary
@@ -528,8 +538,8 @@
 					</div>
 				</div>
 
-				<!-- Tab content (scrolls if too tall) -->
-				<div class="px-4 pb-4 pt-2 overflow-y-auto min-h-0 flex-1">
+				<!-- Tab content (scrolls if too tall; explore tab needs overflow-visible so its dropdown isn't clipped) -->
+				<div class="px-4 pb-4 pt-2 min-h-0 flex-1 {activeTab === 'explore' ? 'overflow-visible' : 'overflow-y-auto'}">
 					{#if activeTab === 'explore'}
 						<GeographySearch
 							featuredBoundaries={addingAnother ? [] : featuredBoundaries}
