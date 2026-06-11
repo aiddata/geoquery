@@ -32,6 +32,7 @@ services:
       - ALLOWED_HOSTS=localhost,127.0.0.1,backend
       - RESULTS_DIR=/app/results
       - DOWNLOAD_BASE_URL=http://localhost:8000
+      - PROTOMAPS_API_KEY=${PROTOMAPS_API_KEY}
     depends_on:
       - db
       - rabbitmq
