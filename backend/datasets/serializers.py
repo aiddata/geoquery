@@ -63,9 +63,8 @@ class DatasetDetailSerializer(serializers.ModelSerializer):
         ]
 
     def get_extract_types(self, obj):
-        """Return active/public ProcessingOptions for raster datasets."""
-        return list(
-            obj.processing_options.filter(active=True, public=True)
-            .order_by("short_name")
-            .values("short_name", "description")
+        pos = sorted(
+            (po for po in obj.processing_options.all() if po.active and po.public),
+            key=lambda po: po.short_name,
         )
+        return [{"short_name": po.short_name, "description": po.description} for po in pos]
