@@ -45,6 +45,13 @@ class RequestView(APIView):
             return Response(
                 {"error": "email is required"}, status=status.HTTP_400_BAD_REQUEST
             )
+        if not isinstance(feature_ids, list) or not all(
+            isinstance(i, int) for i in feature_ids
+        ):
+            return Response(
+                {"error": "featureIds must be a list of integers"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if not datasets:
             return Response(
                 {"error": "at least one dataset is required"},
