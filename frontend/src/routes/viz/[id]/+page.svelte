@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { onMount, onDestroy, tick } from 'svelte';
 	import { page } from '$app/state';
 	import maplibregl from 'maplibre-gl';
 	import 'maplibre-gl/dist/maplibre-gl.css';
@@ -323,7 +323,7 @@
 		return lines.join('');
 	}
 
-	onMount(() => () => { map?.remove(); map = null; popup?.remove(); popup = null; sortable?.destroy(); });
+	onDestroy(() => { map?.remove(); map = null; popup?.remove(); popup = null; sortable?.destroy(); });
 
 	function fcFeatureCount(fc: string): number {
 		if (!data) return 0;
