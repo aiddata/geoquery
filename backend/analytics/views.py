@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 
 from analytics.ingest import ingest_custom_boundary
 from analytics.tasks.email import GeoEmail
+from analytics.throttles import RequestSubmitThrottle, RequestTokenThrottle
 from .models import ExtractTask, Request, RequestMap, RequestToken
 
 _STATUS_LABELS = {
@@ -32,6 +33,7 @@ class RequestView(APIView):
 
     authentication_classes = []  # no session auth → no CSRF re-enforcement
     permission_classes = [AllowAny]
+    throttle_classes = [RequestSubmitThrottle]
 
     def get(self, request):
         return Response({"error": "Not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -286,6 +288,7 @@ class RequestTokenView(APIView):
 
     authentication_classes = []
     permission_classes = [AllowAny]
+    throttle_classes = [RequestTokenThrottle]
 
     def post(self, request):
         email = (request.data.get("email") or "").strip().lower()
