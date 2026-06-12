@@ -64,9 +64,20 @@
 	// Human-readable label for the top bar
 	let selectionLabel = $derived.by(() => {
 		if (isCustomMode) return $customBoundary.fileName || 'Custom boundary';
-		if ($selection?.mode === 'single') return $selection.fc.title ?? $selection.fc.name;
-		if ($selection?.mode === 'multi')
-			return $selection.fcs.map((fc) => fc.title ?? fc.name).join(', ');
+		if ($selection?.mode === 'single')
+			return $selection.fc.short_name ?? $selection.fc.title ?? $selection.fc.name;
+		if ($selection?.mode === 'multi') {
+			const names = $selection.fcs.map((fc) => fc.short_name ?? fc.title ?? fc.name);
+			if (names.length <= 2) return names.join(', ');
+			const rest = names.length - 2;
+			return `${names[0]}, ${names[1]}, and ${rest} other${rest > 1 ? 's' : ''}`;
+		}
+		return '';
+	});
+
+	let selectionTooltip = $derived.by(() => {
+		if ($selection?.mode === 'multi' && $selection.fcs.length > 2)
+			return $selection.fcs.map((fc) => fc.title ?? fc.name).join('\n');
 		return '';
 	});
 
@@ -201,7 +212,7 @@
 			Back to Map
 		</Button>
 		<span class="text-sm text-muted-foreground">|</span>
-		<span class="truncate text-sm">
+		<span class="truncate text-sm" title={selectionTooltip || undefined}>
 			<strong>{selectionLabel || 'No selection'}</strong>
 		</span>
 

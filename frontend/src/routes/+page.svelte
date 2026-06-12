@@ -310,6 +310,7 @@
 			id: b.id,
 			name: b.name,
 			title: b.title,
+			short_name: b.short_name,
 			bbox: b.bbox ?? null
 		}));
 
