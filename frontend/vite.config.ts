@@ -5,6 +5,8 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [tailwindcss(), sveltekit()],
   server: {
+    allowedHosts: ["computerx.tail89de66.ts.net"],
+    host: '0.0.0.0',
     watch: {
       usePolling: true,
     },
