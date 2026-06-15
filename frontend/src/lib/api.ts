@@ -81,6 +81,7 @@ export interface DatasetSummary {
 	title: string | null;
 	description: string | null;
 	type: string;
+	processing_class: string;
 	tags: string[];
 	source_name: string | null;
 	source_url: string | null;
@@ -105,9 +106,23 @@ export interface ExtractType {
 	description: string | null;
 }
 
+export interface RangeFilter {
+	type: 'range';
+	min: number;
+	max: number;
+}
+
+export interface CategoricalFilter {
+	type: 'categorical';
+	categories: string[];
+}
+
+export type DatasetFilter = RangeFilter | CategoricalFilter;
+
 export interface DatasetDetail extends DatasetSummary {
 	extract_types: ExtractType[];
 	resources: DatasetResource[];
+	filters: Record<string, DatasetFilter> | null;
 }
 
 export interface DatasetCategory {
@@ -170,6 +185,7 @@ export interface RequestDataset {
 	extractTypes?: string[];
 	resources?: string[];
 	resourceLabels?: string[];
+	kwargs?: Record<string, unknown>;
 }
 
 export interface SubmittedRequest {
@@ -196,6 +212,7 @@ export interface StoredDataset {
 	extract_types?: string[];
 	resources?: string[];
 	resource_labels?: string[];
+	kwargs?: Record<string, unknown>;
 }
 
 export interface RequestDetailData {

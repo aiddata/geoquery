@@ -13,6 +13,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as Collapsible from '$lib/components/ui/collapsible';
 	import { ChevronLeft, ChevronRight, Trash2, Send, CheckCircle } from '@lucide/svelte';
+	import { formatKwargs } from '$lib/utils';
 
 	$effect(() => {
 		currentStep.set('review');
@@ -118,7 +119,8 @@
 					datasetType: item.datasetType,
 					extractTypes: item.extractTypes,
 					resources: item.resources,
-					resourceLabels: item.resourceLabels
+					resourceLabels: item.resourceLabels,
+					kwargs: item.kwargs,
 				}))
 			});
 			submitted = result;
@@ -300,7 +302,13 @@
 												{formatResources(item.resources, item.resourceLabels)}
 											</p>
 										{/if}
-													</Collapsible.Content>
+										{#if item.kwargs}
+											<p>
+												<span class="font-medium">Filters:</span>
+												{formatKwargs(item.kwargs)}
+											</p>
+										{/if}
+								</Collapsible.Content>
 								</Collapsible.Root>
 							</div>
 						</Card.Header>
