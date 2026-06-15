@@ -14,7 +14,9 @@ from rest_framework.views import APIView
 from analytics.ingest import ingest_custom_boundary
 from analytics.tasks.email import GeoEmail
 from analytics.throttles import RequestSubmitThrottle, RequestTokenThrottle
-from .models import ExtractTask, Request, RequestMap, RequestToken
+from .models import ExtractTask, ProcessingOption, Request, RequestMap, RequestToken
+from datasets.models import Dataset, DatasetResource
+from features.models import FeatMap
 
 _STATUS_LABELS = {
     -2: "error",
@@ -138,27 +140,70 @@ class RequestView(APIView):
             dataset_name = (ds.get("datasetName") or "").strip()
             extract_types = ds.get("extractTypes") or []
             resources = ds.get("resources") or []
+            task_kwargs = ds.get("kwargs") or None
 
             if not dataset_name:
                 warnings.append(f"Skipped dataset missing datasetName: {ds}")
                 continue
 
-            tasks = ExtractTask.objects.filter(
-                fm__geom_id__in=feature_ids,
-                resource__dataset__name=dataset_name,
-            )
-            if extract_types:
-                tasks = tasks.filter(po__short_name__in=extract_types)
-            if resources:
-                tasks = tasks.filter(resource__name__in=resources)
+            if task_kwargs:
+                # Per-request tasks: kwargs vary per submission so tasks cannot be shared.
+                # get_or_create against the functional unique index on
+                # (resource_id, fm_id, po_id, COALESCE(kwargs::text, '')) ensures
+                # identical filter combinations reuse the same task row.
+                try:
+                    dataset_obj = Dataset.objects.get(name=dataset_name, active=True)
+                except Dataset.DoesNotExist:
+                    warnings.append(f"Dataset '{dataset_name}' not found or inactive.")
+                    continue
 
-            task_ids = list(tasks.values_list("id", flat=True))
-            if not task_ids:
-                warnings.append(
-                    f"No extract tasks found for dataset '{dataset_name}' "
-                    f"across {len(feature_ids)} feature(s)"
+                po_qs = ProcessingOption.objects.filter(dataset=dataset_obj, active=True, public=True)
+                if extract_types:
+                    po_qs = po_qs.filter(short_name__in=extract_types)
+
+                resource_qs = DatasetResource.objects.filter(dataset=dataset_obj)
+                if resources:
+                    resource_qs = resource_qs.filter(name__in=resources)
+
+                pos = list(po_qs)
+                resource_list = list(resource_qs)
+                fms = list(FeatMap.objects.filter(geom_id__in=feature_ids))
+
+                if not pos or not resource_list or not fms:
+                    warnings.append(
+                        f"No processing options, resources, or features found for dataset '{dataset_name}'."
+                    )
+                    continue
+
+                task_ids = []
+                for fm in fms:
+                    for resource in resource_list:
+                        for po in pos:
+                            task, _ = ExtractTask.objects.get_or_create(
+                                resource=resource,
+                                fm=fm,
+                                po=po,
+                                kwargs=task_kwargs,
+                            )
+                            task_ids.append(task.id)
+            else:
+                # Standard path: reuse pre-computed shared tasks (no per-request kwargs).
+                tasks = ExtractTask.objects.filter(
+                    fm__geom_id__in=feature_ids,
+                    resource__dataset__name=dataset_name,
                 )
-                continue
+                if extract_types:
+                    tasks = tasks.filter(po__short_name__in=extract_types)
+                if resources:
+                    tasks = tasks.filter(resource__name__in=resources)
+
+                task_ids = list(tasks.values_list("id", flat=True))
+                if not task_ids:
+                    warnings.append(
+                        f"No extract tasks found for dataset '{dataset_name}' "
+                        f"across {len(feature_ids)} feature(s)"
+                    )
+                    continue
 
             all_task_ids.update(task_ids)
             valid_datasets.append({
@@ -167,6 +212,7 @@ class RequestView(APIView):
                 "extract_types": extract_types,
                 "resources": resources,
                 "resource_labels": ds.get("resourceLabels") or [],
+                "kwargs": task_kwargs,
             })
 
         if not all_task_ids:

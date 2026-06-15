@@ -84,6 +84,7 @@ def ingest_custom_boundary(
         dataset_name = (ds.get("datasetName") or "").strip()
         extract_types = ds.get("extractTypes") or []
         resources_filter = ds.get("resources") or []
+        task_kwargs = ds.get("kwargs") or None
 
         if not dataset_name:
             continue
@@ -112,7 +113,7 @@ def ingest_custom_boundary(
             continue
 
         ExtractTask.objects.bulk_create([
-            ExtractTask(resource=resource, fm=fm, po=po)
+            ExtractTask(resource=resource, fm=fm, po=po, kwargs=task_kwargs)
             for fm in feat_map_objs
             for resource in resources
             for po in pos
@@ -132,6 +133,7 @@ def ingest_custom_boundary(
             "extract_types": extract_types,
             "resources": resources_filter,
             "resource_labels": ds.get("resourceLabels") or [],
+            "kwargs": task_kwargs,
         })
 
     if not all_task_ids:

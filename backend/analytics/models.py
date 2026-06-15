@@ -90,9 +90,6 @@ class ExtractTask(models.Model):
     class Meta:
         db_table = "extract_tasks"
         constraints = [
-            models.UniqueConstraint(
-                fields=["resource", "fm", "po"], name="extract_tasks_resource_fm_po_pk"
-            ),
             models.UniqueConstraint(fields=["id"], name="extract_tasks_id_unique"),
         ]
 
