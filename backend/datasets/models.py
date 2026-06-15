@@ -36,6 +36,7 @@ class Dataset(models.Model):
     variable_factor = models.FloatField(blank=True, null=True)
     mapped = models.BooleanField(default=False)
     type = models.CharField(max_length=100)
+    processing_class = models.CharField(max_length=50, default='zonal_stats')
 
     class Meta:
         db_table = "datasets"

@@ -8,6 +8,7 @@ from pathlib import Path
 import rasterio
 import shapely
 import shapely.ops
+import geopandas as gpd
 from dateutil.relativedelta import relativedelta
 from django.contrib.gis.geos import GEOSGeometry
 from django.db import transaction
@@ -88,7 +89,7 @@ def _identify_and_create_resources(dataset: Dataset, dataset_path: Path):
     else:
         file_list = list(dataset_path.rglob("*" + file_extension))
 
-    if file_mask is None and len(file_list) != 1:
+    if file_mask in [None, "None", "null"] and len(file_list) != 1:
         raise ValueError("Multiple files found, but no file mask specified")
     if not file_list:
         raise ValueError("No files found")
@@ -99,7 +100,14 @@ def _identify_and_create_resources(dataset: Dataset, dataset_path: Path):
     for f in file_list:
         resource_path = os.path.relpath(f, dataset_path)
 
-        spatial_bbox = get_raster_bbox(f)
+        try:
+            spatial_bbox = get_raster_bbox(f)
+        except:
+            try:
+                spatial_bbox = box(*gpd.read_file(f).total_bounds)
+            except Exception as e:
+                raise ValueError(f"Could not determine spatial extent for file {f}")
+
         spatial_extent_bboxes.append(spatial_bbox)
         spatial_wkt = spatial_bbox.wkt
 
