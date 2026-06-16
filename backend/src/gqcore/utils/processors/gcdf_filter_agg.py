@@ -1,12 +1,45 @@
+import sqlite3
 import geopandas as gpd
 
 
+TABLE_NAME = "gcdf_v301_dynamic"
+
+
+def _bbox_clause(dataset_path, feat):
+    """Return an R-tree bounding-box SQL clause, or None if index unavailable."""
+    try:
+        with sqlite3.connect(str(dataset_path)) as conn:
+            row = conn.execute(
+                "SELECT column_name FROM gpkg_geometry_columns WHERE table_name = ?",
+                (TABLE_NAME,),
+            ).fetchone()
+        geom_col = row[0] if row else "geometry"
+        rtree = f"rtree_{TABLE_NAME}_{geom_col}"
+        minx, miny, maxx, maxy = feat.bounds
+        return (
+            f'rowid IN (SELECT id FROM "{rtree}" '
+            f"WHERE minx <= {maxx} AND maxx >= {minx} "
+            f"AND miny <= {maxy} AND maxy >= {miny})"
+        )
+    except Exception:
+        return None
+
+
 def gcdf_v301_dynamic_filter_and_agg(feat, dataset_path, name, **filters):
+    """Filter GCDF v3.0.1 dynamic dataset by spatial and attribute criteria, then aggregate.
+
+    Round results to integers.
+    """
     agg_field = "Commitment Value"
 
-    # Build attribute-only WHERE clause for SQL pushdown.
-    # Empty categoricals mean no rows can match — short-circuit immediately.
     clauses = []
+
+    # Bounding-box pre-filter via GPKG R-tree index (plain SQLite, no SpatiaLite)
+    if feat is not None:
+        bbox = _bbox_clause(dataset_path, feat)
+        if bbox:
+            clauses.append(bbox)
+
     for key, value in filters.items():
         if not isinstance(value, dict):
             continue
@@ -17,11 +50,11 @@ def gcdf_v301_dynamic_filter_and_agg(feat, dataset_path, name, **filters):
         elif value["type"] == "categorical":
             selected = value["selected"]
             if not selected:
-                continue  # No values selected means no filter needed
+                continue
             placeholders = ", ".join(f"'{v}'" for v in selected)
             clauses.append(f'"{key}" IN ({placeholders})')
 
-    sql_query = "SELECT * FROM gcdf_v301_dynamic"
+    sql_query = f"SELECT * FROM {TABLE_NAME}"
     if clauses:
         sql_query += " WHERE " + " AND ".join(clauses)
 
@@ -30,10 +63,9 @@ def gcdf_v301_dynamic_filter_and_agg(feat, dataset_path, name, **filters):
     if gdf.empty or feat is None:
         return [(name, 0)]
 
-    # Weight each row's value by the fraction of its area covered by feat.
-    # Rows that don't intersect get proportion=0; no need for a separate filter.
+    # Precise shapely intersection with area-proportional aggregation
     intersection_area = gdf.geometry.intersection(feat).area
-    proportion = (intersection_area / gdf.geometry.area).fillna(0.0)
+    proportion = (intersection_area / gdf.geometry.area).fillna(0)
 
     weighted_sum = (gdf[agg_field] * proportion).sum()
-    return [(name, int(round(weighted_sum)))]
+    return [(name, int(weighted_sum))]
