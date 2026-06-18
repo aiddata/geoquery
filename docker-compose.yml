@@ -20,6 +20,7 @@ services:
     build:
       context: .
       dockerfile: backend/Containerfile
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     command: uv run python manage.py runserver 0.0.0.0:8000
     ports:
       - "8000:8000"
@@ -41,6 +42,7 @@ services:
     build:
       context: .
       dockerfile: backend/Containerfile
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     command: uv run celery -A geoquery worker --loglevel=info
     volumes:
       - ./backend:/app/backend

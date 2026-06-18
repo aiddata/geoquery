@@ -4,6 +4,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gdal-bin libgdal-dev libgeos-dev libproj-dev postgresql \
     && rm -rf /var/lib/apt/lists/*
 
+# uv cache and Python bytecode go to /tmp so any runtime UID can write there
+ENV UV_CACHE_DIR=/tmp/.uv-cache \
+    UV_NO_SYNC=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
 WORKDIR /app
 
 # Copy workspace root pyproject.toml and lockfile first
@@ -15,6 +20,8 @@ RUN uv sync --frozen --no-install-project --package geoquery-backend
 
 # Copy backend source
 COPY backend/ backend/
-RUN uv sync --frozen --package geoquery-backend
+RUN uv sync --frozen --package geoquery-backend \
+    && chmod -R a+rX /app \
+    && rm -rf /tmp/.uv-cache
 
 WORKDIR /app/backend
