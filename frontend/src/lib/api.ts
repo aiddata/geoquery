@@ -295,6 +295,7 @@ export interface VizPayload {
 	columns: string[];
 	col_groups: Record<string, string[]>;
 	col_descriptions: Record<string, string>;
+	col_filter_desc?: Record<string, string>;
 	col_dataset_titles: Record<string, string>;
 	col_temporal: Record<string, string>;
 	features: Record<string, VisualizationFeature>;

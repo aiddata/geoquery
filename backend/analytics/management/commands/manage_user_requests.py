@@ -138,6 +138,8 @@ def _manage_user_requests(
                     Request.objects.filter(id=request_id).update(status=original_status)
 
         except Exception as e:
+            # include full traceback in the log for debugging purposes
+            logger.exception("Unhandled exception while processing request (id: %s): %s", request_id, e)
             _request_error(request_id, f"Unhandled exception: {e}")
             logger.error("Skipping request (id: %s) due to error", request_id)
 

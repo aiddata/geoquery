@@ -395,7 +395,7 @@
 									<button
 										class="col-name flex-1 text-left"
 										onclick={() => { if (checkedColumns.has(col)) activeColumn = col; }}
-										title={data.col_descriptions[col] || col}
+										title={data.col_filter_desc?.[col] || data.col_descriptions[col] || col}
 									>{prettyColumn(col)}</button>
 									{#if activeColumn === col}
 										<span class="active-badge">map</span>

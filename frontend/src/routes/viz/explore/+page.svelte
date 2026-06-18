@@ -589,7 +589,7 @@
 												}} />
 											<button class="col-name flex-1 text-left"
 												onclick={() => { if (checkedColumns.has(col)) activeColumn = col; }}
-												title={[data.col_dataset_titles[col], data.col_descriptions[col]].filter(Boolean).join(' · ') || col}
+												title={data.col_filter_desc?.[col] || [data.col_dataset_titles[col], data.col_descriptions[col]].filter(Boolean).join(' · ') || col}
 											>{prettyColumn(col)}</button>
 											{#if partialCols.has(col)}<span class="text-[10px] text-amber-500" title="Partial coverage">⚠</span>{/if}
 											{#if activeColumn === col}<span class="active-badge">map</span>{/if}
