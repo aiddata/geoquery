@@ -12,4 +12,4 @@ You must also cite each individual dataset you use. Citation and source informat
 
 ## Questions
 
-For citation guidance or questions about specific datasets, contact us at [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu).
+For citation guidance or questions about specific datasets, visit the GitHub repository](https://github.com/aiddata/geoquery) or contact us at [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu).
