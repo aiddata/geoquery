@@ -1,5 +1,8 @@
+<svelte:head><title>GeoQuery - AidData</title></svelte:head>
+
 <script lang="ts">
 	import { get } from 'svelte/store';
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
 	import { currentStep } from '$lib/stores/ui';
@@ -59,12 +62,14 @@
 	// Don't restore a standard boundary if custom mode is active — the two are mutually exclusive
 	const _init = get(customBoundary).active ? { staged: null, bbox: null } : initFromStore();
 
-	$effect(() => {
+	onMount(() => {
 		currentStep.set('map');
 	});
 
 	let allBoundaries = $state<BoundaryResult[]>([]);
 	let boundaryPresets = $state<BoundaryPreset[]>([]);
+	let boundaryLoading = $state(true);
+	let boundaryLoadError = $state<string | null>(null);
 
 	// Active tab in the selection panel. 'custom' mirrors customBoundary.active.
 	type SelectionTab = 'explore' | 'browse' | 'custom';
@@ -116,14 +121,18 @@
 	);
 
 	$effect(() => {
-		// Fetch all boundaries (used for browse panel + derived featured)
-		searchBoundaries('', 0).then((results) => {
+		boundaryLoading = true;
+		boundaryLoadError = null;
+		Promise.all([
+			searchBoundaries('', 0),
+			fetchBoundaryPresets()
+		]).then(([results, presets]) => {
 			allBoundaries = results;
-		});
-
-		// Fetch presets
-		fetchBoundaryPresets().then((presets) => {
 			boundaryPresets = presets;
+		}).catch(() => {
+			boundaryLoadError = 'Failed to load boundaries. Please refresh the page.';
+		}).finally(() => {
+			boundaryLoading = false;
 		});
 	});
 
@@ -158,6 +167,7 @@
 
 	// Async state
 	let findingData = $state(false);
+	let findDataError = $state<string | null>(null);
 	// True when features have been changed post-commit; requires re-confirmation before Find Data
 	let stagedNeedsConfirm = $state(false);
 
@@ -300,6 +310,7 @@
 			id: b.id,
 			name: b.name,
 			title: b.title,
+			short_name: b.short_name,
 			bbox: b.bbox ?? null
 		}));
 
@@ -375,6 +386,7 @@
 			}
 		} catch (err) {
 			console.error('Failed to commit selection:', err);
+			findDataError = 'Something went wrong. Please try again.';
 		} finally {
 			findingData = false;
 		}
@@ -455,7 +467,17 @@
 						<Button
 							size="sm"
 							variant="outline"
-							onclick={() => { addingAnother = true; pendingBoundary = null; }}
+							onclick={() => {
+								addingAnother = true;
+								pendingBoundary = null;
+								// Re-hydrate browseBoundaries from staged so chips and dedup work
+								const stagedIds = new Set(
+									staged?.mode === 'single'
+										? [staged.fc.id]
+										: (staged?.fcs.map((f) => f.id) ?? [])
+								);
+								browseBoundaries = allBoundaries.filter((b) => stagedIds.has(b.id));
+							}}
 						>
 							<PlusCircle class="mr-1 h-3.5 w-3.5" />
 							Add Boundary
@@ -471,10 +493,13 @@
 							<ArrowRight class="ml-1 h-3.5 w-3.5" />
 						</Button>
 					{:else}
-						<Button size="sm" class="flex-1" disabled={findingData} onclick={handleFindData}>
+						<Button size="sm" class="flex-1" disabled={findingData} onclick={() => { findDataError = null; handleFindData(); }}>
 							{findingData ? 'Loading…' : 'Find Data'}
 							{#if !findingData}<ArrowRight class="ml-1 h-3.5 w-3.5" />{/if}
 						</Button>
+						{#if findDataError}
+							<p class="text-xs text-destructive mt-1 w-full">{findDataError}</p>
+						{/if}
 					{/if}
 				</div>
 			</div>
@@ -520,8 +545,8 @@
 					</div>
 				</div>
 
-				<!-- Tab content (scrolls if too tall) -->
-				<div class="px-4 pb-4 pt-2 overflow-y-auto min-h-0 flex-1">
+				<!-- Tab content (scrolls if too tall; explore tab needs overflow-visible so its dropdown isn't clipped) -->
+				<div class="px-4 pb-4 pt-2 min-h-0 flex-1 {activeTab === 'explore' ? 'overflow-visible' : 'overflow-y-auto'}">
 					{#if activeTab === 'explore'}
 						<GeographySearch
 							featuredBoundaries={addingAnother ? [] : featuredBoundaries}
@@ -551,13 +576,17 @@
 							</div>
 						{/if}
 					{:else if activeTab === 'browse'}
-						<BoundaryBrowsePanel
-							allBoundaries={allBoundaries}
-							selectedIds={new Set(browseBoundaries.map((b) => b.id))}
-							presets={boundaryPresets}
-							onSelectionChange={handleBrowsePanelSelection}
-							loading={allBoundaries.length === 0}
-						/>
+						{#if boundaryLoadError}
+							<p class="text-sm text-destructive py-2">{boundaryLoadError}</p>
+						{:else}
+							<BoundaryBrowsePanel
+								allBoundaries={allBoundaries}
+								selectedIds={new Set(browseBoundaries.map((b) => b.id))}
+								presets={boundaryPresets}
+								onSelectionChange={handleBrowsePanelSelection}
+								loading={boundaryLoading}
+							/>
+						{/if}
 
 						{#if browseBoundaries.length > 0}
 							<div class="mt-4 pt-3 border-t flex justify-end">

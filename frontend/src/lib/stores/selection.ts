@@ -6,6 +6,7 @@ export interface FCRef {
 	id: number;
 	name: string;
 	title: string | null;
+	short_name: string | null;
 	bbox?: [number, number, number, number] | null;
 }
 

@@ -26,6 +26,7 @@ class DatasetSummarySerializer(serializers.ModelSerializer):
             "title",
             "description",
             "type",
+            "processing_class",
             "tags",
             "source_name",
             "source_url",
@@ -41,6 +42,7 @@ class DatasetSummarySerializer(serializers.ModelSerializer):
 class DatasetDetailSerializer(serializers.ModelSerializer):
     resources = DatasetResourceSerializer(many=True, read_only=True)
     extract_types = serializers.SerializerMethodField()
+    filters = serializers.SerializerMethodField()
 
     class Meta:
         model = Dataset
@@ -50,6 +52,7 @@ class DatasetDetailSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "type",
+            "processing_class",
             "tags",
             "source_name",
             "source_url",
@@ -60,12 +63,17 @@ class DatasetDetailSerializer(serializers.ModelSerializer):
             "date_updated",
             "resources",
             "extract_types",
+            "filters",
         ]
 
     def get_extract_types(self, obj):
-        """Return active/public ProcessingOptions for raster datasets."""
-        return list(
-            obj.processing_options.filter(active=True, public=True)
-            .order_by("short_name")
-            .values("short_name", "description")
+        pos = sorted(
+            (po for po in obj.processing_options.all() if po.active and po.public),
+            key=lambda po: po.short_name,
         )
+        return [{"short_name": po.short_name, "description": po.description} for po in pos]
+
+    def get_filters(self, obj):
+        if obj.other and isinstance(obj.other, dict):
+            return obj.other.get("filters")
+        return None

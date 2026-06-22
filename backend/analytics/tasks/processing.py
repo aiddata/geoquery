@@ -1,3 +1,5 @@
+import hashlib
+import json
 import logging
 from pathlib import Path
 from warnings import catch_warnings
@@ -98,7 +100,7 @@ def run_extract_task(task_id):
         task.save(update_fields=["status", "update_time"])
 
     dataset = task.resource.dataset
-    raster_path = Path(dataset.path) / task.resource.path
+    dataset_path = Path(dataset.path) / task.resource.path
     func = get_func(task.po.function)
 
     geometry = shapely.from_wkb(bytes(task.fm.geom.shape.wkb))
@@ -106,6 +108,12 @@ def run_extract_task(task_id):
     op_kwargs = {"name": task.po.short_name}
     if task.po.kwargs:
         op_kwargs.update(task.po.kwargs)
+    if task.kwargs:
+        op_kwargs.update(task.kwargs)
+        kwargs_hash = hashlib.md5(
+            json.dumps(task.kwargs, sort_keys=True).encode()
+        ).hexdigest()[:8]
+        op_kwargs["name"] = f"{task.po.short_name}_{kwargs_hash}"
 
     if dataset.mapped:
         op_kwargs["category_map"] = dict(
@@ -115,7 +123,7 @@ def run_extract_task(task_id):
     # Execute the processor function
     try:
         with catch_warnings(record=True) as warnings:
-            results = func(geometry, raster_path, **op_kwargs)
+            results = func(geometry, dataset_path, **op_kwargs)
             for w in warnings:
                 logger.warning("Warning in task %s: %s", task_id, w.message)
 

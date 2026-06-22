@@ -20,6 +20,7 @@ services:
     build:
       context: .
       dockerfile: backend/Containerfile
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     command: uv run python manage.py runserver 0.0.0.0:8000
     ports:
       - "8000:8000"
@@ -32,6 +33,7 @@ services:
       - ALLOWED_HOSTS=localhost,127.0.0.1,backend
       - RESULTS_DIR=/app/results
       - DOWNLOAD_BASE_URL=http://localhost:8000
+      - PROTOMAPS_API_KEY=${PROTOMAPS_API_KEY}
     depends_on:
       - db
       - rabbitmq
@@ -40,6 +42,7 @@ services:
     build:
       context: .
       dockerfile: backend/Containerfile
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     command: uv run celery -A geoquery worker --loglevel=info
     volumes:
       - ./backend:/app/backend

@@ -1,6 +1,9 @@
+import secrets
 from datetime import timedelta
 
 from django.conf import settings
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
@@ -10,7 +13,10 @@ from rest_framework.views import APIView
 
 from analytics.ingest import ingest_custom_boundary
 from analytics.tasks.email import GeoEmail
-from .models import ExtractTask, Request, RequestMap, RequestToken
+from analytics.throttles import RequestSubmitThrottle, RequestTokenThrottle
+from .models import ExtractTask, ProcessingOption, Request, RequestMap, RequestToken
+from datasets.models import Dataset, DatasetResource
+from features.models import FeatMap
 
 _STATUS_LABELS = {
     -2: "error",
@@ -29,6 +35,7 @@ class RequestView(APIView):
 
     authentication_classes = []  # no session auth → no CSRF re-enforcement
     permission_classes = [AllowAny]
+    throttle_classes = [RequestSubmitThrottle]
 
     def get(self, request):
         return Response({"error": "Not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -45,6 +52,20 @@ class RequestView(APIView):
             return Response(
                 {"error": "email is required"}, status=status.HTTP_400_BAD_REQUEST
             )
+        try:
+            validate_email(email)
+        except ValidationError:
+            return Response(
+                {"error": "a valid email address is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not isinstance(feature_ids, list) or not all(
+            isinstance(i, int) for i in feature_ids
+        ):
+            return Response(
+                {"error": "featureIds must be a list of integers"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if not datasets:
             return Response(
                 {"error": "at least one dataset is required"},
@@ -59,9 +80,16 @@ class RequestView(APIView):
                     {"error": "customBoundary.features must be a GeoJSON FeatureCollection"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            if not geojson_fc.get("features"):
+            features_list = geojson_fc.get("features") or []
+            if not features_list:
                 return Response(
                     {"error": "customBoundary.features has no features"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            max_features = getattr(settings, "CUSTOM_BOUNDARY_MAX_FEATURES", 100_000)
+            if len(features_list) > max_features:
+                return Response(
+                    {"error": f"Custom boundary may not exceed {max_features:,} features."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             try:
@@ -112,27 +140,70 @@ class RequestView(APIView):
             dataset_name = (ds.get("datasetName") or "").strip()
             extract_types = ds.get("extractTypes") or []
             resources = ds.get("resources") or []
+            task_kwargs = ds.get("kwargs") or None
 
             if not dataset_name:
                 warnings.append(f"Skipped dataset missing datasetName: {ds}")
                 continue
 
-            tasks = ExtractTask.objects.filter(
-                fm__geom_id__in=feature_ids,
-                resource__dataset__name=dataset_name,
-            )
-            if extract_types:
-                tasks = tasks.filter(po__short_name__in=extract_types)
-            if resources:
-                tasks = tasks.filter(resource__name__in=resources)
+            if task_kwargs:
+                # Per-request tasks: kwargs vary per submission so tasks cannot be shared.
+                # get_or_create against the functional unique index on
+                # (resource_id, fm_id, po_id, COALESCE(kwargs::text, '')) ensures
+                # identical filter combinations reuse the same task row.
+                try:
+                    dataset_obj = Dataset.objects.get(name=dataset_name, active=True)
+                except Dataset.DoesNotExist:
+                    warnings.append(f"Dataset '{dataset_name}' not found or inactive.")
+                    continue
 
-            task_ids = list(tasks.values_list("id", flat=True))
-            if not task_ids:
-                warnings.append(
-                    f"No extract tasks found for dataset '{dataset_name}' "
-                    f"across {len(feature_ids)} feature(s)"
+                po_qs = ProcessingOption.objects.filter(dataset=dataset_obj, active=True, public=True)
+                if extract_types:
+                    po_qs = po_qs.filter(short_name__in=extract_types)
+
+                resource_qs = DatasetResource.objects.filter(dataset=dataset_obj)
+                if resources:
+                    resource_qs = resource_qs.filter(name__in=resources)
+
+                pos = list(po_qs)
+                resource_list = list(resource_qs)
+                fms = list(FeatMap.objects.filter(geom_id__in=feature_ids))
+
+                if not pos or not resource_list or not fms:
+                    warnings.append(
+                        f"No processing options, resources, or features found for dataset '{dataset_name}'."
+                    )
+                    continue
+
+                task_ids = []
+                for fm in fms:
+                    for resource in resource_list:
+                        for po in pos:
+                            task, _ = ExtractTask.objects.get_or_create(
+                                resource=resource,
+                                fm=fm,
+                                po=po,
+                                kwargs=task_kwargs,
+                            )
+                            task_ids.append(task.id)
+            else:
+                # Standard path: reuse pre-computed shared tasks (no per-request kwargs).
+                tasks = ExtractTask.objects.filter(
+                    fm__geom_id__in=feature_ids,
+                    resource__dataset__name=dataset_name,
                 )
-                continue
+                if extract_types:
+                    tasks = tasks.filter(po__short_name__in=extract_types)
+                if resources:
+                    tasks = tasks.filter(resource__name__in=resources)
+
+                task_ids = list(tasks.values_list("id", flat=True))
+                if not task_ids:
+                    warnings.append(
+                        f"No extract tasks found for dataset '{dataset_name}' "
+                        f"across {len(feature_ids)} feature(s)"
+                    )
+                    continue
 
             all_task_ids.update(task_ids)
             valid_datasets.append({
@@ -141,6 +212,7 @@ class RequestView(APIView):
                 "extract_types": extract_types,
                 "resources": resources,
                 "resource_labels": ds.get("resourceLabels") or [],
+                "kwargs": task_kwargs,
             })
 
         if not all_task_ids:
@@ -190,8 +262,9 @@ class RequestDetailView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, pk):
+        from django.db.models import Count
         try:
-            req = Request.objects.get(id=pk)
+            req = Request.objects.annotate(task_count=Count("requestmap")).get(id=pk)
         except Request.DoesNotExist:
             return Response({"error": "Not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -226,7 +299,7 @@ class RequestDetailView(APIView):
             "status_label": _STATUS_LABELS.get(req.status, "unknown"),
             "submit_time": req.submit_time,
             "complete_time": req.complete_time,
-            "task_count": RequestMap.objects.filter(request=req).count(),
+            "task_count": req.task_count,
             "data": {
                 "selection_label": req_data.get("selection_label"),
                 "selection_detail": req_data.get("selection_detail"),
@@ -262,27 +335,27 @@ class RequestTokenView(APIView):
 
     authentication_classes = []
     permission_classes = [AllowAny]
+    throttle_classes = [RequestTokenThrottle]
 
     def post(self, request):
         email = (request.data.get("email") or "").strip().lower()
         if not email:
             return Response({"error": "email is required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            validate_email(email)
+        except ValidationError:
+            return Response(
+                {"error": "a valid email address is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         expiry_months = getattr(settings, "TOKEN_EXPIRY_MONTHS", 6)
         expires_at = timezone.now() + timedelta(days=30 * expiry_months)
 
-        token_obj, _ = RequestToken.objects.update_or_create(
-            email=email,
-            defaults={"expires_at": expires_at},
-        )
-        # update_or_create won't call save() for new tokens so generate token manually
-        if not token_obj.token:
-            import secrets
-            token_obj.token = secrets.token_urlsafe(32)
-            token_obj.save(update_fields=["token"])
+        _, raw_token = RequestToken.create_for_email(email=email, expires_at=expires_at)
 
         base_url = getattr(settings, "FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
-        magic_link = f"{base_url}/requests/{token_obj.token}"
+        magic_link = f"{base_url}/requests/{raw_token}"
 
         subject = "Your GeoQuery request history link"
         message = (
@@ -308,7 +381,7 @@ class RequestHistoryView(APIView):
 
     def get(self, request, token):
         try:
-            token_obj = RequestToken.objects.get(token=token)
+            token_obj = RequestToken.objects.get(token=RequestToken.hash_token(token))
         except RequestToken.DoesNotExist:
             return Response({"error": "Invalid or expired link."}, status=status.HTTP_404_NOT_FOUND)
 

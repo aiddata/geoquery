@@ -154,7 +154,7 @@ FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173")
 TOKEN_EXPIRY_MONTHS = int(os.environ.get("TOKEN_EXPIRY_MONTHS", "6"))
 
 # Protomaps
-PROTOMAPS_API_KEY = os.environ.get("PROTOMAPS_API_KEY", "c1f661e43ad06f34")
+PROTOMAPS_API_KEY = os.environ.get("PROTOMAPS_API_KEY", "")
 
 # Celery
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "amqp://guest:guest@localhost:5672//")
@@ -218,4 +218,8 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",
     ],
+    "DEFAULT_THROTTLE_RATES": {
+        "request_token": os.environ.get("THROTTLE_RATE_REQUEST_TOKEN", "10/hour"),
+        "request_submit": os.environ.get("THROTTLE_RATE_REQUEST_SUBMIT", "60/hour"),
+    },
 }

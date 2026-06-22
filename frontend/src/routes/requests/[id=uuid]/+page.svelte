@@ -6,6 +6,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as Collapsible from '$lib/components/ui/collapsible';
 	import { ArrowLeft, Download, RefreshCw, ChevronRight, Map } from '@lucide/svelte';
+	import { formatKwargs } from '$lib/utils';
 
 	const TERMINAL_STATUSES = new Set([1, -2]);
 
@@ -213,6 +214,12 @@
 											<p>
 												<span class="font-medium">Time periods:</span>
 												{formatResources(item.resources, item.resource_labels)}
+											</p>
+										{/if}
+										{#if item.kwargs}
+											<p>
+												<span class="font-medium">Filters:</span>
+												{formatKwargs(item.kwargs)}
 											</p>
 										{/if}
 									</Collapsible.Content>

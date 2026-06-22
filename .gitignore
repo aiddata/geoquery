@@ -1,6 +1,9 @@
 # Claude
 .claude
 
+# Secrets
+.env
+
 # Local test data
 dev_data/
 data/

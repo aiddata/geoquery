@@ -18,13 +18,16 @@
 		fetchFeatureIds,
 		type DatasetSummary,
 		type DatasetDetail,
-		type DatasetCategory
+		type DatasetCategory,
+		type DatasetFilter
 	} from '$lib/api';
+	import { type FilterSelection } from '$lib/stores/cart';
 	import { customBoundary } from '$lib/stores/customBoundary';
 	import { bbox as turfBbox } from '@turf/bbox';
 	import { TriangleAlert } from '@lucide/svelte';
 	import DatasetSelector from '$lib/components/datasets/DatasetSelector.svelte';
 	import RasterOptions from '$lib/components/datasets/RasterOptions.svelte';
+	import FilterAndAggOptions from '$lib/components/datasets/FilterAndAggOptions.svelte';
 	import SelectionSummary from '$lib/components/datasets/SelectionSummary.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { ChevronLeft, ArrowRight } from '@lucide/svelte';
@@ -64,9 +67,20 @@
 	// Human-readable label for the top bar
 	let selectionLabel = $derived.by(() => {
 		if (isCustomMode) return $customBoundary.fileName || 'Custom boundary';
-		if ($selection?.mode === 'single') return $selection.fc.title ?? $selection.fc.name;
-		if ($selection?.mode === 'multi')
-			return $selection.fcs.map((fc) => fc.title ?? fc.name).join(', ');
+		if ($selection?.mode === 'single')
+			return $selection.fc.short_name ?? $selection.fc.title ?? $selection.fc.name;
+		if ($selection?.mode === 'multi') {
+			const names = $selection.fcs.map((fc) => fc.short_name ?? fc.title ?? fc.name);
+			if (names.length <= 2) return names.join(', ');
+			const rest = names.length - 2;
+			return `${names[0]}, ${names[1]}, and ${rest} other${rest > 1 ? 's' : ''}`;
+		}
+		return '';
+	});
+
+	let selectionTooltip = $derived.by(() => {
+		if ($selection?.mode === 'multi' && $selection.fcs.length > 2)
+			return $selection.fcs.map((fc) => fc.title ?? fc.name).join('\n');
 		return '';
 	});
 
@@ -108,6 +122,27 @@
 	let rasterOptions = $state<{ extractTypes: string[]; resources: string[] }>({
 		extractTypes: [],
 		resources: []
+	});
+
+	// Filter-and-agg state
+	let filterSelections = $state<Record<string, FilterSelection>>({});
+
+	function initFilterSelections(filters: Record<string, DatasetFilter>): Record<string, FilterSelection> {
+		const s: Record<string, FilterSelection> = {};
+		for (const [key, f] of Object.entries(filters)) {
+			if (f.type === 'range') {
+				s[key] = { type: 'range', start: f.min, end: f.max };
+			} else {
+				s[key] = { type: 'categorical', selected: [...f.categories] };
+			}
+		}
+		return s;
+	}
+
+	$effect(() => {
+		if (selectedDatasetDetail?.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters) {
+			filterSelections = initFilterSelections(selectedDatasetDetail.filters);
+		}
 	});
 
 	// Fetch datasets when resolved feature IDs become available (standard) or in custom mode
@@ -167,17 +202,27 @@
 	function handleAddToRequest(customName: string) {
 		if (!selectedDatasetDetail) return;
 
+		const isFilterAndAgg = selectedDatasetDetail.processing_class === 'filter_and_agg';
+
 		const item: CartItem = {
 			customName: customName || selectedDatasetDetail.title || selectedDatasetDetail.name,
 			datasetName: selectedDatasetDetail.name,
 			datasetTitle: selectedDatasetDetail.title ?? selectedDatasetDetail.name,
 			datasetType: selectedDatasetDetail.type,
-			extractTypes: [...rasterOptions.extractTypes],
-			resources: [...rasterOptions.resources],
-			resourceLabels: rasterOptions.resources.map((name) => {
-				const res = selectedDatasetDetail!.resources.find((r) => r.name === name);
-				return res?.label ?? res?.temporal ?? name;
-			}),
+			processingClass: selectedDatasetDetail.processing_class,
+			...(isFilterAndAgg
+				? {
+					filterSelections: { ...filterSelections },
+					kwargs: { ...filterSelections },
+				}
+				: {
+					extractTypes: [...rasterOptions.extractTypes],
+					resources: [...rasterOptions.resources],
+					resourceLabels: rasterOptions.resources.map((name) => {
+						const res = selectedDatasetDetail!.resources.find((r) => r.name === name);
+						return res?.label ?? res?.temporal ?? name;
+					}),
+				}),
 		};
 
 		cart.upsertItem(item);
@@ -186,10 +231,15 @@
 		selectedDatasetSummary = null;
 		selectedDatasetDetail = null;
 		rasterOptions = { extractTypes: [], resources: [] };
+		filterSelections = {};
 	}
 
 	function handleReset() {
-		rasterOptions = { extractTypes: [], resources: [] };
+		if (selectedDatasetDetail?.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters) {
+			filterSelections = initFilterSelections(selectedDatasetDetail.filters);
+		} else {
+			rasterOptions = { extractTypes: [], resources: [] };
+		}
 	}
 </script>
 
@@ -201,7 +251,7 @@
 			Back to Map
 		</Button>
 		<span class="text-sm text-muted-foreground">|</span>
-		<span class="truncate text-sm">
+		<span class="truncate text-sm" title={selectionTooltip || undefined}>
 			<strong>{selectionLabel || 'No selection'}</strong>
 		</span>
 
@@ -280,11 +330,19 @@
 					</div>
 
 					<!-- Configuration area -->
-					<RasterOptions
-						dataset={selectedDatasetDetail}
-						options={rasterOptions}
-						onOptionsChange={(o) => (rasterOptions = o)}
-					/>
+					{#if selectedDatasetDetail.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters}
+						<FilterAndAggOptions
+							filters={selectedDatasetDetail.filters}
+							selections={filterSelections}
+							onSelectionsChange={(s) => (filterSelections = s)}
+						/>
+					{:else}
+						<RasterOptions
+							dataset={selectedDatasetDetail}
+							options={rasterOptions}
+							onOptionsChange={(o) => (rasterOptions = o)}
+						/>
+					{/if}
 				{/if}
 			</div>
 
@@ -292,8 +350,9 @@
 			<div class="w-72 shrink-0 border-l bg-card">
 				<SelectionSummary
 					dataset={selectedDatasetDetail}
-					extractTypes={rasterOptions.extractTypes}
-					selectedResources={rasterOptions.resources}
+					extractTypes={selectedDatasetDetail?.processing_class === 'filter_and_agg' ? undefined : rasterOptions.extractTypes}
+					selectedResources={selectedDatasetDetail?.processing_class === 'filter_and_agg' ? undefined : rasterOptions.resources}
+					filterSelections={selectedDatasetDetail?.processing_class === 'filter_and_agg' ? filterSelections : undefined}
 					onAddToRequest={handleAddToRequest}
 					onReset={handleReset}
 				/>

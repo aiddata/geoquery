@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { onMount, onDestroy, tick } from 'svelte';
 	import { page } from '$app/state';
 	import maplibregl from 'maplibre-gl';
 	import 'maplibre-gl/dist/maplibre-gl.css';
@@ -151,7 +151,7 @@
 			setupHover();
 			fitToBbox();
 			mapReady = true;
-			applyColors();
+			void applyColors();
 		});
 	}
 
@@ -226,7 +226,7 @@
 
 	$effect(() => {
 		void activeColumn; void currentPalette; void currentMethod; void hiddenFCs;
-		if (mapReady) applyColors();
+		if (mapReady) void applyColors();
 	});
 
 	function toggleFC(fc: string, visible: boolean) {
@@ -323,7 +323,7 @@
 		return lines.join('');
 	}
 
-	onMount(() => () => { map?.remove(); map = null; popup?.remove(); popup = null; sortable?.destroy(); });
+	onDestroy(() => { map?.remove(); map = null; popup?.remove(); popup = null; sortable?.destroy(); });
 
 	function fcFeatureCount(fc: string): number {
 		if (!data) return 0;
@@ -395,7 +395,7 @@
 									<button
 										class="col-name flex-1 text-left"
 										onclick={() => { if (checkedColumns.has(col)) activeColumn = col; }}
-										title={data.col_descriptions[col] || col}
+										title={data.col_filter_desc?.[col] || data.col_descriptions[col] || col}
 									>{prettyColumn(col)}</button>
 									{#if activeColumn === col}
 										<span class="active-badge">map</span>

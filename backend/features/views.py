@@ -3,7 +3,7 @@ import yaml
 from django.db import connection
 from django.db.models import Q
 from django.http import HttpResponse
-from rest_framework import generics
+from rest_framework import generics, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -25,7 +25,13 @@ class FeatureCollectionAutocompleteView(generics.ListAPIView):
 
     def get(self, request, *args, **kwargs):
         query = request.query_params.get("q", "").strip()
-        limit = int(request.query_params.get("limit", 10))
+        try:
+            limit = int(request.query_params.get("limit", 10))
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "limit must be an integer"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Start with active and public feature collections
         queryset = FeatureCollection.objects.filter(active=True, public=True)
@@ -118,13 +124,15 @@ def feature_collection_vector_tiles(request, fc_name, z, x, y):
             return HttpResponse(b"", content_type=_MVT_CONTENT_TYPE)
 
 
-def _mvt_sql_simplified(view_name):
-    """SQL for generating MVT tiles from a simplified materialized view.
+_SIMPLIFIED_VIEWS = frozenset({
+    "features_simplified_z0_5",
+    "features_simplified_z6_9",
+    "features_simplified_z10_12",
+})
 
-    Matview geometry is stored in EPSG:3857, so no per-row ST_Transform needed.
-    ST_TileEnvelope already returns 3857, used directly for both clipping and filtering.
-    Exposes geom_id (Feature.id) as the tile feature id for client-side selection.
-    """
+
+def _mvt_sql_simplified(view_name):
+    assert view_name in _SIMPLIFIED_VIEWS, f"Unknown simplified view: {view_name!r}"
     return f"""
         SELECT ST_AsMVT(mvtgeoms.*, %s) AS mvt FROM (
             SELECT

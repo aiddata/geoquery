@@ -33,6 +33,7 @@ dependencies = [
     "pydantic",
     "pandas",
     "geopandas",
+    "pyarrow",
     "shapely",
     "rasterio",
     "rasterstats @ git+https://github.com/aiddata/geoquery-python-rasterstats@80ab2f2a01d0aa99d935ca7fe7ed422b9f52f9b7",

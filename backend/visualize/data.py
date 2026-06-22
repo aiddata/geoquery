@@ -8,10 +8,27 @@ improvements apply to all past requests without re-running anything.
 
 from __future__ import annotations
 
+import json
+
 from django.contrib.gis.db.models import Extent
 
 from features.models import Feature, FeatMap
 from analytics.models import ExtractData, ExtractTask, ProcessingOption
+
+
+def _fmt_kwargs(kwargs: dict) -> str:
+    parts = []
+    for key, val in kwargs.items():
+        if isinstance(val, dict):
+            if val.get("type") == "range":
+                parts.append(f"{key}: {val.get('start')}–{val.get('end')}")
+            elif val.get("type") == "categorical" and isinstance(val.get("selected"), list):
+                parts.append(f"{key}: {', '.join(str(s) for s in val['selected'])}")
+            else:
+                parts.append(f"{key}: {json.dumps(val)}")
+        else:
+            parts.append(f"{key}: {val}")
+    return "; ".join(parts)
 
 
 def build_request_data(request) -> dict:
@@ -57,6 +74,7 @@ def build_request_data(request) -> dict:
             "extract_task__resource__dataset__name",
             "extract_task__po__dataset_id",
             "extract_task__po__short_name",
+            "extract_task__kwargs",
             "name",
             "data_column",
             "int_value", "float_value", "str_value",
@@ -67,6 +85,7 @@ def build_request_data(request) -> dict:
     po_keys_per_col: dict[str, tuple[int, str]] = {}
     col_dataset_titles: dict[str, str] = {}
     col_temporal: dict[str, str] = {}
+    col_kwargs: dict[str, dict] = {}
 
     for dr in data_rows:
         col = f"{dr['extract_task__resource__name']}.{dr['name']}"
@@ -84,6 +103,8 @@ def build_request_data(request) -> dict:
             )
         if col not in col_temporal and dr["extract_task__resource__label"]:
             col_temporal[col] = dr["extract_task__resource__label"]
+        if col not in col_kwargs and dr["extract_task__kwargs"]:
+            col_kwargs[col] = dr["extract_task__kwargs"]
 
         geom_id = dr["extract_task__fm__geom_id"]
         record = features.get(str(geom_id))
@@ -129,6 +150,10 @@ def build_request_data(request) -> dict:
                 if desc:
                     col_descriptions[col] = desc
 
+    col_filter_desc: dict[str, str] = {
+        col: _fmt_kwargs(kw) for col, kw in col_kwargs.items()
+    }
+
     # ── 5. Bounding box from Feature geometries ──────────────────────────────
     bbox = None
     geom_ids = [int(k) for k in features.keys()]
@@ -149,6 +174,7 @@ def build_request_data(request) -> dict:
         "columns": data_cols,
         "col_groups": col_groups,
         "col_descriptions": col_descriptions,
+        "col_filter_desc": col_filter_desc,
         "col_dataset_titles": col_dataset_titles,
         "col_temporal": col_temporal,
         "features": features,
@@ -200,6 +226,7 @@ def build_explore_data(fc_ids: list[int], po_ids: list[int]) -> dict:
             "extract_task__resource__dataset__name",
             "extract_task__po__dataset_id",
             "extract_task__po__short_name",
+            "extract_task__kwargs",
             "name",
             "data_column",
             "int_value", "float_value", "str_value",
@@ -210,6 +237,7 @@ def build_explore_data(fc_ids: list[int], po_ids: list[int]) -> dict:
     po_keys_per_col: dict[str, tuple[int, str]] = {}
     col_dataset_titles: dict[str, str] = {}
     col_temporal: dict[str, str] = {}
+    col_kwargs: dict[str, dict] = {}
 
     for dr in data_rows:
         col = f"{dr['extract_task__resource__name']}.{dr['name']}"
@@ -227,6 +255,8 @@ def build_explore_data(fc_ids: list[int], po_ids: list[int]) -> dict:
             )
         if col not in col_temporal and dr["extract_task__resource__label"]:
             col_temporal[col] = dr["extract_task__resource__label"]
+        if col not in col_kwargs and dr["extract_task__kwargs"]:
+            col_kwargs[col] = dr["extract_task__kwargs"]
         geom_id = dr["extract_task__fm__geom_id"]
         record = features.get(str(geom_id))
         if record is None:
@@ -269,6 +299,10 @@ def build_explore_data(fc_ids: list[int], po_ids: list[int]) -> dict:
                 if desc:
                     col_descriptions[col] = desc
 
+    col_filter_desc: dict[str, str] = {
+        col: _fmt_kwargs(kw) for col, kw in col_kwargs.items()
+    }
+
     bbox = None
     geom_ids = [int(k) for k in features.keys()]
     if geom_ids:
@@ -283,6 +317,7 @@ def build_explore_data(fc_ids: list[int], po_ids: list[int]) -> dict:
         "columns": data_cols,
         "col_groups": col_groups,
         "col_descriptions": col_descriptions,
+        "col_filter_desc": col_filter_desc,
         "col_dataset_titles": col_dataset_titles,
         "col_temporal": col_temporal,
         "features": features,

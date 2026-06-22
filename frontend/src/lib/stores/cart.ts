@@ -1,13 +1,32 @@
 import { writable, derived } from 'svelte/store';
 
+export interface RangeSelection {
+	type: 'range';
+	start: number;
+	end: number;
+}
+
+export interface CategoricalSelection {
+	type: 'categorical';
+	selected: string[];
+}
+
+export type FilterSelection = RangeSelection | CategoricalSelection;
+
 export interface CartItem {
 	customName: string;
 	datasetName: string;
 	datasetTitle: string;
 	datasetType: string;
+	processingClass: string;
+	// zonal_stats fields:
 	extractTypes?: string[];
 	resources?: string[];
 	resourceLabels?: string[];
+	// filter_and_agg fields:
+	filterSelections?: Record<string, FilterSelection>;
+	// generic per-task kwargs passed through to the backend processing function:
+	kwargs?: Record<string, unknown>;
 }
 
 function createCartStore() {
@@ -21,6 +40,20 @@ function createCartStore() {
 		/** Add item, or merge into the existing entry for the same dataset. */
 		upsertItem(item: CartItem) {
 			update((items) => {
+				const itemKwargs = JSON.stringify(item.kwargs ?? null);
+				const hasKwargs = item.kwargs != null;
+
+				// Items with kwargs are keyed by (datasetName + kwargs): different kwarg
+				// combinations are independent cart slots; identical ones replace in place.
+				if (hasKwargs) {
+					const idx = items.findIndex(
+						(i) => i.datasetName === item.datasetName &&
+							JSON.stringify(i.kwargs ?? null) === itemKwargs
+					);
+					if (idx === -1) return [...items, item];
+					return items.map((it, i) => (i === idx ? item : it));
+				}
+
 				const idx = items.findIndex((i) => i.datasetName === item.datasetName);
 				if (idx === -1) return [...items, item];
 

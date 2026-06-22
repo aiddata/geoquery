@@ -6,11 +6,13 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import { ShoppingCart, RotateCcw } from '@lucide/svelte';
 	import type { DatasetDetail } from '$lib/api';
+	import type { FilterSelection } from '$lib/stores/cart';
 
 	interface Props {
 		dataset: DatasetDetail | null;
 		extractTypes?: string[];
 		selectedResources?: string[];
+		filterSelections?: Record<string, FilterSelection>;
 		onAddToRequest: (customName: string) => void;
 		onReset: () => void;
 	}
@@ -19,6 +21,7 @@
 		dataset,
 		extractTypes,
 		selectedResources,
+		filterSelections,
 		onAddToRequest,
 		onReset
 	}: Props = $props();
@@ -31,21 +34,29 @@
 
 		lines.push(`Extract data from ${dataset.title ?? dataset.name}`);
 
-		if (extractTypes && extractTypes.length > 0) {
-			lines.push(`calculating ${extractTypes.join(', ')}`);
-		}
-		if (selectedResources && selectedResources.length > 0) {
-			const resourceLabels = selectedResources.map((name) => {
-				const r = dataset.resources.find((res) => res.name === name);
-				return r?.label ?? name;
+		if (filterSelections) {
+			const parts = Object.entries(filterSelections).map(([key, sel]) => {
+				if (sel.type === 'range') return `${key}: ${sel.start}–${sel.end}`;
+				return `${key}: ${sel.selected.length} selected`;
 			});
-			lines.push(`for ${resourceLabels.join(', ')}`);
+			if (parts.length) lines.push(`with filters: ${parts.join('; ')}`);
+		} else {
+			if (extractTypes && extractTypes.length > 0) {
+				lines.push(`calculating ${extractTypes.join(', ')}`);
+			}
+			if (selectedResources && selectedResources.length > 0) {
+				const resourceLabels = selectedResources.map((name) => {
+					const r = dataset.resources.find((res) => res.name === name);
+					return r?.label ?? name;
+				});
+				lines.push(`for ${resourceLabels.join(', ')}`);
+			}
 		}
 
 		return lines;
 	});
 
-	let canAdd = $derived((extractTypes?.length ?? 0) > 0 && !!dataset);
+	let canAdd = $derived(!!dataset && (filterSelections !== undefined || (extractTypes?.length ?? 0) > 0));
 </script>
 
 <div class="flex h-full flex-col">

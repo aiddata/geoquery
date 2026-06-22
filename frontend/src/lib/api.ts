@@ -81,6 +81,7 @@ export interface DatasetSummary {
 	title: string | null;
 	description: string | null;
 	type: string;
+	processing_class: string;
 	tags: string[];
 	source_name: string | null;
 	source_url: string | null;
@@ -105,9 +106,23 @@ export interface ExtractType {
 	description: string | null;
 }
 
+export interface RangeFilter {
+	type: 'range';
+	min: number;
+	max: number;
+}
+
+export interface CategoricalFilter {
+	type: 'categorical';
+	categories: string[];
+}
+
+export type DatasetFilter = RangeFilter | CategoricalFilter;
+
 export interface DatasetDetail extends DatasetSummary {
 	extract_types: ExtractType[];
 	resources: DatasetResource[];
+	filters: Record<string, DatasetFilter> | null;
 }
 
 export interface DatasetCategory {
@@ -170,6 +185,7 @@ export interface RequestDataset {
 	extractTypes?: string[];
 	resources?: string[];
 	resourceLabels?: string[];
+	kwargs?: Record<string, unknown>;
 }
 
 export interface SubmittedRequest {
@@ -196,6 +212,7 @@ export interface StoredDataset {
 	extract_types?: string[];
 	resources?: string[];
 	resource_labels?: string[];
+	kwargs?: Record<string, unknown>;
 }
 
 export interface RequestDetailData {
@@ -203,6 +220,8 @@ export interface RequestDetailData {
 	selection_detail: string | null;
 	feature_ids: number[];
 	datasets: StoredDataset[];
+	is_custom_boundary?: boolean;
+	boundary_operations?: { id: string; type: string; params: Record<string, unknown> }[];
 }
 
 export interface RequestDetail extends PastRequest {
@@ -276,6 +295,7 @@ export interface VizPayload {
 	columns: string[];
 	col_groups: Record<string, string[]>;
 	col_descriptions: Record<string, string>;
+	col_filter_desc?: Record<string, string>;
 	col_dataset_titles: Record<string, string>;
 	col_temporal: Record<string, string>;
 	features: Record<string, VisualizationFeature>;

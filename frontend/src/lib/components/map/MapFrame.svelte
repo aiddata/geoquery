@@ -4,6 +4,7 @@
 	import 'maplibre-gl/dist/maplibre-gl.css';
 	import { layers, namedFlavor } from '@protomaps/basemaps';
 	import { boundaryTileUrl, fetchConfig } from '$lib/api';
+	import { escapeHtml } from '$lib/viz';
 	import type { FeatureCollection } from 'geojson';
 
 	export interface FcStyle {
@@ -200,7 +201,7 @@
 
 			if (featureName) {
 				if (!popup) popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
-				popup.setLngLat(e.lngLat).setHTML(`<strong>${featureName}</strong>`).addTo(m);
+				popup.setLngLat(e.lngLat).setHTML(`<strong>${escapeHtml(featureName)}</strong>`).addTo(m);
 			}
 		};
 

@@ -1,3 +1,5 @@
+import hashlib
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -91,6 +93,29 @@ class DocBuilder:
                 self._kv("Visualization", f'<a href="{self._esc(viz_url)}">{self._esc(viz_url)}</a>')
             )
         return f"<section><h2>Request Info</h2>{self._table(rows)}</section>"
+
+    @staticmethod
+    def _fmt_kwargs(kwargs: dict) -> str:
+        """Convert a kwargs dict to a human-readable filter description."""
+        parts = []
+        for key, val in kwargs.items():
+            if isinstance(val, dict):
+                if val.get("type") == "range":
+                    parts.append(f"{key}: {val.get('start')}–{val.get('end')}")
+                elif val.get("type") == "categorical" and isinstance(val.get("selected"), list):
+                    parts.append(f"{key}: {', '.join(str(s) for s in val['selected'])}")
+                else:
+                    parts.append(f"{key}: {json.dumps(val)}")
+            else:
+                parts.append(f"{key}: {val}")
+        return "; ".join(parts)
+
+    @staticmethod
+    def _kwargs_hash(kwargs: dict) -> str:
+        """Return the 8-char MD5 hash used to suffix output column names."""
+        return hashlib.md5(
+            json.dumps(kwargs, sort_keys=True).encode()
+        ).hexdigest()[:8]
 
     @staticmethod
     def _fmt_operation(op: dict) -> str:
@@ -190,6 +215,20 @@ class DocBuilder:
                 rows.append(self._kv(
                     f"Extract types ({len(extract_types)})",
                     f"<ul style='margin:0;padding-left:1.2em;'>{et_items}</ul>",
+                ))
+
+            kwargs = ds.get("kwargs")
+            if kwargs:
+                kwargs_hash = self._kwargs_hash(kwargs)
+                filter_desc = self._esc(self._fmt_kwargs(kwargs))
+                rows.append(self._kv(
+                    "Filters applied",
+                    f"{filter_desc} <code style='font-size:.8em;color:#666;'>({kwargs_hash})</code>",
+                ))
+                rows.append(self._kv(
+                    "Output column suffix",
+                    f"<code>_{kwargs_hash}</code> — appended to each extract-type column name "
+                    f"to distinguish this filter combination",
                 ))
 
             cards.append(

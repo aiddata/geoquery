@@ -22,9 +22,9 @@ Select boundaries, choose from a curated library of datasets, and download resul
 - [Using GeoQuery](using-geoquery/getting-started.md) — a step-by-step guide to submitting requests
 - [FAQ](faq.md) — common questions about data formats, turnaround times, and more
 - [Citing GeoQuery](citing.md) — how to cite this tool and individual datasets in your work
-- [GitHub](https://github.com/aiddata/geoquery-update) - Source code for GeoQuery
+- [GitHub](https://github.com/aiddata/geoquery) - Source code for GeoQuery
 ---
 
 ## Contact
 
-Questions or feedback? Email us at [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu).
+Questions or feedback? Create visit the [GitHub repository](https://github.com/aiddata/geoquery) or email us at [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu).

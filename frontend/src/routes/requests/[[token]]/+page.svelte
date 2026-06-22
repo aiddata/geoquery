@@ -8,8 +8,7 @@
     const token = $derived(page.params.token ?? "");
 
     let email = $state("");
-    let inputEl: HTMLInputElement | undefined = $state();
-    let isValidEmail = $derived((email, inputEl?.validity.valid ?? false));
+    let isValidEmail = $derived(/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(email));
 
     let requests = $state<PastRequest[]>([]);
     let loading = $state(false);
@@ -89,7 +88,6 @@
                             <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <input
                                 type="email"
-                                bind:this={inputEl}
                                 bind:value={email}
                                 placeholder="your@email.com"
                                 class="w-full rounded-md border bg-background py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-ring"
@@ -130,7 +128,6 @@
                             <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <input
                                 type="email"
-                                bind:this={inputEl}
                                 bind:value={email}
                                 placeholder="your@email.com"
                                 class="w-full rounded-md border bg-background py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-ring"

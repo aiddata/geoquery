@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { onMount, onDestroy, tick } from 'svelte';
 	import maplibregl from 'maplibre-gl';
 	import 'maplibre-gl/dist/maplibre-gl.css';
 	import { layers, namedFlavor } from '@protomaps/basemaps';
@@ -50,6 +50,7 @@
 	}
 
 	async function handleSelectionChange(newIds: Set<number>) {
+		layerError = '';
 		const newFCs = [...newIds]
 			.map((id) => allBoundaries.find((b) => b.id === id))
 			.filter((b): b is BoundaryResult => !!b);
@@ -58,17 +59,31 @@
 		const toAdd = newFCs.filter((fc) => !selectedFCs.some((s) => s.id === fc.id));
 
 		for (const fc of toRemove) removeFCFromMap(fc.name);
-		for (const fc of toAdd) await addFCToMap(fc);
 
-		selectedFCs = newFCs;
+		const failed: string[] = [];
+		for (const fc of toAdd) {
+			try {
+				await addFCToMap(fc);
+			} catch {
+				failed.push(fc.title || fc.name);
+			}
+		}
+		if (failed.length) layerError = `Failed to load layer(s): ${failed.join(', ')}`;
 
-		if (newFCs.length === 0) {
+		selectedFCs = newFCs.filter((fc) => !failed.includes(fc.title || fc.name));
+
+		if (selectedFCs.length === 0) {
 			availableDatasets = [];
 			data = null; checkedPoIds = new Set(); activeColumn = null;
 			checkedColumns = new Set(); partialCols = new Set();
 		} else {
 			refitMap();
-			void refreshAvailable();
+			await refreshAvailable();
+			// Filter out PO IDs that no longer exist in the updated available options
+			const validPoIds = new Set(
+				availableDatasets.flatMap((ds) => ds.options.map((o) => o.po_id))
+			);
+			checkedPoIds = new Set([...checkedPoIds].filter((id) => validPoIds.has(id)));
 			if (checkedPoIds.size > 0) void loadExploreData();
 		}
 	}
@@ -96,6 +111,7 @@
 	let data = $state<VizPayload | null>(null);
 	let dataLoading = $state(false);
 	let dataError = $state('');
+	let layerError = $state('');
 	let partialCols = $state<Set<string>>(new Set());
 
 	async function togglePo(poId: number, checked: boolean) {
@@ -129,7 +145,7 @@
 				checkedColumns = activeColumn ? new Set([activeColumn]) : new Set();
 			}
 			await tick();
-			if (mapReady) applyColors();
+			if (mapReady) void applyColors();
 		} catch (e) {
 			dataError = e instanceof Error ? e.message : 'Failed to load data.';
 		} finally { dataLoading = false; }
@@ -167,7 +183,8 @@
 		if (customIndices.some((c) => c.name === indexName.trim())) { indexError = 'Name already used.'; return; }
 		let expr;
 		try { expr = parseFormula(indexFormula); } catch (e) { indexError = e instanceof Error ? e.message : 'Parse error'; return; }
-		const missing = formulaColumns(expr).filter((c) => !data?.columns.includes(c));
+		const allCols = new Set([...(data?.columns ?? []), ...customIndices.map((c) => c.name)]);
+		const missing = formulaColumns(expr).filter((c) => !allCols.has(c));
 		if (missing.length) { indexError = `Unknown columns: ${missing.join(', ')}`; return; }
 		const values: Record<string, number | null> = {};
 		let nullCount = 0;
@@ -395,7 +412,7 @@
 		return lines.join('');
 	}
 
-	onMount(() => () => { map?.remove(); map = null; popup?.remove(); popup = null; sortable?.destroy(); });
+	onDestroy(() => { map?.remove(); map = null; popup?.remove(); popup = null; sortable?.destroy(); });
 
 	function fcFeatureCount(fcName: string): number {
 		if (!data) return 0;
@@ -464,6 +481,9 @@
 				</div>
 
 				<!-- Browse panel (reuses the main app component) -->
+				{#if layerError}
+					<p class="text-xs text-destructive mb-2">{layerError}</p>
+				{/if}
 				<BoundaryBrowsePanel
 					allBoundaries={allBoundaries}
 					selectedIds={selectedIds}
@@ -569,7 +589,7 @@
 												}} />
 											<button class="col-name flex-1 text-left"
 												onclick={() => { if (checkedColumns.has(col)) activeColumn = col; }}
-												title={[data.col_dataset_titles[col], data.col_descriptions[col]].filter(Boolean).join(' · ') || col}
+												title={data.col_filter_desc?.[col] || [data.col_dataset_titles[col], data.col_descriptions[col]].filter(Boolean).join(' · ') || col}
 											>{prettyColumn(col)}</button>
 											{#if partialCols.has(col)}<span class="text-[10px] text-amber-500" title="Partial coverage">⚠</span>{/if}
 											{#if activeColumn === col}<span class="active-badge">map</span>{/if}
