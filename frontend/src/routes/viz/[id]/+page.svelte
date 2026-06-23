@@ -10,7 +10,7 @@
 		fmt, prettyColumn, escapeHtml, computeStats,
 	} from '$lib/viz';
 	import { parseFormula, evaluateFormula, formulaColumns } from '$lib/formula';
-	import { GripVertical, AlertCircle, Plus, X } from '@lucide/svelte';
+	import { GripVertical, AlertCircle, Plus, X, Download } from '@lucide/svelte';
 
 	const requestId = page.params.id;
 
@@ -128,6 +128,7 @@
 		const config = await fetchConfig();
 		map = new maplibregl.Map({
 			container: mapContainer,
+			preserveDrawingBuffer: true,
 			style: {
 				version: 8,
 				glyphs: 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf',
@@ -324,6 +325,145 @@
 	}
 
 	onDestroy(() => { map?.remove(); map = null; popup?.remove(); popup = null; sortable?.destroy(); });
+
+	function exportMapImage() {
+		if (!map || !data) return;
+		const col = (activeColumn ?? 'map').replace(/^~/, '');
+		const date = new Date().toISOString().slice(0, 10);
+
+		map.once('render', () => {
+			const mapCanvas = map!.getCanvas();
+			const dpr = window.devicePixelRatio || 1;
+			const cssW = mapCanvas.width / dpr;
+			const cssH = mapCanvas.height / dpr;
+
+			const out = document.createElement('canvas');
+			out.width = mapCanvas.width;
+			out.height = mapCanvas.height;
+			const ctx = out.getContext('2d')!;
+			ctx.scale(dpr, dpr);
+
+			// Map
+			ctx.drawImage(mapCanvas, 0, 0, cssW, cssH);
+
+			// ── Legend panel ───────────────────────────────────────────────
+			const pad = 12;
+			const swatchSz = 12;
+			const rowH = 18;
+			const panelW = 220;
+			const palette = PALETTES[currentPalette].colors;
+			const legendRows = currentBreaks ? palette.length + 1 : 0; // +1 no-data
+
+			// Measure panel height
+			let panelH = pad * 2
+				+ 15 + 4   // title
+				+ (activeColumn ? 14 + 6 : 0) // column label
+				+ 12 + 2   // "LEGEND" header
+				+ legendRows * rowH
+				+ (stats ? 10 + 12 + 6 : 0); // stats header + values
+
+			const panelX = pad;
+			const panelY = cssH - panelH - pad;
+
+			// Panel bg
+			ctx.save();
+			ctx.globalAlpha = 0.93;
+			ctx.fillStyle = '#ffffff';
+			ctx.beginPath();
+			(ctx as CanvasRenderingContext2D & { roundRect: (...a: unknown[]) => void })
+				.roundRect(panelX, panelY, panelW, panelH, 6);
+			ctx.fill();
+			ctx.restore();
+
+			let y = panelY + pad;
+
+			// Title
+			ctx.fillStyle = '#0f172a';
+			ctx.font = `bold 13px Roboto, system-ui, sans-serif`;
+			ctx.fillText(
+				data!.selection_label || data!.request_name || '',
+				panelX + pad, y + 12, panelW - pad * 2
+			);
+			y += 15 + 4;
+
+			// Column label
+			if (activeColumn) {
+				const label = activeColumn.startsWith('~') ? activeColumn.slice(1) : prettyColumn(activeColumn);
+				ctx.fillStyle = '#64748b';
+				ctx.font = `11px Roboto, system-ui, sans-serif`;
+				ctx.fillText(label, panelX + pad, y + 11, panelW - pad * 2);
+				y += 14 + 6;
+			}
+
+			// "LEGEND" header
+			ctx.fillStyle = '#94a3b8';
+			ctx.font = `600 9px Roboto, system-ui, sans-serif`;
+			ctx.fillText('LEGEND', panelX + pad, y + 9);
+			y += 12 + 2;
+
+			// Swatches
+			if (currentBreaks) {
+				ctx.font = `11px Roboto, system-ui, sans-serif`;
+				for (let i = 0; i < palette.length; i++) {
+					ctx.fillStyle = palette[i];
+					ctx.beginPath();
+					(ctx as CanvasRenderingContext2D & { roundRect: (...a: unknown[]) => void })
+						.roundRect(panelX + pad, y + (rowH - swatchSz) / 2, swatchSz, swatchSz, 2);
+					ctx.fill();
+					ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+					ctx.lineWidth = 0.5;
+					ctx.stroke();
+
+					ctx.fillStyle = '#475569';
+					ctx.fillText(
+						`${fmt(currentBreaks[i])} – ${fmt(currentBreaks[i + 1])}`,
+						panelX + pad + swatchSz + 6, y + rowH / 2 + 4,
+						panelW - pad * 2 - swatchSz - 6
+					);
+					y += rowH;
+				}
+
+				// No-data row
+				ctx.save();
+				ctx.globalAlpha = 0.55;
+				ctx.fillStyle = '#cbd5e1';
+				ctx.beginPath();
+				(ctx as CanvasRenderingContext2D & { roundRect: (...a: unknown[]) => void })
+					.roundRect(panelX + pad, y + (rowH - swatchSz) / 2, swatchSz, swatchSz, 2);
+				ctx.fill();
+				ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+				ctx.lineWidth = 0.5;
+				ctx.stroke();
+				ctx.restore();
+				ctx.fillStyle = '#475569';
+				ctx.font = `11px Roboto, system-ui, sans-serif`;
+				ctx.fillText('No data', panelX + pad + swatchSz + 6, y + rowH / 2 + 4);
+				y += rowH;
+			}
+
+			// Stats
+			if (stats) {
+				y += 6;
+				ctx.fillStyle = '#94a3b8';
+				ctx.font = `600 9px Roboto, system-ui, sans-serif`;
+				ctx.fillText('STATISTICS', panelX + pad, y + 9);
+				y += 12;
+				ctx.fillStyle = '#475569';
+				ctx.font = `11px Roboto, system-ui, sans-serif`;
+				ctx.fillText(
+					`Min ${fmt(stats.min)}   Max ${fmt(stats.max)}   Mean ${fmt(stats.mean)}   n=${stats.n}`,
+					panelX + pad, y + 11, panelW - pad * 2
+				);
+			}
+
+			// Download
+			const a = document.createElement('a');
+			a.href = out.toDataURL('image/png');
+			a.download = `geoquery-${requestId.slice(0, 8)}-${col}-${date}.png`;
+			a.click();
+		});
+		map.triggerRepaint();
+	}
 
 	function fcFeatureCount(fc: string): number {
 		if (!data) return 0;
@@ -557,6 +697,16 @@
 
 		<div class="relative flex-1">
 			<div bind:this={mapContainer} class="h-full w-full"></div>
+			{#if mapReady}
+				<button
+					onclick={exportMapImage}
+					class="absolute right-2 top-2 z-10 flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm hover:bg-white transition-colors"
+					title="Save map as PNG"
+				>
+					<Download class="h-3.5 w-3.5" />
+					Save image
+				</button>
+			{/if}
 		</div>
 	{/if}
 </div>
