@@ -11,6 +11,11 @@ urlpatterns = [
         name="request-data",
     ),
     path(
+        "request/<uuid:id>/export/",
+        views.request_export,
+        name="request-export",
+    ),
+    path(
         "explore/available/",
         views.ExploreAvailableView.as_view(),
         name="explore-available",

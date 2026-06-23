@@ -123,22 +123,32 @@
 				{#if request.download_url}
 					<div class="mt-4 rounded-md border border-green-200 bg-green-50 p-4">
 						<p class="mb-3 text-sm font-medium text-green-800">Your data is ready to download.</p>
-						<div class="flex flex-wrap gap-2">
-							<Button href={request.download_url} target="_blank" rel="noopener noreferrer">
-								<Download class="mr-2 h-4 w-4" />
-								Download Results
-							</Button>
-							{#if request.visualization_url}
-								<Button variant="outline" href={request.visualization_url}>
-									<Map class="mr-2 h-4 w-4" />
-									View Map
+						<div class="flex flex-col gap-3">
+							<div class="flex flex-wrap gap-2">
+								<Button href={request.download_url} target="_blank" rel="noopener noreferrer">
+									<Download class="mr-2 h-4 w-4" />
+									Download Results
 								</Button>
-							{/if}
-							{#if request.documentation_url}
-								<Button variant="outline" href={request.documentation_url} target="_blank" rel="noopener noreferrer">
-									View Documentation
-								</Button>
-							{/if}
+								{#if request.visualization_url}
+									<Button variant="outline" href={request.visualization_url}>
+										<Map class="mr-2 h-4 w-4" />
+										View Map
+									</Button>
+								{/if}
+								{#if request.documentation_url}
+									<Button variant="outline" href={request.documentation_url} target="_blank" rel="noopener noreferrer">
+										View Documentation
+									</Button>
+								{/if}
+							</div>
+							<div class="flex items-center gap-2">
+								<a href={`/api/visualize/request/${request.id}/export/?format=colab`} target="_blank" rel="noopener noreferrer">
+									<img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab" />
+								</a>
+								<a href={`/api/visualize/request/${request.id}/export/?format=marimo`} target="_blank" rel="noopener noreferrer">
+									<img src="https://marimo.io/molab-shield.svg" alt="Open in molab" />
+								</a>
+							</div>
 						</div>
 					</div>
 				{:else if request.status_label === 'completed'}

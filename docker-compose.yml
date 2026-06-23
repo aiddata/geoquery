@@ -34,6 +34,8 @@ services:
       - RESULTS_DIR=/app/results
       - DOWNLOAD_BASE_URL=http://localhost:8000
       - PROTOMAPS_API_KEY=${PROTOMAPS_API_KEY}
+      - GITHUB_GIST_TOKEN=${GITHUB_GIST_TOKEN}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
     depends_on:
       - db
       - rabbitmq
@@ -55,6 +57,7 @@ services:
       - RESULTS_DIR=/app/results
       - ASSETS_DIR=/app/assets
       - DOWNLOAD_BASE_URL=http://localhost:8000
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
     depends_on:
       - db
       - rabbitmq

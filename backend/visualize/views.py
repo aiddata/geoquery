@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.http import HttpResponseRedirect, JsonResponse
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -5,6 +7,7 @@ from rest_framework.views import APIView
 from analytics.models import Request
 
 from .data import build_explore_available, build_explore_data, build_request_data
+from .export import GistExporter
 
 
 class RequestVisualizationDataView(APIView):
@@ -75,3 +78,35 @@ class ExploreDataView(APIView):
             return Response({"error": "fc and po must be comma-separated integers"}, status=400)
 
         return Response(build_explore_data(fc_ids, po_ids))
+
+
+def request_export(request, id):
+    fmt = request.GET.get("format", "").strip()
+    if fmt not in ("colab", "marimo"):
+        return JsonResponse({"error": "format must be 'colab' or 'marimo'"}, status=400)
+
+    try:
+        req = Request.objects.get(id=id)
+    except Request.DoesNotExist:
+        return JsonResponse({"error": "Request not found"}, status=404)
+
+    if req.status != 1:
+        return JsonResponse({"error": "Request is not completed"}, status=400)
+
+    base = getattr(settings, "DOWNLOAD_BASE_URL", "").rstrip("/")
+    if not base:
+        return JsonResponse({"error": "DOWNLOAD_BASE_URL is not configured"}, status=503)
+
+    download_url = f"{base}/data/geoquery_results/{req.id}/{req.id}.zip"
+
+    try:
+        exporter = GistExporter(
+            request_id=str(req.id),
+            request_name=req.custom_name or "",
+            download_url=download_url,
+        )
+        redirect_url = exporter.export(fmt)
+    except (RuntimeError, ValueError) as e:
+        return JsonResponse({"error": str(e)}, status=503)
+
+    return HttpResponseRedirect(redirect_url)
