@@ -4,7 +4,7 @@ This guide will walk through the process of ingesting dataset and feature data u
 
 ## Adding Datasets
 
-1. Add the desired ingest script to an ingest folder in your workbench pod within your kubernetes namespace. Currently available ingest scripts can be found in [this folder](https://github.com/aiddata/geoquery-update/tree/cmhwang/ingest/datasets) within the geoquery update repository.  
+1. Add the desired ingest script to an ingest folder in your workbench pod within your kubernetes namespace. Currently available ingest scripts can be found in [this folder](https://github.com/aiddata/geoquery/tree/cmhwang/ingest/datasets) within the geoquery update repository.  
 
 2. Add the corresponding ingest json from the [geo-datasets GitHub repository](https://github.com/aiddata/geo-datasets/tree/master/datasets). Each datasets's ingest json can be found within the dataset's folder.
 

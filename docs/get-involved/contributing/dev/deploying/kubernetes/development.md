@@ -126,7 +126,7 @@ Important to use this if running live tests with local code on python pod
 ```
 # note that the workbench pod is only available if dev mode is on
 kubectl exec --stdin --tty workbench -- /bin/bash
-pip install -e /tmp/geoquery-update
+pip install -e /tmp/geoquery
 ```
 
 ```

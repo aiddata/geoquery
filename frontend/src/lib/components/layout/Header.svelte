@@ -27,7 +27,7 @@
 
 		<!-- Navigation Buttons -->
 		<div class="flex items-center gap-2">
-			<Button variant="ghost" href="https://aiddata.github.io/geoquery-update/" target="_blank" rel="noopener noreferrer">
+			<Button variant="ghost" href="https://aiddata.github.io/geoquery/" target="_blank" rel="noopener noreferrer">
 				<BookOpen />
 				<span class="hidden sm:inline">Docs</span>
 			</Button>

@@ -16,6 +16,7 @@
 	import Header from '$lib/components/layout/Header.svelte';
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
 	import StatusBanner from '$lib/components/layout/StatusBanner.svelte';
+	import SupportBanner from '$lib/components/layout/SupportBanner.svelte';
 	import { TooltipProvider } from '$lib/components/ui/tooltip';
 	let { children } = $props();
 
@@ -47,5 +48,6 @@
 		</main>
 
 		<Sidebar />
+		<SupportBanner />
 	</div>
 </TooltipProvider>

@@ -7,6 +7,9 @@ export default defineConfig({
   server: {
     allowedHosts: ["computerx.tail89de66.ts.net"],
     host: '0.0.0.0',
+    fs: {
+      allow: ['..', '/app/docs'],
+    },
     watch: {
       usePolling: true,
     },

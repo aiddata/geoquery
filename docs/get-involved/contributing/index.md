@@ -4,7 +4,7 @@ We welcome contributions to GeoQuery — whether that's reporting bugs, suggesti
 
 ## Reporting issues
 
-Please open an issue on [GitHub](https://github.com/aiddata/geoquery-update/issues) for:
+Please open an issue on [GitHub](https://github.com/aiddata/geoquery/issues) for:
 
 - Bug reports
 - Feature requests
@@ -13,7 +13,7 @@ Please open an issue on [GitHub](https://github.com/aiddata/geoquery-update/issu
 
 ## Contributing code
 
-1. Fork the repository on [GitHub](https://github.com/aiddata/geoquery-update)
+1. Fork the repository on [GitHub](https://github.com/aiddata/geoquery)
 2. Create a feature branch from `main`
 3. Make your changes and ensure existing tests pass
 4. Submit a pull request with a clear description of the change

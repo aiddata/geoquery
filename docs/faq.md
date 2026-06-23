@@ -56,3 +56,6 @@ We suggest first exploring the rest of the documentation, as well as the GitHub 
 
 ### Where can I provide feedback or request new datasets?
 You may submit specific feedback (bugs, suggested features, etc) or data requests by creating a new Issue in our [GitHub repository](https://github.com/aiddata/geoquery). For any other feedback please email us at [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu).
+
+### How can I support GeoQuery?
+GeoQuery is a free service, but continued development and hosting depends on funding. If you are a funder or donor interested in helping us help others, please reach out to our partnerships team at [awooley@aiddata.org](mailto:awooley@aiddata.org).
