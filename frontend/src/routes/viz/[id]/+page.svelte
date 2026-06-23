@@ -10,7 +10,8 @@
 		fmt, prettyColumn, escapeHtml, computeStats,
 	} from '$lib/viz';
 	import { parseFormula, evaluateFormula, formulaColumns } from '$lib/formula';
-	import { GripVertical, AlertCircle, Plus, X, Download } from '@lucide/svelte';
+	import { GripVertical, AlertCircle, Plus, X, Download, ChartColumn, Map as MapIcon } from '@lucide/svelte';
+	import ChartPanel from '$lib/components/viz/ChartPanel.svelte';
 
 	const requestId = page.params.id;
 
@@ -34,6 +35,8 @@
 	let fcOrder = $state<string[]>([]);
 	let stats = $state<{ min: number; max: number; mean: number; n: number } | null>(null);
 	let popup: maplibregl.Popup | null = null;
+
+	let activeTab = $state<'map' | 'charts'>('map');
 
 	// ── Custom indices ────────────────────────────────────────────────────────
 	interface CustomIndex {
@@ -500,12 +503,36 @@
 			<p class="text-sm text-muted-foreground">This request completed but no extract values were produced.</p>
 		</div>
 	{:else if data}
-		<aside class="w-72 shrink-0 overflow-y-auto border-r bg-card">
-			<!-- Header -->
-			<div class="border-b px-4 py-3">
+		<div class="flex flex-col flex-1 min-h-0">
+
+		<!-- Top bar: request label + tab switcher -->
+		<div class="flex items-center justify-between border-b px-4 py-2.5 shrink-0 bg-card gap-4">
+			<div class="min-w-0">
 				<p class="truncate text-sm font-semibold">{data.selection_label || data.request_name}</p>
-				<p class="mt-0.5 font-mono text-[10px] text-muted-foreground">Request {data.request_id.slice(0, 8)}…</p>
+				<p class="font-mono text-[10px] text-muted-foreground">Request {data.request_id.slice(0, 8)}…</p>
 			</div>
+			<div class="flex items-center gap-1 shrink-0">
+				<button
+					onclick={() => (activeTab = 'map')}
+					class="flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors {activeTab === 'map' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}"
+				>
+					<MapIcon class="h-3.5 w-3.5" />
+					Map
+				</button>
+				<button
+					onclick={() => (activeTab = 'charts')}
+					class="flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors {activeTab === 'charts' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}"
+				>
+					<ChartColumn class="h-3.5 w-3.5" />
+					Charts
+				</button>
+			</div>
+		</div>
+
+		<!-- Body: sidebar (map tab only) + main area -->
+		<div class="flex flex-1 min-h-0">
+		{#if activeTab === 'map'}
+		<aside class="w-72 shrink-0 overflow-y-auto border-r bg-card">
 
 			<!-- Column picker (checkboxes) -->
 			<div class="border-b px-4 py-3">
@@ -694,19 +721,30 @@
 				<p class="mt-2 text-[10px] text-muted-foreground">Drag to reorder — top draws on top.</p>
 			</div>
 		</aside>
+		{/if}
 
-		<div class="relative flex-1">
-			<div bind:this={mapContainer} class="h-full w-full"></div>
-			{#if mapReady}
-				<button
-					onclick={exportMapImage}
-					class="absolute right-2 top-2 z-10 flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm hover:bg-white transition-colors"
-					title="Save map as PNG"
-				>
-					<Download class="h-3.5 w-3.5" />
-					Save image
-				</button>
-			{/if}
+		<div class="relative flex-1 overflow-hidden">
+				<div
+					bind:this={mapContainer}
+					class="absolute inset-0 {activeTab !== 'map' ? 'invisible pointer-events-none' : ''}"
+				></div>
+				{#if mapReady && activeTab === 'map'}
+					<button
+						onclick={exportMapImage}
+						class="absolute right-2 top-2 z-10 flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm hover:bg-white transition-colors"
+						title="Save map as PNG"
+					>
+						<Download class="h-3.5 w-3.5" />
+						Save image
+					</button>
+				{/if}
+				{#if activeTab === 'charts'}
+					<div class="absolute inset-0 bg-background z-10">
+						<ChartPanel {data} />
+					</div>
+				{/if}
+		</div>
+		</div>
 		</div>
 	{/if}
 </div>

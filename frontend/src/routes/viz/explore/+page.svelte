@@ -15,7 +15,10 @@
 		fmt, prettyColumn, escapeHtml, computeStats,
 	} from '$lib/viz';
 	import { parseFormula, evaluateFormula, formulaColumns } from '$lib/formula';
-	import { GripVertical, AlertCircle, Plus, X, Search, ChevronDown, Download } from '@lucide/svelte';
+	import { GripVertical, AlertCircle, Plus, X, Search, ChevronDown, Download, ChartColumn, Map as MapIcon } from '@lucide/svelte';
+	import ChartPanel from '$lib/components/viz/ChartPanel.svelte';
+
+	let activeTab = $state<'map' | 'charts'>('map');
 
 	// ── Section open state ────────────────────────────────────────────────────
 	let boundariesOpen = $state(true);
@@ -544,15 +547,35 @@
 
 <svelte:head><title>Explore · GeoQuery</title></svelte:head>
 
-<div class="viz-page flex h-[calc(100vh-5rem)]">
-	<!-- Sidebar -->
-	<aside class="w-72 shrink-0 overflow-y-auto border-r bg-card">
-
-		<!-- Page header -->
-		<div class="border-b border-slate-200 bg-slate-50 px-4 py-3">
+<div class="viz-page flex flex-col h-[calc(100vh-5rem)]">
+	<!-- Top bar: page title + tab switcher -->
+	<div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2.5 shrink-0 gap-4">
+		<div>
 			<p class="text-sm font-semibold text-slate-800">Explore Data</p>
 			<p class="mt-0.5 text-[11px] text-slate-500">Select boundaries, then pick data to visualize.</p>
 		</div>
+		<div class="flex items-center gap-1 shrink-0">
+			<button
+				onclick={() => (activeTab = 'map')}
+				class="flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors {activeTab === 'map' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'}"
+			>
+				<MapIcon class="h-3.5 w-3.5" />
+				Map
+			</button>
+			<button
+				onclick={() => (activeTab = 'charts')}
+				class="flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors {activeTab === 'charts' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'}"
+			>
+				<ChartColumn class="h-3.5 w-3.5" />
+				Charts
+			</button>
+		</div>
+	</div>
+
+	<!-- Body: sidebar (map tab only) + main area -->
+	<div class="flex flex-1 min-h-0">
+	{#if activeTab === 'map'}
+	<aside class="w-72 shrink-0 overflow-y-auto border-r bg-card">
 
 		<!-- ── BOUNDARIES ──────────────────────────────────────────────────── -->
 		<Collapsible.Root bind:open={boundariesOpen} class="border-b border-slate-200">
@@ -824,27 +847,43 @@
 			</Collapsible.Content>
 		</Collapsible.Root>
 	</aside>
+	{/if}
 
-	<!-- Map -->
-	<div class="relative flex-1">
-		<div bind:this={mapContainer} class="h-full w-full"></div>
-		{#if mapReady}
-			<button
-				onclick={exportMapImage}
-				class="absolute right-2 top-2 z-10 flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm hover:bg-white transition-colors"
-				title="Save map as PNG"
-			>
-				<Download class="h-3.5 w-3.5" />
-				Save image
-			</button>
-		{/if}
-		{#if selectedFCs.length === 0}
-			<div class="pointer-events-none absolute inset-0 flex items-center justify-center">
-				<div class="rounded-lg border bg-white/90 px-6 py-4 text-center shadow-sm backdrop-blur-sm">
-					<p class="text-sm font-medium text-foreground">Select boundaries from the sidebar to get started.</p>
+	<!-- Main content -->
+	<div class="relative flex-1 overflow-hidden">
+			<div
+				bind:this={mapContainer}
+				class="absolute inset-0 {activeTab !== 'map' ? 'invisible pointer-events-none' : ''}"
+			></div>
+			{#if mapReady && activeTab === 'map'}
+				<button
+					onclick={exportMapImage}
+					class="absolute right-2 top-2 z-10 flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm hover:bg-white transition-colors"
+					title="Save map as PNG"
+				>
+					<Download class="h-3.5 w-3.5" />
+					Save image
+				</button>
+			{/if}
+			{#if selectedFCs.length === 0 && activeTab === 'map'}
+				<div class="pointer-events-none absolute inset-0 flex items-center justify-center">
+					<div class="rounded-lg border bg-white/90 px-6 py-4 text-center shadow-sm backdrop-blur-sm">
+						<p class="text-sm font-medium text-foreground">Select boundaries from the sidebar to get started.</p>
+					</div>
 				</div>
-			</div>
-		{/if}
+			{/if}
+			{#if activeTab === 'charts'}
+				<div class="absolute inset-0 bg-background z-10">
+					{#if data}
+						<ChartPanel {data} />
+					{:else}
+						<div class="flex h-full items-center justify-center text-sm text-muted-foreground">
+							Select boundaries and datasets to see charts.
+						</div>
+					{/if}
+				</div>
+			{/if}
+		</div>
 	</div>
 </div>
 
@@ -865,7 +904,7 @@
 		transition: background 0.1s, color 0.1s;
 	}
 	:global(.section-trigger:hover) { background: #f1f5f9; color: #334155; }
-	.section-chevron {
+	:global(.section-chevron) {
 		height: 13px; width: 13px;
 		color: #94a3b8;
 		flex-shrink: 0;
