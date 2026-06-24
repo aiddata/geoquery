@@ -31,7 +31,6 @@ dependencies = [
     "pyproj",
     "shapely",
     "pydantic",
-    "pandas",
     "geopandas",
     "pyarrow",
     "shapely",
@@ -43,7 +42,6 @@ dependencies = [
     "fastapi[standard]",
     "loguru",
     "toml",
-    "numpy",
     "numpy",
     "pandas",
     "kubernetes",
@@ -60,11 +58,9 @@ dependencies = [
     "django-cors-headers>=4.9.0",
     "celery[librabbitmq]>=5.4",
     "lzstring>=1.0.4",
+    "django-celery-results>=2.6.0",
+    "django-prometheus>=2.5.0",
 ]
-
-
-[tool.setuptools.packages.find]
-where = ["src"]
 
 [tool.isort]
 profile = "black"

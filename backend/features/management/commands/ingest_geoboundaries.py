@@ -47,7 +47,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--output-path",
             type=str,
-            default="/geo-datasets/data/boundaries/geoboundaries/v6_9469f09_57dcd43",
+            default="/data/boundaries",
             help="Output path for downloaded files",
         )
         parser.add_argument(

@@ -22,14 +22,26 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
+DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("true", "1", "yes")
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-(5al+g1afse8_v9fhhwv1m&wslqe31x(fz_!&wdn557r9y3@as"
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = (
+            "django-insecure-(5al+g1afse8_v9fhhwv1m&wslqe31x(fz_!&wdn557r9y3@as"
+        )
+    else:
+        raise RuntimeError("DJANGO_SECRET_KEY must be set when DEBUG is off")
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
-
+# Prometheus metrics (disabled by default)
+PROMETHEUS_ENABLED = os.getenv("PROMETHEUS_ENABLED", "False").lower() in (
+    "true",
+    "1",
+    "yes",
+)
 
 # Application definition
 INSTALLED_APPS = [
@@ -43,6 +55,7 @@ INSTALLED_APPS = [
     "django.contrib.postgres",
     "rest_framework",
     "corsheaders",
+    "django_celery_results",
     "geoquery",
     "features",
     "datasets",
@@ -50,9 +63,12 @@ INSTALLED_APPS = [
     "visualize",
 ]
 
+if PROMETHEUS_ENABLED:
+    INSTALLED_APPS.insert(0, "django_prometheus")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -81,18 +97,21 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "geoquery.wsgi.application"
 
-
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 DATABASES = {
     "default": {
-        "ENGINE": "django.contrib.gis.db.backends.postgis",
-        "NAME": "geoquery",
-        "USER": "django_user",
-        "PASSWORD": "dev_password",
-        "HOST": os.environ.get("DB_HOST", "localhost"),
-        "PORT": "5432",
-    },
+        "ENGINE": "django_prometheus.db.backends.postgis"
+        if PROMETHEUS_ENABLED
+        else "django.contrib.gis.db.backends.postgis",
+        "NAME": os.getenv("PG_DBNAME", "geoquery"),
+        "USER": os.getenv("PG_USER", "django_user"),
+        "PASSWORD": os.getenv("PG_PASSWORD", ""),
+        "HOST": os.getenv("PG_HOST", "localhost"),
+        "PORT": os.getenv("PG_PORT", "5432"),
+        "OPTIONS": {
+            "sslmode": os.getenv("PG_SSL_MODE", "prefer"),
+        },
+        "CONN_MAX_AGE": 0,  # New connection per request
+    }
 }
 
 
@@ -132,6 +151,20 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
+# Where `collectstatic` gathers files for WhiteNoise to serve in production.
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# WhiteNoise serves admin/static files directly from Django (no separate web
+# server needed) and compresses + hashes them for caching.
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -163,12 +196,23 @@ GITHUB_GIST_TOKEN = os.environ.get("GITHUB_GIST_TOKEN", "")
 EXPORT_GIST_TTL_SECONDS = int(os.environ.get("EXPORT_GIST_TTL_SECONDS", "3600"))
 
 # Celery
-CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "amqp://guest:guest@localhost:5672//")
-CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "rpc://")
+CELERY_BROKER_URL = os.environ.get(
+    "CELERY_BROKER_URL", "amqp://guest:guest@localhost:5672//"
+)
+CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "django-db")
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+
+# Two-queue split: only the raster extract task (which needs /data) runs on the
+# "processing" queue; everything else (coverage, docs, beat/maintenance) defaults
+# to "background". New tasks fail safe onto background unless explicitly routed.
+CELERY_TASK_DEFAULT_QUEUE = "background"
+CELERY_TASK_ROUTES = {
+    "analytics.tasks.processing.run_extract_task": {"queue": "processing"},
+}
+
 STALE_TASK_MINUTES = int(os.environ.get("STALE_TASK_MINUTES", "30"))
 CELERY_BEAT_SCHEDULE = {
     "free-stale-processing-tasks": {
