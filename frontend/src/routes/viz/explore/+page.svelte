@@ -241,6 +241,15 @@
 		map.on('load', () => { mapReady = true; });
 	});
 
+	// The map container has no layout while it sits behind the inactive tab on
+	// first paint, so MapLibre can size its canvas to 0. Resize once the map is
+	// ready and whenever the map tab is reactivated to keep the canvas correct.
+	$effect(() => {
+		if (activeTab === 'map' && map && mapReady) {
+			requestAnimationFrame(() => map?.resize());
+		}
+	});
+
 	async function addFCToMap(fc: BoundaryResult) {
 		if (!map) return;
 		if (!mapReady) await new Promise<void>((r) => { map!.once('load', () => r()); });
@@ -853,7 +862,7 @@
 	<div class="relative flex-1 overflow-hidden">
 			<div
 				bind:this={mapContainer}
-				class="absolute inset-0 {activeTab !== 'map' ? 'invisible pointer-events-none' : ''}"
+				class="h-full w-full {activeTab !== 'map' ? 'invisible pointer-events-none' : ''}"
 			></div>
 			{#if mapReady && activeTab === 'map'}
 				<button

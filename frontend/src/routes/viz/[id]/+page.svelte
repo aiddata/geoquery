@@ -233,6 +233,15 @@
 		if (mapReady) void applyColors();
 	});
 
+	// The map container has no layout while it sits behind the inactive tab on
+	// first paint, so MapLibre can size its canvas to 0. Resize once the map is
+	// ready and whenever the map tab is reactivated to keep the canvas correct.
+	$effect(() => {
+		if (activeTab === 'map' && map && mapReady) {
+			requestAnimationFrame(() => map?.resize());
+		}
+	});
+
 	function toggleFC(fc: string, visible: boolean) {
 		if (!map) return;
 		const next = new Set(hiddenFCs);
@@ -726,7 +735,7 @@
 		<div class="relative flex-1 overflow-hidden">
 				<div
 					bind:this={mapContainer}
-					class="absolute inset-0 {activeTab !== 'map' ? 'invisible pointer-events-none' : ''}"
+					class="h-full w-full {activeTab !== 'map' ? 'invisible pointer-events-none' : ''}"
 				></div>
 				{#if mapReady && activeTab === 'map'}
 					<button
