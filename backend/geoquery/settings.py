@@ -158,6 +158,9 @@ PROTOMAPS_API_KEY = os.environ.get("PROTOMAPS_API_KEY", "")
 
 # Notebook export (GitHub token scoped to `gist` only)
 GITHUB_GIST_TOKEN = os.environ.get("GITHUB_GIST_TOKEN", "")
+# How long a Colab export gist lives before the cleanup sweep removes it.
+# Long enough for Colab to load the notebook and the user to "Save a copy".
+EXPORT_GIST_TTL_SECONDS = int(os.environ.get("EXPORT_GIST_TTL_SECONDS", "3600"))
 
 # Celery
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "amqp://guest:guest@localhost:5672//")
@@ -207,6 +210,10 @@ CELERY_BEAT_SCHEDULE = {
     "run-user-outreach": {
         "task": "analytics.tasks.maintenance.run_user_outreach",
         "schedule": crontab(hour=6, minute=0, day_of_week=2),
+    },
+    "sweep-export-gists": {
+        "task": "visualize.tasks.sweep_export_gists",
+        "schedule": 3600,
     },
 }
 
