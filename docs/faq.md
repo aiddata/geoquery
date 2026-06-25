@@ -39,7 +39,7 @@ The tooltips alongside each method in the selection tabs provides descriptors of
 ## Research and examples
 
 ### Do you have examples of analyses conducted using GeoQuery data?
-Yes — examples of reports and publications using GeoQuery are available at [aiddata.org/geo](https://aiddata.org/geoquery).
+Yes — examples of reports and publications using GeoQuery across a range of disciplines and research topics are available [here](./using-geoquery/research-and-use-cases.md).
 
 ### Do you conduct research using this tool?
 Yes. AidData works with a wide range of organizations to analyze spatial information. See examples at [aiddata.org](https://aiddata.org/geoquery/research) or contact us at [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu) to learn more about specific workstreams at AidData.

@@ -61,7 +61,7 @@ influential, well-cited work.
 > [GeoQuery: Integrating HPC systems and public web-based geospatial data tools](https://doi.org/10.1016/j.cageo.2018.10.009).
 > *Computers & Geosciences*, 122, 103–112.
 
-For citation guidance, see [Citing GeoQuery](citing.md).
+For citation guidance, see [Citing GeoQuery](../citing.md).
 
 For the complete list of works citing GeoQuery, visit [Google Scholar](https://scholar.google.com/scholar?oi=bibs&hl=en&cites=2560106665827083734,12106762631401982756,10858659470229376865)
 
