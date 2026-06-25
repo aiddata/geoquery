@@ -73,13 +73,19 @@ class DatasetResource(models.Model):
     )
     name = models.CharField(max_length=200, unique=True)
     label = models.CharField(max_length=200, blank=True, null=True)
-    path = models.CharField(max_length=200, unique=True)
+    path = models.CharField(max_length=200)
     temporal = models.DateTimeField(blank=True, null=True)
     spatial_extent = models.GeometryField(blank=True, null=True)
 
     class Meta:
         db_table = "dataset_resources"
         ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["dataset", "path"],
+                name="unique_dataset_resource_path",
+            )
+        ]
 
     def __str__(self):
         return self.name
