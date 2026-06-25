@@ -51,7 +51,9 @@ def gcdf_v301_dynamic_filter_and_agg(feat, dataset_path, name, **filters):
             selected = value["selected"]
             if not selected:
                 continue
-            placeholders = ", ".join(f"'{v}'" for v in selected)
+            placeholders = ", ".join(
+                "'" + str(v).replace("'", "''") + "'" for v in selected
+            )
             clauses.append(f'"{key}" IN ({placeholders})')
 
     sql_query = f"SELECT * FROM {TABLE_NAME}"
