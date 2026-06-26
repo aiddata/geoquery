@@ -30,7 +30,7 @@ jobs:
       - name: Buildah Action
         uses: redhat-actions/buildah-build@v2
         with:
-          context: ./frontend/
+          context: .
           image: geoquery-frontend
           tags: ${{ steps.vars.outputs.sha_short }}
           containerfiles: |

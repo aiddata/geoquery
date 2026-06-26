@@ -119,8 +119,8 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Containerfile
+      context: .
+      dockerfile: frontend/Containerfile
       target: dev
     command: bun run dev --host
     ports:
