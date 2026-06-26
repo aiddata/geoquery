@@ -2,9 +2,9 @@ name: Build frontend container
 on:
   push:
     branches:
+      - main
       - develop
       - jwhall
-      - cmhwang
     paths:
       - 'frontend/**'
       - '.github/workflows/build-frontend.yaml'
@@ -18,14 +18,14 @@ jobs:
       packages: write
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Get Short Commit SHA
-      id: vars
-      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Get Short Commit SHA
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-    - name: Check outputs
-      run: echo ${{ steps.vars.outputs.sha_short }}
+      - name: Check outputs
+        run: echo ${{ steps.vars.outputs.sha_short }}
 
     - name: Buildah Action
       uses: redhat-actions/buildah-build@v2
