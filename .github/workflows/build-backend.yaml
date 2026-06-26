@@ -6,10 +6,10 @@ on:
       - develop
       - jwhall
     paths:
-      - 'backend/**'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - '.github/workflows/build-backend.yaml'
+      - "backend/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/build-backend.yaml"
 
 jobs:
   build:
@@ -29,20 +29,20 @@ jobs:
       - name: Check outputs
         run: echo ${{ steps.vars.outputs.sha_short }}
 
-    - name: Buildah Action
-      uses: redhat-actions/buildah-build@v2
-      with:
-        image: geoquery-backend
-        tags: ${{ steps.vars.outputs.sha_short }}
-        containerfiles: |
-          ./backend/Containerfile
-        oci: true
+      - name: Buildah Action
+        uses: redhat-actions/buildah-build@v2
+        with:
+          image: geoquery-backend
+          tags: ${{ steps.vars.outputs.sha_short }}
+          containerfiles: |
+            ./backend/Containerfile
+          oci: true
 
-    - name: Push Image
-      uses: redhat-actions/push-to-registry@v2
-      with:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-        registry: ghcr.io/${{ github.repository_owner }}
-        image: geoquery-backend
-        tags: ${{ steps.vars.outputs.sha_short }}
+      - name: Push Image
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io/${{ github.repository_owner }}
+          image: geoquery-backend
+          tags: ${{ steps.vars.outputs.sha_short }}
