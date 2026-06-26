@@ -100,54 +100,57 @@ def _(gdf):
     return
 
 
-# ── 4. Choropleth map ────────────────────────────────────────────────────────
+# ── 4. Join CSV to spatial data ───────────────────────────────────────────────
 
 
 @app.cell
-def _(gdf):
+def _(df, gdf):
+    # The CSV and GeoPackage share a common 'geom_id' column.
+    # This merge lets you map any CSV column spatially.
+    joined = gdf[["geom_id", "geometry"]].merge(df, on="geom_id", how="left")
+    joined.head()
+    return (joined,)
+
+
+# ── 5. Choropleth map ────────────────────────────────────────────────────────
+
+
+@app.cell
+def _(df, joined):
     import matplotlib.pyplot as plt
 
-    numeric_cols = gdf.select_dtypes("number").columns.tolist()
-    # Change `col` to any column name from gdf.columns
-    col = numeric_cols[0] if numeric_cols else None
+    # Change `col` to any extract column from df.columns
+    extract_cols = [c for c in df.columns if c not in ["geom_id", "feature_collection"] and not c.startswith(("boundary.",))]
+    col = extract_cols[0] if extract_cols else None
 
     fig, ax = plt.subplots(figsize=(12, 7))
-    gdf.plot(column=col, legend=True, cmap="YlOrRd", ax=ax)
+    joined.plot(column=col, legend=True, cmap="YlOrRd", ax=ax)
     ax.set_title(col or "Features")
     ax.axis("off")
     plt.tight_layout()
     fig
-    return ax, col, fig, numeric_cols, plt
+    return ax, col, extract_cols, fig, plt
 
 
-# ── 5. Time series (mean per column) ─────────────────────────────────────────
+# ── 6. Time series (mean per extract column) ─────────────────────────────────
 
 
 @app.cell
 def _(df, plt):
-    # Mean of each numeric column — useful when columns represent time periods.
-    means = df.select_dtypes("number").mean()
+    # Mean of each extract column — useful when columns represent time periods.
+    extract_cols = [c for c in df.columns if c not in ["geom_id", "feature_collection"] and not c.startswith(("boundary.",))]
+
+    extract_numeric = df.drop(columns=[c for c in df.columns if c not in extract_cols], errors="ignore").select_dtypes("number")
+    means = extract_numeric.mean()
 
     fig2, ax2 = plt.subplots(figsize=(12, 4))
     means.plot(ax=ax2, marker="o")
-    ax2.set_title("Mean value per column")
+    ax2.set_title("Mean value per extract column")
     ax2.set_ylabel("Mean")
     plt.xticks(rotation=45, ha="right")
     plt.tight_layout()
     fig2
     return ax2, fig2, means
-
-
-# ── 6. Join CSV to spatial data ───────────────────────────────────────────────
-
-
-@app.cell
-def _(df, gdf):
-    # The CSV and GeoPackage share a common 'name' column.
-    # This merge lets you map any CSV column spatially.
-    joined = gdf[["name", "geometry"]].merge(df, on="name", how="left")
-    joined.head()
-    return (joined,)
 
 
 if __name__ == "__main__":
