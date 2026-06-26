@@ -1,13 +1,19 @@
+# Build context is the repo root (see docker-compose.yml / CI), so that the
+# production build can access the repo-level docs/ directory, which HelpPanel
+# imports at build time (../../../../docs/faq.md). In dev, docker-compose mounts
+# ./docs over /app/docs with the live copy.
+
 # Stage 1: full deps + source. Used for local dev (docker-compose targets this)
 # and as the base for the production build.
 FROM oven/bun:1-alpine AS dev
 
 WORKDIR /app
 
-COPY package.json bun.lock ./
+COPY frontend/package.json frontend/bun.lock ./
 RUN bun install --frozen-lockfile
 
-COPY . .
+COPY frontend/ .
+COPY docs/ ./docs/
 
 EXPOSE 5173
 CMD ["bun", "run", "dev", "--host"]
@@ -19,7 +25,7 @@ RUN bun run build
 # Stage 3: production-only dependencies.
 FROM oven/bun:1-alpine AS prod-deps
 WORKDIR /app
-COPY package.json bun.lock ./
+COPY frontend/package.json frontend/bun.lock ./
 RUN bun install --frozen-lockfile --production
 
 # Stage 4: lean runtime image. This is the default (final) stage that CI builds.
@@ -28,6 +34,6 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/build ./build
-COPY package.json .
+COPY frontend/package.json .
 EXPOSE 3000
 CMD ["bun", "./build/index.js"]
