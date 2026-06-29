@@ -243,7 +243,9 @@
 			const vb = svg.viewBox.baseVal;
 			const scale = 2;
 			const pad = 24;
-			const xml = new XMLSerializer().serializeToString(svg);
+			const clone = svg.cloneNode(true) as SVGSVGElement;
+			clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+			const xml = new XMLSerializer().serializeToString(clone);
 			const svgBlob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
 			const url = URL.createObjectURL(svgBlob);
 			const img = new Image();
@@ -294,7 +296,7 @@
 			}
 
 			const zip = buildZip(pngFiles);
-			const blob = new Blob([zip as BlobPart], { type: 'application/zip' });
+			const blob = new Blob([zip.buffer], { type: 'application/zip' });
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement('a');
 			a.href = url;
@@ -325,6 +327,59 @@
 				No data available.
 			</div>
 		{:else}
+			<!-- Toolbar: Add chart / Export All -->
+			{#if data.columns.length > 0}
+				{#if showAddPicker}
+					<div class="rounded-lg border bg-muted/30 p-4 space-y-3 max-w-xs">
+						<p class="text-sm font-semibold">Add chart</p>
+						<div class="space-y-2">
+							<select bind:value={newCardType} class="chart-select w-full">
+								{#each CHART_TYPES as ct}<option value={ct.value}>{ct.label}</option>{/each}
+							</select>
+							{#if !CHART_TYPES.find(t => t.value === newCardType)?.multi}
+								<select bind:value={newCardCol} class="chart-select w-full">
+									{#each Object.entries(data.col_groups) as [group, cols]}
+										<optgroup label={group}>
+											{#each cols as col}<option value={col}>{colLabel(col)}</option>{/each}
+										</optgroup>
+									{/each}
+								</select>
+							{:else if newCardType === 'time_series'}
+								<select bind:value={newCardDatasetKey} class="chart-select w-full">
+									{#each Object.keys(data.col_groups) as group}<option value={group}>{group}</option>{/each}
+								</select>
+							{:else}
+								<p class="text-xs text-muted-foreground">Configure column selection in the card after adding.</p>
+							{/if}
+						</div>
+						<div class="flex gap-2 items-center">
+							<button onclick={addCard} class="chart-btn-primary">Add</button>
+							<button onclick={() => (showAddPicker = false)} class="text-sm text-muted-foreground hover:text-foreground">Cancel</button>
+						</div>
+					</div>
+				{:else}
+					<div class="flex items-center gap-4">
+						<button
+							onclick={() => { showAddPicker = true; newCardCol = data.columns[0]; }}
+							class="flex items-center gap-1.5 text-sm text-primary hover:underline"
+						>
+							<Plus class="h-4 w-4" />
+							Add chart
+						</button>
+						{#if chartCards.length > 0}
+							<button
+								onclick={exportAll}
+								disabled={exporting}
+								class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+							>
+								<Download class="h-4 w-4" />
+								{exporting ? 'Exporting…' : 'Export All'}
+							</button>
+						{/if}
+					</div>
+				{/if}
+			{/if}
+
 			<div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
 				{#each chartCards as card (card.id)}
 					<div class="rounded-lg border bg-card shadow-sm overflow-hidden">
@@ -434,59 +489,6 @@
 					</div>
 				{/each}
 			</div>
-
-			<!-- Add chart -->
-			{#if data.columns.length > 0}
-				{#if showAddPicker}
-					<div class="rounded-lg border bg-muted/30 p-4 space-y-3 max-w-xs">
-						<p class="text-sm font-semibold">Add chart</p>
-						<div class="space-y-2">
-							<select bind:value={newCardType} class="chart-select w-full">
-								{#each CHART_TYPES as ct}<option value={ct.value}>{ct.label}</option>{/each}
-							</select>
-							{#if !CHART_TYPES.find(t => t.value === newCardType)?.multi}
-								<select bind:value={newCardCol} class="chart-select w-full">
-									{#each Object.entries(data.col_groups) as [group, cols]}
-										<optgroup label={group}>
-											{#each cols as col}<option value={col}>{colLabel(col)}</option>{/each}
-										</optgroup>
-									{/each}
-								</select>
-							{:else if newCardType === 'time_series'}
-								<select bind:value={newCardDatasetKey} class="chart-select w-full">
-									{#each Object.keys(data.col_groups) as group}<option value={group}>{group}</option>{/each}
-								</select>
-							{:else}
-								<p class="text-xs text-muted-foreground">Configure column selection in the card after adding.</p>
-							{/if}
-						</div>
-						<div class="flex gap-2 items-center">
-							<button onclick={addCard} class="chart-btn-primary">Add</button>
-							<button onclick={() => (showAddPicker = false)} class="text-sm text-muted-foreground hover:text-foreground">Cancel</button>
-						</div>
-					</div>
-				{:else}
-					<div class="flex items-center gap-4">
-						<button
-							onclick={() => { showAddPicker = true; newCardCol = data.columns[0]; }}
-							class="flex items-center gap-1.5 text-sm text-primary hover:underline"
-						>
-							<Plus class="h-4 w-4" />
-							Add chart
-						</button>
-						{#if chartCards.length > 0}
-							<button
-								onclick={exportAll}
-								disabled={exporting}
-								class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
-							>
-								<Download class="h-4 w-4" />
-								{exporting ? 'Exporting…' : 'Export All'}
-							</button>
-						{/if}
-					</div>
-				{/if}
-			{/if}
 		{/if}
 	</div>
 </div>
