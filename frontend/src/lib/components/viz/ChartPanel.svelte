@@ -5,6 +5,7 @@
 	import { type ChartCard, type SingleColCard, type TimeSeriesCard, type ScatterCard, type CorrelationCard, CHART_TYPES } from './chartTypes';
 	import Histogram from './charts/Histogram.svelte';
 	import RankedBar from './charts/RankedBar.svelte';
+	import TimeSeries from './charts/TimeSeries.svelte';
 
 	interface Props {
 		data: VizPayload;
@@ -243,6 +244,8 @@
 								<Histogram {data} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
 							{:else if card.type === 'top_bar' || card.type === 'bottom_bar'}
 								<RankedBar {data} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
+							{:else if card.type === 'time_series'}
+								<TimeSeries {data} card={card as TimeSeriesCard} onsvgready={makeSvgHandler(card.id)} />
 							{:else}
 								<div class="flex h-32 items-center justify-center text-sm text-muted-foreground">
 									Chart type not yet implemented.
