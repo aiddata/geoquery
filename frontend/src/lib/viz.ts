@@ -1,3 +1,5 @@
+import type { VizPayload } from '$lib/api';
+
 // Shared utilities for the /viz/[id] and /viz/explore map renderers.
 
 export const PALETTES: Record<string, { label: string; colors: string[] }> = {
@@ -87,4 +89,57 @@ export function computeStats(values: number[]): { min: number; max: number; mean
 	const max = values.reduce((a, b) => (b > a ? b : a), values[0]);
 	const mean = values.reduce((a, b) => a + b, 0) / values.length;
 	return { min, max, mean, n: values.length };
+}
+
+// ── Chart helpers ─────────────────────────────────────────────────────────────
+
+export interface TemporalSeriesEntry {
+	col: string;
+	temporal: string;
+	values: number[];
+	mean: number;
+	min: number;
+	max: number;
+}
+
+export function getTemporalSeries(data: VizPayload, datasetKey: string): TemporalSeriesEntry[] {
+	const cols = data.col_groups[datasetKey] ?? [];
+	return cols
+		.filter(col => data.col_temporal[col])
+		.map(col => {
+			const vals: number[] = [];
+			for (const f of Object.values(data.features)) {
+				const v = Number(f[col]);
+				if (!isNaN(v)) vals.push(v);
+			}
+			const mean = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+			const min = vals.length ? vals.reduce((a, b) => Math.min(a, b), vals[0]) : 0;
+			const max = vals.length ? vals.reduce((a, b) => Math.max(a, b), vals[0]) : 0;
+			return { col, temporal: data.col_temporal[col], values: vals, mean, min, max };
+		})
+		.sort((a, b) => a.temporal.localeCompare(b.temporal));
+}
+
+export function detectBinary(values: number[]): boolean {
+	return values.length > 0 && values.every(v => v === 0 || v === 1);
+}
+
+export function pearsonCorrelation(xs: number[], ys: number[]): number {
+	const n = Math.min(xs.length, ys.length);
+	if (n < 2) return 0;
+	const mx = xs.slice(0, n).reduce((a, b) => a + b, 0) / n;
+	const my = ys.slice(0, n).reduce((a, b) => a + b, 0) / n;
+	let num = 0, dx2 = 0, dy2 = 0;
+	for (let i = 0; i < n; i++) {
+		const dx = xs[i] - mx, dy = ys[i] - my;
+		num += dx * dy; dx2 += dx * dx; dy2 += dy * dy;
+	}
+	return dx2 > 0 && dy2 > 0 ? num / Math.sqrt(dx2 * dy2) : 0;
+}
+
+export function pearsonMatrix(data: VizPayload, cols: string[]): number[][] {
+	const series = cols.map(col =>
+		Object.values(data.features).map(f => Number(f[col])).filter(n => !isNaN(n))
+	);
+	return cols.map((_, i) => cols.map((_, j) => pearsonCorrelation(series[i], series[j])));
 }
