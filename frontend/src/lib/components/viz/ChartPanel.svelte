@@ -21,6 +21,7 @@
 	let newCardCol = $state('');
 	let newCardDatasetKey = $state('');
 	let newCardType = $state<ChartCard['type']>('histogram');
+	let highlightedFeature = $state<string | null>(null);
 
 	let columnsKey = $derived(data.columns.join('\x00'));
 	let _lastKey = '';
@@ -249,9 +250,15 @@
 							{:else if card.type === 'top_bar' || card.type === 'bottom_bar'}
 								<RankedBar {data} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
 							{:else if card.type === 'time_series'}
-								<TimeSeries {data} card={card as TimeSeriesCard} onsvgready={makeSvgHandler(card.id)} />
+								<TimeSeries {data} card={card as TimeSeriesCard}
+									highlightedFeature={highlightedFeature}
+									onHighlight={(name) => { highlightedFeature = name; }}
+									onsvgready={makeSvgHandler(card.id)} />
 							{:else if card.type === 'scatter'}
-								<Scatter {data} card={card as ScatterCard} onsvgready={makeSvgHandler(card.id)} />
+								<Scatter {data} card={card as ScatterCard}
+									highlightedFeature={highlightedFeature}
+									onHighlight={(name) => { highlightedFeature = name; }}
+									onsvgready={makeSvgHandler(card.id)} />
 							{:else if card.type === 'binary_bar'}
 								<BinaryBar {data} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
 							{:else if card.type === 'box_plot'}
