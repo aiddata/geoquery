@@ -2,6 +2,7 @@
 	import type { VizPayload } from '$lib/api';
 	import { prettyColumn, detectBinary } from '$lib/viz';
 	import { X, Plus, Download } from '@lucide/svelte';
+	import { zipSync } from 'fflate';
 	import { type ChartCard, type SingleColCard, type TimeSeriesCard, type ScatterCard, type CorrelationCard, CHART_TYPES } from './chartTypes';
 	import Histogram from './charts/Histogram.svelte';
 	import RankedBar from './charts/RankedBar.svelte';
@@ -133,110 +134,6 @@
 		URL.revokeObjectURL(url);
 	}
 
-	// Minimal ZIP file builder helper functions
-	function crc32(data: Uint8Array): number {
-		let crc = 0xffffffff;
-		for (let i = 0; i < data.length; i++) {
-			crc ^= data[i];
-			for (let j = 0; j < 8; j++) {
-				crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
-			}
-		}
-		return (crc ^ 0xffffffff) >>> 0;
-	}
-
-	function u32(n: number): Uint8Array {
-		const b = new Uint8Array(4);
-		new DataView(b.buffer).setUint32(0, n, true);
-		return b;
-	}
-
-	function u16(n: number): Uint8Array {
-		const b = new Uint8Array(2);
-		new DataView(b.buffer).setUint16(0, n, true);
-		return b;
-	}
-
-	function str(s: string): Uint8Array {
-		return new TextEncoder().encode(s);
-	}
-
-	function concat(...parts: Uint8Array[]): Uint8Array {
-		const len = parts.reduce((s, p) => s + p.length, 0);
-		const out = new Uint8Array(len);
-		let off = 0;
-		for (const p of parts) {
-			out.set(p, off);
-			off += p.length;
-		}
-		return out;
-	}
-
-	function buildZip(files: { name: string; data: Uint8Array }[]): Uint8Array {
-		const localHeaders: Uint8Array[] = [];
-		const centralHeaders: Uint8Array[] = [];
-		const offsets: number[] = [];
-		let offset = 0;
-
-		for (const { name, data } of files) {
-			const nameBytes = str(name);
-			const local = concat(
-				new Uint8Array([0x50, 0x4b, 0x03, 0x04]), // local file header sig
-				u16(20),
-				u16(0),
-				u16(0),
-				u16(0),
-				u16(0), // version, flags, method (stored), time, date
-				u32(crc32(data)),
-				u32(data.length),
-				u32(data.length), // crc, compressed, uncompressed
-				u16(nameBytes.length),
-				u16(0), // name length, extra length
-				nameBytes,
-				data
-			);
-			offsets.push(offset);
-			localHeaders.push(local);
-			offset += local.length;
-
-			const central = concat(
-				new Uint8Array([0x50, 0x4b, 0x01, 0x02]), // central dir sig
-				u16(20),
-				u16(20),
-				u16(0),
-				u16(0),
-				u16(0),
-				u16(0),
-				u16(0),
-				u32(crc32(data)),
-				u32(data.length),
-				u32(data.length),
-				u16(nameBytes.length),
-				u16(0),
-				u16(0),
-				u16(0),
-				u16(0),
-				u32(0),
-				u32(offsets[offsets.length - 1]),
-				nameBytes
-			);
-			centralHeaders.push(central);
-		}
-
-		const centralSize = centralHeaders.reduce((s, c) => s + c.length, 0);
-		const eocd = concat(
-			new Uint8Array([0x50, 0x4b, 0x05, 0x06]), // end of central dir sig
-			u16(0),
-			u16(0),
-			u16(files.length),
-			u16(files.length),
-			u32(centralSize),
-			u32(offset),
-			u16(0)
-		);
-
-		return concat(...localHeaders, ...centralHeaders, eocd);
-	}
 
 	async function svgToPngBytes(svg: SVGSVGElement): Promise<Uint8Array | null> {
 		return new Promise((resolve) => {
@@ -295,8 +192,10 @@
 				if (count > 0) f.name = f.name.replace('.png', `_${count}.png`);
 			}
 
-			const zip = buildZip(pngFiles);
-			const blob = new Blob([zip.buffer], { type: 'application/zip' });
+			const zipInput: Record<string, Uint8Array> = {};
+			for (const f of pngFiles) zipInput[f.name] = f.data;
+			const zip = zipSync(zipInput);
+			const blob = new Blob([zip], { type: 'application/zip' });
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement('a');
 			a.href = url;
