@@ -5,6 +5,7 @@
 	import { type ChartCard, type SingleColCard, type TimeSeriesCard, type ScatterCard, type CorrelationCard, CHART_TYPES } from './chartTypes';
 	import Histogram from './charts/Histogram.svelte';
 	import RankedBar from './charts/RankedBar.svelte';
+	import BinaryBar from './charts/BinaryBar.svelte';
 	import TimeSeries from './charts/TimeSeries.svelte';
 	import Scatter from './charts/Scatter.svelte';
 	import BoxPlot from './charts/BoxPlot.svelte';
@@ -251,6 +252,8 @@
 								<TimeSeries {data} card={card as TimeSeriesCard} onsvgready={makeSvgHandler(card.id)} />
 							{:else if card.type === 'scatter'}
 								<Scatter {data} card={card as ScatterCard} onsvgready={makeSvgHandler(card.id)} />
+							{:else if card.type === 'binary_bar'}
+								<BinaryBar {data} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
 							{:else if card.type === 'box_plot'}
 								<BoxPlot {data} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
 							{:else if card.type === 'correlation'}
