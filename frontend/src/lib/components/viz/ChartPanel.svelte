@@ -22,6 +22,7 @@
 	let newCardDatasetKey = $state('');
 	let newCardType = $state<ChartCard['type']>('histogram');
 	let highlightedFeature = $state<string | null>(null);
+	let exporting = $state(false);
 
 	let columnsKey = $derived(data.columns.join('\x00'));
 	let _lastKey = '';
@@ -148,6 +149,161 @@
 			}, 'image/png');
 		};
 		img.src = url;
+	}
+
+	// Minimal ZIP file builder helper functions
+	function u32(n: number): Uint8Array {
+		const b = new Uint8Array(4);
+		new DataView(b.buffer).setUint32(0, n, true);
+		return b;
+	}
+
+	function u16(n: number): Uint8Array {
+		const b = new Uint8Array(2);
+		new DataView(b.buffer).setUint16(0, n, true);
+		return b;
+	}
+
+	function str(s: string): Uint8Array {
+		return new TextEncoder().encode(s);
+	}
+
+	function concat(...parts: Uint8Array[]): Uint8Array {
+		const len = parts.reduce((s, p) => s + p.length, 0);
+		const out = new Uint8Array(len);
+		let off = 0;
+		for (const p of parts) {
+			out.set(p, off);
+			off += p.length;
+		}
+		return out;
+	}
+
+	function buildZip(files: { name: string; data: Uint8Array }[]): Uint8Array {
+		const localHeaders: Uint8Array[] = [];
+		const centralHeaders: Uint8Array[] = [];
+		const offsets: number[] = [];
+		let offset = 0;
+
+		for (const { name, data } of files) {
+			const nameBytes = str(name);
+			const local = concat(
+				new Uint8Array([0x50, 0x4b, 0x03, 0x04]), // local file header sig
+				u16(20),
+				u16(0),
+				u16(0),
+				u16(0),
+				u16(0), // version, flags, method (stored), time, date
+				u32(0),
+				u32(data.length),
+				u32(data.length), // crc (0=no check), compressed, uncompressed
+				u16(nameBytes.length),
+				u16(0), // name length, extra length
+				nameBytes,
+				data
+			);
+			offsets.push(offset);
+			localHeaders.push(local);
+			offset += local.length;
+
+			const central = concat(
+				new Uint8Array([0x50, 0x4b, 0x01, 0x02]), // central dir sig
+				u16(20),
+				u16(20),
+				u16(0),
+				u16(0),
+				u16(0),
+				u16(0),
+				u16(0),
+				u32(0),
+				u32(data.length),
+				u32(data.length),
+				u16(nameBytes.length),
+				u16(0),
+				u16(0),
+				u16(0),
+				u16(0),
+				u32(0),
+				u32(offsets[offsets.length - 1]),
+				nameBytes
+			);
+			centralHeaders.push(central);
+		}
+
+		const centralSize = centralHeaders.reduce((s, c) => s + c.length, 0);
+		const eocd = concat(
+			new Uint8Array([0x50, 0x4b, 0x05, 0x06]), // end of central dir sig
+			u16(0),
+			u16(0),
+			u16(files.length),
+			u16(files.length),
+			u32(centralSize),
+			u32(offset),
+			u16(0)
+		);
+
+		return concat(...localHeaders, ...centralHeaders, eocd);
+	}
+
+	async function svgToPngBytes(svg: SVGSVGElement): Promise<Uint8Array | null> {
+		return new Promise((resolve) => {
+			const vb = svg.viewBox.baseVal;
+			const scale = 2;
+			const pad = 24;
+			const xml = new XMLSerializer().serializeToString(svg);
+			const svgBlob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+			const url = URL.createObjectURL(svgBlob);
+			const img = new Image();
+			img.onload = () => {
+				const canvas = document.createElement('canvas');
+				canvas.width = vb.width * scale + pad * 2;
+				canvas.height = vb.height * scale + pad * 2;
+				const ctx = canvas.getContext('2d')!;
+				ctx.fillStyle = '#ffffff';
+				ctx.fillRect(0, 0, canvas.width, canvas.height);
+				ctx.drawImage(img, pad, pad, vb.width * scale, vb.height * scale);
+				URL.revokeObjectURL(url);
+				canvas.toBlob((b) => {
+					if (!b) {
+						resolve(null);
+						return;
+					}
+					b.arrayBuffer().then((ab) => resolve(new Uint8Array(ab)));
+				}, 'image/png');
+			};
+			img.onerror = () => {
+				URL.revokeObjectURL(url);
+				resolve(null);
+			};
+			img.src = url;
+		});
+	}
+
+	async function exportAll() {
+		if (exporting) return;
+		exporting = true;
+		try {
+			const pngFiles: { name: string; data: Uint8Array }[] = [];
+			for (const card of chartCards) {
+				const svg = svgRefs.get(card.id);
+				if (!svg) continue;
+				const data = await svgToPngBytes(svg);
+				if (data) pngFiles.push({ name: cardFilename(card), data });
+			}
+			if (pngFiles.length === 0) return;
+			const zip = buildZip(pngFiles);
+			const blob = new Blob([zip as BlobPart], { type: 'application/zip' });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = 'geoquery-charts.zip';
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+		} finally {
+			exporting = false;
+		}
 	}
 
 	function niceName(col: string): string {
@@ -308,13 +464,25 @@
 						</div>
 					</div>
 				{:else}
-					<button
-						onclick={() => { showAddPicker = true; newCardCol = data.columns[0]; }}
-						class="flex items-center gap-1.5 text-sm text-primary hover:underline"
-					>
-						<Plus class="h-4 w-4" />
-						Add chart
-					</button>
+					<div class="flex items-center gap-4">
+						<button
+							onclick={() => { showAddPicker = true; newCardCol = data.columns[0]; }}
+							class="flex items-center gap-1.5 text-sm text-primary hover:underline"
+						>
+							<Plus class="h-4 w-4" />
+							Add chart
+						</button>
+						{#if chartCards.length > 0}
+							<button
+								onclick={exportAll}
+								disabled={exporting}
+								class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+							>
+								<Download class="h-4 w-4" />
+								{exporting ? 'Exporting…' : 'Export All'}
+							</button>
+						{/if}
+					</div>
 				{/if}
 			{/if}
 		{/if}
