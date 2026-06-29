@@ -7,6 +7,7 @@
 	import RankedBar from './charts/RankedBar.svelte';
 	import TimeSeries from './charts/TimeSeries.svelte';
 	import Scatter from './charts/Scatter.svelte';
+	import BoxPlot from './charts/BoxPlot.svelte';
 
 	interface Props {
 		data: VizPayload;
@@ -249,6 +250,8 @@
 								<TimeSeries {data} card={card as TimeSeriesCard} onsvgready={makeSvgHandler(card.id)} />
 							{:else if card.type === 'scatter'}
 								<Scatter {data} card={card as ScatterCard} onsvgready={makeSvgHandler(card.id)} />
+							{:else if card.type === 'box_plot'}
+								<BoxPlot {data} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
 							{:else}
 								<div class="flex h-32 items-center justify-center text-sm text-muted-foreground">
 									Chart type not yet implemented.
