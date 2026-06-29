@@ -21,3 +21,6 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Project uses bun — ignore npm lockfile if accidentally generated
+package-lock.json
