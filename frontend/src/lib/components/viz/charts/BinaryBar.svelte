@@ -24,7 +24,9 @@
 	function getGroups() {
 		const byFc = new Map<string, { present: number; absent: number }>();
 		for (const f of Object.values(data.features)) {
-			const v = Number(f[card.column]);
+			const raw = f[card.column];
+			if (raw === null || raw === undefined) continue;
+			const v = Number(raw);
 			if (v !== 0 && v !== 1) continue;
 			const fc = f.fc as string;
 			if (!byFc.has(fc)) byFc.set(fc, { present: 0, absent: 0 });
@@ -60,7 +62,7 @@
 			<text x={LEFT - 4} y={y + BAR_H/2 + 4} text-anchor="end" font-size="8" fill="#64748b">{g.fc}</text>
 			<rect x={LEFT} y={y} width={pw} height={BAR_H} fill="#22c55e" />
 			<rect x={LEFT + pw} y={y} width={aw} height={BAR_H} fill="#ef4444" />
-			<text x={LEFT + pw + 3} y={y + BAR_H/2 + 4} font-size="8" fill="#475569">{pct}%</text>
+			<text x={Math.min(LEFT + pw + 3, RIGHT - 30)} y={y + BAR_H/2 + 4} font-size="8" fill="#475569">{pct}%</text>
 		{/each}
 		<line x1={LEFT} y1="34" x2={LEFT} y2={H - 16} stroke="#e2e8f0" stroke-width="0.5" />
 		<line x1={RIGHT} y1="34" x2={RIGHT} y2={H - 16} stroke="#e2e8f0" stroke-width="0.5" />
