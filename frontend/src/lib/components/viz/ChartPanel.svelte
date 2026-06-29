@@ -117,41 +117,34 @@
 		return `${card.column}_${card.type}.png`;
 	}
 
-	function exportCard(card: ChartCard) {
+	async function exportCard(card: ChartCard) {
 		const svg = svgRefs.get(card.id);
 		if (!svg) return;
-		const vb = svg.viewBox.baseVal;
-		const scale = 2;
-		const xml = new XMLSerializer().serializeToString(svg);
-		const svgBlob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
-		const url = URL.createObjectURL(svgBlob);
-		const img = new Image();
-		img.onload = () => {
-			const pad = 24;
-			const canvas = document.createElement('canvas');
-			canvas.width = vb.width * scale + pad * 2;
-			canvas.height = vb.height * scale + pad * 2;
-			const ctx = canvas.getContext('2d')!;
-			ctx.fillStyle = '#ffffff';
-			ctx.fillRect(0, 0, canvas.width, canvas.height);
-			ctx.drawImage(img, pad, pad, vb.width * scale, vb.height * scale);
-			URL.revokeObjectURL(url);
-			canvas.toBlob((b) => {
-				if (!b) return;
-				const pngUrl = URL.createObjectURL(b);
-				const a = document.createElement('a');
-				a.href = pngUrl;
-				a.download = cardFilename(card);
-				document.body.appendChild(a);
-				a.click();
-				document.body.removeChild(a);
-				URL.revokeObjectURL(pngUrl);
-			}, 'image/png');
-		};
-		img.src = url;
+		const data = await svgToPngBytes(svg);
+		if (!data) return;
+		const blob = new Blob([data], { type: 'image/png' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = cardFilename(card);
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
 	}
 
 	// Minimal ZIP file builder helper functions
+	function crc32(data: Uint8Array): number {
+		let crc = 0xffffffff;
+		for (let i = 0; i < data.length; i++) {
+			crc ^= data[i];
+			for (let j = 0; j < 8; j++) {
+				crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+			}
+		}
+		return (crc ^ 0xffffffff) >>> 0;
+	}
+
 	function u32(n: number): Uint8Array {
 		const b = new Uint8Array(4);
 		new DataView(b.buffer).setUint32(0, n, true);
@@ -194,9 +187,9 @@
 				u16(0),
 				u16(0),
 				u16(0), // version, flags, method (stored), time, date
-				u32(0),
+				u32(crc32(data)),
 				u32(data.length),
-				u32(data.length), // crc (0=no check), compressed, uncompressed
+				u32(data.length), // crc, compressed, uncompressed
 				u16(nameBytes.length),
 				u16(0), // name length, extra length
 				nameBytes,
@@ -215,7 +208,7 @@
 				u16(0),
 				u16(0),
 				u16(0),
-				u32(0),
+				u32(crc32(data)),
 				u32(data.length),
 				u32(data.length),
 				u16(nameBytes.length),
@@ -291,6 +284,15 @@
 				if (data) pngFiles.push({ name: cardFilename(card), data });
 			}
 			if (pngFiles.length === 0) return;
+
+			// Deduplicate filenames
+			const seen = new Map<string, number>();
+			for (const f of pngFiles) {
+				const count = seen.get(f.name) ?? 0;
+				seen.set(f.name, count + 1);
+				if (count > 0) f.name = f.name.replace('.png', `_${count}.png`);
+			}
+
 			const zip = buildZip(pngFiles);
 			const blob = new Blob([zip as BlobPart], { type: 'application/zip' });
 			const url = URL.createObjectURL(blob);
