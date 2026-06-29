@@ -51,7 +51,7 @@
 	let globalMin = $derived(allVals.length ? Math.min(...allVals) : 0);
 	let globalMax = $derived(allVals.length ? Math.max(...allVals) : 1);
 	let yRange = $derived(globalMax - globalMin || 1);
-	let svgW = $derived(Math.max(240, groups.length * 80));
+	let svgW = $derived(Math.max(240, 83 + (groups.length - 1) * 80));
 
 	function yPos(v: number) { return BOT - ((v - globalMin) / yRange) * CH; }
 	let yTicks = $derived(Array.from({ length: 4 }, (_, i) => globalMin + (i / 3) * yRange));
