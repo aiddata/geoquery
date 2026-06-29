@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { VizPayload } from '$lib/api';
-	import { prettyColumn, detectBinary } from '$lib/viz';
+	import { fieldLabel, detectBinary, getDatasetFieldTracks, getTemporalDatasets, colFieldTrack } from '$lib/viz';
 	import { X, Plus, Download } from '@lucide/svelte';
 	import { zipSync } from 'fflate';
 	import { type ChartCard, type SingleColCard, type TimeSeriesCard, type ScatterCard, type CorrelationCard, CHART_TYPES } from './chartTypes';
@@ -19,11 +19,27 @@
 
 	let chartCards = $state<ChartCard[]>([]);
 	let showAddPicker = $state(false);
+	let showFcPicker = $state(false);
 	let newCardCol = $state('');
 	let newCardDatasetKey = $state('');
+	let newCardFieldTrack = $state('');
 	let newCardType = $state<ChartCard['type']>('histogram');
+	let temporalDatasets = $derived(getTemporalDatasets(data));
+	let newCardFieldTracks = $derived(getDatasetFieldTracks(data, newCardDatasetKey));
 	let highlightedFeature = $state<string | null>(null);
 	let exporting = $state(false);
+	let activeFcs = $state(new Set<string>());
+
+	let filteredData = $derived(
+		activeFcs.size === 0 || activeFcs.size === data.fc_names.length
+			? data
+			: {
+					...data,
+					features: Object.fromEntries(
+						Object.entries(data.features).filter(([, f]) => activeFcs.has(f.fc as string))
+					)
+				}
+	);
 
 	let columnsKey = $derived(data.columns.join('\x00'));
 	let _lastKey = '';
@@ -31,21 +47,37 @@
 		const key = columnsKey;
 		if (key === _lastKey) return;
 		_lastKey = key;
-		if (!data.columns.length) { chartCards = []; return; }
+		if (!data.columns.length) { chartCards = []; activeFcs = new Set(); return; }
+		activeFcs = new Set(data.fc_names);
 
 		const defaults: ChartCard[] = [];
 
-		// detect temporal group with ≥3 temporal columns
-		const temporalGroup = Object.entries(data.col_groups).find(([, cols]) =>
-			cols.filter(c => data.col_temporal[c]).length >= 3
-		);
+		// Group temporal columns by dataset title (spans multiple yearly resource groups).
+		// A valid time series requires at least one field track with ≥2 distinct temporal values.
+		const temporalDatasets = getTemporalDatasets(data);
+		const temporalGroup = Object.entries(temporalDatasets).find(([, cols]) => {
+			const trackTimes = new Map<string, Set<string>>();
+			for (const col of cols) {
+				const track = colFieldTrack(col, data.col_temporal[col]);
+				(trackTimes.get(track) ?? trackTimes.set(track, new Set()).get(track)!).add(data.col_temporal[col]);
+			}
+			return [...trackTimes.values()].some(times => times.size >= 2);
+		});
 
 		if (temporalGroup) {
-			const [dk, cols] = temporalGroup;
-			const temporalCols = cols.filter(c => data.col_temporal[c]);
+			const [datasetTitle, cols] = temporalGroup;
+			const tracks = getDatasetFieldTracks(data, datasetTitle);
+			// Default to the field track with the most temporal values.
+			const fieldTrack = tracks.length > 1
+				? tracks.reduce((best, t) => {
+					const tCount = cols.filter(c => colFieldTrack(c, data.col_temporal[c]) === t).length;
+					const bCount = cols.filter(c => colFieldTrack(c, data.col_temporal[c]) === best).length;
+					return tCount > bCount ? t : best;
+				}, tracks[0])
+				: undefined;
 			defaults.push({
 				id: crypto.randomUUID(), type: 'time_series',
-				datasetKey: dk, columns: temporalCols, aggregateMode: 'mean'
+				datasetKey: datasetTitle, columns: cols, aggregateMode: 'mean', fieldTrack
 			} satisfies TimeSeriesCard);
 		}
 
@@ -62,7 +94,7 @@
 
 		chartCards = defaults;
 		newCardCol = firstCol;
-		newCardDatasetKey = Object.keys(data.col_groups)[0] ?? '';
+		newCardDatasetKey = Object.keys(getTemporalDatasets(data))[0] ?? Object.keys(data.col_groups)[0] ?? '';
 		newCardType = 'histogram';
 	});
 
@@ -76,10 +108,12 @@
 
 	function addCard() {
 		if (newCardType === 'time_series') {
-			const cols = (data.col_groups[newCardDatasetKey] ?? []).filter(c => data.col_temporal[c]);
+			const cols = temporalDatasets[newCardDatasetKey] ?? [];
+			const tracks = getDatasetFieldTracks(data, newCardDatasetKey);
+			const fieldTrack = tracks.length > 1 ? (newCardFieldTrack || tracks[0]) : undefined;
 			chartCards = [...chartCards, {
 				id: crypto.randomUUID(), type: 'time_series',
-				datasetKey: newCardDatasetKey, columns: cols, aggregateMode: 'mean'
+				datasetKey: newCardDatasetKey, columns: cols, aggregateMode: 'mean', fieldTrack
 			} satisfies TimeSeriesCard];
 		} else if (newCardType === 'scatter') {
 			const firstCol = data.columns[0] ?? '';
@@ -209,12 +243,8 @@
 		}
 	}
 
-	function niceName(col: string): string {
-		return prettyColumn(col).replace(/_/g, ' ');
-	}
-
 	function colLabel(col: string): string {
-		const parts = [niceName(col), data.col_temporal[col]].filter(Boolean);
+		const parts = [fieldLabel(col), data.col_temporal[col]].filter(Boolean);
 		return parts.join(' · ');
 	}
 </script>
@@ -245,8 +275,13 @@
 								</select>
 							{:else if newCardType === 'time_series'}
 								<select bind:value={newCardDatasetKey} class="chart-select w-full">
-									{#each Object.keys(data.col_groups) as group}<option value={group}>{group}</option>{/each}
+									{#each Object.keys(temporalDatasets) as title}<option value={title}>{title}</option>{/each}
 								</select>
+								{#if newCardFieldTracks.length > 1}
+									<select bind:value={newCardFieldTrack} class="chart-select w-full">
+										{#each newCardFieldTracks as track}<option value={track}>{track}</option>{/each}
+									</select>
+								{/if}
 							{:else}
 								<p class="text-xs text-muted-foreground">Configure column selection in the card after adding.</p>
 							{/if}
@@ -257,7 +292,7 @@
 						</div>
 					</div>
 				{:else}
-					<div class="flex items-center gap-4">
+					<div class="flex items-center gap-4 flex-wrap">
 						<button
 							onclick={() => { showAddPicker = true; newCardCol = data.columns[0]; }}
 							class="flex items-center gap-1.5 text-sm text-primary hover:underline"
@@ -265,6 +300,38 @@
 							<Plus class="h-4 w-4" />
 							Add chart
 						</button>
+						{#if data.fc_names.length > 1}
+							<div class="relative">
+								<button
+									onclick={() => (showFcPicker = !showFcPicker)}
+									class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+								>
+									{activeFcs.size === data.fc_names.length
+										? `All ${data.fc_names.length} FCs`
+										: `${activeFcs.size} / ${data.fc_names.length} FCs`}
+								</button>
+								{#if showFcPicker}
+									<div class="absolute left-0 top-full mt-1 z-20 rounded-lg border bg-card shadow-md p-3 space-y-1.5 min-w-[180px]">
+										{#each data.fc_names as fc}
+											<label class="flex items-center gap-2 text-xs cursor-pointer">
+												<input type="checkbox" checked={activeFcs.has(fc)}
+													onchange={(e) => {
+														const next = new Set(activeFcs);
+														if ((e.target as HTMLInputElement).checked) next.add(fc);
+														else next.delete(fc);
+														activeFcs = next;
+													}} />
+												{fc}
+											</label>
+										{/each}
+										<div class="flex gap-2 pt-1 border-t">
+											<button class="text-xs text-primary hover:underline" onclick={() => activeFcs = new Set(data.fc_names)}>All</button>
+											<button class="text-xs text-muted-foreground hover:underline" onclick={() => activeFcs = new Set()}>None</button>
+										</div>
+									</div>
+								{/if}
+							</div>
+						{/if}
 						{#if chartCards.length > 0}
 							<button
 								onclick={exportAll}
@@ -304,17 +371,29 @@
 								</select>
 							{:else if card.type === 'time_series'}
 								{@const tc = card as TimeSeriesCard}
+								{@const tcTracks = getDatasetFieldTracks(data, tc.datasetKey)}
 								<select value={tc.datasetKey}
 									onchange={(e) => {
-										const dk = (e.target as HTMLSelectElement).value;
-										const cols = (data.col_groups[dk] ?? []).filter(c => data.col_temporal[c]);
-										updateCard(card.id, { datasetKey: dk, columns: cols } as Partial<TimeSeriesCard>);
+										const title = (e.target as HTMLSelectElement).value;
+										const cols = temporalDatasets[title] ?? [];
+										const dkTracks = getDatasetFieldTracks(data, title);
+										const fieldTrack = dkTracks.length > 1 ? dkTracks[0] : undefined;
+										updateCard(card.id, { datasetKey: title, columns: cols, fieldTrack } as Partial<TimeSeriesCard>);
 									}}
 									class="chart-select flex-1 min-w-0">
-									{#each Object.keys(data.col_groups) as group}
-										<option value={group}>{group}</option>
+									{#each Object.keys(temporalDatasets) as title}
+										<option value={title}>{title}</option>
 									{/each}
 								</select>
+								{#if tcTracks.length > 1}
+									<select value={tc.fieldTrack ?? tcTracks[0]}
+										onchange={(e) => updateCard(card.id, { fieldTrack: (e.target as HTMLSelectElement).value } as Partial<TimeSeriesCard>)}
+										class="chart-select flex-1 min-w-0">
+										{#each tcTracks as track}
+											<option value={track}>{track}</option>
+										{/each}
+									</select>
+								{/if}
 								<select value={tc.aggregateMode}
 									onchange={(e) => updateCard(card.id, { aggregateMode: (e.target as HTMLSelectElement).value as TimeSeriesCard['aggregateMode'] } as Partial<TimeSeriesCard>)}
 									class="chart-select shrink-0" style="width: auto">
@@ -358,25 +437,25 @@
 						<!-- Chart body -->
 						<div class="p-3">
 							{#if card.type === 'histogram'}
-								<Histogram {data} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
+								<Histogram data={filteredData} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
 							{:else if card.type === 'top_bar' || card.type === 'bottom_bar'}
-								<RankedBar {data} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
+								<RankedBar data={filteredData} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
 							{:else if card.type === 'time_series'}
-								<TimeSeries {data} card={card as TimeSeriesCard}
+								<TimeSeries data={filteredData} card={card as TimeSeriesCard}
 									highlightedFeature={highlightedFeature}
 									onHighlight={(name) => { highlightedFeature = name; }}
 									onsvgready={makeSvgHandler(card.id)} />
 							{:else if card.type === 'scatter'}
-								<Scatter {data} card={card as ScatterCard}
+								<Scatter data={filteredData} card={card as ScatterCard}
 									highlightedFeature={highlightedFeature}
 									onHighlight={(name) => { highlightedFeature = name; }}
 									onsvgready={makeSvgHandler(card.id)} />
 							{:else if card.type === 'binary_bar'}
-								<BinaryBar {data} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
+								<BinaryBar data={filteredData} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
 							{:else if card.type === 'box_plot'}
-								<BoxPlot {data} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
+								<BoxPlot data={filteredData} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
 							{:else if card.type === 'correlation'}
-								<CorrelationMatrix {data} card={card as CorrelationCard}
+								<CorrelationMatrix data={filteredData} card={card as CorrelationCard}
 									onCardUpdate={(patch) => updateCard(card.id, patch)}
 									onsvgready={makeSvgHandler(card.id)} />
 							{:else}

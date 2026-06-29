@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { VizPayload } from '$lib/api';
   import type { SingleColCard } from '../chartTypes';
-  import { fmt, prettyColumn } from '$lib/viz';
+  import { fmt, fieldLabel } from '$lib/viz';
 
   interface Props {
     data: VizPayload;
@@ -41,7 +41,6 @@
     return bins;
   }
 
-  function niceName(col: string) { return prettyColumn(col).replace(/_/g, ' '); }
   function mean(vals: number[]) { return vals.reduce((a, b) => a + b, 0) / vals.length; }
 
   let svgEl = $state<SVGSVGElement | undefined>();
@@ -60,7 +59,7 @@
   let meanX = $derived(rangeVal > 0 ? ((m - minVal) / rangeVal) * (N_BINS * 20) : -1);
   let ds = $derived(data.col_dataset_titles[card.column] ?? '');
   let temporal = $derived(data.col_temporal[card.column] ?? '');
-  let colPart = $derived([niceName(card.column), temporal].filter(Boolean).join(' · '));
+  let colPart = $derived([fieldLabel(card.column), temporal].filter(Boolean).join(' · '));
   let typeLabel = $derived('Distribution');
   let cx = $derived(7 + N_BINS * 10);
 </script>
@@ -76,8 +75,8 @@
     preserveAspectRatio="none"
   >
     <rect width="{14 + N_BINS * 20}" height="148" fill="white" />
-    <text x={cx} y="13" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{ds || niceName(card.column)}</text>
-    <text x={cx} y="25" text-anchor="middle" font-size="9" fill="#64748b">{colPart} — {typeLabel}</text>
+    <text x={cx} y="13" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{ds || fieldLabel(card.column)}<title>{ds || fieldLabel(card.column)}</title></text>
+    <text x={cx} y="25" text-anchor="middle" font-size="9" fill="#64748b">{colPart} — {typeLabel}<title>{colPart}</title></text>
     <text transform="rotate(-90, 8, 70)" text-anchor="middle" font-size="8" fill="#94a3b8">Count</text>
     {#each bins as bin, i}
       {@const barH = maxCount > 0 ? (bin.count / maxCount) * 80 : 0}

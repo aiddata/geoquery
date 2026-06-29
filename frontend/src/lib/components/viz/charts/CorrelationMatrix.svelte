@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { VizPayload } from '$lib/api';
 	import type { CorrelationCard } from '../chartTypes';
-	import { pearsonMatrix, prettyColumn } from '$lib/viz';
+	import { pearsonMatrix, fieldLabel } from '$lib/viz';
 
 	interface Props {
 		data: VizPayload;
@@ -13,9 +13,17 @@
 
 	const CELL = 36, LEFT_PAD = 80, TOP_PAD = 80;
 
-	function niceName(col: string) {
-		const s = prettyColumn(col).replace(/_/g, ' ');
+	function axisLabel(col: string) {
+		const temporal = data.col_temporal[col];
+		const s = temporal ? `${fieldLabel(col)} ${temporal}` : fieldLabel(col);
 		return s.length > 12 ? s.slice(0, 11) + '…' : s;
+	}
+
+	function fullLabel(col: string) {
+		const ds = data.col_dataset_titles[col];
+		const field = fieldLabel(col);
+		const temporal = data.col_temporal[col];
+		return [ds, field, temporal].filter(Boolean).join(' · ');
 	}
 
 	function rToColor(r: number): string {
@@ -63,13 +71,13 @@
 			{#each Object.entries(data.col_groups) as [group, groupCols]}
 				<p class="text-[10px] font-semibold uppercase text-muted-foreground/70 mt-1">{group}</p>
 				{#each groupCols as col}
-					<label class="flex items-center gap-1.5 text-xs cursor-pointer">
+					<label class="flex items-center gap-1.5 text-xs cursor-pointer" title={fullLabel(col)}>
 						<input
 							type="checkbox"
 							checked={card.columns.includes(col)}
 							onchange={(e) => toggleCol(col, (e.target as HTMLInputElement).checked)}
 						/>
-						{niceName(col)}
+						{fieldLabel(col)}
 						{#if data.col_temporal[col]}<span class="text-muted-foreground">·
 							{data.col_temporal[col]}</span>{/if}
 					</label>
@@ -90,14 +98,11 @@
 					font-size="9"
 					fill="#64748b"
 					transform="rotate(-45, {LEFT_PAD + j * CELL + CELL / 2}, {TOP_PAD - 4})"
-				>
-					{niceName(col)}
-				</text>
+				>{axisLabel(col)}<title>{fullLabel(col)}</title></text>
 			{/each}
 			{#each cols as col, i}
-				<text x={LEFT_PAD - 4} y={TOP_PAD + i * CELL + CELL / 2 + 4} text-anchor="end" font-size="9" fill="#64748b">
-					{niceName(col)}
-				</text>
+				<text x={LEFT_PAD - 4} y={TOP_PAD + i * CELL + CELL / 2 + 4} text-anchor="end" font-size="9" fill="#64748b"
+				>{axisLabel(col)}<title>{fullLabel(col)}</title></text>
 			{/each}
 			{#each matrix as row, i}
 				{#each row as r, j}

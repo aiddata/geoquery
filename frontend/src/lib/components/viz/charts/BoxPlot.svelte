@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { VizPayload } from '$lib/api';
 	import type { SingleColCard } from '../chartTypes';
-	import { fmt, prettyColumn } from '$lib/viz';
+	import { fmt, fieldLabel } from '$lib/viz';
 
 	interface Props {
 		data: VizPayload;
@@ -11,8 +11,6 @@
 	let { data, card, onsvgready }: Props = $props();
 
 	const TOP = 30, BOT = 160, CH = BOT - TOP;
-
-	function niceName(col: string) { return prettyColumn(col).replace(/_/g, ' '); }
 
 	function quantile(sorted: number[], q: number): number {
 		const pos = (sorted.length - 1) * q;
@@ -58,7 +56,7 @@
 
 	let ds = $derived(data.col_dataset_titles[card.column] ?? '');
 	let temporal = $derived(data.col_temporal[card.column] ?? '');
-	let colPart = $derived([niceName(card.column), temporal].filter(Boolean).join(' · '));
+	let colPart = $derived([fieldLabel(card.column), temporal].filter(Boolean).join(' · '));
 </script>
 
 {#if groups.length === 0}
@@ -66,8 +64,8 @@
 {:else}
 	<svg bind:this={svgEl} viewBox="0 0 {svgW} 200" class="w-full" style="aspect-ratio: {svgW} / 200">
 		<rect width={svgW} height="200" fill="white" />
-		<text x={svgW/2} y="13" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{ds || niceName(card.column)}</text>
-		<text x={svgW/2} y="23" text-anchor="middle" font-size="9" fill="#64748b">{colPart} — Box Plot by Group</text>
+		<text x={svgW/2} y="13" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{ds || fieldLabel(card.column)}<title>{ds || fieldLabel(card.column)}</title></text>
+		<text x={svgW/2} y="23" text-anchor="middle" font-size="9" fill="#64748b">{colPart} — Box Plot by Group<title>{colPart}</title></text>
 		{#each yTicks as t}
 			<line x1="36" y1={yPos(t)} x2={svgW - 8} y2={yPos(t)} stroke="#f1f5f9" stroke-width="1" />
 			<text x="32" y={yPos(t) + 4} text-anchor="end" font-size="8" fill="#94a3b8">{fmt(t)}</text>
@@ -85,7 +83,7 @@
 					<title>{fmt(o)}</title>
 				</circle>
 			{/each}
-			<text x={cx} y="178" text-anchor="middle" font-size="8" fill="#64748b">{g.fc}</text>
+			<text x={cx} y="178" text-anchor="middle" font-size="8" fill="#64748b">{g.fc}<title>{g.fc}</title></text>
 		{/each}
 		<line x1="36" y1={TOP} x2="36" y2={BOT} stroke="#e2e8f0" stroke-width="0.5" />
 		<line x1="36" y1={BOT} x2={svgW - 8} y2={BOT} stroke="#e2e8f0" stroke-width="0.5" />

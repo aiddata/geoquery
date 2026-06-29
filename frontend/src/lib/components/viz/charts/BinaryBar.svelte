@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { VizPayload } from '$lib/api';
 	import type { SingleColCard } from '../chartTypes';
-	import { prettyColumn } from '$lib/viz';
+	import { fieldLabel } from '$lib/viz';
 
 	interface Props {
 		data: VizPayload;
@@ -12,8 +12,6 @@
 
 	const W = 320;
 	const LEFT = 70, RIGHT = 300, BAR_H = 18, ROW_H = 30;
-
-	function niceName(col: string) { return prettyColumn(col).replace(/_/g, ' '); }
 
 	let svgEl = $state<SVGSVGElement | undefined>();
 	$effect(() => {
@@ -42,7 +40,7 @@
 	let H = $derived(Math.max(120, groups.length * ROW_H + 60));
 	let ds = $derived(data.col_dataset_titles[card.column] ?? '');
 	let temporal = $derived(data.col_temporal[card.column] ?? '');
-	let colPart = $derived([niceName(card.column), temporal].filter(Boolean).join(' · '));
+	let colPart = $derived([fieldLabel(card.column), temporal].filter(Boolean).join(' · '));
 
 	function barW(n: number, total: number) { return (n / total) * (RIGHT - LEFT); }
 </script>
@@ -52,14 +50,14 @@
 {:else}
 	<svg bind:this={svgEl} viewBox="0 0 {W} {H}" class="w-full" style="aspect-ratio: {W} / {H}">
 		<rect width={W} height={H} fill="white" />
-		<text x={W/2} y="13" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{ds || niceName(card.column)}</text>
-		<text x={W/2} y="23" text-anchor="middle" font-size="9" fill="#64748b">{colPart} — Present / Absent</text>
+		<text x={W/2} y="13" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{ds || fieldLabel(card.column)}<title>{ds || fieldLabel(card.column)}</title></text>
+		<text x={W/2} y="23" text-anchor="middle" font-size="9" fill="#64748b">{colPart} — Present / Absent<title>{colPart}</title></text>
 		{#each groups as g, i}
 			{@const y = 36 + i * ROW_H}
 			{@const pw = barW(g.present, g.total)}
 			{@const aw = barW(g.absent, g.total)}
 			{@const pct = Math.round((g.present / g.total) * 100)}
-			<text x={LEFT - 4} y={y + BAR_H/2 + 4} text-anchor="end" font-size="8" fill="#64748b">{g.fc}</text>
+			<text x={LEFT - 4} y={y + BAR_H/2 + 4} text-anchor="end" font-size="8" fill="#64748b">{g.fc}<title>{g.fc}</title></text>
 			<rect x={LEFT} y={y} width={pw} height={BAR_H} fill="#22c55e" />
 			<rect x={LEFT + pw} y={y} width={aw} height={BAR_H} fill="#ef4444" />
 			<text x={Math.min(LEFT + pw + 3, RIGHT - 30)} y={y + BAR_H/2 + 4} font-size="8" fill="#475569">{pct}%</text>

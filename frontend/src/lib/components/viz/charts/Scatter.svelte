@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { VizPayload } from '$lib/api';
 	import type { ScatterCard } from '../chartTypes';
-	import { fmt, prettyColumn } from '$lib/viz';
+	import { fmt, fieldLabel } from '$lib/viz';
 
 	interface Props {
 		data: VizPayload;
@@ -17,7 +17,13 @@
 	const CW = RIGHT - LEFT, CH = BOT - TOP;
 	const FC_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
 
-	function niceName(col: string) { return prettyColumn(col).replace(/_/g, ' '); }
+	function axisLabel(col: string, ds: string, otherDs: string): string {
+		const field = fieldLabel(col);
+		const temporal = data.col_temporal[col];
+		const withTime = temporal ? `${field} · ${temporal}` : field;
+		// Only prepend dataset when the two columns come from different datasets
+		return ds !== otherDs ? `${ds} · ${withTime}` : withTime;
+	}
 
 	let svgEl = $state<SVGSVGElement | undefined>();
 	$effect(() => {
@@ -52,8 +58,9 @@
 
 	let dsX = $derived(data.col_dataset_titles[card.xCol] ?? '');
 	let dsY = $derived(data.col_dataset_titles[card.yCol] ?? '');
-	let titleLine1 = $derived([dsX, dsY].filter(Boolean).join(' × ') || 'Scatter Plot');
-	let titleLine2 = $derived(`${niceName(card.xCol)} vs ${niceName(card.yCol)}`);
+	let samDs = $derived(dsX === dsY);
+	let titleLine1 = $derived(samDs ? (dsX || 'Scatter Plot') : `${dsX} × ${dsY}`);
+	let titleLine2 = $derived(`${fieldLabel(card.xCol)} vs ${fieldLabel(card.yCol)}`);
 </script>
 
 {#if points.length === 0}
@@ -61,8 +68,8 @@
 {:else}
 	<svg bind:this={svgEl} viewBox="0 0 {W} {H}" class="w-full" style="aspect-ratio: {W} / {H}">
 		<rect width={W} height={H} fill="white" />
-		<text x={W/2} y="12" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{titleLine1}</text>
-		<text x={(LEFT+RIGHT)/2} y="22" text-anchor="middle" font-size="9" fill="#64748b">{titleLine2}</text>
+		<text x={W/2} y="12" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{titleLine1}<title>{titleLine1}</title></text>
+		<text x={(LEFT+RIGHT)/2} y="22" text-anchor="middle" font-size="9" fill="#64748b">{titleLine2}<title>{titleLine2}</title></text>
 		{#each yTicks as t}
 			<line x1={LEFT} y1={py(t)} x2={RIGHT} y2={py(t)} stroke="#f1f5f9" stroke-width="1" />
 			<text x={LEFT-4} y={py(t)+4} text-anchor="end" font-size="8" fill="#94a3b8">{fmt(t)}</text>
@@ -81,8 +88,8 @@
 		{/each}
 		<line x1={LEFT} y1={TOP} x2={LEFT} y2={BOT} stroke="#e2e8f0" stroke-width="0.5" />
 		<line x1={LEFT} y1={BOT} x2={RIGHT} y2={BOT} stroke="#e2e8f0" stroke-width="0.5" />
-		<text x={(LEFT+RIGHT)/2} y={H-4} text-anchor="middle" font-size="8" fill="#94a3b8">{niceName(card.xCol)}</text>
+		<text x={(LEFT+RIGHT)/2} y={H-4} text-anchor="middle" font-size="8" fill="#94a3b8">{axisLabel(card.xCol, dsX, dsY)}<title>{axisLabel(card.xCol, dsX, dsY)}</title></text>
 		<text transform="rotate(-90, 10, {(TOP+BOT)/2})" x="10" y={(TOP+BOT)/2}
-			text-anchor="middle" font-size="8" fill="#94a3b8">{niceName(card.yCol)}</text>
+			text-anchor="middle" font-size="8" fill="#94a3b8">{axisLabel(card.yCol, dsY, dsX)}<title>{axisLabel(card.yCol, dsY, dsX)}</title></text>
 	</svg>
 {/if}

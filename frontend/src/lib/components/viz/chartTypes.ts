@@ -10,6 +10,7 @@ export type TimeSeriesCard = {
   datasetKey: string;
   columns: string[];
   aggregateMode: 'all' | 'mean' | 'band';
+  fieldTrack?: string;
 };
 
 export type ScatterCard = {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { VizPayload } from '$lib/api';
   import type { TimeSeriesCard } from '../chartTypes';
-  import { getTemporalSeries, fmt } from '$lib/viz';
+  import { getTemporalSeries, getDatasetFieldTracks, getTemporalDatasets, fmt } from '$lib/viz';
 
   interface Props {
     data: VizPayload;
@@ -22,7 +22,7 @@
     return () => onsvgready?.(null);
   });
 
-  let series = $derived(getTemporalSeries(data, card.datasetKey));
+  let series = $derived(getTemporalSeries(data, card.datasetKey, card.fieldTrack));
 
   function getFeatureLines() {
     if (!series.length) return [];
@@ -58,7 +58,8 @@
     y: yPos(globalMin + (i / 3) * yRange)
   })));
   let xLabelRotate = $derived(series.length > 6);
-  let dsTitle = $derived(data.col_dataset_titles[series[0]?.col ?? ''] ?? card.datasetKey);
+  let dsTitle = $derived(card.datasetKey);
+  let hasMultipleTracks = $derived(getDatasetFieldTracks(data, card.datasetKey).length > 1);
 </script>
 
 {#if series.length < 2}
@@ -66,8 +67,8 @@
 {:else}
   <svg bind:this={svgEl} viewBox="0 0 {W} {H}" class="w-full" style="aspect-ratio: {W} / {H}">
     <rect width={W} height={H} fill="white" />
-    <text x={W/2} y="13" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{dsTitle}</text>
-    <text x={W/2} y="23" text-anchor="middle" font-size="9" fill="#64748b">Time Series — {card.aggregateMode === 'all' ? 'all features' : card.aggregateMode === 'mean' ? 'mean' : 'mean ± range'}</text>
+    <text x={W/2} y="13" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{dsTitle}<title>{dsTitle}</title></text>
+    <text x={W/2} y="23" text-anchor="middle" font-size="9" fill="#64748b">{hasMultipleTracks && card.fieldTrack ? card.fieldTrack + ' — ' : ''}Time Series — {card.aggregateMode === 'all' ? 'all features' : card.aggregateMode === 'mean' ? 'mean' : 'mean ± range'}<title>{card.fieldTrack ? card.fieldTrack + ' — Time Series' : dsTitle + ' — Time Series'}</title></text>
 
     {#each yTicks as t}
       <line x1={LEFT} y1={t.y} x2={RIGHT} y2={t.y} stroke="#f1f5f9" stroke-width="1" />
@@ -102,7 +103,7 @@
       <text x={xPos(i)} y={BOT + (xLabelRotate ? 6 : 12)}
         text-anchor={xLabelRotate ? 'end' : 'middle'} font-size="8" fill="#94a3b8"
         transform={xLabelRotate ? `rotate(-40, ${xPos(i)}, ${BOT + 6})` : undefined}
-      >{e.temporal}</text>
+      >{e.temporal}<title>{e.temporal}</title></text>
     {/each}
 
     <line x1={LEFT} y1={TOP} x2={LEFT} y2={BOT} stroke="#e2e8f0" stroke-width="0.5" />
