@@ -1,34 +1,21 @@
 <script lang="ts">
 	import type { VizPayload } from '$lib/api';
-	import { fmt, prettyColumn } from '$lib/viz';
+	import { prettyColumn } from '$lib/viz';
 	import { X, Plus, Download } from '@lucide/svelte';
+	import { type ChartCard, type SingleColCard, CHART_TYPES } from './chartTypes';
+	import Histogram from './charts/Histogram.svelte';
+	import RankedBar from './charts/RankedBar.svelte';
 
 	interface Props {
 		data: VizPayload;
 	}
 	let { data }: Props = $props();
 
-	interface ChartCard {
-		id: string;
-		type: 'histogram' | 'top_bar' | 'bottom_bar';
-		column: string;
-	}
-
-	const CHART_TYPES: { value: ChartCard['type']; label: string }[] = [
-		{ value: 'histogram', label: 'Distribution' },
-		{ value: 'top_bar', label: 'Top Values' },
-		{ value: 'bottom_bar', label: 'Bottom Values' },
-	];
-
-	const N_BINS = 20;
-	const TOP_N = 15;
-
 	let chartCards = $state<ChartCard[]>([]);
 	let showAddPicker = $state(false);
 	let newCardCol = $state('');
 	let newCardType = $state<ChartCard['type']>('histogram');
 
-	// Re-initialize when the set of columns changes (e.g. explore page loads new data).
 	let columnsKey = $derived(data.columns.join('\x00'));
 	let _lastKey = '';
 	$effect(() => {
@@ -47,29 +34,26 @@
 		chartCards = chartCards.filter((c) => c.id !== id);
 	}
 
-	function updateCard(id: string, patch: Partial<Omit<ChartCard, 'id'>>) {
+	function updateCard(id: string, patch: Partial<ChartCard>) {
 		chartCards = chartCards.map((c) => (c.id === id ? { ...c, ...patch } : c));
 	}
 
 	function addCard() {
 		if (!newCardCol) return;
-		chartCards = [...chartCards, { id: crypto.randomUUID(), type: newCardType, column: newCardCol }];
+		chartCards = [...chartCards, { id: crypto.randomUUID(), type: newCardType as SingleColCard['type'], column: newCardCol } as SingleColCard];
 		showAddPicker = false;
 	}
 
 	const svgRefs = new Map<string, SVGSVGElement>();
 
-	function registerSvg(node: SVGSVGElement, initialId: string) {
-		let id = initialId;
-		svgRefs.set(id, node);
-		return {
-			update(newId: string) { svgRefs.delete(id); svgRefs.set(newId, node); id = newId; },
-			destroy() { svgRefs.delete(id); }
+	function makeSvgHandler(id: string) {
+		return (svg: SVGSVGElement | null) => {
+			if (svg) {
+				svgRefs.set(id, svg);
+			} else {
+				svgRefs.delete(id);
+			}
 		};
-	}
-
-	function truncate(s: string, n: number): string {
-		return s.length > n ? s.slice(0, n - 1) + '…' : s;
 	}
 
 	function exportCard(card: ChartCard) {
@@ -96,7 +80,8 @@
 				const pngUrl = URL.createObjectURL(b);
 				const a = document.createElement('a');
 				a.href = pngUrl;
-				a.download = `${card.column}_${card.type}.png`;
+				const singleCard = card as SingleColCard;
+				a.download = `${singleCard.column}_${card.type}.png`;
 				document.body.appendChild(a);
 				a.click();
 				document.body.removeChild(a);
@@ -104,46 +89,6 @@
 			}, 'image/png');
 		};
 		img.src = url;
-	}
-
-	function getValues(col: string): number[] {
-		const out: number[] = [];
-		for (const f of Object.values(data.features)) {
-			const v = f[col];
-			if (v !== null && v !== undefined) {
-				const n = Number(v);
-				if (!isNaN(n)) out.push(n);
-			}
-		}
-		return out;
-	}
-
-	interface Bin { lo: number; hi: number; count: number; }
-
-	function makeBins(vals: number[]): Bin[] {
-		if (!vals.length) return [];
-		let min = vals[0], max = vals[0];
-		for (const v of vals) { if (v < min) min = v; if (v > max) max = v; }
-		if (min === max) return [{ lo: min, hi: max, count: vals.length }];
-		const w = (max - min) / N_BINS;
-		const bins: Bin[] = Array.from({ length: N_BINS }, (_, i) => ({
-			lo: min + i * w, hi: min + (i + 1) * w, count: 0
-		}));
-		for (const v of vals) {
-			const i = Math.min(Math.floor((v - min) / w), N_BINS - 1);
-			bins[i].count++;
-		}
-		return bins;
-	}
-
-	function getRanked(col: string, dir: 'top' | 'bottom') {
-		const rows: { name: string; v: number }[] = [];
-		for (const f of Object.values(data.features)) {
-			const v = Number(f[col]);
-			if (!isNaN(v)) rows.push({ name: f.name, v });
-		}
-		rows.sort((a, b) => dir === 'top' ? b.v - a.v : a.v - b.v);
-		return rows.slice(0, TOP_N);
 	}
 
 	function niceName(col: string): string {
@@ -156,15 +101,12 @@
 	}
 
 	function cardTitle(card: ChartCard): { ds: string; col: string } {
-		const ds = data.col_dataset_titles[card.column] ?? '';
+		const singleCard = card as SingleColCard;
+		const ds = data.col_dataset_titles[singleCard.column] ?? '';
 		const typeLabel = CHART_TYPES.find(t => t.value === card.type)?.label ?? '';
-		const temporal = data.col_temporal[card.column];
-		const colPart = [niceName(card.column), temporal].filter(Boolean).join(' · ');
-		return { ds: ds || niceName(card.column), col: `${colPart} — ${typeLabel}` };
-	}
-
-	function meanOf(vals: number[]): number {
-		return vals.reduce((a, b) => a + b, 0) / vals.length;
+		const temporal = data.col_temporal[singleCard.column];
+		const colPart = [niceName(singleCard.column), temporal].filter(Boolean).join(' · ');
+		return { ds: ds || niceName(singleCard.column), col: `${colPart} — ${typeLabel}` };
 	}
 </script>
 
@@ -177,16 +119,16 @@
 		{:else}
 			<div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
 				{#each chartCards as card (card.id)}
-					{@const vals = getValues(card.column)}
-					{@const dsTitle = data.col_dataset_titles[card.column] ?? ''}
-					{@const temporal = data.col_temporal[card.column] ?? ''}
+					{@const singleCard = card as SingleColCard}
+					{@const dsTitle = data.col_dataset_titles[singleCard.column] ?? ''}
+					{@const temporal = data.col_temporal[singleCard.column] ?? ''}
 					{@const meta = [dsTitle, temporal].filter(Boolean).join(' · ')}
 
 					<div class="rounded-lg border bg-card shadow-sm overflow-hidden">
 						<!-- Card header -->
 						<div class="flex items-center gap-2 px-3 py-2 border-b bg-muted/30">
 							<select
-								value={card.column}
+								value={singleCard.column}
 								onchange={(e) => updateCard(card.id, { column: (e.target as HTMLSelectElement).value })}
 								class="chart-select flex-1 min-w-0"
 							>
@@ -204,7 +146,7 @@
 								class="chart-select shrink-0"
 								style="width: auto"
 							>
-								{#each CHART_TYPES as ct}
+								{#each CHART_TYPES.filter(ct => !ct.multi) as ct}
 									<option value={ct.value}>{ct.label}</option>
 								{/each}
 							</select>
@@ -226,90 +168,14 @@
 
 						<!-- Chart body -->
 						<div class="p-3">
-							{#if vals.length === 0}
-								<p class="text-center text-sm text-muted-foreground py-10">No numeric data for this column.</p>
-							{:else if card.type === 'histogram'}
-								{@const bins = makeBins(vals)}
-								{@const maxCount = bins.reduce((a, b) => Math.max(a, b.count), 0)}
-								{@const minVal = bins[0].lo}
-								{@const maxVal = bins[bins.length - 1].hi}
-								{@const rangeVal = maxVal - minVal}
-								{@const m = meanOf(vals)}
-								{@const meanX = rangeVal > 0 ? ((m - minVal) / rangeVal) * (N_BINS * 20) : -1}
-
-								{@const ct = cardTitle(card)}
-								<svg
-									viewBox="0 0 {14 + N_BINS * 20} 148"
-									class="w-full"
-									style="aspect-ratio: {14 + N_BINS * 20} / 148"
-									preserveAspectRatio="none"
-									use:registerSvg={card.id}
-								>
-									<rect width="{14 + N_BINS * 20}" height="148" fill="white" />
-									<!-- Title: dataset (line 1), column · type (line 2) -->
-									<text x="{7 + N_BINS * 10}" y="13" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{ct.ds}</text>
-									<text x="{7 + N_BINS * 10}" y="25" text-anchor="middle" font-size="9" fill="#64748b">{ct.col}</text>
-									<!-- Y-axis label -->
-									<text transform="rotate(-90, 8, 70)" text-anchor="middle" font-size="8" fill="#94a3b8">Count</text>
-									<!-- Bars -->
-									{#each bins as bin, i}
-										{@const barH = maxCount > 0 ? (bin.count / maxCount) * 80 : 0}
-										<rect
-											x={14 + i * 20 + 0.5}
-											y={110 - barH}
-											width="19"
-											height={barH}
-											fill="#3b82f6"
-											opacity="0.72"
-											rx="1"
-										>
-											<title>{fmt(bin.lo)} – {fmt(bin.hi)}: {bin.count}</title>
-										</rect>
-									{/each}
-									<!-- Baseline -->
-									<line x1="14" y1="110" x2="{14 + N_BINS * 20}" y2="110" stroke="#e2e8f0" stroke-width="0.5" />
-									<!-- Mean line -->
-									{#if meanX >= 0}
-										<line
-											x1={14 + meanX} y1="28" x2={14 + meanX} y2="110"
-											stroke="#ef4444" stroke-width="1.5" stroke-dasharray="3 2" opacity="0.85"
-										/>
-										<text x={Math.min(14 + meanX + 3, 14 + N_BINS * 20 - 40)} y="38" font-size="9" fill="#ef4444" opacity="0.85">mean</text>
-									{/if}
-									<!-- X-axis value labels -->
-									<text x="16" y="122" font-size="8" fill="#94a3b8">{fmt(minVal)}</text>
-									<text x="{7 + N_BINS * 10}" y="122" text-anchor="middle" font-size="8" fill="#94a3b8">{vals.length.toLocaleString()} values · mean {fmt(m)}</text>
-									<text x="{12 + N_BINS * 20}" y="122" text-anchor="end" font-size="8" fill="#94a3b8">{fmt(maxVal)}</text>
-									<!-- X-axis title -->
-									<text x="{7 + N_BINS * 10}" y="138" text-anchor="middle" font-size="7" fill="#94a3b8">Value</text>
-								</svg>
+							{#if card.type === 'histogram'}
+								<Histogram {data} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
+							{:else if card.type === 'top_bar' || card.type === 'bottom_bar'}
+								<RankedBar {data} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
 							{:else}
-								{@const rows = getRanked(card.column, card.type === 'top_bar' ? 'top' : 'bottom')}
-								{@const maxV = rows.reduce((a, r) => Math.max(a, Math.abs(r.v)), 0)}
-								{@const barColor = card.type === 'top_bar' ? '#3b82f6' : '#fb923c'}
-								{@const ct = cardTitle(card)}
-								{@const svgH = rows.length * 22 + 42}
-								<svg
-									viewBox="0 0 400 {svgH}"
-									style="width: 100%; aspect-ratio: 400 / {svgH}"
-									use:registerSvg={card.id}
-								>
-									<rect width="400" height="{svgH}" fill="white" />
-									<!-- Title: dataset (line 1), column · type (line 2) -->
-									<text x="200" y="13" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{ct.ds}</text>
-									<text x="200" y="25" text-anchor="middle" font-size="9" fill="#64748b">{ct.col}</text>
-									<!-- Rows -->
-									{#each rows as row, i}
-										{@const barW = maxV > 0 ? (Math.abs(row.v) / maxV) * 182 : 0}
-										<text x="25" y="{32 + i * 22 + 11}" dominant-baseline="middle" text-anchor="end" font-size="9" fill="#94a3b8">{i + 1}.</text>
-										<text x="150" y="{32 + i * 22 + 11}" dominant-baseline="middle" text-anchor="end" font-size="9" fill="#64748b">{truncate(row.name, 22)}</text>
-										<rect x="157" y="{32 + i * 22 + 3}" width="182" height="16" rx="2" fill="#f1f5f9" />
-										<rect x="157" y="{32 + i * 22 + 3}" width="{barW}" height="16" rx="2" fill="{barColor}" opacity="0.8" />
-										<text x="396" y="{32 + i * 22 + 11}" dominant-baseline="middle" text-anchor="end" font-size="9" fill="#1e293b" font-family="monospace">{fmt(row.v)}</text>
-									{/each}
-									<!-- X-axis label -->
-									<text x="339" y="{svgH - 6}" text-anchor="end" font-size="7" fill="#94a3b8">Value →</text>
-								</svg>
+								<div class="flex h-32 items-center justify-center text-sm text-muted-foreground">
+									Chart type not yet implemented.
+								</div>
 							{/if}
 
 							{#if meta}
@@ -336,7 +202,7 @@
 								{/each}
 							</select>
 							<select bind:value={newCardType} class="chart-select w-full">
-								{#each CHART_TYPES as ct}
+								{#each CHART_TYPES.filter(ct => !ct.multi) as ct}
 									<option value={ct.value}>{ct.label}</option>
 								{/each}
 							</select>
