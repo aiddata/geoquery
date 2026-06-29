@@ -36,6 +36,24 @@ if not SECRET_KEY:
 
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
+# Behind Cloudflare Tunnel (and any TLS-terminating proxy) the origin is reached
+# over plain HTTP, so request.is_secure() is False unless we trust the
+# X-Forwarded-Proto header that the tunnel forwards. Without this, Django's CSRF
+# check builds an "http://…" origin that never matches the browser's "https://…"
+# Origin header, so admin login POSTs fail with "Origin checking failed".
+# Safe here because the origin is only reachable through the tunnel, so a client
+# cannot spoof this header.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Origins Django trusts for unsafe (POST) requests; each must include the scheme.
+# Required since Django 4.0 for HTTPS-behind-proxy POSTs such as the admin login.
+# Set DJANGO_CSRF_TRUSTED_ORIGINS in production, e.g. "https://geoquery.org".
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
 # Prometheus metrics (disabled by default)
 PROMETHEUS_ENABLED = os.getenv("PROMETHEUS_ENABLED", "False").lower() in (
     "true",
