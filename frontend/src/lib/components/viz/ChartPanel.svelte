@@ -14,7 +14,7 @@
 	let chartCards = $state<ChartCard[]>([]);
 	let showAddPicker = $state(false);
 	let newCardCol = $state('');
-	let newCardType = $state<ChartCard['type']>('histogram');
+	let newCardType = $state<SingleColCard['type']>('histogram');
 
 	let columnsKey = $derived(data.columns.join('\x00'));
 	let _lastKey = '';
@@ -40,7 +40,7 @@
 
 	function addCard() {
 		if (!newCardCol) return;
-		chartCards = [...chartCards, { id: crypto.randomUUID(), type: newCardType as SingleColCard['type'], column: newCardCol } as SingleColCard];
+		chartCards = [...chartCards, { id: crypto.randomUUID(), type: newCardType, column: newCardCol }];
 		showAddPicker = false;
 	}
 

@@ -44,9 +44,9 @@
   function niceName(col: string) { return prettyColumn(col).replace(/_/g, ' '); }
   function mean(vals: number[]) { return vals.reduce((a, b) => a + b, 0) / vals.length; }
 
-  let svgEl: SVGSVGElement;
+  let svgEl = $state<SVGSVGElement | undefined>();
   $effect(() => {
-    onsvgready?.(svgEl);
+    if (svgEl) onsvgready?.(svgEl);
     return () => onsvgready?.(null);
   });
 

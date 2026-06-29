@@ -24,9 +24,9 @@
     return rows.slice(0, TOP_N);
   }
 
-  let svgEl: SVGSVGElement;
+  let svgEl = $state<SVGSVGElement | undefined>();
   $effect(() => {
-    onsvgready?.(svgEl);
+    if (svgEl) onsvgready?.(svgEl);
     return () => onsvgready?.(null);
   });
 
