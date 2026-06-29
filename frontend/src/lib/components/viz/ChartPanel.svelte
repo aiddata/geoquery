@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { VizPayload } from '$lib/api';
-	import { prettyColumn } from '$lib/viz';
+	import { prettyColumn, detectBinary } from '$lib/viz';
 	import { X, Plus, Download } from '@lucide/svelte';
-	import { type ChartCard, type SingleColCard, CHART_TYPES } from './chartTypes';
+	import { type ChartCard, type SingleColCard, type TimeSeriesCard, type ScatterCard, type CorrelationCard, CHART_TYPES } from './chartTypes';
 	import Histogram from './charts/Histogram.svelte';
 	import RankedBar from './charts/RankedBar.svelte';
 
@@ -14,7 +14,8 @@
 	let chartCards = $state<ChartCard[]>([]);
 	let showAddPicker = $state(false);
 	let newCardCol = $state('');
-	let newCardType = $state<SingleColCard['type']>('histogram');
+	let newCardDatasetKey = $state('');
+	let newCardType = $state<ChartCard['type']>('histogram');
 
 	let columnsKey = $derived(data.columns.join('\x00'));
 	let _lastKey = '';
@@ -23,11 +24,38 @@
 		if (key === _lastKey) return;
 		_lastKey = key;
 		if (!data.columns.length) { chartCards = []; return; }
-		newCardCol = data.columns[0];
-		chartCards = [
-			{ id: crypto.randomUUID(), type: 'histogram', column: data.columns[0] },
-			{ id: crypto.randomUUID(), type: 'top_bar', column: data.columns[0] },
-		];
+
+		const defaults: ChartCard[] = [];
+
+		// detect temporal group with ≥3 temporal columns
+		const temporalGroup = Object.entries(data.col_groups).find(([, cols]) =>
+			cols.filter(c => data.col_temporal[c]).length >= 3
+		);
+
+		if (temporalGroup) {
+			const [dk, cols] = temporalGroup;
+			const temporalCols = cols.filter(c => data.col_temporal[c]);
+			defaults.push({
+				id: crypto.randomUUID(), type: 'time_series',
+				datasetKey: dk, columns: temporalCols, aggregateMode: 'mean'
+			} satisfies TimeSeriesCard);
+		}
+
+		const firstCol = data.columns[0];
+		const firstVals = Object.values(data.features)
+			.map(f => Number(f[firstCol]))
+			.filter(n => !isNaN(n));
+		const firstType: SingleColCard['type'] = detectBinary(firstVals) ? 'binary_bar' : 'histogram';
+		defaults.push({ id: crypto.randomUUID(), type: firstType, column: firstCol } satisfies SingleColCard);
+
+		if (!temporalGroup) {
+			defaults.push({ id: crypto.randomUUID(), type: 'top_bar', column: firstCol } satisfies SingleColCard);
+		}
+
+		chartCards = defaults;
+		newCardCol = firstCol;
+		newCardDatasetKey = Object.keys(data.col_groups)[0] ?? '';
+		newCardType = 'histogram';
 	});
 
 	function removeCard(id: string) {
@@ -35,12 +63,31 @@
 	}
 
 	function updateCard(id: string, patch: Partial<ChartCard>) {
-		chartCards = chartCards.map((c) => (c.id === id ? { ...c, ...patch } : c));
+		chartCards = chartCards.map((c) => (c.id === id ? { ...c, ...patch } as ChartCard : c));
 	}
 
 	function addCard() {
-		if (!newCardCol) return;
-		chartCards = [...chartCards, { id: crypto.randomUUID(), type: newCardType, column: newCardCol }];
+		if (newCardType === 'time_series') {
+			const cols = (data.col_groups[newCardDatasetKey] ?? []).filter(c => data.col_temporal[c]);
+			chartCards = [...chartCards, {
+				id: crypto.randomUUID(), type: 'time_series',
+				datasetKey: newCardDatasetKey, columns: cols, aggregateMode: 'mean'
+			} satisfies TimeSeriesCard];
+		} else if (newCardType === 'scatter') {
+			const firstCol = data.columns[0] ?? '';
+			const secondCol = data.columns[1] ?? firstCol;
+			chartCards = [...chartCards, {
+				id: crypto.randomUUID(), type: 'scatter', xCol: firstCol, yCol: secondCol
+			} satisfies ScatterCard];
+		} else if (newCardType === 'correlation') {
+			chartCards = [...chartCards, {
+				id: crypto.randomUUID(), type: 'correlation', columns: data.columns.slice(0, 10)
+			} satisfies CorrelationCard];
+		} else if (newCardCol) {
+			chartCards = [...chartCards, {
+				id: crypto.randomUUID(), type: newCardType as SingleColCard['type'], column: newCardCol
+			} satisfies SingleColCard];
+		}
 		showAddPicker = false;
 	}
 
@@ -54,6 +101,13 @@
 				svgRefs.delete(id);
 			}
 		};
+	}
+
+	function cardFilename(card: ChartCard): string {
+		if (card.type === 'time_series') return `${card.datasetKey}_time_series.png`;
+		if (card.type === 'scatter') return `${card.xCol}_vs_${card.yCol}_scatter.png`;
+		if (card.type === 'correlation') return 'correlation_matrix.png';
+		return `${card.column}_${card.type}.png`;
 	}
 
 	function exportCard(card: ChartCard) {
@@ -80,8 +134,7 @@
 				const pngUrl = URL.createObjectURL(b);
 				const a = document.createElement('a');
 				a.href = pngUrl;
-				const singleCard = card as SingleColCard;
-				a.download = `${singleCard.column}_${card.type}.png`;
+				a.download = cardFilename(card);
 				document.body.appendChild(a);
 				a.click();
 				document.body.removeChild(a);
@@ -99,15 +152,6 @@
 		const parts = [niceName(col), data.col_temporal[col]].filter(Boolean);
 		return parts.join(' · ');
 	}
-
-	function cardTitle(card: ChartCard): { ds: string; col: string } {
-		const singleCard = card as SingleColCard;
-		const ds = data.col_dataset_titles[singleCard.column] ?? '';
-		const typeLabel = CHART_TYPES.find(t => t.value === card.type)?.label ?? '';
-		const temporal = data.col_temporal[singleCard.column];
-		const colPart = [niceName(singleCard.column), temporal].filter(Boolean).join(' · ');
-		return { ds: ds || niceName(singleCard.column), col: `${colPart} — ${typeLabel}` };
-	}
 </script>
 
 <div class="h-full overflow-y-auto">
@@ -119,49 +163,76 @@
 		{:else}
 			<div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
 				{#each chartCards as card (card.id)}
-					{@const singleCard = card as SingleColCard}
-					{@const dsTitle = data.col_dataset_titles[singleCard.column] ?? ''}
-					{@const temporal = data.col_temporal[singleCard.column] ?? ''}
-					{@const meta = [dsTitle, temporal].filter(Boolean).join(' · ')}
-
 					<div class="rounded-lg border bg-card shadow-sm overflow-hidden">
 						<!-- Card header -->
 						<div class="flex items-center gap-2 px-3 py-2 border-b bg-muted/30">
-							<select
-								value={singleCard.column}
-								onchange={(e) => updateCard(card.id, { column: (e.target as HTMLSelectElement).value })}
-								class="chart-select flex-1 min-w-0"
-							>
-								{#each Object.entries(data.col_groups) as [group, cols]}
-									<optgroup label={group}>
-										{#each cols as col}
-											<option value={col}>{colLabel(col)}</option>
-										{/each}
-									</optgroup>
-								{/each}
-							</select>
-							<select
-								value={card.type}
-								onchange={(e) => updateCard(card.id, { type: (e.target as HTMLSelectElement).value as ChartCard['type'] })}
-								class="chart-select shrink-0"
-								style="width: auto"
-							>
-								{#each CHART_TYPES.filter(ct => !ct.multi) as ct}
-									<option value={ct.value}>{ct.label}</option>
-								{/each}
-							</select>
-							<button
-								onclick={() => exportCard(card)}
-								class="shrink-0 text-muted-foreground hover:text-foreground"
-								title="Save as PNG"
-							>
+							{#if card.type === 'histogram' || card.type === 'top_bar' || card.type === 'bottom_bar' || card.type === 'binary_bar' || card.type === 'box_plot'}
+								{@const sc = card as SingleColCard}
+								<select value={sc.column}
+									onchange={(e) => updateCard(card.id, { column: (e.target as HTMLSelectElement).value } as Partial<SingleColCard>)}
+									class="chart-select flex-1 min-w-0">
+									{#each Object.entries(data.col_groups) as [group, cols]}
+										<optgroup label={group}>
+											{#each cols as col}<option value={col}>{colLabel(col)}</option>{/each}
+										</optgroup>
+									{/each}
+								</select>
+								<select value={card.type}
+									onchange={(e) => updateCard(card.id, { type: (e.target as HTMLSelectElement).value as SingleColCard['type'] } as Partial<SingleColCard>)}
+									class="chart-select shrink-0" style="width: auto">
+									{#each CHART_TYPES.filter(ct => !ct.multi) as ct}
+										<option value={ct.value}>{ct.label}</option>
+									{/each}
+								</select>
+							{:else if card.type === 'time_series'}
+								{@const tc = card as TimeSeriesCard}
+								<select value={tc.datasetKey}
+									onchange={(e) => {
+										const dk = (e.target as HTMLSelectElement).value;
+										const cols = (data.col_groups[dk] ?? []).filter(c => data.col_temporal[c]);
+										updateCard(card.id, { datasetKey: dk, columns: cols } as Partial<TimeSeriesCard>);
+									}}
+									class="chart-select flex-1 min-w-0">
+									{#each Object.keys(data.col_groups) as group}
+										<option value={group}>{group}</option>
+									{/each}
+								</select>
+								<select value={tc.aggregateMode}
+									onchange={(e) => updateCard(card.id, { aggregateMode: (e.target as HTMLSelectElement).value as TimeSeriesCard['aggregateMode'] } as Partial<TimeSeriesCard>)}
+									class="chart-select shrink-0" style="width: auto">
+									<option value="all">All features</option>
+									<option value="mean">Mean only</option>
+									<option value="band">Mean + range</option>
+								</select>
+							{:else if card.type === 'scatter'}
+								{@const sc2 = card as ScatterCard}
+								<select value={sc2.xCol}
+									onchange={(e) => updateCard(card.id, { xCol: (e.target as HTMLSelectElement).value } as Partial<ScatterCard>)}
+									class="chart-select flex-1 min-w-0">
+									{#each Object.entries(data.col_groups) as [group, cols]}
+										<optgroup label={group}>
+											{#each cols as col}<option value={col}>{colLabel(col)}</option>{/each}
+										</optgroup>
+									{/each}
+								</select>
+								<span class="text-xs text-muted-foreground shrink-0">vs</span>
+								<select value={sc2.yCol}
+									onchange={(e) => updateCard(card.id, { yCol: (e.target as HTMLSelectElement).value } as Partial<ScatterCard>)}
+									class="chart-select flex-1 min-w-0">
+									{#each Object.entries(data.col_groups) as [group, cols]}
+										<optgroup label={group}>
+											{#each cols as col}<option value={col}>{colLabel(col)}</option>{/each}
+										</optgroup>
+									{/each}
+								</select>
+							{:else if card.type === 'correlation'}
+								{@const cc = card as CorrelationCard}
+								<span class="text-xs text-muted-foreground flex-1">{cc.columns.length} columns selected</span>
+							{/if}
+							<button onclick={() => exportCard(card)} class="shrink-0 text-muted-foreground hover:text-foreground" title="Save as PNG">
 								<Download class="h-3.5 w-3.5" />
 							</button>
-							<button
-								onclick={() => removeCard(card.id)}
-								class="shrink-0 text-muted-foreground hover:text-destructive"
-								title="Remove chart"
-							>
+							<button onclick={() => removeCard(card.id)} class="shrink-0 text-muted-foreground hover:text-destructive" title="Remove chart">
 								<X class="h-3.5 w-3.5" />
 							</button>
 						</div>
@@ -177,10 +248,6 @@
 									Chart type not yet implemented.
 								</div>
 							{/if}
-
-							{#if meta}
-								<p class="mt-2 text-[10px] text-muted-foreground/60 truncate">{meta}</p>
-							{/if}
 						</div>
 					</div>
 				{/each}
@@ -192,20 +259,24 @@
 					<div class="rounded-lg border bg-muted/30 p-4 space-y-3 max-w-xs">
 						<p class="text-sm font-semibold">Add chart</p>
 						<div class="space-y-2">
-							<select bind:value={newCardCol} class="chart-select w-full">
-								{#each Object.entries(data.col_groups) as [group, cols]}
-									<optgroup label={group}>
-										{#each cols as col}
-											<option value={col}>{colLabel(col)}</option>
-										{/each}
-									</optgroup>
-								{/each}
-							</select>
 							<select bind:value={newCardType} class="chart-select w-full">
-								{#each CHART_TYPES.filter(ct => !ct.multi) as ct}
-									<option value={ct.value}>{ct.label}</option>
-								{/each}
+								{#each CHART_TYPES as ct}<option value={ct.value}>{ct.label}</option>{/each}
 							</select>
+							{#if !CHART_TYPES.find(t => t.value === newCardType)?.multi}
+								<select bind:value={newCardCol} class="chart-select w-full">
+									{#each Object.entries(data.col_groups) as [group, cols]}
+										<optgroup label={group}>
+											{#each cols as col}<option value={col}>{colLabel(col)}</option>{/each}
+										</optgroup>
+									{/each}
+								</select>
+							{:else if newCardType === 'time_series'}
+								<select bind:value={newCardDatasetKey} class="chart-select w-full">
+									{#each Object.keys(data.col_groups) as group}<option value={group}>{group}</option>{/each}
+								</select>
+							{:else}
+								<p class="text-xs text-muted-foreground">Configure column selection in the card after adding.</p>
+							{/if}
 						</div>
 						<div class="flex gap-2 items-center">
 							<button onclick={addCard} class="chart-btn-primary">Add</button>
