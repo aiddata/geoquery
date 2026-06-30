@@ -1,8 +1,0 @@
-namespace: "geoquery"
-agentContainer: "python:3.11.7"
-
-
-dev:
-  enabled: true
-  # likely no need to change this. see info in /dev/README.md
-  localDir: /tmp/geoquery-update/

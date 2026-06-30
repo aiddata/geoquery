@@ -8,6 +8,7 @@ dependencies = [
     "openpyxl>=3.1.5",
     "pyarrow>=24.0.0",
     "zensical>=0.0.23",
+    "geoquery-backend",
 ]
 
 [dependency-groups]
@@ -25,3 +26,6 @@ required-environments = [
 
 [tool.uv.workspace]
 members = ["backend"]
+
+[tool.uv.sources]
+geoquery-backend = { workspace = true }
