@@ -30,6 +30,10 @@ RUN uv sync --frozen --package geoquery-backend \
     && chmod -R a+rX /app \
     && rm -rf /tmp/.uv-cache
 
+# Copy assets (documentation templates, the GeoQuery PDF, etc.) that tasks
+# reference directly via settings.ASSETS_DIR (defaults to /app/assets).
+COPY --chown=app:app assets/ assets/
+
 WORKDIR /app/backend
 
 # Collect static files (admin CSS/JS, etc.) for WhiteNoise to serve. Uses a
