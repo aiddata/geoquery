@@ -48,7 +48,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         self.target_gb_commit = options["commit"]
-        self.dl_iso3_list = options.get("iso3")
+        self.dl_iso3_list = [i.upper() for i in options.get("iso3", [])]
         self.run_concurrent = options["concurrent"]
         self.output_dir = Path(options["output_dir"])
         self.output_label = options["output_label"]
@@ -71,6 +71,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Fetching geoBoundaries metadata from {all_url}")
         api_data = self.get_api_url(all_url)
 
+        print(self.dl_iso3_list)
         # Filter by ISO3 if specified
         if self.dl_iso3_list is None:
             dl_items = api_data

@@ -46,7 +46,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--data-dir",
             type=str,
-            default="/geo-datasets/data/boundaries/geoboundaries/",
+            default="/geo-datasets/data/geoboundaries/",
             help="Data dir for downloaded files",
         )
         parser.add_argument(
