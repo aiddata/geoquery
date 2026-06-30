@@ -3,7 +3,6 @@ import json
 from pathlib import Path
 
 import geopandas as gpd
-import requests
 import shapely
 from django.contrib.gis.geos import GEOSGeometry
 from django.core.management.base import BaseCommand
@@ -19,6 +18,17 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
+            "--commit",
+            type=str,
+            default="0faed0c",
+            help="Target geoBoundaries commit hash",
+        )
+        parser.add_argument(
+            "--iso3",
+            nargs="+",
+            help="Specific ISO3 codes to download (e.g., GHA AFG)",
+        )
+        parser.add_argument(
             "--active",
             action="store_true",
             help="Set feature collections as active",
@@ -29,26 +39,21 @@ class Command(BaseCommand):
             help="Set feature collections as public",
         )
         parser.add_argument(
-            "--iso3",
-            nargs="+",
-            help="Specific ISO3 codes to download (e.g., GHA AFG)",
-        )
-        parser.add_argument(
             "--concurrent",
             action="store_true",
             help="Run with concurrent processing",
         )
         parser.add_argument(
-            "--commit",
+            "--data-dir",
             type=str,
-            default="0faed0c",
-            help="Target geoBoundaries commit hash",
+            default="/geo-datasets/data/boundaries/geoboundaries/",
+            help="Data dir for downloaded files",
         )
         parser.add_argument(
-            "--output-path",
+            "--data-label",
             type=str,
-            default="/geo-datasets/data/boundaries/geoboundaries/v6_9469f09_57dcd43",
-            help="Output path for downloaded files",
+            default="gBv6_9469f09_57dcd43",
+            help="Data label for downloaded files",
         )
         parser.add_argument(
             "--skip-existing",
@@ -57,16 +62,16 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        self.target_gb_commit = options["commit"]
+        self.iso3_list = options.get("iso3")
         self.set_active = options["active"]
         self.set_public = options["public"]
-        self.dl_iso3_list = options.get("iso3")
         self.run_concurrent = options["concurrent"]
-        self.target_gb_commit = options["commit"]
-        self.output_path = Path(options["output_path"])
+        self.data_dir = Path(options["data_dir"])
+        self.data_label = options["data_label"]
+        self.data_path = self.data_dir / self.data_label
+        self.data_tag = self.data_label.split("_")[0]
         self.skip_existing = options["skip_existing"]
-
-        # Create output directory
-        self.output_path.mkdir(exist_ok=True, parents=True)
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -74,21 +79,15 @@ class Command(BaseCommand):
             )
         )
 
-        # Fetch API data
-        all_url = f"https://raw.githubusercontent.com/wmgeolab/gbWeb/{self.target_gb_commit}/api/current/gbOpen/ALL/ALL/index.json"
-
-        self.stdout.write(f"Fetching geoBoundaries metadata from {all_url}")
-        api_data = self.get_api_url(all_url)
-
-        # Filter by ISO3 if specified
-        if self.dl_iso3_list is None:
-            ingest_items = api_data
+        # Filter by ISO3 if specified, reference available ISO3 codes from the geoBoundaries data_path
+        if self.iso3_list is None:
+            ingest_items = [i.stem for i in self.data_path.rglob("*.gpkg") if (i.parent / f"raw_{i.stem}.json").exists()]
         else:
             ingest_items = [
-                i for i in api_data if i["boundaryISO"] in self.dl_iso3_list
+                i.stem for i in self.data_path.rglob("*.gpkg") if i.stem.split("-")[1] in self.iso3_list and (i.parent / f"raw_{i.stem}.json").exists()
             ]
 
-        ingest_items = sorted(ingest_items, key=lambda d: d["boundaryISO"])
+        ingest_items = sorted(ingest_items)
 
         self.stdout.write(
             self.style.SUCCESS(f"Found {len(ingest_items)} items to process")
@@ -107,21 +106,15 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS("Finished geoBoundaries ingest"))
 
-    def get_api_url(self, url):
-        """Fetch JSON data from a URL."""
-        response = requests.get(url)
-        response.raise_for_status()
-        return response.json()
-
     def process_sequential(self, ingest_items):
         """Process items sequentially."""
         for item in ingest_items:
             try:
                 self.ingest_gb_item(item)
             except Exception as e:
-                logger.error(f"Error processing {item.get('boundaryISO')}: {e}")
+                logger.error(f"Error processing {item}: {e}")
                 self.stderr.write(
-                    self.style.ERROR(f"Error processing {item.get('boundaryISO')}: {e}")
+                    self.style.ERROR(f"Error processing {item}: {e}")
                 )
 
     def process_concurrent(self, ingest_items):
@@ -147,11 +140,12 @@ class Command(BaseCommand):
                     self.stderr.write(self.style.ERROR(f"  - {err}"))
 
     @transaction.atomic
-    def ingest_gb_item(self, item: dict):
+    def ingest_gb_item(self, fname):
         """Ingest a single geoBoundaries item."""
+        item = json.loads((self.data_path / f"raw_{fname}.json").read_text())
         iso3 = item["boundaryISO"]
         boundary_type = item["boundaryType"]
-        fc_name = f"gB_v6_{iso3}_{boundary_type}"
+        fc_name = f"{self.data_tag}_{iso3}_{boundary_type}"
 
         # Check if already exists
         if (
@@ -168,38 +162,18 @@ class Command(BaseCommand):
 
         # Download and process geodata
         commit_dl_url = item["gjDownloadURL"]
-        gpkg_path = self.output_path / f"{Path(commit_dl_url).stem}.gpkg"
+        gpkg_path = self.data_path / f"{Path(commit_dl_url).stem}.gpkg"
         adm_meta["path"] = str(gpkg_path)
 
-        logger.debug(f"Downloading {commit_dl_url}")
+        logger.debug(f"Reading {gpkg_path}")
         try:
-            gdf = gpd.read_file(commit_dl_url)
-        except Exception:
-            if requests.get(commit_dl_url).status_code == 404:
-                logger.error(f"404: {commit_dl_url}")
-                self.stderr.write(self.style.ERROR(f"404 Not Found: {commit_dl_url}"))
-                return
-            else:
-                try:
-                    raw_json = self.get_api_url(commit_dl_url)
-                    gdf = gpd.GeoDataFrame.from_features(raw_json["features"])
-                except Exception as e2:
-                    logger.error(f"Failed to download {commit_dl_url}: {e2}")
-                    self.stderr.write(
-                        self.style.ERROR(f"Failed to download {commit_dl_url}: {e2}")
-                    )
-                    return
-
-        # Ensure shapeName column exists
-        if "shapeName" not in gdf.columns:
-            potential_name_field = f"{boundary_type}_NAME"
-            if potential_name_field in gdf.columns:
-                gdf["shapeName"] = gdf[potential_name_field]
-            else:
-                gdf["shapeName"] = None
-
-        # Save to file
-        gdf.to_file(gpkg_path, driver="GPKG")
+            gdf = gpd.read_file(gpkg_path)
+        except Exception as e:
+            logger.error(f"Failed to read {gpkg_path}: {e}")
+            self.stderr.write(
+                self.style.ERROR(f"Failed to read {gpkg_path}: {e}")
+            )
+            return
 
         # Calculate spatial extent
         logger.debug(f"Calculating bounding box for {commit_dl_url}")
