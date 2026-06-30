@@ -1,170 +1,251 @@
 <script lang="ts">
 	import type { VizPayload } from '$lib/api';
-	import { fmt, prettyColumn } from '$lib/viz';
+	import { fieldLabel, detectBinary, getDatasetFieldTracks, getTemporalDatasets, colFieldTrack } from '$lib/viz';
 	import { X, Plus, Download } from '@lucide/svelte';
+	import { zipSync } from 'fflate';
+	import { type ChartCard, type SingleColCard, type TimeSeriesCard, type ScatterCard, type CorrelationCard, CHART_TYPES } from './chartTypes';
+	import Histogram from './charts/Histogram.svelte';
+	import RankedBar from './charts/RankedBar.svelte';
+	import BinaryBar from './charts/BinaryBar.svelte';
+	import TimeSeries from './charts/TimeSeries.svelte';
+	import Scatter from './charts/Scatter.svelte';
+	import BoxPlot from './charts/BoxPlot.svelte';
+	import CorrelationMatrix from './charts/CorrelationMatrix.svelte';
 
 	interface Props {
 		data: VizPayload;
 	}
 	let { data }: Props = $props();
 
-	interface ChartCard {
-		id: string;
-		type: 'histogram' | 'top_bar' | 'bottom_bar';
-		column: string;
-	}
-
-	const CHART_TYPES: { value: ChartCard['type']; label: string }[] = [
-		{ value: 'histogram', label: 'Distribution' },
-		{ value: 'top_bar', label: 'Top Values' },
-		{ value: 'bottom_bar', label: 'Bottom Values' },
-	];
-
-	const N_BINS = 20;
-	const TOP_N = 15;
-
 	let chartCards = $state<ChartCard[]>([]);
 	let showAddPicker = $state(false);
+	let showFcPicker = $state(false);
 	let newCardCol = $state('');
+	let newCardDatasetKey = $state('');
+	let newCardFieldTrack = $state('');
 	let newCardType = $state<ChartCard['type']>('histogram');
+	let temporalDatasets = $derived(getTemporalDatasets(data));
+	let newCardFieldTracks = $derived(getDatasetFieldTracks(data, newCardDatasetKey));
+	let highlightedFeature = $state<string | null>(null);
+	let exporting = $state(false);
+	let activeFcs = $state(new Set<string>());
 
-	// Re-initialize when the set of columns changes (e.g. explore page loads new data).
+	let filteredData = $derived(
+		activeFcs.size === 0 || activeFcs.size === data.fc_names.length
+			? data
+			: {
+					...data,
+					features: Object.fromEntries(
+						Object.entries(data.features).filter(([, f]) => activeFcs.has(f.fc as string))
+					)
+				}
+	);
+
 	let columnsKey = $derived(data.columns.join('\x00'));
 	let _lastKey = '';
 	$effect(() => {
 		const key = columnsKey;
 		if (key === _lastKey) return;
 		_lastKey = key;
-		if (!data.columns.length) { chartCards = []; return; }
-		newCardCol = data.columns[0];
-		chartCards = [
-			{ id: crypto.randomUUID(), type: 'histogram', column: data.columns[0] },
-			{ id: crypto.randomUUID(), type: 'top_bar', column: data.columns[0] },
-		];
+		if (!data.columns.length) { chartCards = []; activeFcs = new Set(); return; }
+		activeFcs = new Set(data.fc_names);
+
+		const defaults: ChartCard[] = [];
+
+		// Group temporal columns by dataset title (spans multiple yearly resource groups).
+		// A valid time series requires at least one field track with ≥2 distinct temporal values.
+		const temporalDatasets = getTemporalDatasets(data);
+		const temporalGroup = Object.entries(temporalDatasets).find(([, cols]) => {
+			const trackTimes = new Map<string, Set<string>>();
+			for (const col of cols) {
+				const track = colFieldTrack(col, data.col_temporal[col]);
+				(trackTimes.get(track) ?? trackTimes.set(track, new Set()).get(track)!).add(data.col_temporal[col]);
+			}
+			return [...trackTimes.values()].some(times => times.size >= 2);
+		});
+
+		if (temporalGroup) {
+			const [datasetTitle, cols] = temporalGroup;
+			const tracks = getDatasetFieldTracks(data, datasetTitle);
+			// Default to the field track with the most temporal values.
+			const fieldTrack = tracks.length > 1
+				? tracks.reduce((best, t) => {
+					const tCount = cols.filter(c => colFieldTrack(c, data.col_temporal[c]) === t).length;
+					const bCount = cols.filter(c => colFieldTrack(c, data.col_temporal[c]) === best).length;
+					return tCount > bCount ? t : best;
+				}, tracks[0])
+				: undefined;
+			defaults.push({
+				id: crypto.randomUUID(), type: 'time_series',
+				datasetKey: datasetTitle, columns: cols, aggregateMode: 'mean', fieldTrack
+			} satisfies TimeSeriesCard);
+		}
+
+		const firstCol = data.columns[0];
+		const firstVals = Object.values(data.features)
+			.map(f => Number(f[firstCol]))
+			.filter(n => !isNaN(n));
+		const firstType: SingleColCard['type'] = detectBinary(firstVals) ? 'binary_bar' : 'histogram';
+		defaults.push({ id: crypto.randomUUID(), type: firstType, column: firstCol } satisfies SingleColCard);
+
+		if (!temporalGroup) {
+			defaults.push({ id: crypto.randomUUID(), type: 'top_bar', column: firstCol } satisfies SingleColCard);
+		}
+
+		chartCards = defaults;
+		newCardCol = firstCol;
+		newCardDatasetKey = Object.keys(getTemporalDatasets(data))[0] ?? Object.keys(data.col_groups)[0] ?? '';
+		newCardType = 'histogram';
 	});
 
 	function removeCard(id: string) {
 		chartCards = chartCards.filter((c) => c.id !== id);
 	}
 
-	function updateCard(id: string, patch: Partial<Omit<ChartCard, 'id'>>) {
-		chartCards = chartCards.map((c) => (c.id === id ? { ...c, ...patch } : c));
+	function updateCard(id: string, patch: Partial<ChartCard>) {
+		chartCards = chartCards.map((c) => (c.id === id ? { ...c, ...patch } as ChartCard : c));
 	}
 
 	function addCard() {
-		if (!newCardCol) return;
-		chartCards = [...chartCards, { id: crypto.randomUUID(), type: newCardType, column: newCardCol }];
+		if (newCardType === 'time_series') {
+			const cols = temporalDatasets[newCardDatasetKey] ?? [];
+			const tracks = getDatasetFieldTracks(data, newCardDatasetKey);
+			const fieldTrack = tracks.length > 1 ? (newCardFieldTrack || tracks[0]) : undefined;
+			chartCards = [...chartCards, {
+				id: crypto.randomUUID(), type: 'time_series',
+				datasetKey: newCardDatasetKey, columns: cols, aggregateMode: 'mean', fieldTrack
+			} satisfies TimeSeriesCard];
+		} else if (newCardType === 'scatter') {
+			const firstCol = data.columns[0] ?? '';
+			const secondCol = data.columns[1] ?? firstCol;
+			chartCards = [...chartCards, {
+				id: crypto.randomUUID(), type: 'scatter', xCol: firstCol, yCol: secondCol
+			} satisfies ScatterCard];
+		} else if (newCardType === 'correlation') {
+			chartCards = [...chartCards, {
+				id: crypto.randomUUID(), type: 'correlation', columns: data.columns.slice(0, 10)
+			} satisfies CorrelationCard];
+		} else if (newCardCol) {
+			chartCards = [...chartCards, {
+				id: crypto.randomUUID(), type: newCardType as SingleColCard['type'], column: newCardCol
+			} satisfies SingleColCard];
+		}
 		showAddPicker = false;
 	}
 
 	const svgRefs = new Map<string, SVGSVGElement>();
 
-	function registerSvg(node: SVGSVGElement, initialId: string) {
-		let id = initialId;
-		svgRefs.set(id, node);
-		return {
-			update(newId: string) { svgRefs.delete(id); svgRefs.set(newId, node); id = newId; },
-			destroy() { svgRefs.delete(id); }
+	function makeSvgHandler(id: string) {
+		return (svg: SVGSVGElement | null) => {
+			if (svg) {
+				svgRefs.set(id, svg);
+			} else {
+				svgRefs.delete(id);
+			}
 		};
 	}
 
-	function truncate(s: string, n: number): string {
-		return s.length > n ? s.slice(0, n - 1) + '…' : s;
+	function cardFilename(card: ChartCard): string {
+		if (card.type === 'time_series') return `${card.datasetKey}_time_series.png`;
+		if (card.type === 'scatter') return `${card.xCol}_vs_${card.yCol}_scatter.png`;
+		if (card.type === 'correlation') return 'correlation_matrix.png';
+		return `${card.column}_${card.type}.png`;
 	}
 
-	function exportCard(card: ChartCard) {
+	async function exportCard(card: ChartCard) {
 		const svg = svgRefs.get(card.id);
 		if (!svg) return;
-		const vb = svg.viewBox.baseVal;
-		const scale = 2;
-		const xml = new XMLSerializer().serializeToString(svg);
-		const svgBlob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
-		const url = URL.createObjectURL(svgBlob);
-		const img = new Image();
-		img.onload = () => {
+		const data = await svgToPngBytes(svg);
+		if (!data) return;
+		const blob = new Blob([data], { type: 'image/png' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = cardFilename(card);
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+	}
+
+
+	async function svgToPngBytes(svg: SVGSVGElement): Promise<Uint8Array | null> {
+		return new Promise((resolve) => {
+			const vb = svg.viewBox.baseVal;
+			const scale = 2;
 			const pad = 24;
-			const canvas = document.createElement('canvas');
-			canvas.width = vb.width * scale + pad * 2;
-			canvas.height = vb.height * scale + pad * 2;
-			const ctx = canvas.getContext('2d')!;
-			ctx.fillStyle = '#ffffff';
-			ctx.fillRect(0, 0, canvas.width, canvas.height);
-			ctx.drawImage(img, pad, pad, vb.width * scale, vb.height * scale);
-			URL.revokeObjectURL(url);
-			canvas.toBlob((b) => {
-				if (!b) return;
-				const pngUrl = URL.createObjectURL(b);
-				const a = document.createElement('a');
-				a.href = pngUrl;
-				a.download = `${card.column}_${card.type}.png`;
-				document.body.appendChild(a);
-				a.click();
-				document.body.removeChild(a);
-				URL.revokeObjectURL(pngUrl);
-			}, 'image/png');
-		};
-		img.src = url;
+			const clone = svg.cloneNode(true) as SVGSVGElement;
+			clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+			const xml = new XMLSerializer().serializeToString(clone);
+			const svgBlob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+			const url = URL.createObjectURL(svgBlob);
+			const img = new Image();
+			img.onload = () => {
+				const canvas = document.createElement('canvas');
+				canvas.width = vb.width * scale + pad * 2;
+				canvas.height = vb.height * scale + pad * 2;
+				const ctx = canvas.getContext('2d')!;
+				ctx.fillStyle = '#ffffff';
+				ctx.fillRect(0, 0, canvas.width, canvas.height);
+				ctx.drawImage(img, pad, pad, vb.width * scale, vb.height * scale);
+				URL.revokeObjectURL(url);
+				canvas.toBlob((b) => {
+					if (!b) {
+						resolve(null);
+						return;
+					}
+					b.arrayBuffer().then((ab) => resolve(new Uint8Array(ab)));
+				}, 'image/png');
+			};
+			img.onerror = () => {
+				URL.revokeObjectURL(url);
+				resolve(null);
+			};
+			img.src = url;
+		});
 	}
 
-	function getValues(col: string): number[] {
-		const out: number[] = [];
-		for (const f of Object.values(data.features)) {
-			const v = f[col];
-			if (v !== null && v !== undefined) {
-				const n = Number(v);
-				if (!isNaN(n)) out.push(n);
+	async function exportAll() {
+		if (exporting) return;
+		exporting = true;
+		try {
+			const pngFiles: { name: string; data: Uint8Array }[] = [];
+			for (const card of chartCards) {
+				const svg = svgRefs.get(card.id);
+				if (!svg) continue;
+				const data = await svgToPngBytes(svg);
+				if (data) pngFiles.push({ name: cardFilename(card), data });
 			}
+			if (pngFiles.length === 0) return;
+
+			// Deduplicate filenames
+			const seen = new Map<string, number>();
+			for (const f of pngFiles) {
+				const count = seen.get(f.name) ?? 0;
+				seen.set(f.name, count + 1);
+				if (count > 0) f.name = f.name.replace('.png', `_${count}.png`);
+			}
+
+			const zipInput: Record<string, Uint8Array> = {};
+			for (const f of pngFiles) zipInput[f.name] = f.data;
+			const zip = zipSync(zipInput);
+			const blob = new Blob([zip], { type: 'application/zip' });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = 'geoquery-charts.zip';
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+		} finally {
+			exporting = false;
 		}
-		return out;
-	}
-
-	interface Bin { lo: number; hi: number; count: number; }
-
-	function makeBins(vals: number[]): Bin[] {
-		if (!vals.length) return [];
-		let min = vals[0], max = vals[0];
-		for (const v of vals) { if (v < min) min = v; if (v > max) max = v; }
-		if (min === max) return [{ lo: min, hi: max, count: vals.length }];
-		const w = (max - min) / N_BINS;
-		const bins: Bin[] = Array.from({ length: N_BINS }, (_, i) => ({
-			lo: min + i * w, hi: min + (i + 1) * w, count: 0
-		}));
-		for (const v of vals) {
-			const i = Math.min(Math.floor((v - min) / w), N_BINS - 1);
-			bins[i].count++;
-		}
-		return bins;
-	}
-
-	function getRanked(col: string, dir: 'top' | 'bottom') {
-		const rows: { name: string; v: number }[] = [];
-		for (const f of Object.values(data.features)) {
-			const v = Number(f[col]);
-			if (!isNaN(v)) rows.push({ name: f.name, v });
-		}
-		rows.sort((a, b) => dir === 'top' ? b.v - a.v : a.v - b.v);
-		return rows.slice(0, TOP_N);
-	}
-
-	function niceName(col: string): string {
-		return prettyColumn(col).replace(/_/g, ' ');
 	}
 
 	function colLabel(col: string): string {
-		const parts = [niceName(col), data.col_temporal[col]].filter(Boolean);
+		const parts = [fieldLabel(col), data.col_temporal[col]].filter(Boolean);
 		return parts.join(' · ');
-	}
-
-	function cardTitle(card: ChartCard): { ds: string; col: string } {
-		const ds = data.col_dataset_titles[card.column] ?? '';
-		const typeLabel = CHART_TYPES.find(t => t.value === card.type)?.label ?? '';
-		const temporal = data.col_temporal[card.column];
-		const colPart = [niceName(card.column), temporal].filter(Boolean).join(' · ');
-		return { ds: ds || niceName(card.column), col: `${colPart} — ${typeLabel}` };
-	}
-
-	function meanOf(vals: number[]): number {
-		return vals.reduce((a, b) => a + b, 0) / vals.length;
 	}
 </script>
 
@@ -175,171 +256,35 @@
 				No data available.
 			</div>
 		{:else}
-			<div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-				{#each chartCards as card (card.id)}
-					{@const vals = getValues(card.column)}
-					{@const dsTitle = data.col_dataset_titles[card.column] ?? ''}
-					{@const temporal = data.col_temporal[card.column] ?? ''}
-					{@const meta = [dsTitle, temporal].filter(Boolean).join(' · ')}
-
-					<div class="rounded-lg border bg-card shadow-sm overflow-hidden">
-						<!-- Card header -->
-						<div class="flex items-center gap-2 px-3 py-2 border-b bg-muted/30">
-							<select
-								value={card.column}
-								onchange={(e) => updateCard(card.id, { column: (e.target as HTMLSelectElement).value })}
-								class="chart-select flex-1 min-w-0"
-							>
-								{#each Object.entries(data.col_groups) as [group, cols]}
-									<optgroup label={group}>
-										{#each cols as col}
-											<option value={col}>{colLabel(col)}</option>
-										{/each}
-									</optgroup>
-								{/each}
-							</select>
-							<select
-								value={card.type}
-								onchange={(e) => updateCard(card.id, { type: (e.target as HTMLSelectElement).value as ChartCard['type'] })}
-								class="chart-select shrink-0"
-								style="width: auto"
-							>
-								{#each CHART_TYPES as ct}
-									<option value={ct.value}>{ct.label}</option>
-								{/each}
-							</select>
-							<button
-								onclick={() => exportCard(card)}
-								class="shrink-0 text-muted-foreground hover:text-foreground"
-								title="Save as PNG"
-							>
-								<Download class="h-3.5 w-3.5" />
-							</button>
-							<button
-								onclick={() => removeCard(card.id)}
-								class="shrink-0 text-muted-foreground hover:text-destructive"
-								title="Remove chart"
-							>
-								<X class="h-3.5 w-3.5" />
-							</button>
-						</div>
-
-						<!-- Chart body -->
-						<div class="p-3">
-							{#if vals.length === 0}
-								<p class="text-center text-sm text-muted-foreground py-10">No numeric data for this column.</p>
-							{:else if card.type === 'histogram'}
-								{@const bins = makeBins(vals)}
-								{@const maxCount = bins.reduce((a, b) => Math.max(a, b.count), 0)}
-								{@const minVal = bins[0].lo}
-								{@const maxVal = bins[bins.length - 1].hi}
-								{@const rangeVal = maxVal - minVal}
-								{@const m = meanOf(vals)}
-								{@const meanX = rangeVal > 0 ? ((m - minVal) / rangeVal) * (N_BINS * 20) : -1}
-
-								{@const ct = cardTitle(card)}
-								<svg
-									viewBox="0 0 {14 + N_BINS * 20} 148"
-									class="w-full"
-									style="aspect-ratio: {14 + N_BINS * 20} / 148"
-									preserveAspectRatio="none"
-									use:registerSvg={card.id}
-								>
-									<rect width="{14 + N_BINS * 20}" height="148" fill="white" />
-									<!-- Title: dataset (line 1), column · type (line 2) -->
-									<text x="{7 + N_BINS * 10}" y="13" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{ct.ds}</text>
-									<text x="{7 + N_BINS * 10}" y="25" text-anchor="middle" font-size="9" fill="#64748b">{ct.col}</text>
-									<!-- Y-axis label -->
-									<text transform="rotate(-90, 8, 70)" text-anchor="middle" font-size="8" fill="#94a3b8">Count</text>
-									<!-- Bars -->
-									{#each bins as bin, i}
-										{@const barH = maxCount > 0 ? (bin.count / maxCount) * 80 : 0}
-										<rect
-											x={14 + i * 20 + 0.5}
-											y={110 - barH}
-											width="19"
-											height={barH}
-											fill="#3b82f6"
-											opacity="0.72"
-											rx="1"
-										>
-											<title>{fmt(bin.lo)} – {fmt(bin.hi)}: {bin.count}</title>
-										</rect>
-									{/each}
-									<!-- Baseline -->
-									<line x1="14" y1="110" x2="{14 + N_BINS * 20}" y2="110" stroke="#e2e8f0" stroke-width="0.5" />
-									<!-- Mean line -->
-									{#if meanX >= 0}
-										<line
-											x1={14 + meanX} y1="28" x2={14 + meanX} y2="110"
-											stroke="#ef4444" stroke-width="1.5" stroke-dasharray="3 2" opacity="0.85"
-										/>
-										<text x={Math.min(14 + meanX + 3, 14 + N_BINS * 20 - 40)} y="38" font-size="9" fill="#ef4444" opacity="0.85">mean</text>
-									{/if}
-									<!-- X-axis value labels -->
-									<text x="16" y="122" font-size="8" fill="#94a3b8">{fmt(minVal)}</text>
-									<text x="{7 + N_BINS * 10}" y="122" text-anchor="middle" font-size="8" fill="#94a3b8">{vals.length.toLocaleString()} values · mean {fmt(m)}</text>
-									<text x="{12 + N_BINS * 20}" y="122" text-anchor="end" font-size="8" fill="#94a3b8">{fmt(maxVal)}</text>
-									<!-- X-axis title -->
-									<text x="{7 + N_BINS * 10}" y="138" text-anchor="middle" font-size="7" fill="#94a3b8">Value</text>
-								</svg>
-							{:else}
-								{@const rows = getRanked(card.column, card.type === 'top_bar' ? 'top' : 'bottom')}
-								{@const maxV = rows.reduce((a, r) => Math.max(a, Math.abs(r.v)), 0)}
-								{@const barColor = card.type === 'top_bar' ? '#3b82f6' : '#fb923c'}
-								{@const ct = cardTitle(card)}
-								{@const svgH = rows.length * 22 + 42}
-								<svg
-									viewBox="0 0 400 {svgH}"
-									style="width: 100%; aspect-ratio: 400 / {svgH}"
-									use:registerSvg={card.id}
-								>
-									<rect width="400" height="{svgH}" fill="white" />
-									<!-- Title: dataset (line 1), column · type (line 2) -->
-									<text x="200" y="13" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{ct.ds}</text>
-									<text x="200" y="25" text-anchor="middle" font-size="9" fill="#64748b">{ct.col}</text>
-									<!-- Rows -->
-									{#each rows as row, i}
-										{@const barW = maxV > 0 ? (Math.abs(row.v) / maxV) * 182 : 0}
-										<text x="25" y="{32 + i * 22 + 11}" dominant-baseline="middle" text-anchor="end" font-size="9" fill="#94a3b8">{i + 1}.</text>
-										<text x="150" y="{32 + i * 22 + 11}" dominant-baseline="middle" text-anchor="end" font-size="9" fill="#64748b">{truncate(row.name, 22)}</text>
-										<rect x="157" y="{32 + i * 22 + 3}" width="182" height="16" rx="2" fill="#f1f5f9" />
-										<rect x="157" y="{32 + i * 22 + 3}" width="{barW}" height="16" rx="2" fill="{barColor}" opacity="0.8" />
-										<text x="396" y="{32 + i * 22 + 11}" dominant-baseline="middle" text-anchor="end" font-size="9" fill="#1e293b" font-family="monospace">{fmt(row.v)}</text>
-									{/each}
-									<!-- X-axis label -->
-									<text x="339" y="{svgH - 6}" text-anchor="end" font-size="7" fill="#94a3b8">Value →</text>
-								</svg>
-							{/if}
-
-							{#if meta}
-								<p class="mt-2 text-[10px] text-muted-foreground/60 truncate">{meta}</p>
-							{/if}
-						</div>
-					</div>
-				{/each}
-			</div>
-
-			<!-- Add chart -->
+			<!-- Toolbar: Add chart / Export All -->
 			{#if data.columns.length > 0}
 				{#if showAddPicker}
 					<div class="rounded-lg border bg-muted/30 p-4 space-y-3 max-w-xs">
 						<p class="text-sm font-semibold">Add chart</p>
 						<div class="space-y-2">
-							<select bind:value={newCardCol} class="chart-select w-full">
-								{#each Object.entries(data.col_groups) as [group, cols]}
-									<optgroup label={group}>
-										{#each cols as col}
-											<option value={col}>{colLabel(col)}</option>
-										{/each}
-									</optgroup>
-								{/each}
-							</select>
 							<select bind:value={newCardType} class="chart-select w-full">
-								{#each CHART_TYPES as ct}
-									<option value={ct.value}>{ct.label}</option>
-								{/each}
+								{#each CHART_TYPES as ct}<option value={ct.value}>{ct.label}</option>{/each}
 							</select>
+							{#if !CHART_TYPES.find(t => t.value === newCardType)?.multi}
+								<select bind:value={newCardCol} class="chart-select w-full">
+									{#each Object.entries(data.col_groups) as [group, cols]}
+										<optgroup label={group}>
+											{#each cols as col}<option value={col}>{colLabel(col)}</option>{/each}
+										</optgroup>
+									{/each}
+								</select>
+							{:else if newCardType === 'time_series'}
+								<select bind:value={newCardDatasetKey} class="chart-select w-full">
+									{#each Object.keys(temporalDatasets) as title}<option value={title}>{title}</option>{/each}
+								</select>
+								{#if newCardFieldTracks.length > 1}
+									<select bind:value={newCardFieldTrack} class="chart-select w-full">
+										{#each newCardFieldTracks as track}<option value={track}>{track}</option>{/each}
+									</select>
+								{/if}
+							{:else}
+								<p class="text-xs text-muted-foreground">Configure column selection in the card after adding.</p>
+							{/if}
 						</div>
 						<div class="flex gap-2 items-center">
 							<button onclick={addCard} class="chart-btn-primary">Add</button>
@@ -347,15 +292,181 @@
 						</div>
 					</div>
 				{:else}
-					<button
-						onclick={() => { showAddPicker = true; newCardCol = data.columns[0]; }}
-						class="flex items-center gap-1.5 text-sm text-primary hover:underline"
-					>
-						<Plus class="h-4 w-4" />
-						Add chart
-					</button>
+					<div class="flex items-center gap-4 flex-wrap">
+						<button
+							onclick={() => { showAddPicker = true; newCardCol = data.columns[0]; }}
+							class="flex items-center gap-1.5 text-sm text-primary hover:underline"
+						>
+							<Plus class="h-4 w-4" />
+							Add chart
+						</button>
+						{#if data.fc_names.length > 1}
+							<div class="relative">
+								<button
+									onclick={() => (showFcPicker = !showFcPicker)}
+									class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+								>
+									{activeFcs.size === data.fc_names.length
+										? `All ${data.fc_names.length} FCs`
+										: `${activeFcs.size} / ${data.fc_names.length} FCs`}
+								</button>
+								{#if showFcPicker}
+									<div class="absolute left-0 top-full mt-1 z-20 rounded-lg border bg-card shadow-md p-3 space-y-1.5 min-w-[180px]">
+										{#each data.fc_names as fc}
+											<label class="flex items-center gap-2 text-xs cursor-pointer">
+												<input type="checkbox" checked={activeFcs.has(fc)}
+													onchange={(e) => {
+														const next = new Set(activeFcs);
+														if ((e.target as HTMLInputElement).checked) next.add(fc);
+														else next.delete(fc);
+														activeFcs = next;
+													}} />
+												{fc}
+											</label>
+										{/each}
+										<div class="flex gap-2 pt-1 border-t">
+											<button class="text-xs text-primary hover:underline" onclick={() => activeFcs = new Set(data.fc_names)}>All</button>
+											<button class="text-xs text-muted-foreground hover:underline" onclick={() => activeFcs = new Set()}>None</button>
+										</div>
+									</div>
+								{/if}
+							</div>
+						{/if}
+						{#if chartCards.length > 0}
+							<button
+								onclick={exportAll}
+								disabled={exporting}
+								class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+							>
+								<Download class="h-4 w-4" />
+								{exporting ? 'Exporting…' : 'Export All'}
+							</button>
+						{/if}
+					</div>
 				{/if}
 			{/if}
+
+			<div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+				{#each chartCards as card (card.id)}
+					<div class="rounded-lg border bg-card shadow-sm overflow-hidden">
+						<!-- Card header -->
+						<div class="flex items-center gap-2 px-3 py-2 border-b bg-muted/30">
+							{#if card.type === 'histogram' || card.type === 'top_bar' || card.type === 'bottom_bar' || card.type === 'binary_bar' || card.type === 'box_plot'}
+								{@const sc = card as SingleColCard}
+								<select value={sc.column}
+									onchange={(e) => updateCard(card.id, { column: (e.target as HTMLSelectElement).value } as Partial<SingleColCard>)}
+									class="chart-select flex-1 min-w-0">
+									{#each Object.entries(data.col_groups) as [group, cols]}
+										<optgroup label={group}>
+											{#each cols as col}<option value={col}>{colLabel(col)}</option>{/each}
+										</optgroup>
+									{/each}
+								</select>
+								<select value={card.type}
+									onchange={(e) => updateCard(card.id, { type: (e.target as HTMLSelectElement).value as SingleColCard['type'] } as Partial<SingleColCard>)}
+									class="chart-select shrink-0" style="width: auto">
+									{#each CHART_TYPES.filter(ct => !ct.multi) as ct}
+										<option value={ct.value}>{ct.label}</option>
+									{/each}
+								</select>
+							{:else if card.type === 'time_series'}
+								{@const tc = card as TimeSeriesCard}
+								{@const tcTracks = getDatasetFieldTracks(data, tc.datasetKey)}
+								<select value={tc.datasetKey}
+									onchange={(e) => {
+										const title = (e.target as HTMLSelectElement).value;
+										const cols = temporalDatasets[title] ?? [];
+										const dkTracks = getDatasetFieldTracks(data, title);
+										const fieldTrack = dkTracks.length > 1 ? dkTracks[0] : undefined;
+										updateCard(card.id, { datasetKey: title, columns: cols, fieldTrack } as Partial<TimeSeriesCard>);
+									}}
+									class="chart-select flex-1 min-w-0">
+									{#each Object.keys(temporalDatasets) as title}
+										<option value={title}>{title}</option>
+									{/each}
+								</select>
+								{#if tcTracks.length > 1}
+									<select value={tc.fieldTrack ?? tcTracks[0]}
+										onchange={(e) => updateCard(card.id, { fieldTrack: (e.target as HTMLSelectElement).value } as Partial<TimeSeriesCard>)}
+										class="chart-select flex-1 min-w-0">
+										{#each tcTracks as track}
+											<option value={track}>{track}</option>
+										{/each}
+									</select>
+								{/if}
+								<select value={tc.aggregateMode}
+									onchange={(e) => updateCard(card.id, { aggregateMode: (e.target as HTMLSelectElement).value as TimeSeriesCard['aggregateMode'] } as Partial<TimeSeriesCard>)}
+									class="chart-select shrink-0" style="width: auto">
+									<option value="all">All features</option>
+									<option value="mean">Mean only</option>
+									<option value="band">Mean + range</option>
+								</select>
+							{:else if card.type === 'scatter'}
+								{@const sc2 = card as ScatterCard}
+								<select value={sc2.xCol}
+									onchange={(e) => updateCard(card.id, { xCol: (e.target as HTMLSelectElement).value } as Partial<ScatterCard>)}
+									class="chart-select flex-1 min-w-0">
+									{#each Object.entries(data.col_groups) as [group, cols]}
+										<optgroup label={group}>
+											{#each cols as col}<option value={col}>{colLabel(col)}</option>{/each}
+										</optgroup>
+									{/each}
+								</select>
+								<span class="text-xs text-muted-foreground shrink-0">vs</span>
+								<select value={sc2.yCol}
+									onchange={(e) => updateCard(card.id, { yCol: (e.target as HTMLSelectElement).value } as Partial<ScatterCard>)}
+									class="chart-select flex-1 min-w-0">
+									{#each Object.entries(data.col_groups) as [group, cols]}
+										<optgroup label={group}>
+											{#each cols as col}<option value={col}>{colLabel(col)}</option>{/each}
+										</optgroup>
+									{/each}
+								</select>
+							{:else if card.type === 'correlation'}
+								{@const cc = card as CorrelationCard}
+								<span class="text-xs text-muted-foreground flex-1">{cc.columns.length} columns selected</span>
+							{/if}
+							<button onclick={() => exportCard(card)} class="shrink-0 text-muted-foreground hover:text-foreground" title="Save as PNG">
+								<Download class="h-3.5 w-3.5" />
+							</button>
+							<button onclick={() => removeCard(card.id)} class="shrink-0 text-muted-foreground hover:text-destructive" title="Remove chart">
+								<X class="h-3.5 w-3.5" />
+							</button>
+						</div>
+
+						<!-- Chart body -->
+						<div class="p-3">
+							{#if card.type === 'histogram'}
+								<Histogram data={filteredData} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
+							{:else if card.type === 'top_bar' || card.type === 'bottom_bar'}
+								<RankedBar data={filteredData} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
+							{:else if card.type === 'time_series'}
+								<TimeSeries data={filteredData} card={card as TimeSeriesCard}
+									highlightedFeature={highlightedFeature}
+									onHighlight={(name) => { highlightedFeature = name; }}
+									onsvgready={makeSvgHandler(card.id)} />
+							{:else if card.type === 'scatter'}
+								<Scatter data={filteredData} card={card as ScatterCard}
+									highlightedFeature={highlightedFeature}
+									onHighlight={(name) => { highlightedFeature = name; }}
+									onsvgready={makeSvgHandler(card.id)} />
+							{:else if card.type === 'binary_bar'}
+								<BinaryBar data={filteredData} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
+							{:else if card.type === 'box_plot'}
+								<BoxPlot data={filteredData} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
+							{:else if card.type === 'correlation'}
+								<CorrelationMatrix data={filteredData} card={card as CorrelationCard}
+									onCardUpdate={(patch) => updateCard(card.id, patch)}
+									onsvgready={makeSvgHandler(card.id)} />
+							{:else}
+								<div class="flex h-32 items-center justify-center text-sm text-muted-foreground">
+									Chart type not yet implemented.
+								</div>
+							{/if}
+						</div>
+					</div>
+				{/each}
+			</div>
 		{/if}
 	</div>
 </div>

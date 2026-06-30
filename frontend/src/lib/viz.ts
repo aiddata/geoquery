@@ -1,3 +1,5 @@
+import type { VizPayload } from '$lib/api';
+
 // Shared utilities for the /viz/[id] and /viz/explore map renderers.
 
 export const PALETTES: Record<string, { label: string; colors: string[] }> = {
@@ -76,6 +78,14 @@ export function prettyColumn(col: string): string {
 	return parts.length > 1 ? parts.slice(1).join('.') : col;
 }
 
+// Human-readable field name: strips dataset prefix AND redundant type prefixes
+// (categorical, binary, numeric, ordinal) that add noise without adding meaning.
+export function fieldLabel(col: string): string {
+	return prettyColumn(col)
+		.replace(/_/g, ' ')
+		.replace(/^(categorical|binary|numeric|ordinal)\s+/i, '');
+}
+
 export function escapeHtml(s: string): string {
 	return s.replace(/[&<>"']/g, (c) => (
 		{ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!
@@ -87,4 +97,94 @@ export function computeStats(values: number[]): { min: number; max: number; mean
 	const max = values.reduce((a, b) => (b > a ? b : a), values[0]);
 	const mean = values.reduce((a, b) => a + b, 0) / values.length;
 	return { min, max, mean, n: values.length };
+}
+
+// ── Chart helpers ─────────────────────────────────────────────────────────────
+
+export interface TemporalSeriesEntry {
+	col: string;
+	temporal: string;
+	values: number[];
+	mean: number;
+	min: number;
+	max: number;
+}
+
+// col_groups is keyed by resource name (one per year, e.g. "esa_land_cover_2000").
+// For time series we need to span across years, so we group instead by col_dataset_titles
+// (the human-readable dataset name shared across all yearly resources).
+export function getTemporalDatasets(data: VizPayload): Record<string, string[]> {
+	const result: Record<string, string[]> = {};
+	for (const col of data.columns) {
+		if (!data.col_temporal[col]) continue;
+		const title = data.col_dataset_titles[col] || col.split('.')[0];
+		(result[title] ??= []).push(col);
+	}
+	return result;
+}
+
+// Field track: the category name within a dataset, stripped of type prefix.
+// For a column like esa_land_cover_2000.categorical_bare_areas (temporal="2000"),
+// the resource name already encodes the year, so prettyColumn gives "categorical_bare_areas"
+// and we just strip the type prefix → "bare areas".
+// For datasets where the year is embedded in the field name (e.g. worldpop.population_2000),
+// prettyColumn gives "population_2000" and we strip "_2000" to get "population".
+export function colFieldTrack(col: string, temporal: string): string {
+	let raw = prettyColumn(col);
+	const esc = temporal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	raw = raw.replace(new RegExp('[_.]?' + esc + '$'), '');
+	return raw.replace(/_/g, ' ').replace(/^(categorical|binary|numeric|ordinal)\s+/i, '');
+}
+
+// Sorted list of distinct field tracks (categories) for a dataset title.
+export function getDatasetFieldTracks(data: VizPayload, datasetTitle: string): string[] {
+	const cols = getTemporalDatasets(data)[datasetTitle] ?? [];
+	const tracks = new Set(cols.map(c => colFieldTrack(c, data.col_temporal[c])));
+	return [...tracks].sort();
+}
+
+// datasetKey is now the dataset title (from col_dataset_titles), not the col_groups key.
+// fieldTrack filters to one category within a multi-category dataset.
+export function getTemporalSeries(data: VizPayload, datasetKey: string, fieldTrack?: string): TemporalSeriesEntry[] {
+	const allCols = getTemporalDatasets(data)[datasetKey] ?? [];
+	const cols = fieldTrack !== undefined
+		? allCols.filter(c => colFieldTrack(c, data.col_temporal[c]) === fieldTrack)
+		: allCols;
+	return cols
+		.map(col => {
+			const vals: number[] = [];
+			for (const f of Object.values(data.features)) {
+				const v = Number(f[col]);
+				if (!isNaN(v)) vals.push(v);
+			}
+			const mean = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+			const min = vals.length ? vals.reduce((a, b) => Math.min(a, b), vals[0]) : 0;
+			const max = vals.length ? vals.reduce((a, b) => Math.max(a, b), vals[0]) : 0;
+			return { col, temporal: data.col_temporal[col], values: vals, mean, min, max };
+		})
+		.sort((a, b) => a.temporal.localeCompare(b.temporal));
+}
+
+export function detectBinary(values: number[]): boolean {
+	return values.length > 0 && values.every(v => v === 0 || v === 1);
+}
+
+export function pearsonCorrelation(xs: number[], ys: number[]): number {
+	const n = Math.min(xs.length, ys.length);
+	if (n < 2) return 0;
+	const mx = xs.slice(0, n).reduce((a, b) => a + b, 0) / n;
+	const my = ys.slice(0, n).reduce((a, b) => a + b, 0) / n;
+	let num = 0, dx2 = 0, dy2 = 0;
+	for (let i = 0; i < n; i++) {
+		const dx = xs[i] - mx, dy = ys[i] - my;
+		num += dx * dy; dx2 += dx * dx; dy2 += dy * dy;
+	}
+	return dx2 > 0 && dy2 > 0 ? num / Math.sqrt(dx2 * dy2) : 0;
+}
+
+export function pearsonMatrix(data: VizPayload, cols: string[]): number[][] {
+	const series = cols.map(col =>
+		Object.values(data.features).map(f => Number(f[col])).filter(n => !isNaN(n))
+	);
+	return cols.map((_, i) => cols.map((_, j) => pearsonCorrelation(series[i], series[j])));
 }

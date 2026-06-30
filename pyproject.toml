@@ -5,6 +5,7 @@ description = "A tool for accessing and extracting geospatial datae"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "openpyxl>=3.1.5",
     "pyarrow>=24.0.0",
     "zensical>=0.0.23",
     "geoquery-backend",

@@ -2,7 +2,7 @@ import sqlite3
 import geopandas as gpd
 
 
-TABLE_NAME = "gcdf_v301_dynamic"
+TABLE_NAME = "cports_v20_dynamic"
 
 
 def _bbox_clause(dataset_path, feat):
@@ -25,12 +25,12 @@ def _bbox_clause(dataset_path, feat):
         return None
 
 
-def gcdf_v301_dynamic_filter_and_agg(feat, dataset_path, name, **filters):
-    """Filter GCDF v3.0.1 dynamic dataset by spatial and attribute criteria, then aggregate.
+def cports_v20_dynamic_filter_and_agg(feat, dataset_path, name, **filters):
+    """Filter CPORTS v2.0 dynamic dataset by spatial and attribute criteria, then aggregate.
 
     Round results to integers.
     """
-    agg_field = "Commitment Value"
+    agg_field = "value"
 
     clauses = []
 
@@ -65,9 +65,13 @@ def gcdf_v301_dynamic_filter_and_agg(feat, dataset_path, name, **filters):
     if gdf.empty or feat is None:
         return [(name, 0)]
 
-    # Precise shapely intersection with area-proportional aggregation
-    intersection_area = gdf.geometry.intersection(feat).area
-    proportion = (intersection_area / gdf.geometry.area).fillna(0)
+    # check if feature contains the geometry of the gdf, if not, return 0
+    gdf["within_feat"] = gdf.geometry.within(feat)
 
-    weighted_sum = (gdf[agg_field] * proportion).sum()
-    return [(name, int(weighted_sum))]
+    gdf["final_value"] = gdf.apply(
+        lambda row: row[agg_field] if row["within_feat"] else 0, axis=1
+    )
+
+    total = gdf["final_value"].sum()
+
+    return [(name, int(total))]
