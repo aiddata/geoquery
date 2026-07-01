@@ -82,7 +82,7 @@ def create_missing_coverage_records():
     return {"created": len(records)}
 
 
-def run_missing_coverage_checks(self, sync=False):
+def run_missing_coverage_checks(sync=False):
         t_start = time.perf_counter()
 
         untested_dataset_ids = list(
