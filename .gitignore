@@ -18,3 +18,4 @@ k8s/helm_chart/extra_templates/old/
 /site/
 postgres/
 .agent/
+k8s/
