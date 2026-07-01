@@ -60,7 +60,7 @@
 </script>
 
 <div class="flex h-full flex-col">
-	<div class="space-y-4 p-4">
+	<div class="min-h-0 flex-1 overflow-y-auto space-y-4 p-4">
 		<h3 class="text-sm font-semibold">Selection Summary</h3>
 
 		{#if !dataset}
