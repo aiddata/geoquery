@@ -100,6 +100,9 @@ def _manage_user_requests(
         request_id = str(request_obj.id)
         logger.info("Request (id: %s)\n%s", request_id, request_obj)
 
+        send_received_email = False
+        completed_request_obj = None
+
         try:
             with transaction.atomic():
                 if not request_obj.data:
@@ -118,7 +121,7 @@ def _manage_user_requests(
 
                 if original_status == -1:
                     Request.objects.filter(id=request_id).update(prepare_time=timezone.now())
-                    _notify_user(request_id, request_obj.contact, 0, download_server)
+                    send_received_email = True
 
                 Request.objects.filter(id=request_id).update(status=2, process_time=timezone.now())
 
@@ -131,7 +134,7 @@ def _manage_user_requests(
                     updated_request_obj = Request.objects.get(id=request_id)
                     _build_output(updated_request_obj, merge_list, download_server, results_dir, assets_dir)
                     Request.objects.filter(id=request_id).update(status=1, complete_time=timezone.now())
-                    _notify_user(request_id, updated_request_obj.contact, 1, download_server)
+                    completed_request_obj = updated_request_obj
                     logger.info("Request completed (id: %s)", request_id)
 
                 if dry_run:
@@ -140,8 +143,31 @@ def _manage_user_requests(
         except Exception as e:
             # include full traceback in the log for debugging purposes
             logger.exception("Unhandled exception while processing request (id: %s): %s", request_id, e)
-            _request_error(request_id, f"Unhandled exception: {e}")
+            try:
+                _request_error(request_id, f"Unhandled exception: {e}")
+            except Exception as err:
+                logger.error("Failed to set error status for request (id: %s): %s", request_id, err)
             logger.error("Skipping request (id: %s) due to error", request_id)
+            continue
+
+        # Send notifications after the transaction commits so a notification
+        # failure cannot roll back committed request state or mask a success.
+        if send_received_email and not dry_run:
+            try:
+                _notify_user(request_id, request_obj.contact, 0, download_server)
+            except Exception as e:
+                logger.error("Failed to send received notification for request (id: %s): %s", request_id, e)
+
+        if completed_request_obj is not None and not dry_run:
+            try:
+                _notify_user(request_id, completed_request_obj.contact, 1, download_server)
+            except Exception as e:
+                # Data is built but user was never notified — mark as error so it surfaces for manual intervention.
+                logger.error("Failed to send completion notification for request (id: %s): %s", request_id, e)
+                try:
+                    _request_error(request_id, f"Completion notification failed (data is ready): {e}")
+                except Exception as err:
+                    logger.error("Failed to set error status for request (id: %s): %s", request_id, err)
 
     logger.info("Finished User Request Management Script %s", time.strftime("%Y-%m-%d %H:%M:%S"))
 
@@ -208,8 +234,7 @@ def _notify_user(request_id, mail_to, status, download_server):
 
     mail_status = GeoEmail().send_email(mail_to, mail_subject, mail_message)
     if not mail_status[0]:
-        logger.error("%s: %s", mail_status[1], mail_status[2])
-        Request.objects.filter(id=request_id).update(status=-2)
+        raise Exception(f"Email send failed: {mail_status[1]}: {mail_status[2]}")
 
 
 def _check_request_tasks(request, dry_run=False):
@@ -226,6 +251,10 @@ def _check_request_tasks(request, dry_run=False):
 
     for task_item in task_list:
         extract_task = ExtractTask.objects.filter(id=task_item.task_id).first()
+        if extract_task is None:
+            logger.error("Extract task %s not found for request %s", task_item.task_id, request.id)
+            pending_task_count += 1
+            continue
         if extract_task.status != 1:
             pending_task_count += 1
             # increase priority of pending tasks to ensure they get processed before non request tasks
