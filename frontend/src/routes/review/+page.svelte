@@ -361,12 +361,12 @@
 					<div class="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-3">
 						<p class="font-semibold">Custom boundary data notice</p>
 						<p>
-							Your uploaded boundary will be stored on GeoQuery's servers and included with your
+							Your uploaded boundary data will be stored on GeoQuery's servers and included with your
 							request results. Anyone with your request link can view it — results pages are not
-							publicly listed, but are not access-controlled beyond the request ID.
+							publicly listed, but are not access-controlled beyond the unique request ID URL.
 						</p>
 						<p>
-							Result files are stored on W&amp;M's computing infrastructure which are not publically available but also not protected by explicit security measures.
+							Result files are stored on W&amp;M's computing infrastructure and are not publically available but also not protected by  security measures other than standard file system permissions. The uploaded data will not be used for any purpose other than processing your request without your explicit permission.
 						</p>
 						<label class="flex items-start gap-2 cursor-pointer">
 							<input
@@ -374,7 +374,7 @@
 								bind:checked={boundaryConsent}
 								class="mt-0.5 shrink-0 accent-amber-700"
 							/>
-							<span>I understand and consent to my boundary data being stored and shared as described above.</span>
+							<span>I understand, confirm I have permission to upload this data, and consent to my boundary data being stored and shared as described above.</span>
 						</label>
 					</div>
 				{/if}
