@@ -1,9 +1,9 @@
 
-import queue
 import time
 import textwrap
 import time
 import pandas as pd
+from datetime import datetime, timezone
 
 from django.core.management.base import BaseCommand
 from django.db import connection
@@ -67,7 +67,7 @@ class Command(BaseCommand):
         """
         This command identifies users who satisfy criteria for contact (e.g. multiple requests within timeframe but no contact or comments requested flags) and either automatically sends them an email requesting comments or flags them for manual contact by staff.
         """
-        _run_user_outreach(options["days"], options["request_count"], options["earliest_request"], options["latest_request"], options["mode"], options["limit"], options["dry_run"])
+        _run_user_outreach(options["ndays"], options["request_count"], options["earliest_request"], options["latest_request"], options["mode"], options["limit"], options["dry_run"])
 
 
 def _run_user_outreach(n_days, request_count, earliest_request, latest_request, mode="manual", email_limit=50, dry_run=False):
@@ -81,15 +81,18 @@ def _run_user_outreach(n_days, request_count, earliest_request, latest_request, 
     # used to get requests for past n days
     search_timestamp = current_timestamp - to_seconds(n_days)
 
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT id FROM requests
-            WHERE submit_time > to_timestamp(%s)
-            """,
-            [search_timestamp],
-        )
-        request_objects = cursor.fetchall()
+    # with connection.cursor() as cursor:
+    #     cursor.execute(
+    #         """
+    #         SELECT * FROM requests
+    #         WHERE submit_time > to_timestamp(%s)
+    #         """,
+    #         [search_timestamp],
+    #     )
+    #     request_objects = cursor.fetchall()
+
+    search_dt = datetime.fromtimestamp(search_timestamp, tz=timezone.utc)
+    request_objects = Request.objects.filter(submit_time__gt=search_dt)
 
     if not request_objects:
         logger.warning(f"No requests found within past {n_days} days. Exiting.")
@@ -108,13 +111,14 @@ def _run_user_outreach(n_days, request_count, earliest_request, latest_request, 
             'count': 1
         }
 
-        if 'comments_requested' in r:
-            request_dict['comments_requested'] = r['comments_requested']
+
+        if hasattr(r, 'comments_requested'):
+            request_dict['comments_requested'] = r.comments_requested
         else:
             request_dict['comments_requested'] = 0
 
-        if 'contact_flag' in r:
-            request_dict['contact_flag'] = r['contact_flag']
+        if hasattr(r, 'contact_flag'):
+            request_dict['contact_flag'] = r.contact_flag
         else:
             request_dict['contact_flag'] = 0
 
@@ -139,15 +143,16 @@ def _run_user_outreach(n_days, request_count, earliest_request, latest_request, 
         "latest_time": "max"
     })
 
+    current_dt = pd.Timestamp(current_timestamp, unit='s', tz='UTC')
+
     # filter
     valid_df = user_df.loc[
         (user_df["comments_requested"] == 0) &
         (user_df["contact_flag"] == 0) &
         (user_df["count"] > request_count) &
-        (current_timestamp - user_df["earliest_time"] > to_seconds(earliest_request)) &
-        (current_timestamp - user_df["latest_time"] > to_seconds(latest_request))
+        (current_dt - user_df["earliest_time"] > pd.Timedelta(seconds=to_seconds(earliest_request))) &
+        (current_dt - user_df["latest_time"] > pd.Timedelta(seconds=to_seconds(latest_request)))
     ]
-
     valid_user_count = len(valid_df)
 
     logger.info(
@@ -156,7 +161,7 @@ def _run_user_outreach(n_days, request_count, earliest_request, latest_request, 
 
     valid_df.reset_index(drop=True, inplace=True)
 
-    email = GeoEmail(None)
+    email = GeoEmail()
 
     # send list of users to staff emails
     if not dry_run and mode == "manual" and valid_user_count > 0:
