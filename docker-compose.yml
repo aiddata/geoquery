@@ -9,7 +9,7 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   rabbitmq:
-    image: rabbitmq:4-management-alpine
+    image: rabbitmq:3.13-management-alpine
 
   backend:
     build:
