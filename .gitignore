@@ -5,8 +5,7 @@
 .env
 
 # Local test data
-dev_data/
-data/
+data
 
 logs/*.log
 build/
