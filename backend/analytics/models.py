@@ -108,7 +108,7 @@ class ExtractData(models.Model):
     name = models.CharField(max_length=100, blank=True, null=True)
     data_column = models.CharField(max_length=100, blank=True, null=True)
     float_value = models.FloatField(blank=True, null=True)
-    int_value = models.IntegerField(blank=True, null=True)
+    int_value = models.BigIntegerField(blank=True, null=True)
     str_value = models.CharField(max_length=100, blank=True, null=True)
 
     class Meta:
