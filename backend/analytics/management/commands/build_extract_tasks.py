@@ -47,19 +47,19 @@ def _build_extract_tasks():
             """
             SELECT
                 dataset_resources.id AS resource_id,
-                coverage.geom_id AS fm_id,
+                feat_map.id AS fm_id,
                 processing_options.id AS po_id
             FROM coverage
-            LEFT OUTER JOIN dataset_resources
-                ON coverage.dataset_id = dataset_resources.dataset_id
-            LEFT OUTER JOIN processing_options
-                ON coverage.dataset_id = processing_options.dataset_id
-            LEFT OUTER JOIN datasets
-                ON coverage.dataset_id = datasets.id
-            LEFT OUTER JOIN feat_map
+            INNER JOIN feat_map
                 ON coverage.geom_id = feat_map.geom_id
-            LEFT OUTER JOIN feature_collections
+            INNER JOIN feature_collections
                 ON feat_map.fc_id = feature_collections.id
+            INNER JOIN dataset_resources
+                ON coverage.dataset_id = dataset_resources.dataset_id
+            INNER JOIN processing_options
+                ON coverage.dataset_id = processing_options.dataset_id
+            INNER JOIN datasets
+                ON coverage.dataset_id = datasets.id
             WHERE coverage.status = 1
             AND processing_options.active = TRUE
             AND feature_collections.active = TRUE
