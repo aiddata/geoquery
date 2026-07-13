@@ -18,6 +18,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--path",
+            default="/data/boundaries/TIGER/ingest_2025_county.json",
             help="Path to the target ingest json",
         )
         parser.add_argument(
@@ -50,10 +51,6 @@ class Command(BaseCommand):
                 f"Starting TIGER ingest with active={self.set_active}, public={self.set_public}"
             )
         )
-
-        # list current dir
-        print("--------------------")
-        print(list(Path("/data/TIGER").resolve().absolute().iterdir()))
 
         self.ingest_tiger_item()
 
