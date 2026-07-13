@@ -18,15 +18,21 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--commit",
-            type=str,
-            default="0faed0c",
-            help="Target geoBoundaries commit hash",
-        )
-        parser.add_argument(
             "--iso3",
             nargs="+",
             help="Specific ISO3 codes to download (e.g., GHA AFG)",
+        )
+        parser.add_argument(
+            "--data-dir",
+            type=str,
+            default="/data/boundaries/geoboundaries/",
+            help="Data dir for downloaded files",
+        )
+        parser.add_argument(
+            "--commit",
+            type=str,
+            default="57dcd43",
+            help="GitHub commit 7 char short hash for downloaded files (e.g., 57dcd43)",
         )
         parser.add_argument(
             "--active",
@@ -44,34 +50,26 @@ class Command(BaseCommand):
             help="Run with concurrent processing",
         )
         parser.add_argument(
-            "--data-dir",
-            type=str,
-            default="/geo-datasets/data/geoboundaries/",
-            help="Data dir for downloaded files",
-        )
-        parser.add_argument(
-            "--data-label",
-            type=str,
-            default="gBv6_9469f09_57dcd43",
-            help="Data label for downloaded files",
-        )
-        parser.add_argument(
             "--skip-existing",
             action="store_true",
             help="Skip feature collections that already exist",
         )
+        parser.add_argument(
+            "--reload-geometry",
+            action="store_true",
+            help="When updating an existing collection, wipe and re-ingest features. Without this flag, only metadata is updated.",
+        )
 
     def handle(self, *args, **options):
-        self.target_gb_commit = options["commit"]
         self.iso3_list = options.get("iso3")
         self.set_active = options["active"]
         self.set_public = options["public"]
         self.run_concurrent = options["concurrent"]
         self.data_dir = Path(options["data_dir"])
-        self.data_label = options["data_label"]
-        self.data_path = self.data_dir / self.data_label
-        self.data_tag = self.data_label.split("_")[0]
+        self.commit = options["commit"]
+        self.data_path = self.data_dir / self.commit
         self.skip_existing = options["skip_existing"]
+        self.reload_geometry = options["reload_geometry"]
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -88,6 +86,12 @@ class Command(BaseCommand):
             ]
 
         ingest_items = sorted(ingest_items)
+
+        if len(ingest_items) == 0:
+            self.stdout.write(
+                self.style.WARNING("No items found to process. Exiting.")
+            )
+            return
 
         self.stdout.write(
             self.style.SUCCESS(f"Found {len(ingest_items)} items to process")
@@ -145,7 +149,7 @@ class Command(BaseCommand):
         item = json.loads((self.data_path / f"raw_{fname}.json").read_text())
         iso3 = item["boundaryISO"]
         boundary_type = item["boundaryType"]
-        fc_name = f"{self.data_tag}_{iso3}_{boundary_type}"
+        fc_name = f"gB_{self.commit}_{iso3}_{boundary_type}"
 
         # Check if already exists
         if (
@@ -160,9 +164,9 @@ class Command(BaseCommand):
         # Build metadata
         adm_meta = self.build_metadata(item, fc_name)
 
-        # Download and process geodata
-        commit_dl_url = item["gjDownloadURL"]
-        gpkg_path = self.data_path / f"{Path(commit_dl_url).stem}.gpkg"
+        # Process geodata
+        item_stem = Path(item["gjDownloadURL"]).stem
+        gpkg_path = self.data_path / f"{item_stem}.gpkg"
         adm_meta["path"] = str(gpkg_path)
 
         logger.debug(f"Reading {gpkg_path}")
@@ -176,7 +180,7 @@ class Command(BaseCommand):
             return
 
         # Calculate spatial extent
-        logger.debug(f"Calculating bounding box for {commit_dl_url}")
+        logger.debug(f"Calculating bounding box for {fc_name}")
         spatial_extent_wkt = shapely.box(*gdf.total_bounds).wkt
 
         # Create or update FeatureCollection
@@ -208,9 +212,15 @@ class Command(BaseCommand):
         action = "Created" if created else "Updated"
         self.stdout.write(self.style.SUCCESS(f"{action} FeatureCollection: {fc_name}"))
 
-        # Delete existing features if updating
+        if not created and not self.reload_geometry:
+            self.stdout.write(f"  Metadata updated, skipping geometry reload (use --reload-geometry to replace features)")
+            return
+
+        # Wipe existing features before reload
         if not created:
+            geom_ids = list(FeatMap.objects.filter(fc=fc).values_list("geom_id", flat=True))
             FeatMap.objects.filter(fc=fc).delete()
+            Feature.objects.filter(id__in=geom_ids).delete()
             self.stdout.write(f"  Cleared existing features for {fc_name}")
 
         # Insert features
@@ -247,6 +257,9 @@ class Command(BaseCommand):
         iso3 = item["boundaryISO"]
         boundary_type = item["boundaryType"]
 
+        raw_github_string_prefix = "https://github.com/wmgeolab/geoBoundaries/raw/"
+        data_commit = item["gjDownloadURL"].replace(raw_github_string_prefix, "").split("/")[0]
+
         return {
             "active": self.set_active,
             "public": self.set_public,
@@ -258,7 +271,7 @@ class Command(BaseCommand):
                 f"This feature collection represents the {boundary_type} level "
                 f"boundaries for {item['boundaryName']} ({iso3}) from geoBoundaries v6."
             ),
-            "details": "",
+            "details": f"Based on GitHub commit {data_commit}",
             "tags": ["geoboundaries", "administrative", "boundary"],
             "citation": (
                 "Runfola, D. et al. (2020) geoBoundaries: A global database of "
