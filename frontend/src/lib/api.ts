@@ -145,8 +145,11 @@ export async function fetchFeatureIds(fcIds: number[]): Promise<number[]> {
 // ── Dataset API ────────────────────────────────────────────────
 
 export async function fetchDatasetsForFeatures(featureIds: number[]): Promise<DatasetSummary[]> {
-	const params = new URLSearchParams({ features: featureIds.join(',') });
-	const response = await fetch(`/api/datasets/?${params}`);
+	const response = await fetch('/api/datasets/coverage/', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ featureIds }),
+	});
 	if (!response.ok) {
 		throw new Error(`Failed to fetch datasets: ${response.status}`);
 	}

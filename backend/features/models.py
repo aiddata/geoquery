@@ -1,5 +1,7 @@
 from django.contrib.gis.db import models
 from django.contrib.postgres.fields import ArrayField
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
 
 
 class FeatureCollection(models.Model):
@@ -81,3 +83,10 @@ class FeatMap(models.Model):
 
     def __str__(self):
         return f"FeatMap {self.id}: {self.name or 'unnamed'}"
+
+
+@receiver(pre_delete, sender=FeatureCollection)
+def delete_features_on_fc_delete(sender, instance, **kwargs):
+    """Delete Feature rows belonging to this collection before FeatMap CASCADE removes them."""
+    geom_ids = list(FeatMap.objects.filter(fc=instance).values_list("geom_id", flat=True))
+    Feature.objects.filter(id__in=geom_ids).delete()
