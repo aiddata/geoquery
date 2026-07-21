@@ -149,7 +149,7 @@ class RequestView(APIView):
             if task_kwargs:
                 # Per-request tasks: kwargs vary per submission so tasks cannot be shared.
                 # get_or_create against the functional unique index on
-                # (resource_id, fm_id, po_id, COALESCE(kwargs::text, '')) ensures
+                # (resource_id, fm_id, po_id, MD5(COALESCE(kwargs::text, ''))) ensures
                 # identical filter combinations reuse the same task row.
                 try:
                     dataset_obj = Dataset.objects.get(name=dataset_name, active=True)
@@ -316,10 +316,10 @@ class RequestDetailView(APIView):
             base = getattr(settings, "DOWNLOAD_BASE_URL", "").rstrip("/")
             if base:
                 data["download_url"] = (
-                    f"{base}/data/geoquery_results/{req.id}/{req.id}.zip"
+                    f"{base}/results/{req.id}/{req.id}.zip"
                 )
                 data["documentation_url"] = (
-                    f"{base}/data/geoquery_results/{req.id}/{req.id}_documentation.html"
+                    f"{base}/results/{req.id}/{req.id}_documentation.html"
                 )
             frontend_base = getattr(settings, "FRONTEND_BASE_URL", "").rstrip("/")
             if frontend_base:

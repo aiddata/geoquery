@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import tempfile
+import urllib.request
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
@@ -10,7 +11,7 @@ from datasets.ingest import ingest_dataset
 
 
 class Command(BaseCommand):
-    help = "Ingest a dataset from a JSON metadata file"
+    help = "Ingest a dataset from a JSON metadata file or URL"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -18,7 +19,7 @@ class Command(BaseCommand):
             nargs="?",
             default=None,
             type=str,
-            help="Path to the JSON metadata file for the dataset",
+            help="Path or URL to the JSON metadata file for the dataset",
         )
         parser.add_argument(
             "--edit",
@@ -37,25 +38,49 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        if options["edit"]:
-            json_path = self._edit_tempfile(options["json_path"])
-        elif options["json_path"]:
-            json_path = Path(options["json_path"])
-        else:
-            raise CommandError("Provide a json_path or use --edit")
+        tmp_download = None
+        try:
+            if options["edit"]:
+                json_path = self._edit_tempfile(options["json_path"])
+            elif options["json_path"]:
+                src = options["json_path"]
+                if src.startswith("http://") or src.startswith("https://"):
+                    json_path, tmp_download = self._download_url(src)
+                else:
+                    json_path = Path(src)
+            else:
+                raise CommandError("Provide a json_path or use --edit")
 
-        if not json_path.exists():
-            raise CommandError(f"JSON file not found: {json_path}")
+            if not json_path.exists():
+                raise CommandError(f"JSON file not found: {json_path}")
 
-        self.stdout.write(f"Ingesting dataset from {json_path}")
+            self.stdout.write(f"Ingesting dataset from {json_path}")
 
-        ingest_dataset(
-            json_data=json_path,
-            update=options["update"],
-            update_or_insert=options["update_or_insert"],
-        )
+            ingest_dataset(
+                json_data=json_path,
+                update=options["update"],
+                update_or_insert=options["update_or_insert"],
+            )
 
-        self.stdout.write(self.style.SUCCESS("Dataset ingest complete."))
+            self.stdout.write(self.style.SUCCESS("Dataset ingest complete."))
+        finally:
+            if tmp_download is not None:
+                tmp_download.unlink(missing_ok=True)
+
+    def _download_url(self, url: str) -> tuple[Path, Path]:
+        """Download a URL to a tempfile; return (path, path) — same object for cleanup."""
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+                tmp_path = Path(tmp.name)
+            urllib.request.urlretrieve(url, tmp_path)
+            try:
+                json.loads(tmp_path.read_text())
+            except (json.JSONDecodeError, ValueError) as exc:
+                tmp_path.unlink(missing_ok=True)
+                raise CommandError(f"Downloaded content is not valid JSON: {exc}")
+            return tmp_path, tmp_path
+        except urllib.error.URLError as exc:
+            raise CommandError(f"Failed to download {url}: {exc}")
 
     def _edit_tempfile(self, seed_path):
         editor = os.environ.get("EDITOR", "vi")
@@ -76,7 +101,6 @@ class Command(BaseCommand):
             tmp_path.unlink(missing_ok=True)
             raise CommandError(f"Editor failed: {exc}")
 
-        # Validate JSON before proceeding
         try:
             json.loads(tmp_path.read_text())
         except (json.JSONDecodeError, ValueError) as exc:

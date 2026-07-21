@@ -108,12 +108,16 @@ export interface ExtractType {
 
 export interface RangeFilter {
 	type: 'range';
+	display?: string;
+	aggregate?: boolean;
 	min: number;
 	max: number;
 }
 
 export interface CategoricalFilter {
 	type: 'categorical';
+	display?: string;
+	aggregate?: boolean;
 	categories: string[];
 }
 
@@ -123,6 +127,7 @@ export interface DatasetDetail extends DatasetSummary {
 	extract_types: ExtractType[];
 	resources: DatasetResource[];
 	filters: Record<string, DatasetFilter> | null;
+	outcomes: Record<string, string> | null;
 }
 
 export interface DatasetCategory {

@@ -25,12 +25,12 @@ def _bbox_clause(dataset_path, feat):
         return None
 
 
-def gcdf_v301_dynamic_filter_and_agg(feat, dataset_path, name, **filters):
+def gcdf_v301_dynamic_filter_and_agg(feat, dataset_path, name, outcome="Commitment Value", **filters):
     """Filter GCDF v3.0.1 dynamic dataset by spatial and attribute criteria, then aggregate.
 
     Round results to integers.
     """
-    agg_field = "Commitment Value"
+    agg_field = outcome
 
     clauses = []
 

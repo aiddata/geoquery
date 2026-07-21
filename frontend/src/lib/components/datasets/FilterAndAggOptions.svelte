@@ -42,7 +42,7 @@
 			{@const sel = getRangeSelection(key, filter)}
 			<Card.Root class="w-56 shrink-0">
 				<Card.Header class="pb-2">
-					<Card.Title class="text-sm">{key}</Card.Title>
+					<Card.Title class="text-sm">{filter.display ?? key}</Card.Title>
 					<p class="text-xs text-muted-foreground">Range: {filter.min}–{filter.max}</p>
 				</Card.Header>
 				<Card.Content class="pt-0">
@@ -85,7 +85,7 @@
 			<Card.Root class="w-64 shrink-0">
 				<Card.Header class="pb-2">
 					<Card.Title class="text-sm">
-						{key}
+						{filter.display ?? key}
 						<span class="ml-1 text-xs font-normal text-muted-foreground">
 							({sel.selected.length}/{filter.categories.length})
 						</span>

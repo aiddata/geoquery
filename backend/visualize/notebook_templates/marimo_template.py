@@ -39,7 +39,7 @@ def _():
     import zipfile
 
     DOWNLOAD_URL = "{{DOWNLOAD_URL}}"
-    OUT = pathlib.Path("geoquery_results")
+    OUT = pathlib.Path("results")
     OUT.mkdir(exist_ok=True)
 
     zip_path = OUT / "results.zip"

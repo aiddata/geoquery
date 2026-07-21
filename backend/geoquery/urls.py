@@ -37,7 +37,7 @@ urlpatterns = [
 if settings.DEBUG:
     urlpatterns += [
         re_path(
-            r"^data/geoquery_results/(?P<path>.*)$",
+            r"^results/(?P<path>.*)$",
             serve,
             {"document_root": settings.RESULTS_DIR},
         ),
