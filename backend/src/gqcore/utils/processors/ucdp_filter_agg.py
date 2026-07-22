@@ -34,6 +34,13 @@ def _safe_label(value) -> str:
     return s[:32] if len(s) > 32 else s
 
 
+def _to_sql_literal(v) -> str:
+    """Return a SQL literal for v, emitting 0/1 for Python booleans."""
+    if isinstance(v, bool):
+        return str(int(v))
+    return "'" + str(v).replace("'", "''") + "'"
+
+
 def _build_clauses(filters_agg: dict) -> list[str]:
     """Build SQL WHERE clauses for aggregate=True filters."""
     clauses = []
@@ -46,9 +53,7 @@ def _build_clauses(filters_agg: dict) -> list[str]:
             selected = value["selected"]
             if not selected:
                 continue
-            placeholders = ", ".join(
-                "'" + str(v).replace("'", "''") + "'" for v in selected
-            )
+            placeholders = ", ".join(_to_sql_literal(v) for v in selected)
             clauses.append(f'"{key}" IN ({placeholders})')
     return clauses
 
@@ -93,10 +98,9 @@ def ged261_dynamic_filter_and_agg(feat, dataset_path, name, outcome="best", **fi
         gdf = gpd.read_file(dataset_path, sql=sql, use_arrow=True)
         if gdf.empty or feat is None:
             return [(name, 0)]
-        intersection_area = gdf.geometry.intersection(feat).area
-        proportion = (intersection_area / gdf.geometry.area).fillna(0)
-        weighted_sum = (gdf[outcome] * proportion).sum()
-        return [(name, int(weighted_sum))]
+        gdf["within"] = gdf.geometry.within(feat)
+        total = gdf.loc[gdf["within"], outcome].sum()
+        return [(name, int(total))]
 
     # Disaggregated: cartesian product of non-aggregate filter values
     keys = list(non_agg_filters.keys())
@@ -107,7 +111,7 @@ def ged261_dynamic_filter_and_agg(feat, dataset_path, name, outcome="best", **fi
         combo_clauses = list(base_clauses)
         label_parts = []
         for key, val in zip(keys, combo):
-            combo_clauses.append(f'"{key}" = \'' + str(val).replace("'", "''") + "'")
+            combo_clauses.append(f'"{key}" = {_to_sql_literal(val)}')
             label_parts.append(_safe_label(val))
 
         sql = f'SELECT * FROM {TABLE_NAME}'
@@ -121,9 +125,8 @@ def ged261_dynamic_filter_and_agg(feat, dataset_path, name, outcome="best", **fi
             results.append((col_name, 0))
             continue
 
-        intersection_area = gdf.geometry.intersection(feat).area
-        proportion = (intersection_area / gdf.geometry.area).fillna(0)
-        weighted_sum = (gdf[outcome] * proportion).sum()
-        results.append((col_name, int(weighted_sum)))
+        gdf["within"] = gdf.geometry.within(feat)
+        total = gdf.loc[gdf["within"], outcome].sum()
+        results.append((col_name, int(total)))
 
     return results
