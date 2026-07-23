@@ -221,7 +221,7 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = True
 
 # Results
-REQUESTS_DIR = Path(os.environ.get("REQUESTS_DIR", str(BASE_DIR.parent / "results")))
+REQUESTS_DIR = Path(os.environ.get("REQUESTS_DIR", str(BASE_DIR.parent / "requests")))
 ASSETS_DIR = Path(os.environ.get("ASSETS_DIR", str(BASE_DIR.parent / "assets")))
 DOCS_DIR = Path(os.environ.get("DOCS_DIR", str(BASE_DIR.parent / "docs")))
 DOWNLOAD_BASE_URL = os.environ.get("DOWNLOAD_BASE_URL", "http://localhost:8000")

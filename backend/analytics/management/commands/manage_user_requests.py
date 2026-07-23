@@ -47,7 +47,7 @@ class Command(BaseCommand):
             help="The server that users will download data from (used in email notifications)",
         )
         parser.add_argument(
-            "--results-dir",
+            "--requests-dir",
             default=None,
             help="The directory containing results for the request (default: settings.REQUESTS_DIR)",
         )
@@ -72,7 +72,7 @@ class Command(BaseCommand):
 def _manage_user_requests(
     request_id=None,
     download_server="geoquery.aiddata.wm.edu",
-    requests_dir="/results",
+    requests_dir="/requests",
     assets_dir="../assets",
     dry_run=False,
 ):
