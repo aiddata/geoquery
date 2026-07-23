@@ -113,7 +113,7 @@ def ingest_custom_boundary(
             continue
 
         ExtractTask.objects.bulk_create([
-            ExtractTask(resource=resource, fm=fm, po=po, kwargs=task_kwargs)
+            ExtractTask(resource=resource, fm=fm, po=po, kwargs=task_kwargs, priority=1)
             for fm in feat_map_objs
             for resource in resources
             for po in pos
