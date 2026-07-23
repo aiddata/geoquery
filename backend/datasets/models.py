@@ -14,14 +14,14 @@ class Dataset(models.Model):
     file_mask = models.CharField(max_length=100, blank=True, null=True)
     title = models.CharField(max_length=200, blank=True, null=True)
     short_name = models.CharField(max_length=100, blank=True, null=True)
-    description = models.CharField(max_length=1000, blank=True, null=True)
-    details = models.CharField(max_length=1000, blank=True, null=True)
+    description = models.CharField(max_length=2000, blank=True, null=True)
+    details = models.CharField(max_length=2000, blank=True, null=True)
     tags = ArrayField(
         models.CharField(max_length=100), blank=True, null=True, default=list
     )
-    citation = models.CharField(max_length=500, blank=True, null=True)
-    source_name = models.CharField(max_length=100, blank=True, null=True)
-    source_url = models.CharField(max_length=200, blank=True, null=True)
+    citation = models.CharField(max_length=2000, blank=True, null=True)
+    source_name = models.CharField(max_length=500, blank=True, null=True)
+    source_url = models.CharField(max_length=500, blank=True, null=True)
     other = models.JSONField(blank=True, null=True)
     temporal_start = models.DateTimeField(blank=True, null=True)
     temporal_end = models.DateTimeField(blank=True, null=True)
@@ -36,7 +36,7 @@ class Dataset(models.Model):
     variable_factor = models.FloatField(blank=True, null=True)
     mapped = models.BooleanField(default=False)
     type = models.CharField(max_length=100)
-    processing_class = models.CharField(max_length=50, default='zonal_stats')
+    processing_class = models.CharField(max_length=50, default="zonal_stats")
 
     class Meta:
         db_table = "datasets"

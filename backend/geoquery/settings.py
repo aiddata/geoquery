@@ -29,8 +29,10 @@ if not DEBUG:
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
 if not SECRET_KEY:
-    print("WARNING: DJANGO_SECRET_KEY not set; using insecure default key. "
-        "This is only safe for local development. Set DJANGO_SECRET_KEY in production.")
+    print(
+        "WARNING: DJANGO_SECRET_KEY not set; using insecure default key. "
+        "This is only safe for local development. Set DJANGO_SECRET_KEY in production."
+    )
     print("DEBUG status:", DEBUG)
     if DEBUG:
         print("DEBUG is on; using insecure default key.")
@@ -87,9 +89,6 @@ INSTALLED_APPS = [
     "visualize",
 ]
 
-if PROMETHEUS_ENABLED:
-    INSTALLED_APPS.insert(0, "django_prometheus")
-
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -101,6 +100,25 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+if PROMETHEUS_ENABLED:
+    INSTALLED_APPS.insert(0, "django_prometheus")
+    # The Before/After pair must wrap the whole stack so request latency
+    # covers every other middleware.
+    MIDDLEWARE = (
+        ["django_prometheus.middleware.PrometheusBeforeMiddleware"]
+        + MIDDLEWARE
+        + ["django_prometheus.middleware.PrometheusAfterMiddleware"]
+    )
+    # Metrics are served by a standalone exporter thread on this port rather
+    # than through Django's URLconf, so /metrics is never reachable via the
+    # app port (and thus never public), and scrapes bypass ALLOWED_HOSTS.
+    # The thread binds once per process: the server must run exactly one
+    # Django process per container (uvicorn without --workers).
+    PROMETHEUS_METRICS_EXPORT_PORT = int(os.getenv("PROMETHEUS_METRICS_PORT", "9091"))
+    # The library's default bind address is "", which getaddrinfo rejects on
+    # some systems; bind the wildcard address explicitly.
+    PROMETHEUS_METRICS_EXPORT_ADDRESS = "0.0.0.0"
 
 ROOT_URLCONF = "geoquery.urls"
 
@@ -203,7 +221,7 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = True
 
 # Results
-RESULTS_DIR = Path(os.environ.get("RESULTS_DIR", str(BASE_DIR.parent / "results")))
+REQUESTS_DIR = Path(os.environ.get("REQUESTS_DIR", str(BASE_DIR.parent / "results")))
 ASSETS_DIR = Path(os.environ.get("ASSETS_DIR", str(BASE_DIR.parent / "assets")))
 DOCS_DIR = Path(os.environ.get("DOCS_DIR", str(BASE_DIR.parent / "docs")))
 DOWNLOAD_BASE_URL = os.environ.get("DOWNLOAD_BASE_URL", "http://localhost:8000")
