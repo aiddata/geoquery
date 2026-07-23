@@ -29,8 +29,10 @@ if not DEBUG:
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
 if not SECRET_KEY:
-    print("WARNING: DJANGO_SECRET_KEY not set; using insecure default key. "
-        "This is only safe for local development. Set DJANGO_SECRET_KEY in production.")
+    print(
+        "WARNING: DJANGO_SECRET_KEY not set; using insecure default key. "
+        "This is only safe for local development. Set DJANGO_SECRET_KEY in production."
+    )
     print("DEBUG status:", DEBUG)
     if DEBUG:
         print("DEBUG is on; using insecure default key.")
@@ -219,7 +221,7 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = True
 
 # Results
-RESULTS_DIR = Path(os.environ.get("RESULTS_DIR", str(BASE_DIR.parent / "results")))
+REQUESTS_DIR = Path(os.environ.get("REQUESTS_DIR", str(BASE_DIR.parent / "results")))
 ASSETS_DIR = Path(os.environ.get("ASSETS_DIR", str(BASE_DIR.parent / "assets")))
 DOCS_DIR = Path(os.environ.get("DOCS_DIR", str(BASE_DIR.parent / "docs")))
 DOWNLOAD_BASE_URL = os.environ.get("DOWNLOAD_BASE_URL", "http://localhost:8000")

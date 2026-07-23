@@ -9,14 +9,20 @@ logger = logging.getLogger(__name__)
 @shared_task
 def manage_processing_task_errors():
     """Reset errored extract tasks (status=-1) back to pending for retry."""
-    from analytics.management.commands.manage_processing_task_errors import _manage_processing_task_errors
+    from analytics.management.commands.manage_processing_task_errors import (
+        _manage_processing_task_errors,
+    )
+
     _manage_processing_task_errors(error_values=-1)
 
 
 @shared_task
 def free_stale_processing_tasks():
     """Reset extract tasks stuck in locked (status=2) back to pending (status=0)."""
-    from analytics.management.commands.free_stale_processing_tasks import _free_stale_tasks
+    from analytics.management.commands.free_stale_processing_tasks import (
+        _free_stale_tasks,
+    )
+
     stale_minutes = getattr(settings, "STALE_TASK_MINUTES", 30)
     freed = _free_stale_tasks(stale_minutes)
     logger.info("Freed %d stale extract tasks", freed)
@@ -27,17 +33,22 @@ def free_stale_processing_tasks():
 def dispatch_processing_tasks():
     """Dispatch pending extract tasks (status=0) to Celery workers."""
     from analytics.management.commands.run_processing_tasks import _run_processing_tasks
+
     return _run_processing_tasks()
 
 
 @shared_task
 def process_user_requests():
     """Check request queue and advance any requests that are ready."""
-    from analytics.management.commands.manage_user_requests import _manage_user_requests
     from django.conf import settings
+
+    from analytics.management.commands.manage_user_requests import _manage_user_requests
+
     _manage_user_requests(
-        download_server=getattr(settings, "DOWNLOAD_BASE_URL", "geoquery.aiddata.wm.edu"),
-        results_dir=str(settings.RESULTS_DIR),
+        download_server=getattr(
+            settings, "DOWNLOAD_BASE_URL", "geoquery.aiddata.wm.edu"
+        ),
+        requests_dir=str(settings.REQUESTS_DIR),
         assets_dir=str(settings.ASSETS_DIR),
     )
 
@@ -46,7 +57,12 @@ def process_user_requests():
 def build_stats_report():
     """Regenerate the HTML statistics report."""
     from stats.builder import StatsBuilder
-    output = getattr(settings, "STATS_REPORT_PATH", str(settings.RESULTS_DIR / "geoquery_stats.html"))
+
+    output = getattr(
+        settings,
+        "STATS_REPORT_PATH",
+        str(settings.REQUESTS_DIR / "geoquery_stats.html"),
+    )
     status = StatsBuilder(output).build()
     logger.info("Stats report build: %s", status)
     return {"status": status}
@@ -56,13 +72,18 @@ def build_stats_report():
 def build_extract_tasks():
     """Create ExtractTask rows for any covered (status=1) dataset/feature pairs that don't have one yet."""
     from analytics.management.commands.build_extract_tasks import _build_extract_tasks
+
     return _build_extract_tasks()
 
 
 @shared_task
 def sweep_coverage_records():
     """Create any missing coverage records and dispatch checks for unchecked ones."""
-    from analytics.tasks.coverage import create_missing_coverage_records, run_missing_coverage_checks
+    from analytics.tasks.coverage import (
+        create_missing_coverage_records,
+        run_missing_coverage_checks,
+    )
+
     result = create_missing_coverage_records()
     logger.info("Coverage sweep created %d missing records", result.get("created", 0))
     run_missing_coverage_checks(sync=False)
@@ -73,4 +94,11 @@ def sweep_coverage_records():
 def run_user_outreach():
     """Flag users who qualify for outreach (manual mode, default criteria)."""
     from analytics.management.commands.run_user_outreach import _run_user_outreach
-    _run_user_outreach(n_days=365, request_count=3, earliest_request=14, latest_request=7, mode="manual")
+
+    _run_user_outreach(
+        n_days=365,
+        request_count=3,
+        earliest_request=14,
+        latest_request=7,
+        mode="manual",
+    )

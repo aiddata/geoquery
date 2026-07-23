@@ -19,9 +19,9 @@ from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path, re_path
 from django.views.static import serve
+from stats.views import stats_view, workers_view
 
 from geoquery.views import ConfigView
-from stats.views import stats_view, workers_view
 
 urlpatterns = [
     path("stats/", stats_view, name="stats"),
@@ -39,6 +39,6 @@ if settings.DEBUG:
         re_path(
             r"^results/(?P<path>.*)$",
             serve,
-            {"document_root": settings.RESULTS_DIR},
+            {"document_root": settings.REQUESTS_DIR},
         ),
     ]

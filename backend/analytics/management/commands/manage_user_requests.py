@@ -2,8 +2,9 @@
 Manage processing of user requests
 Includes: updating status, handling errors, queue management and task submissions, doc/request building, emails, etc.)
 """
-import os
+
 import json
+import os
 import shutil
 import textwrap
 import time
@@ -11,16 +12,16 @@ import zipfile
 from logging import getLogger
 from pathlib import Path
 
+from datasets.models import Dataset, DatasetResource
 from django.core.management.base import BaseCommand
 from django.db import connection, transaction
 from django.utils import timezone
+from features.models import FeatMap, Feature, FeatureCollection
 
-from datasets.models import Dataset, DatasetResource
-from features.models import Feature, FeatMap, FeatureCollection
 from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
-from analytics.tasks.email import GeoEmail
 from analytics.tasks.documentation import DocBuilder
-from analytics.tasks.merge import merge_task_results, merge_task_features
+from analytics.tasks.email import GeoEmail
+from analytics.tasks.merge import merge_task_features, merge_task_results
 
 logger = getLogger(__name__)
 
@@ -48,7 +49,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--results-dir",
             default=None,
-            help="The directory containing results for the request (default: settings.RESULTS_DIR)",
+            help="The directory containing results for the request (default: settings.REQUESTS_DIR)",
         )
         parser.add_argument(
             "--assets-dir",
@@ -58,10 +59,11 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         from django.conf import settings
+
         _manage_user_requests(
             request_id=options["id"] or None,
             download_server=options["download_server"],
-            results_dir=options["results_dir"] or str(settings.RESULTS_DIR),
+            requests_dir=options["requests_dir"] or str(settings.REQUESTS_DIR),
             assets_dir=options["assets_dir"] or str(settings.ASSETS_DIR),
             dry_run=options["dry_run"],
         )
@@ -70,11 +72,13 @@ class Command(BaseCommand):
 def _manage_user_requests(
     request_id=None,
     download_server="geoquery.aiddata.wm.edu",
-    results_dir="/results",
+    requests_dir="/results",
     assets_dir="../assets",
     dry_run=False,
 ):
-    logger.info("Starting User Request Management Script %s", time.strftime("%Y-%m-%d %H:%M:%S"))
+    logger.info(
+        "Starting User Request Management Script %s", time.strftime("%Y-%m-%d %H:%M:%S")
+    )
 
     if request_id:
         logger.info("Processing request with id: %s", request_id)
@@ -90,8 +94,12 @@ def _manage_user_requests(
             return
         request_objects.append(request)
     else:
-        request_objects += list(Request.objects.filter(status=-1).order_by("-priority", "submit_time"))
-        request_objects += list(Request.objects.filter(status=0).order_by("-priority", "submit_time"))
+        request_objects += list(
+            Request.objects.filter(status=-1).order_by("-priority", "submit_time")
+        )
+        request_objects += list(
+            Request.objects.filter(status=0).order_by("-priority", "submit_time")
+        )
 
     if not request_objects:
         logger.warning("Request queue is empty")
@@ -113,28 +121,48 @@ def _manage_user_requests(
                     _request_error(request_id, "Invalid request (missing features)")
                     continue
                 if not request_obj.data["datasets"]:
-                    _request_error(request_id, "Invalid request (missing dataset details)")
+                    _request_error(
+                        request_id, "Invalid request (missing dataset details)"
+                    )
                     continue
 
-                logger.info("Features: %s (%s)", request_obj.data["selection_label"], request_obj.data["selection_label"])
+                logger.info(
+                    "Features: %s (%s)",
+                    request_obj.data["selection_label"],
+                    request_obj.data["selection_label"],
+                )
 
                 original_status = Request.objects.get(id=request_id).status
 
                 if original_status == -1:
-                    Request.objects.filter(id=request_id).update(prepare_time=timezone.now())
+                    Request.objects.filter(id=request_id).update(
+                        prepare_time=timezone.now()
+                    )
                     send_received_email = True
 
-                Request.objects.filter(id=request_id).update(status=2, process_time=timezone.now())
+                Request.objects.filter(id=request_id).update(
+                    status=2, process_time=timezone.now()
+                )
 
-                missing_items, merge_list = _check_request_tasks(request_obj, dry_run=dry_run)
+                missing_items, merge_list = _check_request_tasks(
+                    request_obj, dry_run=dry_run
+                )
 
                 if missing_items > 0:
                     Request.objects.filter(id=request_id).update(status=0)
                     logger.warning("Request not ready (id: %s)", request_id)
                 else:
                     updated_request_obj = Request.objects.get(id=request_id)
-                    _build_output(updated_request_obj, merge_list, download_server, results_dir, assets_dir)
-                    Request.objects.filter(id=request_id).update(status=1, complete_time=timezone.now())
+                    _build_output(
+                        updated_request_obj,
+                        merge_list,
+                        download_server,
+                        requests_dir,
+                        assets_dir,
+                    )
+                    Request.objects.filter(id=request_id).update(
+                        status=1, complete_time=timezone.now()
+                    )
                     completed_request_obj = updated_request_obj
                     logger.info("Request completed (id: %s)", request_id)
 
@@ -143,11 +171,19 @@ def _manage_user_requests(
 
         except Exception as e:
             # include full traceback in the log for debugging purposes
-            logger.exception("Unhandled exception while processing request (id: %s): %s", request_id, e)
+            logger.exception(
+                "Unhandled exception while processing request (id: %s): %s",
+                request_id,
+                e,
+            )
             try:
                 _request_error(request_id, f"Unhandled exception: {e}")
             except Exception as err:
-                logger.error("Failed to set error status for request (id: %s): %s", request_id, err)
+                logger.error(
+                    "Failed to set error status for request (id: %s): %s",
+                    request_id,
+                    err,
+                )
             logger.error("Skipping request (id: %s) due to error", request_id)
             continue
 
@@ -157,20 +193,39 @@ def _manage_user_requests(
             try:
                 _notify_user(request_id, request_obj.contact, 0, download_server)
             except Exception as e:
-                logger.error("Failed to send received notification for request (id: %s): %s", request_id, e)
+                logger.error(
+                    "Failed to send received notification for request (id: %s): %s",
+                    request_id,
+                    e,
+                )
 
         if completed_request_obj is not None and not dry_run:
             try:
-                _notify_user(request_id, completed_request_obj.contact, 1, download_server)
+                _notify_user(
+                    request_id, completed_request_obj.contact, 1, download_server
+                )
             except Exception as e:
                 # Data is built but user was never notified — mark as error so it surfaces for manual intervention.
-                logger.error("Failed to send completion notification for request (id: %s): %s", request_id, e)
+                logger.error(
+                    "Failed to send completion notification for request (id: %s): %s",
+                    request_id,
+                    e,
+                )
                 try:
-                    _request_error(request_id, f"Completion notification failed (data is ready): {e}")
+                    _request_error(
+                        request_id,
+                        f"Completion notification failed (data is ready): {e}",
+                    )
                 except Exception as err:
-                    logger.error("Failed to set error status for request (id: %s): %s", request_id, err)
+                    logger.error(
+                        "Failed to set error status for request (id: %s): %s",
+                        request_id,
+                        err,
+                    )
 
-    logger.info("Finished User Request Management Script %s", time.strftime("%Y-%m-%d %H:%M:%S"))
+    logger.info(
+        "Finished User Request Management Script %s", time.strftime("%Y-%m-%d %H:%M:%S")
+    )
 
 
 def _request_error(request_id, message):
@@ -181,7 +236,9 @@ def _request_error(request_id, message):
 def _notify_user(request_id, mail_to, status, download_server):
     """Send email that request was received (status=0) or completed (status=1)."""
     if status not in [0, 1]:
-        raise ValueError(f"Invalid status for _notify_user: {status}. Status must be 0 or 1.")
+        raise ValueError(
+            f"Invalid status for _notify_user: {status}. Status must be 0 or 1."
+        )
 
     status_text = "Received" if status == 0 else "Completed"
     mail_subject = f"AidData GeoQuery- Request {request_id[:7]}.. {status_text}"
@@ -253,7 +310,11 @@ def _check_request_tasks(request, dry_run=False):
     for task_item in task_list:
         extract_task = ExtractTask.objects.filter(id=task_item.task_id).first()
         if extract_task is None:
-            logger.error("Extract task %s not found for request %s", task_item.task_id, request.id)
+            logger.error(
+                "Extract task %s not found for request %s",
+                task_item.task_id,
+                request.id,
+            )
             pending_task_count += 1
             continue
         if extract_task.status != 1:
@@ -268,13 +329,13 @@ def _check_request_tasks(request, dry_run=False):
     return pending_task_count, completed_task_list
 
 
-def _build_output(request, task_list, download_server, results_dir, assets_dir):
+def _build_output(request, task_list, download_server, requests_dir, assets_dir):
     """Merge extracts, generate documentation, build zip."""
-    results_dir = Path(results_dir)
+    requests_dir = Path(requests_dir)
     assets_dir = Path(assets_dir)
 
     request_id = str(request.id)
-    request_dir = results_dir / request_id
+    request_dir = requests_dir / request_id
 
     shutil.rmtree(request_dir, ignore_errors=True)
     request_dir.mkdir(parents=True, exist_ok=True)
@@ -285,14 +346,18 @@ def _build_output(request, task_list, download_server, results_dir, assets_dir):
 
     merge_status, merge_df = merge_task_results(task_list)
     if merge_status != "Success":
-        raise Exception(f"No extracts merged for request {request_id}. Merge status: {merge_status}")
+        raise Exception(
+            f"No extracts merged for request {request_id}. Merge status: {merge_status}"
+        )
     logger.info("Merge completed for request %s", request_id)
     merge_df.to_csv(request_csv, index=False)
 
     doc = DocBuilder(request, request_documentation, download_server)
     bd_status = doc.build_doc()
     if bd_status != "Success":
-        raise Exception(f"Error building documentation for request {request_id}. Status: {bd_status}")
+        raise Exception(
+            f"Error building documentation for request {request_id}. Status: {bd_status}"
+        )
     logger.info("Documentation generated for request %s", request_id)
 
     with open(request_json, "w") as rdoc_file:
@@ -313,7 +378,9 @@ def _build_output(request, task_list, download_server, results_dir, assets_dir):
     elif features_status == "Empty":
         logger.info("No features to merge for request %s", request_id)
     else:
-        raise Exception(f"Error merging features for request {request_id}. Status: {features_status}")
+        raise Exception(
+            f"Error merging features for request {request_id}. Status: {features_status}"
+        )
 
     make_zipfile(request_dir, request_dir)
     shutil.move(str(request_dir) + ".zip", str(request_dir))
@@ -337,7 +404,9 @@ def make_zipfile(base_name, base_dir):
     zip_filename = Path(str(base_name) + ".zip")
     archive_dir = zip_filename.parent
     archive_dir.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(zip_filename, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
+    with zipfile.ZipFile(
+        zip_filename, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True
+    ) as zf:
         length = len(str(base_dir))
         for dirpath, dirnames, filenames in os.walk(base_dir):
             folder = dirpath[length:]
