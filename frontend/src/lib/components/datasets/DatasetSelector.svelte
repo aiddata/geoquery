@@ -156,7 +156,7 @@
 									{dataset.title ?? dataset.name}
 								</p>
 								<div class="mt-0.5 flex items-center gap-1.5">
-									<p class="text-xs text-muted-foreground">Raster</p>
+									<p class="text-xs text-muted-foreground">{dataset.processing_class === 'filter_and_agg' ? 'Feature' : 'Raster'}</p>
 									{#if outOfRangeNames.has(dataset.name)}
 										<span class="rounded px-1 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700">out of range</span>
 									{/if}
