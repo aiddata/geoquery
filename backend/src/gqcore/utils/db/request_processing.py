@@ -326,7 +326,7 @@ def notify_completed(request_id, request_contact):
         \thttp://{0}/query/#!/status/{1}    \n
 
         Or download the results directly (this link will always be available):
-        \thttp://{0}/data/geoquery_results/{1}/{1}.zip  \n
+        \thttp://{0}/results/{1}/{1}.zip  \n
 
         You can also view all your current and previous requests using:
         \thttp://{0}/query/#!/requests/{2}  \n

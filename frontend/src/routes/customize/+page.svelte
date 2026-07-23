@@ -28,6 +28,7 @@
 	import DatasetSelector from '$lib/components/datasets/DatasetSelector.svelte';
 	import RasterOptions from '$lib/components/datasets/RasterOptions.svelte';
 	import FilterAndAggOptions from '$lib/components/datasets/FilterAndAggOptions.svelte';
+	import OutcomeSelector from '$lib/components/datasets/OutcomeSelector.svelte';
 	import SelectionSummary from '$lib/components/datasets/SelectionSummary.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { ChevronLeft, ArrowRight } from '@lucide/svelte';
@@ -126,6 +127,21 @@
 
 	// Filter-and-agg state
 	let filterSelections = $state<Record<string, FilterSelection>>({});
+	let selectedOutcome = $state<string>('');
+
+	function buildFilterKwargs(
+		selections: Record<string, FilterSelection>,
+		filters: Record<string, DatasetFilter> | null,
+		outcome: string
+	): Record<string, unknown> {
+		const kwargs: Record<string, unknown> = {};
+		if (outcome) kwargs.outcome = outcome;
+		for (const [key, sel] of Object.entries(selections)) {
+			const aggregate = filters?.[key]?.aggregate ?? true;
+			kwargs[key] = { ...sel, aggregate };
+		}
+		return kwargs;
+	}
 
 	function initFilterSelections(filters: Record<string, DatasetFilter>): Record<string, FilterSelection> {
 		const s: Record<string, FilterSelection> = {};
@@ -142,6 +158,12 @@
 	$effect(() => {
 		if (selectedDatasetDetail?.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters) {
 			filterSelections = initFilterSelections(selectedDatasetDetail.filters);
+		}
+		if (selectedDatasetDetail?.outcomes) {
+			const keys = Object.keys(selectedDatasetDetail.outcomes);
+			selectedOutcome = keys[0] ?? '';
+		} else {
+			selectedOutcome = '';
 		}
 	});
 
@@ -213,7 +235,7 @@
 			...(isFilterAndAgg
 				? {
 					filterSelections: { ...filterSelections },
-					kwargs: { ...filterSelections },
+					kwargs: buildFilterKwargs(filterSelections, selectedDatasetDetail.filters, selectedOutcome),
 				}
 				: {
 					extractTypes: [...rasterOptions.extractTypes],
@@ -237,6 +259,9 @@
 	function handleReset() {
 		if (selectedDatasetDetail?.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters) {
 			filterSelections = initFilterSelections(selectedDatasetDetail.filters);
+			if (selectedDatasetDetail.outcomes) {
+				selectedOutcome = Object.keys(selectedDatasetDetail.outcomes)[0] ?? '';
+			}
 		} else {
 			rasterOptions = { extractTypes: [], resources: [] };
 		}
@@ -331,6 +356,13 @@
 
 					<!-- Configuration area -->
 					{#if selectedDatasetDetail.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters}
+						{#if selectedDatasetDetail.outcomes}
+							<OutcomeSelector
+								outcomes={selectedDatasetDetail.outcomes}
+								selected={selectedOutcome}
+								onSelect={(key) => (selectedOutcome = key)}
+							/>
+						{/if}
 						<FilterAndAggOptions
 							filters={selectedDatasetDetail.filters}
 							selections={filterSelections}

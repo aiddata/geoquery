@@ -47,21 +47,22 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--results-dir",
-            default="../results",
-            help="The directory containing results for the request",
+            default=None,
+            help="The directory containing results for the request (default: settings.RESULTS_DIR)",
         )
         parser.add_argument(
             "--assets-dir",
-            default="../assets",
-            help="The directory containing assets for the request (e.g. documentation templates, example docs, etc.)",
+            default=None,
+            help="The directory containing assets for the request (default: settings.ASSETS_DIR)",
         )
 
     def handle(self, *args, **options):
+        from django.conf import settings
         _manage_user_requests(
             request_id=options["id"] or None,
             download_server=options["download_server"],
-            results_dir=options["results_dir"],
-            assets_dir=options["assets_dir"],
+            results_dir=options["results_dir"] or str(settings.RESULTS_DIR),
+            assets_dir=options["assets_dir"] or str(settings.ASSETS_DIR),
             dry_run=options["dry_run"],
         )
 
@@ -69,7 +70,7 @@ class Command(BaseCommand):
 def _manage_user_requests(
     request_id=None,
     download_server="geoquery.aiddata.wm.edu",
-    results_dir="../results",
+    results_dir="/results",
     assets_dir="../assets",
     dry_run=False,
 ):
@@ -209,7 +210,7 @@ def _notify_user(request_id, mail_to, status, download_server):
         \thttp://{download_server}/query/#!/status/{request_id}
 
         Or download the results directly (this link will always be available):
-        \thttp://{download_server}/data/geoquery_results/{request_id}/{request_id}.zip
+        \thttp://{download_server}/results/{request_id}/{request_id}.zip
 
         You can also view all your current and previous requests using:
         \thttp://{download_server}/query/#!/requests/{mail_to}

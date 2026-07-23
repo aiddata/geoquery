@@ -75,6 +75,12 @@ def get_raster_bbox(path) -> shapely.Geometry:
     with rasterio.open(path, "r") as raster:
         return box(*raster.bounds)
 
+def get_vector_bbox(path) -> shapely.Geometry:
+    """Return a shapely box for the spatial extent of a vector file."""
+    logger.debug(f"Retrieving bounds of vector at {path}")
+    gdf = gpd.read_file(path)
+    return box(*gdf.total_bounds)
+
 
 def _identify_and_create_resources(dataset: Dataset, dataset_path: Path):
     """Scan the filesystem for raster files and create DatasetResource rows.
@@ -82,6 +88,8 @@ def _identify_and_create_resources(dataset: Dataset, dataset_path: Path):
     Returns a dict of derived dataset-level fields (temporal range, spatial extent).
     """
     file_mask = dataset.file_mask
+    if file_mask in [None, "None", "null"]:
+        file_mask = None
     file_extension = dataset.file_extension
 
     if not dataset_path.is_dir():
@@ -89,7 +97,7 @@ def _identify_and_create_resources(dataset: Dataset, dataset_path: Path):
     else:
         file_list = list(dataset_path.rglob("*" + file_extension))
 
-    if file_mask in [None, "None", "null"] and len(file_list) != 1:
+    if file_mask is None and len(file_list) != 1:
         raise ValueError("Multiple files found, but no file mask specified")
     if not file_list:
         raise ValueError("No files found")
@@ -100,13 +108,18 @@ def _identify_and_create_resources(dataset: Dataset, dataset_path: Path):
     for f in file_list:
         resource_path = os.path.relpath(f, dataset_path)
 
-        try:
-            spatial_bbox = get_raster_bbox(f)
-        except:
+        if dataset.type == "raster":
             try:
-                spatial_bbox = box(*gpd.read_file(f).total_bounds)
+                spatial_bbox = get_raster_bbox(f)
             except Exception as e:
-                raise ValueError(f"Could not determine spatial extent for file {f}")
+                print(f"Could not determine spatial extent for raster file {f}")
+                raise
+        elif dataset.type == "vector" or dataset.type == "feature":
+            try:
+                spatial_bbox = get_vector_bbox(f)
+            except Exception as e:
+                print(f"Could not determine spatial extent for vector file {f}")
+                raise
 
         spatial_extent_bboxes.append(spatial_bbox)
         spatial_wkt = spatial_bbox.wkt

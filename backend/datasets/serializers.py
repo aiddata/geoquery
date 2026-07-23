@@ -43,6 +43,7 @@ class DatasetDetailSerializer(serializers.ModelSerializer):
     resources = DatasetResourceSerializer(many=True, read_only=True)
     extract_types = serializers.SerializerMethodField()
     filters = serializers.SerializerMethodField()
+    outcomes = serializers.SerializerMethodField()
 
     class Meta:
         model = Dataset
@@ -64,6 +65,7 @@ class DatasetDetailSerializer(serializers.ModelSerializer):
             "resources",
             "extract_types",
             "filters",
+            "outcomes",
         ]
 
     def get_extract_types(self, obj):
@@ -76,4 +78,9 @@ class DatasetDetailSerializer(serializers.ModelSerializer):
     def get_filters(self, obj):
         if obj.other and isinstance(obj.other, dict):
             return obj.other.get("filters")
+        return None
+
+    def get_outcomes(self, obj):
+        if obj.other and isinstance(obj.other, dict):
+            return obj.other.get("outcomes")
         return None
