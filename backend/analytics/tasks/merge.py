@@ -54,6 +54,12 @@ def merge_task_results(task_list):
         geom_id = fm_item.geom_id
         dr_name = DatasetResource.objects.filter(id=task_item.resource_id).first().name
 
+        # Feature datasets (single GPKG, no file mask) get resource name
+        # "{dataset}_none". Substitute the outcome field from task kwargs so
+        # the CSV column reads "acled_event_count.*" instead of "acled_none.*".
+        if dr_name.endswith("_none") and task_item.kwargs and "outcome" in task_item.kwargs:
+            dr_name = f"{dr_name[:-5]}_{task_item.kwargs['outcome']}"
+
         key = (fc_name, geom_id)
         if key not in rows:
             row_base = {"feature_collection": fc_name, "geom_id": geom_id}
