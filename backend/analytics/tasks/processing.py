@@ -99,29 +99,30 @@ def run_extract_task(task_id):
         task.update_time = now()
         task.save(update_fields=["status", "update_time"])
 
-    dataset = task.resource.dataset
-    dataset_path = Path(dataset.path) / task.resource.path
-    func = get_func(task.po.function)
-
-    geometry = shapely.from_wkb(bytes(task.fm.geom.shape.wkb))
-
-    op_kwargs = {"name": task.po.short_name}
-    if task.po.kwargs:
-        op_kwargs.update(task.po.kwargs)
-    if task.kwargs:
-        op_kwargs.update(task.kwargs)
-        kwargs_hash = hashlib.md5(
-            json.dumps(task.kwargs, sort_keys=True).encode()
-        ).hexdigest()[:8]
-        op_kwargs["name"] = f"{task.po.short_name}_{kwargs_hash}"
-
-    if dataset.mapped:
-        op_kwargs["category_map"] = dict(
-            dataset.mappings.values_list("map_val", "map_name")
-        )
-
-    # Execute the processor function
+    # Everything from here through result storage can raise; catch all of it so
+    # the task is marked -1 rather than left stranded at status=2.
     try:
+        dataset = task.resource.dataset
+        dataset_path = Path(dataset.path) / task.resource.path
+        func = get_func(task.po.function)
+
+        geometry = shapely.from_wkb(bytes(task.fm.geom.shape.wkb))
+
+        op_kwargs = {"name": task.po.short_name}
+        if task.po.kwargs:
+            op_kwargs.update(task.po.kwargs)
+        if task.kwargs:
+            op_kwargs.update(task.kwargs)
+            kwargs_hash = hashlib.md5(
+                json.dumps(task.kwargs, sort_keys=True).encode()
+            ).hexdigest()[:8]
+            op_kwargs["name"] = f"{task.po.short_name}_{kwargs_hash}"
+
+        if dataset.mapped:
+            op_kwargs["category_map"] = dict(
+                dataset.mappings.values_list("map_val", "map_name")
+            )
+
         with catch_warnings(record=True) as warnings:
             results = func(geometry, dataset_path, **op_kwargs)
             for w in warnings:
