@@ -3,7 +3,9 @@ import secrets
 import uuid
 from datetime import timedelta
 
+from django.conf import settings
 from django.db import models
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 from datasets.models import Dataset, DatasetResource
@@ -137,8 +139,24 @@ class Request(models.Model):
 
     data = models.JSONField(blank=True, null=True)
 
+    # Account that owns this request. Set directly for authenticated
+    # submissions; backfilled onto historical rows when a user verifies an
+    # email address matching `contact` (see accounts.claims).
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="requests",
+        db_column="user_id",
+    )
+
     class Meta:
         db_table = "requests"
+        indexes = [
+            # Claims and history lookups match contact case-insensitively.
+            models.Index(Lower("contact"), name="requests_contact_lower_idx"),
+        ]
 
     def __str__(self):
         return f"Request {self.id}: {self.custom_name or 'unnamed'}"

@@ -2,6 +2,7 @@
 Ingest helpers for user-uploaded custom boundaries submitted with a data request.
 Features are created via bulk_create to bypass Django signals intentionally.
 """
+
 import json
 import uuid
 
@@ -20,6 +21,7 @@ def ingest_custom_boundary(
     selection_label: str | None,
     selection_detail: str | None,
     upload_metadata: dict | None = None,
+    user=None,
 ) -> tuple[Request, int, list[str]]:
     """
     Ingest a user-uploaded GeoJSON FeatureCollection and create a Request.
@@ -61,21 +63,25 @@ def ingest_custom_boundary(
         feature_objs_list.append(Feature(shape=shape))
 
     if skipped:
-        warnings.append(f"{skipped} feature(s) skipped due to null or invalid geometry.")
+        warnings.append(
+            f"{skipped} feature(s) skipped due to null or invalid geometry."
+        )
 
     feature_objs = Feature.objects.bulk_create(feature_objs_list)
 
-    feat_map_objs = FeatMap.objects.bulk_create([
-        FeatMap(
-            fc=fc,
-            geom=feature,
-            name=(raw["properties"] or {}).get("name")
-                 or (raw["properties"] or {}).get("NAME")
-                 or None,
-            attr=raw.get("properties") or None,
-        )
-        for feature, raw in zip(feature_objs, valid_raw)
-    ])
+    feat_map_objs = FeatMap.objects.bulk_create(
+        [
+            FeatMap(
+                fc=fc,
+                geom=feature,
+                name=(raw["properties"] or {}).get("name")
+                or (raw["properties"] or {}).get("NAME")
+                or None,
+                attr=raw.get("properties") or None,
+            )
+            for feature, raw in zip(feature_objs, valid_raw)
+        ]
+    )
 
     all_task_ids: set[int] = set()
     valid_datasets: list[dict] = []
@@ -99,7 +105,9 @@ def ingest_custom_boundary(
         if resources_filter:
             resource_qs = resource_qs.filter(name__in=resources_filter)
 
-        po_qs = ProcessingOption.objects.filter(dataset=dataset_obj, active=True, public=True)
+        po_qs = ProcessingOption.objects.filter(
+            dataset=dataset_obj, active=True, public=True
+        )
         if extract_types:
             po_qs = po_qs.filter(short_name__in=extract_types)
 
@@ -112,12 +120,15 @@ def ingest_custom_boundary(
             )
             continue
 
-        ExtractTask.objects.bulk_create([
-            ExtractTask(resource=resource, fm=fm, po=po, kwargs=task_kwargs)
-            for fm in feat_map_objs
-            for resource in resources
-            for po in pos
-        ], ignore_conflicts=True)
+        ExtractTask.objects.bulk_create(
+            [
+                ExtractTask(resource=resource, fm=fm, po=po, kwargs=task_kwargs)
+                for fm in feat_map_objs
+                for resource in resources
+                for po in pos
+            ],
+            ignore_conflicts=True,
+        )
 
         task_ids = list(
             ExtractTask.objects.filter(
@@ -127,14 +138,16 @@ def ingest_custom_boundary(
         )
         all_task_ids.update(task_ids)
 
-        valid_datasets.append({
-            "dataset_name": dataset_name,
-            "dataset_type": (ds.get("datasetType") or "").strip() or None,
-            "extract_types": extract_types,
-            "resources": resources_filter,
-            "resource_labels": ds.get("resourceLabels") or [],
-            "kwargs": task_kwargs,
-        })
+        valid_datasets.append(
+            {
+                "dataset_name": dataset_name,
+                "dataset_type": (ds.get("datasetType") or "").strip() or None,
+                "extract_types": extract_types,
+                "resources": resources_filter,
+                "resource_labels": ds.get("resourceLabels") or [],
+                "kwargs": task_kwargs,
+            }
+        )
 
     if not all_task_ids:
         raise ValueError(
@@ -146,6 +159,7 @@ def ingest_custom_boundary(
     req = Request.objects.create(
         contact=contact,
         custom_name=name or None,
+        user=user,
         source="web_custom",
         status=-1,
         data={
@@ -161,9 +175,8 @@ def ingest_custom_boundary(
         },
     )
 
-    RequestMap.objects.bulk_create([
-        RequestMap(request=req, task_id=task_id)
-        for task_id in all_task_ids
-    ])
+    RequestMap.objects.bulk_create(
+        [RequestMap(request=req, task_id=task_id) for task_id in all_task_ids]
+    )
 
     return req, len(all_task_ids), warnings

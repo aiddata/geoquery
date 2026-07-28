@@ -1,5 +1,3 @@
-
-
 import time
 from datetime import datetime, timedelta
 from typing import Union
@@ -44,41 +42,45 @@ class Command(BaseCommand):
         )
 
 
-def _manage_processing_task_errors(error_values: Union[int, str], dry_run: bool = False):
-        if isinstance(error_values, int):
-            error_values = [error_values]
-        else:
-            error_values = [int(val.strip()) for val in error_values.split(",")]
+def _manage_processing_task_errors(
+    error_values: Union[int, str], dry_run: bool = False
+):
+    if isinstance(error_values, int):
+        error_values = [error_values]
+    else:
+        error_values = [int(val.strip()) for val in error_values.split(",")]
 
-        with connection.cursor() as cursor:
-            for ev in error_values:
-                if dry_run:
-                    cursor.execute(
-                        """
+    with connection.cursor() as cursor:
+        for ev in error_values:
+            if dry_run:
+                cursor.execute(
+                    """
                         SELECT COUNT(*) FROM extract_tasks
                         WHERE status = %s
                         """,
-                        [ev],
-                    )
-                    count = cursor.fetchone()[0]
-                    logger.info(
-                            f"Would update {count} tasks with status {ev} (disable --dry-run to actually update them)"
-                    )
+                    [ev],
+                )
+                count = cursor.fetchone()[0]
+                logger.info(
+                    f"Would update {count} tasks with status {ev} (disable --dry-run to actually update them)"
+                )
 
-                else:
-                    cursor.execute(
-                        """
+            else:
+                cursor.execute(
+                    """
                         UPDATE extract_tasks
                         SET status = 0, attempts = attempts + 1, update_time = NOW()
                         WHERE status = %s
                         """,
-                        [ev],
-                    )
-                    updated = cursor.rowcount
-                    updated = updated if updated is not None else 0  # rowcount can be None in some cases
+                    [ev],
+                )
+                updated = cursor.rowcount
+                updated = (
+                    updated if updated is not None else 0
+                )  # rowcount can be None in some cases
 
-                    logger.info(
-                        f"Updated {updated} tasks with status {ev} to pending and incremented attempts"
-                    )
+                logger.info(
+                    f"Updated {updated} tasks with status {ev} to pending and incremented attempts"
+                )
 
-        return
+    return

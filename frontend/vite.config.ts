@@ -14,13 +14,16 @@ export default defineConfig({
       usePolling: true,
     },
     proxy: {
+      // changeOrigin must stay false: Django builds absolute URLs (e.g. the
+      // GitHub OAuth redirect_uri) from the Host header, which must be the
+      // browser-facing origin (localhost:5173), not the proxy target.
       "/api": {
         target: process.env.API_URL || "http://localhost:8000",
-        changeOrigin: true,
+        changeOrigin: false,
       },
       "/stats": {
         target: process.env.API_URL || "http://localhost:8000",
-        changeOrigin: true,
+        changeOrigin: false,
       },
     },
   },

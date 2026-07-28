@@ -27,6 +27,12 @@ urlpatterns = [
     path("stats/", stats_view, name="stats"),
     path("stats/workers/", workers_view, name="stats-workers"),
     path("admin/", admin.site.urls),
+    # Headless JSON auth API for the SPA: /api/_allauth/browser/v1/...
+    path("api/_allauth/", include("allauth.headless.urls")),
+    # Regular allauth URLs are still needed for the OAuth provider
+    # redirect/callback round-trip; HEADLESS_ONLY prunes the HTML views.
+    path("api/accounts/", include("allauth.urls")),
+    path("api/auth/", include("accounts.urls")),
     path("api/config/", ConfigView.as_view(), name="config"),
     path("api/features/", include("features.urls")),
     path("api/datasets/", include("datasets.urls")),

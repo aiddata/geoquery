@@ -6,9 +6,9 @@ from datasets.models import Dataset, DatasetResource
 from features.models import Feature, FeatMap, FeatureCollection
 from analytics.models import ExtractTask, ExtractData, ProcessingOption
 
+
 def merge_task_features(task_list):
-    """build a GeoDataFrame of unique features covered by the given extract tasks
-    """
+    """build a GeoDataFrame of unique features covered by the given extract tasks"""
     fm_ids = (
         ExtractTask.objects.filter(id__in=task_list)
         .values_list("fm_id", flat=True)
@@ -23,11 +23,13 @@ def merge_task_features(task_list):
         django_geom = Feature.objects.filter(id=geom_id).first()
         geom = shapely.from_wkb(bytes(django_geom.shape.wkb))
 
-        dict_list.append({
-            "feature_collection": fc_name,
-            "geom_id": geom_id,
-            "geometry": geom,
-        })
+        dict_list.append(
+            {
+                "feature_collection": fc_name,
+                "geom_id": geom_id,
+                "geometry": geom,
+            }
+        )
 
     if not dict_list:
         return "Empty", None
@@ -38,11 +40,9 @@ def merge_task_features(task_list):
 
 
 def merge_task_results(task_list):
-    """merge processing task results for the given extract task list
-    """
+    """merge processing task results for the given extract task list"""
     rows = {}
     for task_id in task_list:
-
         task_item = ExtractTask.objects.filter(id=task_id).first()
         task_data = ExtractData.objects.filter(extract_task_id=task_id)
 
@@ -57,7 +57,11 @@ def merge_task_results(task_list):
         # Feature datasets (single GPKG, no file mask) get resource name
         # "{dataset}_none". Substitute the outcome field from task kwargs so
         # the CSV column reads "acled_event_count.*" instead of "acled_none.*".
-        if dr_name.endswith("_none") and task_item.kwargs and "outcome" in task_item.kwargs:
+        if (
+            dr_name.endswith("_none")
+            and task_item.kwargs
+            and "outcome" in task_item.kwargs
+        ):
             dr_name = f"{dr_name[:-5]}_{task_item.kwargs['outcome']}"
 
         key = (fc_name, geom_id)

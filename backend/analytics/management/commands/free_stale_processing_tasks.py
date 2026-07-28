@@ -29,23 +29,22 @@ class Command(BaseCommand):
         Replaces gqcore.utils.db.extract_task_watch.free_dangling_tasks.
         """
         if options["dry_run"]:
-
             with connection.cursor() as cursor:
-                    cursor.execute(
-                        """
+                cursor.execute(
+                    """
                         SELECT COUNT(*) FROM extract_tasks
                         WHERE status = 2
                         AND update_time < NOW() - INTERVAL '%s minutes'
                         """,
-                        [options["minutes"]],
-                    )
-                    freed = cursor.fetchone()[0]
+                    [options["minutes"]],
+                )
+                freed = cursor.fetchone()[0]
 
-                    self.stdout.write(
-                        self.style.WARNING(
-                            f"Would free {freed} stale extract tasks (disable --dry-run to actually free them)"
-                        )
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Would free {freed} stale extract tasks (disable --dry-run to actually free them)"
                     )
+                )
         else:
             freed = _free_stale_tasks(options["minutes"])
             self.stdout.write(self.style.SUCCESS(f"Freed {freed} stale extract tasks"))

@@ -1,7 +1,9 @@
-
 from django.core.management.base import BaseCommand
 
-from analytics.tasks.coverage import create_missing_coverage_records, run_missing_coverage_checks
+from analytics.tasks.coverage import (
+    create_missing_coverage_records,
+    run_missing_coverage_checks,
+)
 from datasets.models import Dataset
 from features.models import Feature
 
@@ -22,7 +24,6 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-
         if not Feature.objects.exists():
             self.stdout.write("No features found in database")
             return
@@ -33,7 +34,11 @@ class Command(BaseCommand):
 
         # Generate missing coverage records
         result = create_missing_coverage_records()
-        self.stdout.write(self.style.SUCCESS(f"Generated {result['created']} missing coverage records"))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Generated {result['created']} missing coverage records"
+            )
+        )
 
         # Optionally kick off coverage checks
         if options["check"] or options["check_sync"]:

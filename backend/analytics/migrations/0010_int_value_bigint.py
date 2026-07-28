@@ -4,9 +4,8 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('analytics', '0009_extracttask_kwargs_uniqueness'),
+        ("analytics", "0009_extracttask_kwargs_uniqueness"),
     ]
 
     operations = [
@@ -14,24 +13,29 @@ class Migration(migrations.Migration):
         migrations.SeparateDatabaseAndState(
             state_operations=[
                 migrations.RemoveConstraint(
-                    model_name='extracttask',
-                    name='extract_tasks_resource_fm_po_pk',
+                    model_name="extracttask",
+                    name="extract_tasks_resource_fm_po_pk",
                 ),
             ],
             database_operations=[],
         ),
         migrations.AlterField(
-            model_name='extractdata',
-            name='int_value',
+            model_name="extractdata",
+            name="int_value",
             field=models.BigIntegerField(blank=True, null=True),
         ),
         # State-only: requesttoken.id is already an int PK in the DB; no column change needed.
         migrations.SeparateDatabaseAndState(
             state_operations=[
                 migrations.AlterField(
-                    model_name='requesttoken',
-                    name='id',
-                    field=models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+                    model_name="requesttoken",
+                    name="id",
+                    field=models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
                 ),
             ],
             database_operations=[],

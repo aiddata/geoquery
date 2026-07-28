@@ -6,8 +6,10 @@ from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
+from django.db.models import Q
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -33,7 +35,10 @@ class RequestView(APIView):
     POST /api/analytics/requests/         — submit a new extraction request
     """
 
-    authentication_classes = []  # no session auth → no CSRF re-enforcement
+    # DRF enforces CSRF only for session-authenticated requests, so anonymous
+    # submissions still work without a token while logged-in submissions must
+    # send X-CSRFToken (the frontend fetch wrapper handles this).
+    authentication_classes = [SessionAuthentication]
     permission_classes = [AllowAny]
     throttle_classes = [RequestSubmitThrottle]
 
@@ -44,6 +49,7 @@ class RequestView(APIView):
     def post(self, request):
         name = (request.data.get("name") or "").strip()
         email = (request.data.get("email") or "").strip()
+        user = request.user if request.user.is_authenticated else None
         feature_ids = request.data.get("featureIds") or []
         datasets = request.data.get("datasets") or []
         custom_boundary = request.data.get("customBoundary")
@@ -77,7 +83,9 @@ class RequestView(APIView):
             geojson_fc = custom_boundary.get("features")
             if not geojson_fc or geojson_fc.get("type") != "FeatureCollection":
                 return Response(
-                    {"error": "customBoundary.features must be a GeoJSON FeatureCollection"},
+                    {
+                        "error": "customBoundary.features must be a GeoJSON FeatureCollection"
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             features_list = geojson_fc.get("features") or []
@@ -89,7 +97,9 @@ class RequestView(APIView):
             max_features = getattr(settings, "CUSTOM_BOUNDARY_MAX_FEATURES", 100_000)
             if len(features_list) > max_features:
                 return Response(
-                    {"error": f"Custom boundary may not exceed {max_features:,} features."},
+                    {
+                        "error": f"Custom boundary may not exceed {max_features:,} features."
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             try:
@@ -98,13 +108,16 @@ class RequestView(APIView):
                     datasets=datasets,
                     contact=email,
                     name=name or None,
-                    selection_label=(request.data.get("selectionLabel") or "").strip() or None,
-                    selection_detail=(request.data.get("selectionDetail") or "").strip() or None,
+                    selection_label=(request.data.get("selectionLabel") or "").strip()
+                    or None,
+                    selection_detail=(request.data.get("selectionDetail") or "").strip()
+                    or None,
                     upload_metadata={
                         "fileName": custom_boundary.get("fileName"),
                         "featureCount": custom_boundary.get("featureCount"),
                         "operations": custom_boundary.get("operations") or [],
                     },
+                    user=user,
                 )
             except ValueError as e:
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -157,7 +170,9 @@ class RequestView(APIView):
                     warnings.append(f"Dataset '{dataset_name}' not found or inactive.")
                     continue
 
-                po_qs = ProcessingOption.objects.filter(dataset=dataset_obj, active=True, public=True)
+                po_qs = ProcessingOption.objects.filter(
+                    dataset=dataset_obj, active=True, public=True
+                )
                 if extract_types:
                     po_qs = po_qs.filter(short_name__in=extract_types)
 
@@ -206,38 +221,45 @@ class RequestView(APIView):
                     continue
 
             all_task_ids.update(task_ids)
-            valid_datasets.append({
-                "dataset_name": dataset_name,
-                "dataset_type": (ds.get("datasetType") or "").strip() or None,
-                "extract_types": extract_types,
-                "resources": resources,
-                "resource_labels": ds.get("resourceLabels") or [],
-                "kwargs": task_kwargs,
-            })
+            valid_datasets.append(
+                {
+                    "dataset_name": dataset_name,
+                    "dataset_type": (ds.get("datasetType") or "").strip() or None,
+                    "extract_types": extract_types,
+                    "resources": resources,
+                    "resource_labels": ds.get("resourceLabels") or [],
+                    "kwargs": task_kwargs,
+                }
+            )
 
         if not all_task_ids:
             return Response(
-                {"error": "No extract tasks found for the submitted datasets.", "warnings": warnings},
+                {
+                    "error": "No extract tasks found for the submitted datasets.",
+                    "warnings": warnings,
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         req = Request.objects.create(
             contact=email,
             custom_name=name or None,
+            user=user,
             source="web",
             status=-1,
             data={
-                "selection_label": (request.data.get("selectionLabel") or "").strip() or None,
-                "selection_detail": (request.data.get("selectionDetail") or "").strip() or None,
+                "selection_label": (request.data.get("selectionLabel") or "").strip()
+                or None,
+                "selection_detail": (request.data.get("selectionDetail") or "").strip()
+                or None,
                 "feature_ids": feature_ids,
                 "datasets": valid_datasets,
             },
         )
 
-        RequestMap.objects.bulk_create([
-            RequestMap(request=req, task_id=task_id)
-            for task_id in all_task_ids
-        ])
+        RequestMap.objects.bulk_create(
+            [RequestMap(request=req, task_id=task_id) for task_id in all_task_ids]
+        )
 
         response_data = {
             "id": str(req.id),
@@ -263,6 +285,7 @@ class RequestDetailView(APIView):
 
     def get(self, request, pk):
         from django.db.models import Count
+
         try:
             req = Request.objects.annotate(task_count=Count("requestmap")).get(id=pk)
         except Request.DoesNotExist:
@@ -282,11 +305,17 @@ class RequestDetailView(APIView):
             if fc_id:
                 try:
                     from features.models import FeatureCollection
+
                     fc = FeatureCollection.objects.filter(id=fc_id).first()
                     if fc and fc.upload_metadata:
                         boundary_operations = fc.upload_metadata.get("operations") or []
-                        boundary_file_name = boundary_file_name or fc.upload_metadata.get("fileName")
-                        boundary_feature_count = boundary_feature_count or fc.upload_metadata.get("featureCount")
+                        boundary_file_name = (
+                            boundary_file_name or fc.upload_metadata.get("fileName")
+                        )
+                        boundary_feature_count = (
+                            boundary_feature_count
+                            or fc.upload_metadata.get("featureCount")
+                        )
                 except Exception:
                     pass
         if boundary_operations is None:
@@ -315,9 +344,7 @@ class RequestDetailView(APIView):
         if req.status == 1:
             base = getattr(settings, "DOWNLOAD_BASE_URL", "").rstrip("/")
             if base:
-                data["download_url"] = (
-                    f"{base}/results/{req.id}/{req.id}.zip"
-                )
+                data["download_url"] = f"{base}/results/{req.id}/{req.id}.zip"
                 data["documentation_url"] = (
                     f"{base}/results/{req.id}/{req.id}_documentation.html"
                 )
@@ -340,7 +367,9 @@ class RequestTokenView(APIView):
     def post(self, request):
         email = (request.data.get("email") or "").strip().lower()
         if not email:
-            return Response({"error": "email is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "email is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
         try:
             validate_email(email)
         except ValidationError:
@@ -354,7 +383,9 @@ class RequestTokenView(APIView):
 
         _, raw_token = RequestToken.create_for_email(email=email, expires_at=expires_at)
 
-        base_url = getattr(settings, "FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+        base_url = getattr(
+            settings, "FRONTEND_BASE_URL", "http://localhost:5173"
+        ).rstrip("/")
         magic_link = f"{base_url}/requests/{raw_token}"
 
         subject = "Your GeoQuery request history link"
@@ -366,9 +397,14 @@ class RequestTokenView(APIView):
         )
         send_status, _, exc = GeoEmail().send_email(email, subject, message)
         if not send_status:
-            return Response({"error": "Failed to send email. Please try again later."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "Failed to send email. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
-        return Response({"detail": "Link sent. Check your email."}, status=status.HTTP_200_OK)
+        return Response(
+            {"detail": "Link sent. Check your email."}, status=status.HTTP_200_OK
+        )
 
 
 class RequestHistoryView(APIView):
@@ -383,12 +419,50 @@ class RequestHistoryView(APIView):
         try:
             token_obj = RequestToken.objects.get(token=RequestToken.hash_token(token))
         except RequestToken.DoesNotExist:
-            return Response({"error": "Invalid or expired link."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Invalid or expired link."}, status=status.HTTP_404_NOT_FOUND
+            )
 
         if token_obj.is_expired:
-            return Response({"error": "This link has expired. Please request a new one."}, status=status.HTTP_410_GONE)
+            return Response(
+                {"error": "This link has expired. Please request a new one."},
+                status=status.HTTP_410_GONE,
+            )
 
         qs = Request.objects.filter(contact=token_obj.email).order_by("-submit_time")
+        data = [
+            {
+                "id": str(r.id),
+                "name": r.custom_name,
+                "status": r.status,
+                "status_label": _STATUS_LABELS.get(r.status, "unknown"),
+                "submit_time": r.submit_time,
+            }
+            for r in qs
+        ]
+        return Response(data)
+
+
+class MyRequestsView(APIView):
+    """
+    GET /api/analytics/my-requests/ — request history for the logged-in user
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from allauth.account.models import EmailAddress
+
+        # Union of FK-claimed rows and live contact matches on verified
+        # emails, so the list is correct even before a claim sweep runs.
+        q = Q(user=request.user)
+        emails = EmailAddress.objects.filter(
+            user=request.user, verified=True
+        ).values_list("email", flat=True)
+        for email in emails:
+            q |= Q(contact__iexact=email)
+
+        qs = Request.objects.filter(q).order_by("-submit_time")
         data = [
             {
                 "id": str(r.id),

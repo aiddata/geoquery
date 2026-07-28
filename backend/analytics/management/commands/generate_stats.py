@@ -25,7 +25,9 @@ class Command(BaseCommand):
 
         if status == "Success":
             self.stdout.write(
-                self.style.SUCCESS(f"Stats report generated in {time.time() - t0:.1f}s: {output}")
+                self.style.SUCCESS(
+                    f"Stats report generated in {time.time() - t0:.1f}s: {output}"
+                )
             )
         else:
             self.stdout.write(self.style.ERROR(f"Failed: {status}"))

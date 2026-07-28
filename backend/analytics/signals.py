@@ -9,5 +9,9 @@ from .models import Request
 def on_request_submitted(sender, instance, created, **kwargs):
     if not created:
         return
-    from analytics.tasks.maintenance import process_user_requests, dispatch_processing_tasks
+    from analytics.tasks.maintenance import (
+        process_user_requests,
+        dispatch_processing_tasks,
+    )
+
     chain(process_user_requests.si(), dispatch_processing_tasks.si()).delay()

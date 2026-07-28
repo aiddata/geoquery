@@ -23,9 +23,11 @@ class Command(BaseCommand):
 
     def handle(self, *_args, **_options):
         result = _build_extract_tasks()
-        self.stdout.write(self.style.SUCCESS(
-            f"Generated {result['added']} new extract tasks in {result['elapsed']:.2f}s"
-        ))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Generated {result['added']} new extract tasks in {result['elapsed']:.2f}s"
+            )
+        )
 
 
 def _build_extract_tasks():
@@ -73,7 +75,9 @@ def _build_extract_tasks():
 
     added = 0
     for resource_id, fm_id, po_id in candidates:
-        if not ExtractTask.objects.filter(resource_id=resource_id, fm_id=fm_id, po_id=po_id).exists():
+        if not ExtractTask.objects.filter(
+            resource_id=resource_id, fm_id=fm_id, po_id=po_id
+        ).exists():
             ExtractTask.objects.create(
                 resource=DatasetResource.objects.get(id=resource_id),
                 fm=FeatMap.objects.get(id=fm_id),

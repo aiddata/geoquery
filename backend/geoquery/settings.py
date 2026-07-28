@@ -61,6 +61,15 @@ CSRF_TRUSTED_ORIGINS = [
     for origin in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
     if origin.strip()
 ]
+# In dev the Vite proxy rewrites the Host header (changeOrigin), so unsafe
+# requests arrive with Origin http://localhost:5173 but Host localhost:8000
+# and would fail Django's CSRF origin check without this.
+if DEBUG and not CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+    ]
 
 # Prometheus metrics (disabled by default)
 PROMETHEUS_ENABLED = os.getenv("PROMETHEUS_ENABLED", "False").lower() in (
@@ -82,7 +91,13 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "django_celery_results",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.github",
+    "allauth.headless",
     "geoquery",
+    "accounts",
     "features",
     "datasets",
     "analytics",
@@ -97,6 +112,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -228,6 +244,67 @@ DOWNLOAD_BASE_URL = os.environ.get("DOWNLOAD_BASE_URL", "http://localhost:8000")
 FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173")
 TOKEN_EXPIRY_MONTHS = int(os.environ.get("TOKEN_EXPIRY_MONTHS", "6"))
 
+# Authentication (django-allauth, headless mode for the SPA)
+AUTH_USER_MODEL = "accounts.User"
+
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",  # admin login
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
+
+ACCOUNT_LOGIN_METHODS = {"email"}
+ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"
+# Multi-email (add + verify secondary addresses) is how users claim historical
+# requests submitted under other emails. ACCOUNT_CHANGE_EMAIL must stay False:
+# enabling it silently deletes secondary EmailAddress rows.
+ACCOUNT_CHANGE_EMAIL = False
+ACCOUNT_MAX_EMAIL_ADDRESSES = 5
+ACCOUNT_EMAIL_SUBJECT_PREFIX = "[GeoQuery] "
+ACCOUNT_ADAPTER = "accounts.adapter.AccountAdapter"
+
+SOCIALACCOUNT_PROVIDERS = {
+    "github": {
+        "APP": {
+            "client_id": os.environ.get("GITHUB_OAUTH_CLIENT_ID", ""),
+            "secret": os.environ.get("GITHUB_OAUTH_CLIENT_SECRET", ""),
+        },
+        # user:email is required to fetch verified addresses when the user's
+        # profile email is private.
+        "SCOPE": ["read:user", "user:email"],
+    }
+}
+SOCIALACCOUNT_QUERY_EMAIL = True
+# A GitHub login whose verified email already belongs to an existing account
+# logs into that account instead of creating a duplicate.
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+SOCIALACCOUNT_STORE_TOKENS = False
+
+HEADLESS_ONLY = True
+HEADLESS_SERVE_SPECIFICATION = DEBUG
+HEADLESS_FRONTEND_URLS = {
+    "account_confirm_email": f"{FRONTEND_BASE_URL}/account/verify-email/{{key}}",
+    "account_reset_password_from_key": f"{FRONTEND_BASE_URL}/account/password-reset/{{key}}",
+    "account_signup": f"{FRONTEND_BASE_URL}/account",
+    "socialaccount_login_error": f"{FRONTEND_BASE_URL}/account/provider/callback",
+}
+
+# Email (Django's framework; allauth verification mail sends through this).
+# Dev default prints emails to the backend container log.
+EMAIL_BACKEND = os.environ.get(
+    "DJANGO_EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend"
+    if DEBUG
+    else "django.core.mail.backends.smtp.EmailBackend",
+)
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = "noreply@aiddata.wm.edu"
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_PASSWORD", "")
+DEFAULT_FROM_EMAIL = "AidData GeoQuery <geoquery@aiddata.wm.edu>"
+
 # Protomaps
 PROTOMAPS_API_KEY = os.environ.get("PROTOMAPS_API_KEY", "")
 
@@ -309,7 +386,6 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 100,
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
-        "rest_framework.authentication.TokenAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",

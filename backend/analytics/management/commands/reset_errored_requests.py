@@ -20,9 +20,15 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         result = _reset_errored_requests(dry_run=options["dry_run"])
         if options["dry_run"]:
-            self.stdout.write(f"Would reset {result['count']} errored requests (--dry-run).")
+            self.stdout.write(
+                f"Would reset {result['count']} errored requests (--dry-run)."
+            )
         else:
-            self.stdout.write(self.style.SUCCESS(f"Reset {result['reset']} errored requests to queued."))
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Reset {result['reset']} errored requests to queued."
+                )
+            )
 
 
 def _reset_errored_requests(dry_run: bool = False) -> dict:

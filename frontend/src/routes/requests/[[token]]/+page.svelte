@@ -2,8 +2,10 @@
     import { page } from "$app/state";
     import { goto } from "$app/navigation";
     import { Button } from "$lib/components/ui/button";
-    import { ArrowLeft, Search, Mail, BarChart2 } from "@lucide/svelte";
-    import { requestHistoryLink, fetchRequestsByToken, type PastRequest } from "$lib/api";
+    import { ArrowLeft, Search, Mail, BarChart2, LogIn } from "@lucide/svelte";
+    import { requestHistoryLink, fetchRequestsByToken, fetchMyRequests, type PastRequest } from "$lib/api";
+    import { auth } from "$lib/stores/auth";
+    import { loginWithGitHub } from "$lib/allauth";
 
     const token = $derived(page.params.token ?? "");
 
@@ -48,8 +50,24 @@
         }
     }
 
+    // Signed-in users see their linked requests directly — no magic link needed.
+    let showingMine = $state(false);
+    async function loadMine() {
+        loading = true;
+        error = "";
+        try {
+            requests = await fetchMyRequests();
+            showingMine = true;
+        } catch {
+            error = "Failed to load your requests. Please try again.";
+        } finally {
+            loading = false;
+        }
+    }
+
     $effect(() => {
         if (token) loadHistory(token);
+        else if ($auth.status === "authenticated") loadMine();
     });
 </script>
 
@@ -63,7 +81,10 @@
 
     <div class="rounded-lg border bg-card p-6 shadow-sm">
 
-        {#if !token}
+        {#if loading || (!token && $auth.status === "loading")}
+            <p class="text-center text-muted-foreground">Loading your requests…</p>
+
+        {:else if !token && !showingMine}
             <h1 class="mb-2 text-2xl font-semibold">Past Requests</h1>
             <p class="mb-6 text-muted-foreground">
                 Enter your email and we'll send you a personal link to your request history.
@@ -103,10 +124,16 @@
                 {#if error}
                     <p class="mt-4 text-sm text-destructive">{error}</p>
                 {/if}
-            {/if}
 
-        {:else if loading}
-            <p class="text-center text-muted-foreground">Loading your requests…</p>
+                <div class="mt-6 border-t pt-4 text-center text-sm text-muted-foreground">
+                    Or
+                    <button class="inline-flex items-center gap-1 underline" onclick={() => loginWithGitHub("/requests")}>
+                        <LogIn class="h-3.5 w-3.5" />
+                        sign in with GitHub
+                    </button>
+                    to see your requests automatically.
+                </div>
+            {/if}
 
         {:else if expired}
             <h1 class="mb-2 text-2xl font-semibold">Link Expired</h1>
@@ -155,6 +182,10 @@
             <h1 class="mb-2 text-2xl font-semibold">Your Requests</h1>
             <p class="mb-6 text-muted-foreground">
                 {requests.length} request{requests.length === 1 ? "" : "s"} found.
+                {#if showingMine}
+                    Missing older requests? <a href="/account" class="underline">Verify another
+                    email address</a> to link them to your account.
+                {/if}
             </p>
 
             {#if requests.length === 0}
