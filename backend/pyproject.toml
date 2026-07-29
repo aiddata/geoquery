@@ -28,6 +28,8 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "openpyxl>=3.1.5",
+    "pyarrow>=24.0.0",
     "pyproj",
     "shapely",
     "pydantic",
@@ -62,6 +64,7 @@ dependencies = [
     "django-prometheus>=2.5.0",
     "whitenoise[brotli]>=6.12.0",
     "django-allauth[socialaccount]>=65.18.0",
+    "django-guardian>=3.3.3",
 ]
 
 [tool.isort]

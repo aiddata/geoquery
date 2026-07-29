@@ -1,12 +1,10 @@
 [project]
 name = "geoquery"
 version = "0.1.0"
-description = "A tool for accessing and extracting geospatial datae"
+description = "A tool for accessing and extracting geospatial data"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "openpyxl>=3.1.5",
-    "pyarrow>=24.0.0",
     "zensical>=0.0.23",
     "geoquery-backend",
 ]
