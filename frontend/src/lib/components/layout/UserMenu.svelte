@@ -3,7 +3,6 @@
 	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import * as Avatar from '$lib/components/ui/avatar';
 	import { auth, signOut } from '$lib/stores/auth';
 	import { loginWithGitHub } from '$lib/allauth';
 	import { History, LogIn, LogOut, UserRound } from '@lucide/svelte';
@@ -23,27 +22,14 @@
 		await signOut();
 		goto('/');
 	}
-
-	function initials(display: string): string {
-		return display
-			.split(/[\s@._-]+/)
-			.filter(Boolean)
-			.slice(0, 2)
-			.map((part) => part[0].toUpperCase())
-			.join('');
-	}
 </script>
 
 {#if $auth.status === 'authenticated'}
 	<DropdownMenu.Root>
 		<DropdownMenu.Trigger>
 			{#snippet child({ props })}
-				<Button {...props} variant="ghost" class="gap-2">
-					<Avatar.Root class="h-7 w-7">
-						<Avatar.Fallback class="text-xs">
-							{initials($auth.user.display || $auth.user.email)}
-						</Avatar.Fallback>
-					</Avatar.Root>
+				<Button {...props} variant="ghost">
+					<UserRound />
 					<span class="hidden max-w-40 truncate sm:inline">
 						{$auth.user.display || $auth.user.email}
 					</span>
