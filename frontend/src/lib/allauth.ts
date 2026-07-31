@@ -26,23 +26,181 @@ export interface ProviderAccount {
 	provider: { id: string; name: string };
 }
 
+export interface AllauthErrorDetail {
+	code?: string;
+	message: string;
+	param?: string;
+}
+
+export class AllauthRequestError extends Error {
+	constructor(
+		public readonly status: number,
+		public readonly errors: AllauthErrorDetail[],
+		fallbackMessage: string
+	) {
+		super(errors[0]?.message ?? fallbackMessage);
+		this.name = 'AllauthRequestError';
+	}
+}
+
+export type AuthSession =
+	| { status: 'authenticated'; user: AllauthUser }
+	| { status: 'anonymous'; pendingFlow: string | null };
+
+export interface ProviderSignupDetails {
+	user: AllauthUser;
+	account: ProviderAccount;
+	email: EmailAddress[];
+}
+
 interface AllauthResponse<T> {
 	status: number;
 	data: T;
 }
 
+interface AuthData {
+	user?: AllauthUser;
+	flows?: { id: string; is_pending?: boolean }[];
+}
+
+function isAllauthErrorDetail(value: unknown): value is AllauthErrorDetail {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		typeof (value as { message?: unknown }).message === 'string'
+	);
+}
+
+async function requestError(
+	response: Response,
+	fallbackMessage: string
+): Promise<AllauthRequestError> {
+	const body = (await response.json().catch(() => null)) as { errors?: unknown } | null;
+	const errors = Array.isArray(body?.errors)
+		? body.errors.filter(isAllauthErrorDetail)
+		: [];
+	return new AllauthRequestError(response.status, errors, fallbackMessage);
+}
+
 async function parseData<T>(response: Response): Promise<T> {
-	const body = (await response.json()) as AllauthResponse<T>;
-	return body.data;
+	let body: unknown;
+	try {
+		body = await response.json();
+	} catch {
+		throw new AllauthRequestError(
+			response.status,
+			[],
+			'The sign-in service returned an invalid response.'
+		);
+	}
+	if (typeof body !== 'object' || body === null || !('data' in body)) {
+		throw new AllauthRequestError(
+			response.status,
+			[],
+			'The sign-in service returned an incomplete response.'
+		);
+	}
+	return (body as AllauthResponse<T>).data;
+}
+
+function pendingFlow(data: AuthData): string | null {
+	return data.flows?.find((flow) => flow.is_pending)?.id ?? null;
+}
+
+async function parseAuthSession(response: Response): Promise<AuthSession> {
+	if (response.status === 410) {
+		return { status: 'anonymous', pendingFlow: null };
+	}
+	if (response.status !== 200 && response.status !== 401) {
+		throw await requestError(response, `Session check failed: ${response.status}`);
+	}
+
+	const data = await parseData<AuthData>(response);
+	if (response.status === 200) {
+		if (!data.user) {
+			throw new AllauthRequestError(
+				response.status,
+				[],
+				'The sign-in service returned an incomplete session.'
+			);
+		}
+		return { status: 'authenticated', user: data.user };
+	}
+	return { status: 'anonymous', pendingFlow: pendingFlow(data) };
+}
+
+/**
+ * Turn the `?error=`/`?error_process=` pair allauth appends to the provider
+ * callback URL into something a person can act on.
+ *
+ * Codes come from two places: `AuthError` in the OAuth2 callback view
+ * (`unknown`, `cancelled`, `denied`) and the headless social login flow
+ * (`signup_closed`, `permission_denied`, `reauthentication_required`, plus
+ * socialaccount adapter validation codes such as `email_taken`).
+ */
+export function describeAuthError(code: string | null, process: string | null): string {
+	const connecting = process === 'connect';
+
+	switch (code) {
+		case 'cancelled':
+		case 'denied':
+			return connecting
+				? 'You cancelled the GitHub authorization, so no account was connected.'
+				: 'You cancelled the GitHub authorization, so you were not signed in.';
+		case 'signup_closed':
+			return 'New account registration is currently closed.';
+		case 'permission_denied':
+			return 'That GitHub account is not permitted to sign in here.';
+		case 'reauthentication_required':
+			return 'For security, please sign in again before making this change.';
+		case 'email_taken':
+			return 'An account already exists with this email address. Sign in to that account first, then connect GitHub from your account settings.';
+		case 'connected_other':
+			return 'That GitHub account is already connected to a different GeoQuery account.';
+		case 'no_verified_email':
+			return 'Your GitHub account has no verified email address. Verify an email on GitHub, then try again.';
+		case 'invalid_token':
+			return 'GitHub returned credentials we could not validate. Please try again.';
+		case 'unknown':
+			return connecting
+				? 'Something went wrong while connecting your GitHub account. Please try again — if it keeps happening, contact an administrator.'
+				: 'Something went wrong while talking to GitHub, so sign-in could not be completed. Please try again — if it keeps happening, contact an administrator.';
+		default:
+			return code
+				? `Sign-in could not be completed (${code}). Please try again.`
+				: 'Sign-in did not complete. Please try again.';
+	}
+}
+
+/** Read the current session, retaining any pending authentication stage. */
+export async function getAuthSession(): Promise<AuthSession> {
+	const response = await apiFetch(`${BASE}/auth/session`);
+	return parseAuthSession(response);
 }
 
 /** Returns the logged-in user, or null when the session is anonymous. */
 export async function getSession(): Promise<AllauthUser | null> {
-	const response = await apiFetch(`${BASE}/auth/session`);
-	if (response.status === 401 || response.status === 410) return null;
-	if (!response.ok) throw new Error(`Session check failed: ${response.status}`);
-	const body = (await response.json()) as AllauthResponse<{ user: AllauthUser }>;
-	return body.data.user;
+	const session = await getAuthSession();
+	return session.status === 'authenticated' ? session.user : null;
+}
+
+/** Load the details allauth retained for an incomplete provider signup. */
+export async function getProviderSignup(): Promise<ProviderSignupDetails> {
+	const response = await apiFetch(`${BASE}/auth/provider/signup`);
+	if (!response.ok) {
+		throw await requestError(response, `Provider signup check failed: ${response.status}`);
+	}
+	return parseData<ProviderSignupDetails>(response);
+}
+
+/** Supply the missing email and return the resulting auth or pending state. */
+export async function submitProviderSignup(email: string): Promise<AuthSession> {
+	const response = await apiFetch(`${BASE}/auth/provider/signup`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ email })
+	});
+	return parseAuthSession(response);
 }
 
 /** Ends the session. allauth answers 401 (now anonymous) — that's success. */

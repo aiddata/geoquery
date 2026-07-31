@@ -31,7 +31,7 @@
 				<Button {...props} variant="ghost">
 					<UserRound />
 					<span class="hidden max-w-40 truncate sm:inline">
-						{$auth.user.display || $auth.user.email}
+						Account
 					</span>
 				</Button>
 			{/snippet}

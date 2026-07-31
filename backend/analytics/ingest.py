@@ -8,7 +8,8 @@ import uuid
 
 from django.contrib.gis.geos import GEOSGeometry
 
-from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
+from analytics.models import ExtractTask, Request, RequestMap
+from catalog.access import visible_datasets, visible_processing_options_for_dataset
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
 
@@ -95,19 +96,20 @@ def ingest_custom_boundary(
         if not dataset_name:
             continue
 
+        # `user` is the submitter (None when anonymous), threaded in from
+        # RequestView.post. Custom-boundary submissions are gated the same way
+        # as standard ones.
         try:
-            dataset_obj = Dataset.objects.get(name=dataset_name, active=True)
+            dataset_obj = visible_datasets(user).get(name=dataset_name)
         except Dataset.DoesNotExist:
-            warnings.append(f"Dataset '{dataset_name}' not found or inactive.")
+            warnings.append(f"Dataset '{dataset_name}' not found or not available.")
             continue
 
         resource_qs = DatasetResource.objects.filter(dataset=dataset_obj)
         if resources_filter:
             resource_qs = resource_qs.filter(name__in=resources_filter)
 
-        po_qs = ProcessingOption.objects.filter(
-            dataset=dataset_obj, active=True, public=True
-        )
+        po_qs = visible_processing_options_for_dataset(user, dataset_obj)
         if extract_types:
             po_qs = po_qs.filter(short_name__in=extract_types)
 

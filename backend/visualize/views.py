@@ -5,6 +5,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from analytics.models import Request
+from catalog.access import (
+    visible_feature_collections,
+    visible_processing_options,
+)
 
 from .data import build_explore_available, build_explore_data, build_request_data
 from .export import GistExporter
@@ -39,7 +43,7 @@ class ExploreAvailableView(APIView):
     the given FC IDs. Used to populate the option picker in /viz/explore.
     """
 
-    authentication_classes = []
+    # Authentication left at the project default so catalog grants resolve.
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -51,7 +55,18 @@ class ExploreAvailableView(APIView):
         except ValueError:
             return Response({"error": "fc must be a comma-separated list of integers"}, status=400)
 
-        return Response(build_explore_available(fc_ids))
+        # The ids arrive straight from the caller, so narrow them to what this
+        # user may see before they reach the builder. processing_options is a
+        # small table, so materializing the allowed ids beats nesting a
+        # three-level subquery inside the ExtractTask aggregate.
+        fc_ids = list(
+            visible_feature_collections(request.user)
+            .filter(id__in=fc_ids)
+            .values_list("id", flat=True)
+        )
+        po_ids = list(visible_processing_options(request.user).values_list("id", flat=True))
+
+        return Response(build_explore_available(fc_ids, po_ids))
 
 
 class ExploreDataView(APIView):
@@ -63,7 +78,7 @@ class ExploreDataView(APIView):
     minus request-specific fields (request_id, request_status, etc.).
     """
 
-    authentication_classes = []
+    # Authentication left at the project default so catalog grants resolve.
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -76,6 +91,20 @@ class ExploreDataView(APIView):
             po_ids = [int(v) for v in po_param.split(",") if v.strip()]
         except ValueError:
             return Response({"error": "fc and po must be comma-separated integers"}, status=400)
+
+        # Narrow both caller-supplied lists before they reach the builder. An
+        # empty list yields an empty-but-well-shaped payload, which the frontend
+        # renderer already handles; a 403 would not be.
+        fc_ids = list(
+            visible_feature_collections(request.user)
+            .filter(id__in=fc_ids)
+            .values_list("id", flat=True)
+        )
+        po_ids = list(
+            visible_processing_options(request.user)
+            .filter(id__in=po_ids)
+            .values_list("id", flat=True)
+        )
 
         return Response(build_explore_data(fc_ids, po_ids))
 

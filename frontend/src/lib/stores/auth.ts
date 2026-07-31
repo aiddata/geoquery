@@ -1,5 +1,10 @@
 import { writable } from 'svelte/store';
-import { getSession, logout, type AllauthUser } from '$lib/allauth';
+import {
+	getAuthSession,
+	logout,
+	type AllauthUser,
+	type AuthSession
+} from '$lib/allauth';
 
 export type AuthState =
 	| { status: 'loading' }
@@ -8,11 +13,26 @@ export type AuthState =
 
 export const auth = writable<AuthState>({ status: 'loading' });
 
+/** Apply a response that already carries the complete authentication state. */
+export function setAuthSession(session: AuthSession): void {
+	auth.set(
+		session.status === 'authenticated'
+			? { status: 'authenticated', user: session.user }
+			: { status: 'anonymous' }
+	);
+}
+
+/** Refresh the store and let failures propagate to authentication-critical UI. */
+export async function refreshAuth(): Promise<AuthSession> {
+	const session = await getAuthSession();
+	setAuthSession(session);
+	return session;
+}
+
 /** Hydrate the store from the backend session. Called from the root layout. */
 export async function initAuth(): Promise<void> {
 	try {
-		const user = await getSession();
-		auth.set(user ? { status: 'authenticated', user } : { status: 'anonymous' });
+		await refreshAuth();
 	} catch {
 		// Backend unreachable — treat as anonymous rather than blocking the UI.
 		auth.set({ status: 'anonymous' });

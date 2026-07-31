@@ -183,7 +183,10 @@ export async function fetchFeatureIds(fcIds: number[]): Promise<number[]> {
 // ── Dataset API ────────────────────────────────────────────────
 
 export async function fetchDatasetsForFeatures(featureIds: number[]): Promise<DatasetSummary[]> {
-	const response = await fetch('/api/datasets/coverage/', {
+	// Must go through apiFetch: this endpoint authenticates the session so that
+	// catalog-granted datasets are included, and DRF then enforces CSRF on it
+	// for logged-in users. A bare fetch 403s once you sign in.
+	const response = await apiFetch('/api/datasets/coverage/', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ featureIds }),

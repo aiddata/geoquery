@@ -16,7 +16,12 @@ from rest_framework.views import APIView
 from analytics.ingest import ingest_custom_boundary
 from analytics.tasks.email import GeoEmail
 from analytics.throttles import RequestSubmitThrottle, RequestTokenThrottle
-from .models import ExtractTask, ProcessingOption, Request, RequestMap, RequestToken
+from catalog.access import (
+    visible_datasets,
+    visible_feature_collections,
+    visible_processing_options_for_dataset,
+)
+from .models import ExtractTask, Request, RequestMap, RequestToken
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap
 
@@ -159,20 +164,27 @@ class RequestView(APIView):
                 warnings.append(f"Skipped dataset missing datasetName: {ds}")
                 continue
 
+            # Resolve the dataset through the visibility rule for BOTH branches.
+            # This previously only happened on the kwargs path, and only checked
+            # `active`, so an active-but-not-public dataset was submittable by
+            # name even though it never appeared in /api/datasets/.
+            try:
+                dataset_obj = visible_datasets(request.user).get(name=dataset_name)
+            except Dataset.DoesNotExist:
+                warnings.append(f"Dataset '{dataset_name}' not found or not available.")
+                continue
+
+            visible_pos = visible_processing_options_for_dataset(
+                request.user, dataset_obj
+            )
+            visible_fcs = visible_feature_collections(request.user)
+
             if task_kwargs:
                 # Per-request tasks: kwargs vary per submission so tasks cannot be shared.
                 # get_or_create against the functional unique index on
                 # (resource_id, fm_id, po_id, MD5(COALESCE(kwargs::text, ''))) ensures
                 # identical filter combinations reuse the same task row.
-                try:
-                    dataset_obj = Dataset.objects.get(name=dataset_name, active=True)
-                except Dataset.DoesNotExist:
-                    warnings.append(f"Dataset '{dataset_name}' not found or inactive.")
-                    continue
-
-                po_qs = ProcessingOption.objects.filter(
-                    dataset=dataset_obj, active=True, public=True
-                )
+                po_qs = visible_pos
                 if extract_types:
                     po_qs = po_qs.filter(short_name__in=extract_types)
 
@@ -182,7 +194,11 @@ class RequestView(APIView):
 
                 pos = list(po_qs)
                 resource_list = list(resource_qs)
-                fms = list(FeatMap.objects.filter(geom_id__in=feature_ids))
+                # Feature ids reachable only through a collection the caller
+                # cannot see must not produce tasks.
+                fms = list(
+                    FeatMap.objects.filter(geom_id__in=feature_ids, fc__in=visible_fcs)
+                )
 
                 if not pos or not resource_list or not fms:
                     warnings.append(
@@ -203,9 +219,13 @@ class RequestView(APIView):
                             task_ids.append(task.id)
             else:
                 # Standard path: reuse pre-computed shared tasks (no per-request kwargs).
+                # The pre-built task table is not itself gated, so the gate has
+                # to be applied on the way out.
                 tasks = ExtractTask.objects.filter(
                     fm__geom_id__in=feature_ids,
-                    resource__dataset__name=dataset_name,
+                    fm__fc__in=visible_fcs,
+                    resource__dataset=dataset_obj,
+                    po__in=visible_pos,
                 )
                 if extract_types:
                     tasks = tasks.filter(po__short_name__in=extract_types)

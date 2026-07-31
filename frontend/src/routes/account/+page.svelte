@@ -91,10 +91,7 @@
         </div>
     {:else}
         <div class="rounded-lg border bg-card p-6 shadow-sm">
-            <h1 class="mb-1 text-2xl font-semibold">Account</h1>
-            <p class="mb-6 text-muted-foreground">
-                Signed in as {$auth.user.display || $auth.user.email}
-            </p>
+            <h1 class="mb-6 text-2xl font-semibold">Account</h1>
 
             {#if providers.length > 0}
                 <div class="mb-6 flex flex-wrap items-center gap-2">

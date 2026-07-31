@@ -63,3 +63,49 @@ after a bulk import:
 ```bash
 docker compose exec backend uv run python manage.py backfill_request_claims [--dry-run]
 ```
+
+## Resource access control (catalogs)
+
+Datasets, boundaries (feature collections), and processing options each carry
+`active` and `public` flags. A **Catalog** (`catalog.models.Catalog`) bundles
+any mix of those three, and [django-guardian](https://django-guardian.readthedocs.io/)
+object permissions are granted on the *catalog* — never on the resources
+themselves, which would mean one permission row per user per resource.
+
+The rule, implemented once in `catalog/access.py` and used by every gated view:
+
+```
+visible = active AND (public OR member of a catalog the caller can access)
+```
+
+Grants are **additive**: marking something `public` still exposes it to
+everyone, including anonymous callers. Adding a resource to a catalog only ever
+widens who can see it.
+
+To grant access: create a catalog in `/admin/catalog/catalog/`, add its member
+resources, save, then use the **Object permissions** button to give a user or
+group "Can access resources in this catalog".
+
+Things that will trip you up:
+
+- **Superusers bypass the catalog check**, so always smoke-test with a normal
+  account or the gate will look broken-open.
+- **A non-public resource in no catalog is invisible to everyone**, superusers
+  included — the superuser bypass applies to catalogs, not to the `public`
+  flag. Such a resource is reachable only through the Django admin. Give it a
+  catalog or set `public=True`.
+- **`catalog.access_catalog` also appears in the global user/group permission
+  picker.** Ticking it there grants access to *every* catalog. That is a
+  deliberate "internal staff sees everything" switch, not a per-object grant.
+- **`ANONYMOUS_USER_NAME = None` is deliberate.** guardian would otherwise
+  insert a placeholder `User` row, and `accounts.User` has a unique required
+  email managed by allauth. `catalog.access` short-circuits anonymous callers
+  before guardian is consulted, because guardian's own `None` guard covers
+  only the `has_perm` path, not `get_objects_for_user`.
+- Celery tasks and management commands (extract processing, doc builds,
+  `build_extract_tasks`) have no user context and deliberately keep filtering
+  on `active` alone.
+
+Processing options are a special case: catalog membership on an option only
+*widens* the option list for a dataset the caller can already see. It never
+grants the dataset itself.

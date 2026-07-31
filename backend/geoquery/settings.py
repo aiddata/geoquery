@@ -96,11 +96,13 @@ INSTALLED_APPS = [
     "allauth.socialaccount",
     "allauth.socialaccount.providers.github",
     "allauth.headless",
+    "guardian",
     "geoquery",
     "accounts",
     "features",
     "datasets",
     "analytics",
+    "catalog",
     "visualize",
 ]
 
@@ -250,7 +252,21 @@ AUTH_USER_MODEL = "accounts.User"
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",  # admin login
     "allauth.account.auth_backends.AuthenticationBackend",
+    # Object permissions on Catalog (see the catalog app). Not used by
+    # catalog.access, which calls get_objects_for_user directly, but without it
+    # `manage.py check` raises guardian.W001 and user.has_perm(perm, obj)
+    # silently returns False in the admin and templates.
+    "guardian.backends.ObjectPermissionBackend",
 ]
+
+# No phantom anonymous User row: accounts.User has a unique, required email and
+# is managed by allauth, so guardian's post_migrate receiver would insert a row
+# that collides with the next blank-email user. Setting this to None disables
+# that receiver -- it is read at import time, so it must be in place before the
+# first migrate with guardian installed. Anonymous callers are short-circuited
+# in catalog.access before guardian is ever consulted, because guardian's own
+# None guard covers only the has_perm path, not get_objects_for_user.
+ANONYMOUS_USER_NAME = None
 
 ACCOUNT_LOGIN_METHODS = {"email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
@@ -262,6 +278,7 @@ ACCOUNT_CHANGE_EMAIL = False
 ACCOUNT_MAX_EMAIL_ADDRESSES = 5
 ACCOUNT_EMAIL_SUBJECT_PREFIX = "[GeoQuery] "
 ACCOUNT_ADAPTER = "accounts.adapter.AccountAdapter"
+SOCIALACCOUNT_ADAPTER = "accounts.adapter.SocialAccountAdapter"
 
 SOCIALACCOUNT_PROVIDERS = {
     "github": {

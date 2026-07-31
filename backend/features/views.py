@@ -3,12 +3,18 @@ import yaml
 from django.db import connection
 from django.db.models import Q
 from django.http import HttpResponse
+from django.utils.cache import patch_vary_headers
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import FeatMap, FeatureCollection
+from catalog.access import (
+    resolve_feature_collection_for_tiles,
+    visible_feature_collections,
+)
+
+from .models import FeatMap
 
 _MVT_CONTENT_TYPE = "application/vnd.mapbox-vector-tile"
 
@@ -33,8 +39,13 @@ class FeatureCollectionAutocompleteView(generics.ListAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Start with active and public feature collections
-        queryset = FeatureCollection.objects.filter(active=True, public=True)
+        # Start with the collections visible to the caller. User uploads are
+        # never public so they are already excluded, but say so explicitly: an
+        # ephemeral upload must not become selectable just because someone
+        # added it to a catalog.
+        queryset = visible_feature_collections(request.user).filter(
+            is_user_upload=False
+        )
 
         # Apply search filter if query is provided
         if query:
@@ -83,12 +94,20 @@ def feature_collection_vector_tiles(request, fc_name, z, x, y):
     Returns Mapbox Vector Tile (MVT) format for use with MapLibre GL JS.
     Standard FCs use pre-simplified matviews. User-upload FCs use per-request
     dynamic simplification to avoid rebuilding shared matviews for unknown geometry.
-    """
-    is_upload = FeatureCollection.objects.filter(
-        name=fc_name, is_user_upload=True
-    ).exists()
 
-    if is_upload:
+    Visibility is resolved in Python (see catalog.access) rather than in the
+    SQL, so the tile builders take a resolved fc id. This costs no extra query:
+    it replaces the is_user_upload probe this view already ran, and removes the
+    correlated subquery from each statement.
+    """
+    fc = resolve_feature_collection_for_tiles(request.user, fc_name)
+    if fc is None:
+        # An empty tile rather than a 404: it is byte-for-byte what an unknown
+        # name produced before this change, and it keeps MapLibre from logging
+        # an error for every tile in the viewport.
+        return HttpResponse(b"", content_type=_MVT_CONTENT_TYPE)
+
+    if fc.is_user_upload:
         # Dynamic simplify at request time. The z<=5 tier uses a finer
         # tolerance than the matview equivalent because custom requests
         # typically render fewer / smaller features, so the per-tile vertex
@@ -111,17 +130,23 @@ def feature_collection_vector_tiles(request, fc_name, z, x, y):
         else:
             sql = _mvt_sql_raw()
 
-    # Param order: layer_name, z/x/y (AsMVTGeom), fc_name, z/x/y (&&), z/x/y (Intersects)
-    params = [fc_name, z, x, y, fc_name, z, x, y, z, x, y]
+    # Param order: layer_name, z/x/y (AsMVTGeom), fc_id, z/x/y (&&), z/x/y (Intersects).
+    # The first param stays the *name*: it is the MVT layer name, which the
+    # frontend matches on via `source-layer`. Only the WHERE param is an id.
+    params = [fc_name, z, x, y, fc.id, z, x, y, z, x, y]
 
     with connection.cursor() as cursor:
         cursor.execute(sql, params)
         result = cursor.fetchone()
 
-        if result and result[0]:
-            return HttpResponse(bytes(result[0]), content_type=_MVT_CONTENT_TYPE)
-        else:
-            return HttpResponse(b"", content_type=_MVT_CONTENT_TYPE)
+    body = bytes(result[0]) if result and result[0] else b""
+    response = HttpResponse(body, content_type=_MVT_CONTENT_TYPE)
+    if not fc.public:
+        # Behind a shared cache, one caller's permissioned tile must never be
+        # served to another.
+        response["Cache-Control"] = "private, no-store"
+        patch_vary_headers(response, ["Cookie"])
+    return response
 
 
 _SIMPLIFIED_VIEWS = frozenset({
@@ -145,11 +170,7 @@ def _mvt_sql_simplified(view_name):
                 sv.name,
                 sv.attr
             FROM {view_name} sv
-            WHERE sv.fc_id = (
-                    SELECT id FROM feature_collections
-                    WHERE name = %s AND active AND public
-                    LIMIT 1
-                )
+            WHERE sv.fc_id = %s
                 AND sv.shape && ST_TileEnvelope(%s, %s, %s)
                 AND ST_Intersects(sv.shape, ST_TileEnvelope(%s, %s, %s))
         ) mvtgeoms
@@ -166,7 +187,7 @@ class FeatureIdsView(APIView):
     before submitting a request.
     """
 
-    authentication_classes = []
+    # Authentication left at the project default so catalog grants resolve.
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -180,7 +201,9 @@ class FeatureIdsView(APIView):
             return Response({"error": "fc must be a comma-separated list of integers"}, status=400)
 
         feature_ids = list(
-            FeatMap.objects.filter(fc_id__in=fc_ids, fc__active=True, fc__public=True)
+            FeatMap.objects.filter(
+                fc__in=visible_feature_collections(request.user).filter(id__in=fc_ids)
+            )
             .values_list("geom_id", flat=True)
             .distinct()
         )
@@ -250,11 +273,7 @@ def _mvt_sql_raw():
                 fm.attr
             FROM feat_map fm
             JOIN features f ON fm.geom_id = f.id
-            WHERE fm.fc_id = (
-                    SELECT id FROM feature_collections
-                    WHERE name = %s AND active AND public
-                    LIMIT 1
-                )
+            WHERE fm.fc_id = %s
                 AND f.shape && ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
                 AND ST_Intersects(
                     f.shape,
@@ -267,7 +286,8 @@ def _mvt_sql_raw():
 
 def _mvt_sql_dynamic_simplify(tolerance: float) -> str:
     """SQL for user-upload FCs: ST_Simplify applied per request at the given
-    degree tolerance. Does not require public=True. No matview needed."""
+    degree tolerance. No matview needed. Takes a resolved fc id -- visibility
+    is decided by the caller (see catalog.access)."""
     return f"""
         SELECT ST_AsMVT(mvtgeoms.*, %s) AS mvt FROM (
             SELECT
@@ -280,11 +300,7 @@ def _mvt_sql_dynamic_simplify(tolerance: float) -> str:
                 fm.name
             FROM feat_map fm
             JOIN features f ON fm.geom_id = f.id
-            WHERE fm.fc_id = (
-                    SELECT id FROM feature_collections
-                    WHERE name = %s AND active AND is_user_upload
-                    LIMIT 1
-                )
+            WHERE fm.fc_id = %s
                 AND f.shape && ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
                 AND ST_Intersects(
                     f.shape,
@@ -296,7 +312,8 @@ def _mvt_sql_dynamic_simplify(tolerance: float) -> str:
 
 
 def _mvt_sql_user_upload_raw() -> str:
-    """Raw geometry for user-upload FCs at high zoom. Does not require public=True."""
+    """Raw geometry for user-upload FCs at high zoom. Takes a resolved fc id --
+    visibility is decided by the caller (see catalog.access)."""
     return """
         SELECT ST_AsMVT(mvtgeoms.*, %s) AS mvt FROM (
             SELECT
@@ -309,11 +326,7 @@ def _mvt_sql_user_upload_raw() -> str:
                 fm.name
             FROM feat_map fm
             JOIN features f ON fm.geom_id = f.id
-            WHERE fm.fc_id = (
-                    SELECT id FROM feature_collections
-                    WHERE name = %s AND active AND is_user_upload
-                    LIMIT 1
-                )
+            WHERE fm.fc_id = %s
                 AND f.shape && ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
                 AND ST_Intersects(
                     f.shape,
