@@ -2,6 +2,7 @@ import concurrent.futures
 import json
 from pathlib import Path
 
+import pandas as pd
 import geopandas as gpd
 import shapely
 from django.contrib.gis.geos import GEOSGeometry
@@ -161,13 +162,9 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Processing: {fc_name}")
 
-        # Build metadata
-        adm_meta = self.build_metadata(item, fc_name)
-
         # Process geodata
         item_stem = Path(item["gjDownloadURL"]).stem
         gpkg_path = self.data_path / f"{item_stem}.gpkg"
-        adm_meta["path"] = str(gpkg_path)
 
         logger.debug(f"Reading {gpkg_path}")
         try:
@@ -178,6 +175,10 @@ class Command(BaseCommand):
                 self.style.ERROR(f"Failed to read {gpkg_path}: {e}")
             )
             return
+
+        # Read metadata
+        json_path = gpkg_path.with_suffix(".json")
+        adm_meta = json.loads(json_path.read_text())
 
         # Calculate spatial extent
         logger.debug(f"Calculating bounding box for {fc_name}")
@@ -226,15 +227,22 @@ class Command(BaseCommand):
         # Insert features
         logger.debug(f"Inserting features for {fc_name}")
         for idx, row in gdf.iterrows():
+            row_data = row.copy()
+
+            # clean NaN values in row fields
+            for col in row_data.index:
+                if pd.isna(row_data[col]):
+                    row_data[col] = None
+
             # Create Feature (geometry)
-            feature_geom = Feature.objects.create(shape=GEOSGeometry(row.geometry.wkt))
+            feature_geom = Feature.objects.create(shape=GEOSGeometry(row_data.geometry.wkt))
 
             # Create FeatMap (links FC to Feature with attributes)
             FeatMap.objects.create(
                 fc=fc,
                 geom=feature_geom,
-                name=row.get("shapeName"),
-                attr=row.drop(["geometry"]).to_dict(),
+                name=row_data.get("shapeName"),
+                attr=row_data.drop(["geometry"]).to_dict(),
                 parent=None,
             )
 
@@ -243,48 +251,4 @@ class Command(BaseCommand):
             self.style.SUCCESS(f"  Inserted {feature_count} features for {fc_name}")
         )
 
-        # Export metadata to JSON
-        export_meta = {k: v for k, v in adm_meta.items() if k != "features"}
-        export_meta["spatial_extent"] = spatial_extent_wkt
-        json_path = gpkg_path.with_suffix(".json")
-        with open(json_path, "w") as file:
-            json.dump(export_meta, file, indent=4)
-
         logger.info(f"Successfully ingested {fc_name}")
-
-    def build_metadata(self, item: dict, fc_name: str) -> dict:
-        """Build metadata dictionary for a geoBoundaries item."""
-        iso3 = item["boundaryISO"]
-        boundary_type = item["boundaryType"]
-
-        raw_github_string_prefix = "https://github.com/wmgeolab/geoBoundaries/raw/"
-        data_commit = item["gjDownloadURL"].replace(raw_github_string_prefix, "").split("/")[0]
-
-        return {
-            "active": self.set_active,
-            "public": self.set_public,
-            "name": fc_name,
-            "path": None,  # Set later
-            "file_extension": ".gpkg",
-            "title": f"geoBoundaries v6 - {item['boundaryName']} {boundary_type}",
-            "description": (
-                f"This feature collection represents the {boundary_type} level "
-                f"boundaries for {item['boundaryName']} ({iso3}) from geoBoundaries v6."
-            ),
-            "details": f"Based on GitHub commit {data_commit}",
-            "tags": ["geoboundaries", "administrative", "boundary"],
-            "citation": (
-                "Runfola, D. et al. (2020) geoBoundaries: A global database of "
-                "political administrative boundaries. PLoS ONE 15(4): e0231866. "
-                "https://doi.org/10.1371/journal.pone.0231866"
-            ),
-            "source_name": "geoBoundaries",
-            "source_url": "geoboundaries.org",
-            "other": item.copy(),
-            "ingest_src": "geoquery_automated",
-            "is_global": False,
-            "group_name": f"gb_v6_{iso3.lower()}",
-            "group_title": f"{item['boundaryName']} - GeoBoundaries v6",
-            "group_class": "parent" if boundary_type == "ADM0" else "child",
-            "group_level": int(boundary_type[3:]),
-        }

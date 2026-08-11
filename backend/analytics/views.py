@@ -216,6 +216,9 @@ class RequestView(APIView):
                                 po=po,
                                 kwargs=task_kwargs,
                             )
+                            if task.priority < 1:
+                                task.priority = 1
+                                task.save(update_fields=["priority"])
                             task_ids.append(task.id)
             else:
                 # Standard path: reuse pre-computed shared tasks (no per-request kwargs).
@@ -233,6 +236,7 @@ class RequestView(APIView):
                     tasks = tasks.filter(resource__name__in=resources)
 
                 task_ids = list(tasks.values_list("id", flat=True))
+                tasks.filter(priority__lt=1).update(priority=1)
                 if not task_ids:
                     warnings.append(
                         f"No extract tasks found for dataset '{dataset_name}' "
