@@ -6,7 +6,17 @@ from rest_framework.views import APIView
 from analytics.models import Coverage
 from catalog.access import visible_datasets
 
+from .models import Dataset
 from .serializers import DatasetDetailSerializer, DatasetSummarySerializer
+
+
+def _replica_datasets(user):
+    """Catalog reads off the standby.
+
+    Datasets and their catalog membership are written by admins and the ingest
+    command, never by the request path, so nothing here is read-after-write.
+    """
+    return visible_datasets(user, Dataset.objects.using("replica"))
 
 
 class DatasetListView(generics.ListAPIView):
@@ -15,7 +25,7 @@ class DatasetListView(generics.ListAPIView):
     serializer_class = DatasetSummarySerializer
 
     def get_queryset(self):
-        return visible_datasets(self.request.user).order_by("type", "-date_updated")
+        return _replica_datasets(self.request.user).order_by("type", "-date_updated")
 
     def list(self, request, *args, **kwargs):
         """Return a flat list (no pagination wrapper) to match the frontend expectation."""
@@ -43,11 +53,12 @@ class DatasetCoverageView(APIView):
         if not isinstance(feature_ids, list) or not all(isinstance(i, int) for i in feature_ids):
             return Response({"error": "featureIds must be a list of integers"}, status=400)
 
-        qs = visible_datasets(request.user)
+        qs = _replica_datasets(request.user)
 
         if feature_ids:
             covered_ids = (
-                Coverage.objects.filter(geom_id__in=feature_ids)
+                Coverage.objects.using("replica")
+                .filter(geom_id__in=feature_ids)
                 .values_list("dataset_id", flat=True)
                 .distinct()
             )
@@ -74,7 +85,7 @@ class DatasetDetailView(generics.RetrieveAPIView):
     def get_queryset(self):
         # A dataset the caller may not see 404s rather than 403s, so the detail
         # endpoint cannot be used to enumerate private dataset names.
-        return visible_datasets(self.request.user).prefetch_related(
+        return _replica_datasets(self.request.user).prefetch_related(
             "resources", "mappings", "processing_options"
         )
 
@@ -88,7 +99,7 @@ class DatasetCategoryView(generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         tags = (
-            visible_datasets(request.user)
+            _replica_datasets(request.user)
             .exclude(tags__isnull=True)
             .exclude(tags=[])
             .values_list("tags", flat=True)

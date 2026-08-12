@@ -157,22 +157,54 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "geoquery.wsgi.application"
 
-DATABASES = {
-    "default": {
+def _pg(prefix, fallback=None):
+    """Build a database config from ``<prefix>_*`` env vars.
+
+    Two prefixes are in play in the cluster: ``PG_RW_*`` points at the
+    read/write pgBouncer, ``PG_RO_*`` at the read-only one in front of the
+    standbys. Only the backend pods are given ``PG_RO_*``; workers, beat,
+    ingest and the migration Job get ``PG_RW_*`` alone, so ``fallback`` is what
+    keeps a stray ``.using("replica")`` in those processes pointing at the
+    primary instead of crashing on startup.
+    """
+
+    def env(suffix, default):
+        val = os.getenv(f"{prefix}_{suffix}")
+        if val is None and fallback:
+            val = os.getenv(f"{fallback}_{suffix}")
+        return default if val is None else val
+
+    return {
         "ENGINE": "django_prometheus.db.backends.postgis"
         if PROMETHEUS_ENABLED
         else "django.contrib.gis.db.backends.postgis",
-        "NAME": os.getenv("PG_DBNAME", "geoquery"),
-        "USER": os.getenv("PG_USER", "django_user"),
-        "PASSWORD": os.getenv("PG_PASSWORD", ""),
-        "HOST": os.getenv("PG_HOST", "localhost"),
-        "PORT": os.getenv("PG_PORT", "5432"),
+        "NAME": env("DBNAME", "geoquery"),
+        "USER": env("USER", "django_user"),
+        "PASSWORD": env("PASSWORD", ""),
+        "HOST": env("HOST", "localhost"),
+        "PORT": env("PORT", "5432"),
         "OPTIONS": {
             "sslmode": os.getenv("PG_SSL_MODE", "prefer"),
         },
-        "CONN_MAX_AGE": 0,  # New connection per request
+        "CONN_MAX_AGE": 0,  # New connection per request; pgBouncer holds the pool
+        # Server-side cursors are connection-local, so they break under
+        # pgBouncer's transaction pooling. Django falls back to a client-side
+        # fetch. Load-bearing for the .iterator() in
+        # accounts/management/commands/backfill_request_claims.py.
+        "DISABLE_SERVER_SIDE_CURSORS": True,
     }
+
+
+# Do NOT add "TIME_ZONE" here: Django raises ImproperlyConfigured for
+# PostgreSQL when USE_TZ is True. The CloudNativePG Cluster sets the server's
+# timezone to UTC instead, which stops Django emitting a SET TIME ZONE on
+# every connection.
+DATABASES = {
+    "default": _pg("PG_RW"),
+    "replica": {**_pg("PG_RO", fallback="PG_RW"), "TEST": {"MIRROR": "default"}},
 }
+
+DATABASE_ROUTERS = ["geoquery.dbrouter.ReadReplicaRouter"]
 
 
 # Password validation

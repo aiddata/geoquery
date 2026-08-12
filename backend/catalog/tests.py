@@ -283,6 +283,11 @@ class ProcessingOptionWideningTests(TestCase):
 
 
 class TileVisibilityTests(TestCase):
+    # The tile view reads geometry through the "replica" alias. Under test that
+    # alias is a MIRROR of "default" (see settings.DATABASES), so this only
+    # satisfies Django's multi-database isolation guard.
+    databases = {"default", "replica"}
+
     def setUp(self):
         self.public_fc = make_fc(name="pub-fc", active=True, public=True)
         self.private_fc = make_fc(name="priv-fc", active=True, public=False)
@@ -353,6 +358,9 @@ class TileVisibilityTests(TestCase):
 
 
 class EndpointTests(TestCase):
+    # Dataset, autocomplete and feature-id reads go to the "replica" alias.
+    databases = {"default", "replica"}
+
     def setUp(self):
         self.public_ds = make_dataset(name="public-ds", active=True, public=True)
         self.private_ds = make_dataset(name="private-ds", active=True, public=False)
@@ -488,6 +496,9 @@ class CsrfContractTest(TestCase):
     session now, which makes DRF enforce CSRF for logged-in callers -- the
     frontend must reach it through apiFetch, not a bare fetch.
     """
+
+    # /api/datasets/coverage/ reads through the "replica" alias.
+    databases = {"default", "replica"}
 
     def test_coverage_post_requires_csrf_token_when_logged_in(self):
         user = User.objects.create_user(

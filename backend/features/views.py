@@ -1,6 +1,6 @@
 from pathlib import Path
 import yaml
-from django.db import connection
+from django.db import connections
 from django.db.models import Q
 from django.http import HttpResponse
 from django.utils.cache import patch_vary_headers
@@ -14,7 +14,7 @@ from catalog.access import (
     visible_feature_collections,
 )
 
-from .models import FeatMap
+from .models import FeatMap, FeatureCollection
 
 _MVT_CONTENT_TYPE = "application/vnd.mapbox-vector-tile"
 
@@ -43,9 +43,9 @@ class FeatureCollectionAutocompleteView(generics.ListAPIView):
         # never public so they are already excluded, but say so explicitly: an
         # ephemeral upload must not become selectable just because someone
         # added it to a catalog.
-        queryset = visible_feature_collections(request.user).filter(
-            is_user_upload=False
-        )
+        queryset = visible_feature_collections(
+            request.user, FeatureCollection.objects.using("replica")
+        ).filter(is_user_upload=False)
 
         # Apply search filter if query is provided
         if query:
@@ -135,7 +135,10 @@ def feature_collection_vector_tiles(request, fc_name, z, x, y):
     # frontend matches on via `source-layer`. Only the WHERE param is an id.
     params = [fc_name, z, x, y, fc.id, z, x, y, z, x, y]
 
-    with connection.cursor() as cursor:
+    # The visibility resolution above deliberately stays on the primary so a
+    # freshly revoked catalog grant takes effect immediately; only the bulk
+    # geometry read -- by far the hottest query in the app -- goes to a standby.
+    with connections["replica"].cursor() as cursor:
         cursor.execute(sql, params)
         result = cursor.fetchone()
 
@@ -201,8 +204,11 @@ class FeatureIdsView(APIView):
             return Response({"error": "fc must be a comma-separated list of integers"}, status=400)
 
         feature_ids = list(
-            FeatMap.objects.filter(
-                fc__in=visible_feature_collections(request.user).filter(id__in=fc_ids)
+            FeatMap.objects.using("replica")
+            .filter(
+                fc__in=visible_feature_collections(
+                    request.user, FeatureCollection.objects.using("replica")
+                ).filter(id__in=fc_ids)
             )
             .values_list("geom_id", flat=True)
             .distinct()
