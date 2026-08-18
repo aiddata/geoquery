@@ -60,6 +60,11 @@ class Command(BaseCommand):
             action="store_true",
             help="When updating an existing collection, wipe and re-ingest features. Without this flag, only metadata is updated.",
         )
+        parser.add_argument(
+            "--no-refresh-views",
+            action="store_true",
+            help="Skip refreshing materialized views after ingest (useful when ingesting many datasets in sequence)",
+        )
 
     def handle(self, *args, **options):
         self.iso3_list = options.get("iso3")
@@ -104,10 +109,10 @@ class Command(BaseCommand):
         else:
             self.process_sequential(ingest_items)
 
-        # Refresh materialized views with simplified geometries
-        self.stdout.write("Refreshing simplified-geometry materialized views...")
-        refresh_materialized_views()
-        self.stdout.write(self.style.SUCCESS("Materialized views refreshed."))
+        if not options["no_refresh_views"]:
+            self.stdout.write("Refreshing simplified-geometry materialized views...")
+            refresh_materialized_views()
+            self.stdout.write(self.style.SUCCESS("Materialized views refreshed."))
 
         self.stdout.write(self.style.SUCCESS("Finished geoBoundaries ingest"))
 
