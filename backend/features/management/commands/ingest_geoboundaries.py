@@ -38,12 +38,12 @@ class Command(BaseCommand):
         parser.add_argument(
             "--active",
             action="store_true",
-            help="Set feature collections as active",
+            help="Set feature collections as active (false by default)",
         )
         parser.add_argument(
             "--public",
             action="store_true",
-            help="Set feature collections as public",
+            help="Set feature collections as public (false by default)",
         )
         parser.add_argument(
             "--concurrent",
