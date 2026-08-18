@@ -21,7 +21,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--iso3",
             nargs="+",
-            help="Specific ISO3 codes to download (e.g., GHA AFG)",
+            help="Specific ISO3 codes to download (e.g., `--iso3 GHA AFG`. Note the space separation and no `=` after --iso3)",
         )
         parser.add_argument(
             "--data-dir",
