@@ -17,8 +17,20 @@ class PublicApiThrottle(SimpleRateThrottle):
 
     scope = "public_api_anon"
 
+    def __init__(self):
+        # Deliberately skip SimpleRateThrottle.__init__, which eagerly
+        # calls get_rate()/parse_rate() against the class-level default
+        # scope at construction time. This throttle computes its rate
+        # per-request in get_cache_key() instead (scope depends on the
+        # resolved consumer), so nothing needs to happen here. Mirrors
+        # DRF's own ScopedRateThrottle for the same reason.
+        pass
+
     def get_cache_key(self, request, view):
-        consumer = getattr(request, "auth", None)
+        # authenticate() returns (consumer, key), which DRF unpacks as
+        # (request.user, request.auth) — so the resolved consumer is on
+        # request.user, not request.auth.
+        consumer = getattr(request, "user", None)
         if consumer is not None and getattr(consumer, "rate_limit_tier", None):
             self.scope = consumer.rate_limit_tier
             ident = f"consumer:{consumer.id}"

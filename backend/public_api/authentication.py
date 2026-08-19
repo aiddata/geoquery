@@ -54,4 +54,8 @@ class PublicApiKeyAuthentication(BaseAuthentication):
         if consumer is None or not consumer.is_active:
             return None
 
+        # DRF unpacks this as (request.user, request.auth), so the
+        # consumer lands on request.user and the raw key string lands on
+        # request.auth — PublicApiThrottle reads request.user for this
+        # reason; don't "fix" the order without updating it too.
         return (consumer, key)
