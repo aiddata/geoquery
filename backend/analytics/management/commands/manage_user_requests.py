@@ -267,7 +267,7 @@ def _notify_user(request_id, mail_to, status, download_server):
         \thttp://{download_server}/query/#!/status/{request_id}
 
         Or download the results directly (this link will always be available):
-        \thttp://{download_server}/results/{request_id}/{request_id}.zip
+        \thttp://{download_server}/requests/{request_id}/{request_id}.zip
 
         You can also view all your current and previous requests using:
         \thttp://{download_server}/query/#!/requests/{mail_to}

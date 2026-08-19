@@ -37,7 +37,7 @@ urlpatterns = [
 if settings.DEBUG:
     urlpatterns += [
         re_path(
-            r"^results/(?P<path>.*)$",
+            r"^requests/(?P<path>.*)$",
             serve,
             {"document_root": settings.REQUESTS_DIR},
         ),

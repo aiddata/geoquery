@@ -1,10 +1,12 @@
 import json
+import tempfile
+import urllib.request
 from pathlib import Path
 
 import geopandas as gpd
 import shapely
 from django.contrib.gis.geos import GEOSGeometry
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from loguru import logger
 
@@ -13,12 +15,12 @@ from features.models import FeatMap, Feature, FeatureCollection
 
 
 class Command(BaseCommand):
-    help = "Ingest a generic boundary dataset from a boundary_ingest.json file"
+    help = "Ingest a generic boundary dataset from a boundary_ingest.json file or URL"
 
     def add_arguments(self, parser):
         parser.add_argument(
             "path",
-            help="Path to a boundary_ingest.json file",
+            help="Path or URL to a boundary_ingest.json file",
         )
         parser.add_argument(
             "--skip-existing",
@@ -37,19 +39,28 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        ingest_path = Path(options["path"])
-        if not ingest_path.exists():
-            self.stderr.write(self.style.ERROR(f"File not found: {ingest_path}"))
-            return
+        src = options["path"]
+        tmp_path = None
 
-        ingest_dict = json.loads(ingest_path.read_text())
+        try:
+            if src.startswith("http://") or src.startswith("https://"):
+                ingest_path, tmp_path = self._download_url(src)
+            else:
+                ingest_path = Path(src)
+                if not ingest_path.exists():
+                    raise CommandError(f"File not found: {ingest_path}")
 
-        self.stdout.write(f"Ingesting boundary from: {ingest_path}")
-        self.ingest_boundary(
-            ingest_dict,
-            skip_existing=options["skip_existing"],
-            reload_geometry=options["reload_geometry"],
-        )
+            ingest_dict = json.loads(ingest_path.read_text())
+
+            self.stdout.write(f"Ingesting boundary from: {src}")
+            self.ingest_boundary(
+                ingest_dict,
+                skip_existing=options["skip_existing"],
+                reload_geometry=options["reload_geometry"],
+            )
+        finally:
+            if tmp_path is not None:
+                tmp_path.unlink(missing_ok=True)
 
         if not options["no_refresh_views"]:
             self.stdout.write("Refreshing simplified-geometry materialized views...")
@@ -57,6 +68,20 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS("Materialized views refreshed."))
 
         self.stdout.write(self.style.SUCCESS("Done."))
+
+    def _download_url(self, url: str) -> tuple[Path, Path]:
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+                tmp_path = Path(tmp.name)
+            urllib.request.urlretrieve(url, tmp_path)
+            try:
+                json.loads(tmp_path.read_text())
+            except (json.JSONDecodeError, ValueError) as exc:
+                tmp_path.unlink(missing_ok=True)
+                raise CommandError(f"Downloaded content is not valid JSON: {exc}")
+            return tmp_path, tmp_path
+        except urllib.error.URLError as exc:
+            raise CommandError(f"Failed to download {url}: {exc}")
 
     @transaction.atomic
     def ingest_boundary(self, ingest_dict: dict, skip_existing: bool, reload_geometry: bool):

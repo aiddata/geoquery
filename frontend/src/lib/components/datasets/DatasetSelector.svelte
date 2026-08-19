@@ -135,7 +135,7 @@
 	</div>
 
 	<!-- Dataset list -->
-	<ScrollArea class="flex-1">
+	<ScrollArea class="min-h-0 flex-1">
 		<div class="space-y-1 p-2">
 			{#if filteredDatasets.length === 0}
 				<p class="px-4 py-8 text-center text-sm text-muted-foreground">No datasets found.</p>

@@ -320,10 +320,10 @@ class RequestDetailView(APIView):
             base = getattr(settings, "DOWNLOAD_BASE_URL", "").rstrip("/")
             if base:
                 data["download_url"] = (
-                    f"{base}/results/{req.id}/{req.id}.zip"
+                    f"{base}/requests/{req.id}/{req.id}.zip"
                 )
                 data["documentation_url"] = (
-                    f"{base}/results/{req.id}/{req.id}_documentation.html"
+                    f"{base}/requests/{req.id}/{req.id}_documentation.html"
                 )
             frontend_base = getattr(settings, "FRONTEND_BASE_URL", "").rstrip("/")
             if frontend_base:
