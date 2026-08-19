@@ -21,3 +21,4 @@ requests
 postgres/
 .agent/
 k8s/
+.worktrees/
