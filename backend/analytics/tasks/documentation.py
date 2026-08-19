@@ -74,10 +74,7 @@ class DocBuilder:
 
     def _section_info(self) -> str:
         req = self.request
-        dl_url = (
-            f"http://{self.download_server}/requests"
-            f"/{req.id}/{req.id}.zip"
-        )
+        dl_url = f"{self.download_server}/requests/{req.id}/{req.id}.zip"
         rows = [
             self._kv("Request Name", self._esc(req.custom_name or "—")),
             self._kv("Request ID", f"<code>{req.id}</code>"),

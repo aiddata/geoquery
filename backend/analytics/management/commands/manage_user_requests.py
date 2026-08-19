@@ -43,8 +43,13 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--download-server",
-            default="geoquery.aiddata.wm.edu",
-            help="The server that users will download data from (used in email notifications)",
+            default=None,
+            help="Base URL for file downloads (default: settings.DOWNLOAD_BASE_URL)",
+        )
+        parser.add_argument(
+            "--frontend-base",
+            default=None,
+            help="Base URL for the frontend (default: settings.FRONTEND_BASE_URL)",
         )
         parser.add_argument(
             "--requests-dir",
@@ -62,7 +67,8 @@ class Command(BaseCommand):
 
         _manage_user_requests(
             request_id=options["id"] or None,
-            download_server=options["download_server"],
+            download_base=options["download_server"] or getattr(settings, "DOWNLOAD_BASE_URL", "").rstrip("/"),
+            frontend_base=options["frontend_base"] or getattr(settings, "FRONTEND_BASE_URL", "").rstrip("/"),
             requests_dir=options["requests_dir"] or str(settings.REQUESTS_DIR),
             assets_dir=options["assets_dir"] or str(settings.ASSETS_DIR),
             dry_run=options["dry_run"],
@@ -71,7 +77,8 @@ class Command(BaseCommand):
 
 def _manage_user_requests(
     request_id=None,
-    download_server="geoquery.aiddata.wm.edu",
+    download_base="",
+    frontend_base="",
     requests_dir="/requests",
     assets_dir="../assets",
     dry_run=False,
@@ -156,7 +163,7 @@ def _manage_user_requests(
                     _build_output(
                         updated_request_obj,
                         merge_list,
-                        download_server,
+                        download_base,
                         requests_dir,
                         assets_dir,
                     )
@@ -191,7 +198,7 @@ def _manage_user_requests(
         # failure cannot roll back committed request state or mask a success.
         if send_received_email and not dry_run:
             try:
-                _notify_user(request_id, request_obj.contact, 0, download_server)
+                _notify_user(request_id, request_obj.contact, 0, download_base, frontend_base)
             except Exception as e:
                 logger.error(
                     "Failed to send received notification for request (id: %s): %s",
@@ -202,7 +209,7 @@ def _manage_user_requests(
         if completed_request_obj is not None and not dry_run:
             try:
                 _notify_user(
-                    request_id, completed_request_obj.contact, 1, download_server
+                    request_id, completed_request_obj.contact, 1, download_base, frontend_base
                 )
             except Exception as e:
                 # Data is built but user was never notified — mark as error so it surfaces for manual intervention.
@@ -233,7 +240,7 @@ def _request_error(request_id, message):
     Request.objects.filter(id=request_id).update(status=-2)
 
 
-def _notify_user(request_id, mail_to, status, download_server):
+def _notify_user(request_id, mail_to, status, download_base, frontend_base):
     """Send email that request was received (status=0) or completed (status=1)."""
     if status not in [0, 1]:
         raise ValueError(
@@ -249,11 +256,11 @@ def _notify_user(request_id, mail_to, status, download_server):
         soon as we can. We will send another email when your data is ready.
 
         You can view the status of this data request here:
-        http://{download_server}/query/#!/status/{request_id}
+        \t{frontend_base}/requests/{request_id}
 
-        You can also keep track of all of the data requests that you've
+        You can also keep track of all of the data requests you've
         submitted with this email address here:
-        http://{download_server}/query/#!/requests/{mail_to}
+        \t{frontend_base}/requests
 
         Thank you,
         \tAidData's GeoQuery Team
@@ -264,13 +271,13 @@ def _notify_user(request_id, mail_to, status, download_server):
         your data is ready.
 
         You can review your request, and download the results and documentation here:
-        \thttp://{download_server}/query/#!/status/{request_id}
+        \t{frontend_base}/requests/{request_id}
 
         Or download the results directly (this link will always be available):
-        \thttp://{download_server}/requests/{request_id}/{request_id}.zip
+        \t{download_base}/requests/{request_id}/{request_id}.zip
 
         You can also view all your current and previous requests using:
-        \thttp://{download_server}/query/#!/requests/{mail_to}
+        \t{frontend_base}/requests
 
         Also, one quick reminder about citations. Don't forget to cite both AidData's GeoQuery
         tool as well as each dataset you selected within GeoQuery. All citations can be found
