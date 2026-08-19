@@ -317,7 +317,7 @@
 		<!-- Three-panel layout (min-width enforced; scrolls horizontally on narrow screens) -->
 		<div class="flex flex-1 overflow-x-auto overflow-y-hidden">
 			<!-- Left Panel: Dataset Selector -->
-			<div class="w-80 shrink-0 border-r bg-card">
+			<div class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r bg-card">
 				<DatasetSelector
 					{datasets}
 					{categories}
