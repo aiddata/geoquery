@@ -166,7 +166,7 @@ def _run_user_outreach(n_days, request_count, earliest_request, latest_request, 
     # send list of users to staff emails
     if not dry_run and mode == "manual" and valid_user_count > 0:
 
-        email_list = valid_df["email"].tolist()
+        email_list = valid_df["contact"].tolist()
         email_list_str = "\n\t".join(email_list)
 
         mail_to = "geo@aiddata.org, info@aiddata.org"
@@ -217,7 +217,7 @@ def _run_user_outreach(n_days, request_count, earliest_request, latest_request, 
     # add "comments_requested" = 1 flag to all of their existing requests
     for ix, user_info in valid_df.iterrows():
 
-        user_email = user_info["email"]
+        user_email = user_info["contact"]
 
         if mode == "auto" and ix >= email_limit:
             logger.warning(
