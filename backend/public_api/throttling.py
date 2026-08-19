@@ -17,6 +17,16 @@ class PublicApiThrottle(SimpleRateThrottle):
 
     scope = "public_api_anon"
 
+    def allow_request(self, request, view):
+        # SimpleRateThrottle.allow_request() checks self.rate before ever
+        # calling get_cache_key(), but this class can't know its rate until
+        # get_cache_key() resolves the consumer's tier (or falls back to
+        # anon). Prime self.rate/scope here first, then let the base
+        # implementation do its normal check/cache bookkeeping — mirroring
+        # DRF's own ScopedRateThrottle, which does the same two-step dance.
+        self.get_cache_key(request, view)
+        return super().allow_request(request, view)
+
     def __init__(self):
         # Deliberately skip SimpleRateThrottle.__init__, which eagerly
         # calls get_rate()/parse_rate() against the class-level default
