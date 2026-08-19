@@ -379,7 +379,7 @@
 			</div>
 
 			<!-- Right Panel: Selection Summary -->
-			<div class="w-72 shrink-0 border-l bg-card">
+			<div class="flex h-full w-72 shrink-0 flex-col overflow-hidden border-l bg-card">
 				<SelectionSummary
 					dataset={selectedDatasetDetail}
 					extractTypes={selectedDatasetDetail?.processing_class === 'filter_and_agg' ? undefined : rasterOptions.extractTypes}
