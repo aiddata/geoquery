@@ -157,7 +157,7 @@ def _manage_user_requests(
 
                 if missing_items > 0:
                     Request.objects.filter(id=request_id).update(status=0)
-                    logger.warning("Request not ready (id: %s)", request_id)
+                    logger.warning(f"Request not ready (id: {request_id}) - missing {missing_items} items")
                 else:
                     updated_request_obj = Request.objects.get(id=request_id)
                     _build_output(
