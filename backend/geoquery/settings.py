@@ -80,6 +80,7 @@ INSTALLED_APPS = [
     "django.contrib.gis",
     "django.contrib.postgres",
     "rest_framework",
+    "drf_spectacular",
     "corsheaders",
     "django_celery_results",
     "geoquery",
@@ -87,6 +88,7 @@ INSTALLED_APPS = [
     "datasets",
     "analytics",
     "visualize",
+    "public_api",
 ]
 
 MIDDLEWARE = [
@@ -333,6 +335,7 @@ LOGGING = {
 REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 100,
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
         "rest_framework.authentication.TokenAuthentication",
@@ -343,5 +346,17 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "request_token": os.environ.get("THROTTLE_RATE_REQUEST_TOKEN", "10/hour"),
         "request_submit": os.environ.get("THROTTLE_RATE_REQUEST_SUBMIT", "60/hour"),
+        "public_api_anon": os.environ.get("THROTTLE_RATE_PUBLIC_API_ANON", "100/hour"),
     },
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "GeoQuery Public API",
+    "DESCRIPTION": (
+        "Read-only public API for GeoQuery datasets and boundaries. "
+        "Currently open during beta; API key authentication will be "
+        "required once account-based access launches."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }

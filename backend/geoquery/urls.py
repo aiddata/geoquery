@@ -32,6 +32,7 @@ urlpatterns = [
     path("api/datasets/", include("datasets.urls")),
     path("api/analytics/", include("analytics.urls")),
     path("api/visualize/", include("visualize.urls")),
+    path("api/public/v1/", include("public_api.urls")),
 ]
 
 if settings.DEBUG:
