@@ -303,6 +303,32 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
+    },
+    "formatters": {
+        "simple": {
+            "format": "{levelname} {name} {message}",
+            "style": "{",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "WARNING",
+    },
+    "loggers": {
+        "analytics": {"level": "INFO", "propagate": True},
+        "datasets": {"level": "INFO", "propagate": True},
+        "features": {"level": "INFO", "propagate": True},
+    },
+}
+
 # Django REST Framework settings
 REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",

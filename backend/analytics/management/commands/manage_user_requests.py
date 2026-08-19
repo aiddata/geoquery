@@ -307,31 +307,33 @@ def _check_request_tasks(request, dry_run=False):
 
     Returns count of tasks still pending and list of completed extract task IDs.
     """
-    pending_task_count = 0
-    completed_task_list = []
-
     logger.info("Checking status of processing tasks (dry_run=%s)...", dry_run)
 
-    task_list = RequestMap.objects.filter(request=request.id)
+    task_ids = list(
+        RequestMap.objects.filter(request=request.id).values_list("task_id", flat=True)
+    )
+    total = len(task_ids)
 
-    for task_item in task_list:
-        extract_task = ExtractTask.objects.filter(id=task_item.task_id).first()
-        if extract_task is None:
-            logger.error(
-                "Extract task %s not found for request %s",
-                task_item.task_id,
-                request.id,
-            )
-            pending_task_count += 1
-            continue
-        if extract_task.status != 1:
-            pending_task_count += 1
-            # increase priority of pending tasks to ensure they get processed before non request tasks
-            extract_task.priority = 1
-        else:
-            completed_task_list.append(extract_task.id)
+    existing_ids = set(
+        ExtractTask.objects.filter(id__in=task_ids).values_list("id", flat=True)
+    )
+    missing_ids = set(task_ids) - existing_ids
+    if missing_ids:
+        logger.error(
+            "%d extract task(s) not found for request %s: %s",
+            len(missing_ids), request.id, missing_ids,
+        )
 
-    logger.info("Processing tasks pending: %d/%d", pending_task_count, len(task_list))
+    completed_task_list = list(
+        ExtractTask.objects.filter(id__in=task_ids, status=1).values_list("id", flat=True)
+    )
+
+    # Bump priority on pending tasks so workers pick them up before background tasks
+    if not dry_run:
+        ExtractTask.objects.filter(id__in=task_ids, priority=0).exclude(status=1).update(priority=1)
+
+    pending_task_count = total - len(completed_task_list)
+    logger.info("Processing tasks pending: %d/%d", pending_task_count, total)
 
     return pending_task_count, completed_task_list
 

@@ -22,8 +22,8 @@ class ProcessingOptionAdmin(admin.ModelAdmin):
 
 @admin.register(ExtractTask)
 class ExtractTaskAdmin(admin.ModelAdmin):
-    list_display = ("id", "status", "submit_time", "start_time", "update_time", "complete_time")
-    list_filter = ("status", "submit_time", "start_time", "update_time", "complete_time")
+    list_display = ("id", "status", "priority", "submit_time", "start_time", "update_time", "complete_time")
+    list_filter = ("status", "priority", "submit_time", "start_time", "update_time", "complete_time")
     search_fields = ("id",)
 
 
