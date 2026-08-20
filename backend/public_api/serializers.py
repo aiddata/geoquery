@@ -94,7 +94,10 @@ class PublicBoundaryDetailSerializer(PublicBoundarySerializer):
     feature_ids = serializers.SerializerMethodField()
 
     def get_feature_ids(self, obj):
-        return list(FeatMap.objects.filter(fc=obj).values_list("geom_id", flat=True).distinct())
+        # No .distinct() needed: FeatMap has a DB-level UniqueConstraint on
+        # (fc, geom), so filtering to a single fc already guarantees unique
+        # geom_id values.
+        return list(FeatMap.objects.filter(fc=obj).values_list("geom_id", flat=True))
 
     class Meta(PublicBoundarySerializer.Meta):
         fields = PublicBoundarySerializer.Meta.fields + ["feature_ids"]
