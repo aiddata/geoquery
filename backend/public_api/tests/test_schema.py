@@ -10,6 +10,16 @@ EXPECTED_PATHS = {
     "/boundaries/presets/",
 }
 
+# These views override .list() to return a bare flat array (matching the
+# internal API's "flat list, no pagination wrapper" convention) but are
+# ListAPIView subclasses, so without pagination_class = None,
+# drf-spectacular documents them as paginated even though they never are.
+FLAT_LIST_PATHS = {
+    "/datasets/",
+    "/datasets/categories/",
+    "/boundaries/autocomplete/",
+}
+
 
 class PublicApiFullSchemaTests(TestCase):
     def setUp(self):
@@ -34,3 +44,23 @@ class PublicApiFullSchemaTests(TestCase):
                     operation.get("responses"),
                     f"{method.upper()} {path} has no documented responses",
                 )
+
+    def test_flat_list_endpoints_are_not_documented_as_paginated(self):
+        # These views manually return Response(serializer.data) — a bare
+        # array — from an overridden .list(), never a {count, next,
+        # previous, results} envelope. The schema must say so too.
+        for path in FLAT_LIST_PATHS:
+            get = self.schema["paths"][path]["get"]
+            response_schema = get["responses"]["200"]["content"]["application/json"]["schema"]
+            self.assertEqual(
+                response_schema.get("type"),
+                "array",
+                f"GET {path} response schema should be a plain array, got {response_schema}",
+            )
+
+            param_names = {param.get("name") for param in get.get("parameters", [])}
+            self.assertNotIn(
+                "page",
+                param_names,
+                f"GET {path} should not document a 'page' query param — it is never paginated",
+            )

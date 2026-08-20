@@ -23,6 +23,7 @@ class PublicDatasetListView(PublicApiBaseMixin, generics.ListAPIView):
     """GET /api/public/v1/datasets/ — flat list of active, public datasets."""
 
     serializer_class = PublicDatasetSerializer
+    pagination_class = None
 
     def get_queryset(self):
         return Dataset.objects.filter(active=True, public=True).order_by("type", "-date_updated")
@@ -47,6 +48,7 @@ class PublicDatasetCategoryView(PublicApiBaseMixin, generics.ListAPIView):
     """GET /api/public/v1/datasets/categories/ — deduplicated dataset tags."""
 
     serializer_class = PublicDatasetCategorySerializer
+    pagination_class = None
 
     def list(self, request, *args, **kwargs):
         tags = (
@@ -113,6 +115,7 @@ class PublicBoundaryAutocompleteView(PublicApiBaseMixin, generics.ListAPIView):
     """GET /api/public/v1/boundaries/autocomplete/?q=&limit= — search active, public boundaries."""
 
     serializer_class = PublicBoundarySerializer
+    pagination_class = None
 
     def get_queryset(self):
         query = self.request.query_params.get("q", "").strip()
