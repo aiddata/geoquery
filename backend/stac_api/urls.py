@@ -11,6 +11,12 @@ api_urlpatterns = [
     path("conformance/", views.StacConformanceView.as_view(), name="conformance"),
     path("collections/", views.StacCollectionListView.as_view(), name="collection-list"),
     path("collections/<str:name>/", views.StacCollectionDetailView.as_view(), name="collection-detail"),
+    path("collections/<str:name>/items/", views.StacItemListView.as_view(), name="item-list"),
+    path(
+        "collections/<str:name>/items/<str:item_id>/",
+        views.StacItemDetailView.as_view(),
+        name="item-detail",
+    ),
 ]
 
 urlpatterns = api_urlpatterns

@@ -1,10 +1,10 @@
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .base import StacApiBaseMixin
-from .serializers import CollectionSerializer
-from .sources import all_collection_sources, get_collection_source
+from .serializers import CollectionSerializer, ItemSerializer
+from .sources import all_collection_sources, get_collection_source, get_item, get_items_for_collection
 from .utils import STAC_VERSION, build_url
 
 # Only conformance classes actually implemented. No filter/CQL2, fields,
@@ -83,4 +83,64 @@ class StacCollectionDetailView(StacApiBaseMixin, APIView):
         if source is None:
             raise NotFound(f"No such collection: {name}")
         serializer = CollectionSerializer(source, context={"request": request})
+        return Response(serializer.data)
+
+
+DEFAULT_ITEM_PAGE_SIZE = 100
+
+
+class StacItemListView(StacApiBaseMixin, APIView):
+    """GET /api/stac/v1/collections/{name}/items/?limit=&offset="""
+
+    def get(self, request, name):
+        source = get_collection_source(name)
+        if source is None:
+            raise NotFound(f"No such collection: {name}")
+
+        try:
+            limit = int(request.query_params.get("limit", DEFAULT_ITEM_PAGE_SIZE))
+            offset = int(request.query_params.get("offset", 0))
+        except (TypeError, ValueError):
+            raise ValidationError({"limit/offset": "must be integers"})
+
+        items = get_items_for_collection(source)
+        page = items[offset : offset + limit]
+        serializer = ItemSerializer(page, many=True, context={"request": request})
+
+        links = [
+            {
+                "rel": "self",
+                "href": build_url(request, f"/api/stac/v1/collections/{name}/items/"),
+                "type": "application/geo+json",
+            }
+        ]
+        if offset + limit < len(items):
+            next_href = build_url(
+                request, f"/api/stac/v1/collections/{name}/items/?limit={limit}&offset={offset + limit}"
+            )
+            links.append({"rel": "next", "href": next_href, "type": "application/geo+json"})
+
+        return Response(
+            {
+                "type": "FeatureCollection",
+                "stac_version": STAC_VERSION,
+                "features": serializer.data,
+                "links": links,
+                "numberMatched": len(items),
+                "numberReturned": len(page),
+            }
+        )
+
+
+class StacItemDetailView(StacApiBaseMixin, APIView):
+    """GET /api/stac/v1/collections/{name}/items/{item_id}/"""
+
+    def get(self, request, name, item_id):
+        source = get_collection_source(name)
+        if source is None:
+            raise NotFound(f"No such collection: {name}")
+        item = get_item(source, item_id)
+        if item is None:
+            raise NotFound(f"No such item: {item_id}")
+        serializer = ItemSerializer(item, context={"request": request})
         return Response(serializer.data)
