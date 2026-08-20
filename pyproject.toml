@@ -13,9 +13,10 @@ dependencies = [
 
 [dependency-groups]
 docs = ["zensical~=0.0.43"]
+notebooks = ["ipykernel>=6.29"]
 
 [tool.uv]
-default-groups = ["docs"]
+default-groups = ["docs", "notebooks"]
 required-environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'"
 ]
