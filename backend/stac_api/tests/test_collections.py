@@ -1,3 +1,4 @@
+from django.contrib.gis.geos import Polygon
 from django.test import TestCase
 from django.urls import reverse
 
@@ -97,3 +98,29 @@ class StacCollectionDetailViewTests(TestCase):
         )
 
         self.assertNotIn("summaries", response.json())
+
+    def test_dataset_with_full_metadata_returns_correct_shape(self):
+        make_dataset(
+            name="ds-full", path="ds-full",
+            spatial_extent=Polygon.from_bbox((1, 2, 3, 4)),
+            temporal_start="2020-01-01T00:00:00Z",
+            temporal_end="2020-12-31T00:00:00Z",
+            tags=["climate", "raster"],
+            source_name="Test Source",
+            source_url="https://example.com",
+        )
+
+        response = self.client.get(
+            reverse("stac_api:collection-detail", kwargs={"name": "ds-full"})
+        )
+
+        data = response.json()
+        self.assertEqual(data["extent"]["spatial"]["bbox"], [[1.0, 2.0, 3.0, 4.0]])
+        self.assertEqual(
+            data["extent"]["temporal"]["interval"],
+            [["2020-01-01T00:00:00Z", "2020-12-31T00:00:00Z"]],
+        )
+        self.assertEqual(data["keywords"], ["climate", "raster"])
+        self.assertEqual(
+            data["providers"], [{"name": "Test Source", "url": "https://example.com"}]
+        )
