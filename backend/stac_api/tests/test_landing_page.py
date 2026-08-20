@@ -15,7 +15,9 @@ class StacLandingPageViewTests(TestCase):
         response = self.client.get(reverse("stac_api:landing-page"))
 
         rels = {link["rel"] for link in response.json()["links"]}
-        self.assertTrue({"self", "root", "conformance", "data", "search"}.issubset(rels))
+        self.assertTrue(
+            {"self", "root", "conformance", "data", "search", "service-doc"}.issubset(rels)
+        )
 
 
 class StacConformanceViewTests(TestCase):

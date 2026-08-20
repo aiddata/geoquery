@@ -223,6 +223,15 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
+# Exclude stac_api from corsheaders' handling — it needs an unconditional
+# wildcard Access-Control-Allow-Origin (see StacApiBaseMixin), but
+# corsheaders' allowlist-based CORS_ALLOWED_ORIGINS doesn't support that,
+# and worse, its middleware intercepts preflight OPTIONS requests before
+# they reach the view, bypassing StacApiBaseMixin.finalize_response()
+# entirely. Scoping corsheaders off this path lets stac_api handle its
+# own CORS end-to-end instead.
+CORS_URLS_REGEX = r"^(?!/api/stac/).*$"
+
 # Results
 REQUESTS_DIR = Path(os.environ.get("REQUESTS_DIR", str(BASE_DIR.parent / "requests")))
 ASSETS_DIR = Path(os.environ.get("ASSETS_DIR", str(BASE_DIR.parent / "assets")))
