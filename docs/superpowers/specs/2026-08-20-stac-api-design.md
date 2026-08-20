@@ -58,7 +58,7 @@ Targets OGC API - Features "Core" conformance plus the STAC Item Search extensio
 | `id` | `resource.name` |
 | `collection` | `dataset.name` |
 | `geometry` / `bbox` | `resource.spatial_extent`, falling back to the parent Dataset's `spatial_extent` when the resource has none |
-| `datetime` | `resource.temporal`, falling back to `dataset.temporal_start` when unset |
+| `datetime` | `resource.temporal`, falling back to `dataset.temporal_start`, falling back to `dataset.date_added` (the record's creation timestamp) when both are unset — STAC requires `properties.datetime` to be non-null unless `start_datetime`/`end_datetime` are both supplied instead, which this serializer never emits; a Dataset with no curated temporal metadata would otherwise produce a spec-invalid Item. Caught by the `stac-pydantic` conformance tests. Known limitation: when this third level fires, `datetime` reflects ingestion time, not data capture time — acceptable for Phase 1 discovery, revisit if temporal search accuracy matters. Same three-level fallback applies to `FeatureCollection`-backed Items via `temporal_start`/`date_added` (two levels there, since there's no separate parent to fall back through). |
 | `assets` | `{}` — no downloadable asset (see below) |
 | `links` | includes one `rel: "via"` entry pointing at the GeoQuery dataset page / extraction request flow |
 
