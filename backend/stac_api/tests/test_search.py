@@ -101,6 +101,29 @@ class StacSearchViewTests(TestCase):
         ids = {f["id"] for f in response.json()["features"]}
         self.assertEqual(ids, {"ds-one-a"})
 
+    def test_bbox_search_finds_item_via_dataset_fallback_geometry(self):
+        dataset = make_dataset(
+            name="ds-one", path="ds-one",
+            spatial_extent=Polygon.from_bbox((0, 0, 10, 10)),
+        )
+        DatasetResource.objects.create(dataset=dataset, name="ds-one-a", path="/x/a.tif")
+
+        response = self.client.get(reverse("stac_api:search"), {"bbox": "0,0,10,10"})
+
+        ids = {f["id"] for f in response.json()["features"]}
+        self.assertEqual(ids, {"ds-one-a"})
+
+    def test_number_matched_exceeds_number_returned_when_limited(self):
+        dataset = make_dataset(name="ds-one", path="ds-one")
+        for i in range(5):
+            DatasetResource.objects.create(dataset=dataset, name=f"ds-one-{i}", path=f"/x/{i}.tif")
+
+        response = self.client.get(reverse("stac_api:search"), {"limit": 2})
+
+        data = response.json()
+        self.assertEqual(data["numberMatched"], 5)
+        self.assertEqual(data["numberReturned"], 2)
+
     def test_malformed_bbox_returns_400(self):
         response = self.client.get(reverse("stac_api:search"), {"bbox": "not,a,bbox"})
         self.assertEqual(response.status_code, 400)
