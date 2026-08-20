@@ -25,6 +25,16 @@ api_urlpatterns = [
         name="dataset-coverage",
     ),
     path("datasets/<str:name>/", views.PublicDatasetDetailView.as_view(), name="dataset-detail"),
+    path(
+        "boundaries/autocomplete/",
+        views.PublicBoundaryAutocompleteView.as_view(),
+        name="boundary-autocomplete",
+    ),
+    path(
+        "boundaries/presets/",
+        views.PublicBoundaryPresetsView.as_view(),
+        name="boundary-presets",
+    ),
 ]
 
 urlpatterns = api_urlpatterns + [

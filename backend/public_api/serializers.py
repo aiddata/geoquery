@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from datasets.models import Dataset
+from features.models import FeatureCollection
 
 
 class PublicDatasetSerializer(serializers.ModelSerializer):
@@ -48,3 +49,38 @@ class PublicDatasetCoverageRequestSerializer(serializers.Serializer):
     featureIds = serializers.ListField(
         child=serializers.IntegerField(), required=False, default=list
     )
+
+
+class PublicBoundarySerializer(serializers.ModelSerializer):
+    bbox = serializers.SerializerMethodField()
+
+    def get_bbox(self, obj):
+        if obj.spatial_extent is None:
+            return None
+        xmin, ymin, xmax, ymax = obj.spatial_extent.extent
+        return [xmin, ymin, xmax, ymax]
+
+    class Meta:
+        model = FeatureCollection
+        fields = [
+            "name",
+            "title",
+            "short_name",
+            "description",
+            "bbox",
+            "group_name",
+            "group_title",
+            "group_level",
+            "source_name",
+            "tags",
+        ]
+
+
+class PublicBoundaryPresetSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    description = serializers.CharField(allow_null=True, required=False)
+    source_name = serializers.CharField(allow_null=True, required=False)
+    group_class = serializers.CharField(allow_null=True, required=False)
+    group_level = serializers.IntegerField(allow_null=True, required=False)
+    tags = serializers.ListField(child=serializers.CharField(), required=False)
+    sort_order = serializers.IntegerField(required=False)

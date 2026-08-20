@@ -1,3 +1,4 @@
+from django.db.models import Q
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics
 from rest_framework.exceptions import ValidationError
@@ -6,9 +7,13 @@ from rest_framework.views import APIView
 
 from analytics.models import Coverage
 from datasets.models import Dataset
+from features.models import FeatureCollection
+from features.views import BoundaryPresetsView as _InternalBoundaryPresetsView
 
 from .base import PublicApiBaseMixin
 from .serializers import (
+    PublicBoundaryPresetSerializer,
+    PublicBoundarySerializer,
     PublicDatasetCategorySerializer,
     PublicDatasetCoverageRequestSerializer,
     PublicDatasetSerializer,
@@ -103,3 +108,47 @@ class PublicDatasetCoverageView(PublicApiBaseMixin, APIView):
 
         qs = qs.order_by("type", "-date_updated")
         return Response(PublicDatasetSerializer(qs, many=True).data)
+
+
+class PublicBoundaryAutocompleteView(PublicApiBaseMixin, generics.ListAPIView):
+    """GET /api/public/v1/boundaries/autocomplete/?q=&limit= — search active, public boundaries."""
+
+    serializer_class = PublicBoundarySerializer
+
+    def get_queryset(self):
+        query = self.request.query_params.get("q", "").strip()
+        try:
+            limit = int(self.request.query_params.get("limit", 10))
+        except (ValueError, TypeError):
+            raise ValidationError({"limit": "must be an integer"})
+
+        queryset = FeatureCollection.objects.filter(active=True, public=True)
+        if query:
+            queryset = queryset.filter(
+                Q(name__icontains=query)
+                | Q(title__icontains=query)
+                | Q(description__icontains=query)
+            )
+        queryset = queryset.order_by("name")
+        if limit > 0:
+            queryset = queryset[:limit]
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class PublicBoundaryPresetsView(PublicApiBaseMixin, APIView):
+    """GET /api/public/v1/boundaries/presets/
+
+    Reuses features.views.BoundaryPresetsView's cached YAML loader rather
+    than duplicating the preset-loading/caching logic.
+    """
+
+    @extend_schema(responses=PublicBoundaryPresetSerializer(many=True))
+    def get(self, request):
+        presets = _InternalBoundaryPresetsView._load_presets()
+        serializer = PublicBoundaryPresetSerializer(presets, many=True)
+        return Response(serializer.data)
