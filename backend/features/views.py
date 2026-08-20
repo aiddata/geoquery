@@ -199,7 +199,12 @@ class BoundaryPresetsView(APIView):
 
     @classmethod
     def _load_presets(cls):
-        """Load boundary presets from YAML, reloading if the file has changed."""
+        """Load boundary presets from YAML, reloading if the file has changed.
+
+        Also called directly by public_api.views.PublicBoundaryPresetsView —
+        changing this method's signature or return shape affects that
+        external consumer too.
+        """
         config_path = Path(__file__).parent.parent / "config" / "boundary_presets.yaml"
         try:
             current_mtime = config_path.stat().st_mtime

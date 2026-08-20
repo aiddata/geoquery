@@ -53,12 +53,17 @@ class PublicDatasetCoverageRequestSerializer(serializers.Serializer):
 
 class PublicBoundarySerializer(serializers.ModelSerializer):
     bbox = serializers.SerializerMethodField()
+    tags = serializers.SerializerMethodField()
 
     def get_bbox(self, obj):
         if obj.spatial_extent is None:
             return None
         xmin, ymin, xmax, ymax = obj.spatial_extent.extent
         return [xmin, ymin, xmax, ymax]
+
+    def get_tags(self, obj):
+        # Normalize null to [] to match features.views.FeatureCollectionAutocompleteView.
+        return obj.tags or []
 
     class Meta:
         model = FeatureCollection
@@ -70,6 +75,7 @@ class PublicBoundarySerializer(serializers.ModelSerializer):
             "bbox",
             "group_name",
             "group_title",
+            "group_class",
             "group_level",
             "source_name",
             "tags",

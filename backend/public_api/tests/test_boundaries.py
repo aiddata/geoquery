@@ -12,6 +12,7 @@ EXPECTED_BOUNDARY_FIELDS = {
     "bbox",
     "group_name",
     "group_title",
+    "group_class",
     "group_level",
     "source_name",
     "tags",
@@ -50,6 +51,21 @@ class PublicBoundaryAutocompleteViewTests(TestCase):
         names = {b["name"] for b in response.json()}
         self.assertEqual(names, {"wm-districts"})
 
+    def test_excludes_private_boundaries_even_when_active(self):
+        make_boundary(name="wm-districts", path="wm-districts", title="William & Mary Districts")
+        make_boundary(
+            name="hidden-private",
+            path="hidden-private",
+            title="William & Mary Private",
+            public=False,
+        )
+
+        response = self.client.get(reverse("public_api:boundary-autocomplete"), {"q": "William"})
+
+        self.assertEqual(response.status_code, 200)
+        names = {b["name"] for b in response.json()}
+        self.assertEqual(names, {"wm-districts"})
+
     def test_invalid_limit_returns_public_envelope_400(self):
         response = self.client.get(reverse("public_api:boundary-autocomplete"), {"limit": "abc"})
 
@@ -64,9 +80,9 @@ class PublicBoundaryPresetsViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         presets = response.json()
         self.assertIsInstance(presets, list)
-        if presets:
-            self.assertIn("name", presets[0])
-            self.assertIn("sort_order", presets[0])
+        self.assertGreater(len(presets), 0)
+        self.assertIn("name", presets[0])
+        self.assertIn("sort_order", presets[0])
 
 
 class PublicApiSchemaCoversBoundaryRoutesTests(TestCase):
