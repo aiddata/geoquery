@@ -65,6 +65,9 @@ dependencies = [
 ]
 
 [dependency-groups]
+# Duplicated from root pyproject.toml: "uv sync --package geoquery-backend"
+# (see Containerfile) only reads dependency-groups declared on this member's
+# own pyproject.toml, not the workspace root's — don't remove this copy.
 test = ["stac-pydantic>=3.0"]
 
 [tool.uv]

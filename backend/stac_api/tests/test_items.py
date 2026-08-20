@@ -4,6 +4,7 @@ from django.urls import reverse
 
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatureCollection
+from stac_api.utils import to_rfc3339
 
 
 def make_dataset(**overrides):
@@ -174,3 +175,17 @@ class StacItemDetailViewTests(TestCase):
         data = response.json()
         self.assertEqual(data["bbox"], [1.0, 2.0, 3.0, 4.0])
         self.assertEqual(data["properties"]["datetime"], "2020-06-01T00:00:00Z")
+
+    def test_resource_and_dataset_without_temporal_falls_back_to_dataset_date_added(self):
+        dataset = make_dataset(name="ds-one", path="ds-one")
+        DatasetResource.objects.create(dataset=dataset, name="ds-one-2020", path="/x/2020.tif")
+
+        response = self.client.get(
+            reverse(
+                "stac_api:item-detail", kwargs={"name": "ds-one", "item_id": "ds-one-2020"}
+            )
+        )
+
+        data = response.json()
+        self.assertIsNotNone(data["properties"]["datetime"])
+        self.assertEqual(data["properties"]["datetime"], to_rfc3339(dataset.date_added))
