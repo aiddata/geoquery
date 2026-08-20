@@ -86,7 +86,10 @@ class PublicDatasetCoverageView(PublicApiBaseMixin, APIView):
     )
     def post(self, request):
         feature_ids = request.data.get("featureIds", [])
-        if not isinstance(feature_ids, list) or not all(isinstance(i, int) for i in feature_ids):
+        # type(i) is int (not isinstance) so bool doesn't sneak through —
+        # bool is a subclass of int in Python, so {"featureIds": [true]}
+        # would otherwise silently coerce to [1].
+        if not isinstance(feature_ids, list) or not all(type(i) is int for i in feature_ids):
             raise ValidationError({"featureIds": "must be a list of integers"})
 
         qs = Dataset.objects.filter(active=True, public=True)

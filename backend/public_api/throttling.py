@@ -24,6 +24,10 @@ class PublicApiThrottle(SimpleRateThrottle):
         # anon). Prime self.rate/scope here first, then let the base
         # implementation do its normal check/cache bookkeeping — mirroring
         # DRF's own ScopedRateThrottle, which does the same two-step dance.
+        # The cache key returned here is intentionally discarded: this call
+        # is only for its side effect of setting self.rate/scope, and
+        # super().allow_request() below calls get_cache_key() again itself
+        # to get the key it actually uses.
         self.get_cache_key(request, view)
         return super().allow_request(request, view)
 

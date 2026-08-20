@@ -37,4 +37,14 @@ class PublicDatasetCategorySerializer(serializers.Serializer):
 
 
 class PublicDatasetCoverageRequestSerializer(serializers.Serializer):
-    featureIds = serializers.ListField(child=serializers.IntegerField())
+    """Documentation-only: describes the request body for @extend_schema.
+
+    Not used for runtime validation — PublicDatasetCoverageView does its own
+    manual isinstance check. featureIds is optional here to match that
+    view's real behavior: a missing/empty list returns all active, public
+    datasets rather than a 400.
+    """
+
+    featureIds = serializers.ListField(
+        child=serializers.IntegerField(), required=False, default=list
+    )
