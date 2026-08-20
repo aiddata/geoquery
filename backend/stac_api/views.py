@@ -102,6 +102,10 @@ class StacItemListView(StacApiBaseMixin, APIView):
             offset = int(request.query_params.get("offset", 0))
         except (TypeError, ValueError):
             raise ValidationError({"limit/offset": "must be integers"})
+        if limit < 1 or limit > 1000:
+            raise ValidationError({"limit": "must be between 1 and 1000"})
+        if offset < 0:
+            raise ValidationError({"offset": "must be non-negative"})
 
         items = get_items_for_collection(source)
         page = items[offset : offset + limit]

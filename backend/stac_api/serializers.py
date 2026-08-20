@@ -73,8 +73,8 @@ def _item_geometry_and_datetime(item):
     """The item's own spatial_extent/temporal, falling back to the parent Dataset's."""
     if is_feature_collection(item):
         return item.spatial_extent, item.temporal_start
-    geom = item.spatial_extent or item.dataset.spatial_extent
-    dt = item.temporal or item.dataset.temporal_start
+    geom = item.spatial_extent if item.spatial_extent is not None else item.dataset.spatial_extent
+    dt = item.temporal if item.temporal is not None else item.dataset.temporal_start
     return geom, dt
 
 

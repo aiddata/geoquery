@@ -80,6 +80,27 @@ class StacItemListViewTests(TestCase):
         rels = {link["rel"] for link in response.json()["links"]}
         self.assertNotIn("next", rels)
 
+    def test_no_next_link_when_limit_exactly_matches_remaining_items(self):
+        dataset = make_dataset(name="ds-one", path="ds-one")
+        DatasetResource.objects.create(dataset=dataset, name="ds-one-a", path="/x/a.tif")
+        DatasetResource.objects.create(dataset=dataset, name="ds-one-b", path="/x/b.tif")
+
+        response = self.client.get(
+            reverse("stac_api:item-list", kwargs={"name": "ds-one"}), {"limit": 2, "offset": 0}
+        )
+
+        rels = {link["rel"] for link in response.json()["links"]}
+        self.assertNotIn("next", rels)
+
+    def test_malformed_limit_returns_400(self):
+        make_dataset(name="ds-one", path="ds-one")
+
+        response = self.client.get(
+            reverse("stac_api:item-list", kwargs={"name": "ds-one"}), {"limit": "abc"}
+        )
+
+        self.assertEqual(response.status_code, 400)
+
 
 class StacItemDetailViewTests(TestCase):
     def test_returns_dataset_resource_item(self):
