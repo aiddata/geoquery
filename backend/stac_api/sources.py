@@ -32,6 +32,16 @@ def all_collection_sources():
     )
 
 
+def is_feature_collection(source):
+    """Whether a collection/item source or item is a FeatureCollection rather than a Dataset/DatasetResource.
+
+    Centralized here so other modules (e.g. serializers.py) can reuse
+    the same type discrimination instead of re-deriving their own
+    isinstance check against FeatureCollection.
+    """
+    return isinstance(source, FeatureCollection)
+
+
 def get_items_for_collection(source):
     """DatasetResources under a Dataset; a single synthetic item for a FeatureCollection.
 
@@ -40,13 +50,13 @@ def get_items_for_collection(source):
     one Item rather than one per underlying Feature row (which carry no
     metadata beyond geometry, and can number in the tens of thousands).
     """
-    if isinstance(source, FeatureCollection):
+    if is_feature_collection(source):
         return [source]
     return list(DatasetResource.objects.filter(dataset=source).order_by("name"))
 
 
 def item_stac_id(item):
-    if isinstance(item, FeatureCollection):
+    if is_feature_collection(item):
         return f"{item.name}-item"
     return item.name
 

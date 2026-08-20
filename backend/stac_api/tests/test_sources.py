@@ -7,6 +7,7 @@ from stac_api.sources import (
     get_collection_source,
     get_item,
     get_items_for_collection,
+    is_feature_collection,
     item_stac_id,
 )
 
@@ -27,6 +28,16 @@ def make_feature_collection(**overrides):
     )
     defaults.update(overrides)
     return FeatureCollection.objects.create(**defaults)
+
+
+class IsFeatureCollectionTests(TestCase):
+    def test_true_for_a_feature_collection(self):
+        fc = make_feature_collection(name="fc-one", path="fc-one")
+        self.assertTrue(is_feature_collection(fc))
+
+    def test_false_for_a_dataset(self):
+        dataset = make_dataset(name="ds-one", path="ds-one")
+        self.assertFalse(is_feature_collection(dataset))
 
 
 class GetCollectionSourceTests(TestCase):
