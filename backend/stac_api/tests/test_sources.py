@@ -73,6 +73,15 @@ class AllCollectionSourcesTests(TestCase):
 
         self.assertEqual(names, {"visible"})
 
+    def test_orders_combined_results_by_name_interleaved(self):
+        make_dataset(name="b-thing", path="b-thing")
+        make_feature_collection(name="a-thing", path="a-thing")
+        make_dataset(name="c-thing", path="c-thing")
+
+        names = [s.name for s in all_collection_sources()]
+
+        self.assertEqual(names, ["a-thing", "b-thing", "c-thing"])
+
 
 class GetItemsForCollectionTests(TestCase):
     def test_returns_dataset_resources_for_a_dataset(self):
