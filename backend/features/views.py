@@ -1,7 +1,6 @@
 from pathlib import Path
 import yaml
 from django.db import connection
-from django.db.models import Q
 from django.http import HttpResponse
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny
@@ -33,19 +32,12 @@ class FeatureCollectionAutocompleteView(generics.ListAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Start with active and public feature collections
-        queryset = FeatureCollection.objects.filter(active=True, public=True)
+        # Active, public feature collections matching the search query, ordered
+        # by name — shared with public_api.views.PublicBoundaryAutocompleteView
+        # via FeatureCollection.search_active_public().
+        queryset = FeatureCollection.search_active_public(query)
 
-        # Apply search filter if query is provided
-        if query:
-            queryset = queryset.filter(
-                Q(name__icontains=query)
-                | Q(title__icontains=query)
-                | Q(description__icontains=query)
-            )
-
-        # Order by name and limit results (limit=0 means no limit)
-        queryset = queryset.order_by("name")
+        # Limit results (limit=0 means no limit)
         if limit > 0:
             queryset = queryset[:limit]
 

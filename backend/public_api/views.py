@@ -1,4 +1,3 @@
-from django.db.models import Q
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics
 from rest_framework.exceptions import ValidationError
@@ -122,14 +121,11 @@ class PublicBoundaryAutocompleteView(PublicApiBaseMixin, generics.ListAPIView):
         except (ValueError, TypeError):
             raise ValidationError({"limit": "must be an integer"})
 
-        queryset = FeatureCollection.objects.filter(active=True, public=True)
-        if query:
-            queryset = queryset.filter(
-                Q(name__icontains=query)
-                | Q(title__icontains=query)
-                | Q(description__icontains=query)
-            )
-        queryset = queryset.order_by("name")
+        # Shared with features.views.FeatureCollectionAutocompleteView via
+        # FeatureCollection.search_active_public() — the active+public+search
+        # filter rule lives in exactly one place. Only limit handling (with
+        # this view's public-error-envelope validation) is public_api-specific.
+        queryset = FeatureCollection.search_active_public(query)
         if limit > 0:
             queryset = queryset[:limit]
         return queryset
