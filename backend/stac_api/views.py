@@ -1,7 +1,10 @@
+from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .base import StacApiBaseMixin
+from .serializers import CollectionSerializer
+from .sources import all_collection_sources, get_collection_source
 from .utils import STAC_VERSION, build_url
 
 # Only conformance classes actually implemented. No filter/CQL2, fields,
@@ -50,3 +53,34 @@ class StacConformanceView(StacApiBaseMixin, APIView):
 
     def get(self, request):
         return Response({"conformsTo": STAC_CONFORMANCE_CLASSES})
+
+
+class StacCollectionListView(StacApiBaseMixin, APIView):
+    """GET /api/stac/v1/collections/"""
+
+    def get(self, request):
+        sources = all_collection_sources()
+        serializer = CollectionSerializer(sources, many=True, context={"request": request})
+        return Response(
+            {
+                "collections": serializer.data,
+                "links": [
+                    {
+                        "rel": "self",
+                        "href": build_url(request, "/api/stac/v1/collections/"),
+                        "type": "application/json",
+                    }
+                ],
+            }
+        )
+
+
+class StacCollectionDetailView(StacApiBaseMixin, APIView):
+    """GET /api/stac/v1/collections/{name}/"""
+
+    def get(self, request, name):
+        source = get_collection_source(name)
+        if source is None:
+            raise NotFound(f"No such collection: {name}")
+        serializer = CollectionSerializer(source, context={"request": request})
+        return Response(serializer.data)
