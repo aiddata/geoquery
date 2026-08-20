@@ -18,7 +18,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--path",
-            default="/data/boundaries/TIGER/ingest_2025_county.json",
+            default="/data/boundaries/tiger/ingest_2025_county.json",
             help="Path to the target ingest json",
         )
         parser.add_argument(

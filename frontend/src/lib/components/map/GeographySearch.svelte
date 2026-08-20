@@ -47,7 +47,7 @@
 		isLoading = true;
 		const timeout = setTimeout(async () => {
 			try {
-				autocompleteResults = await searchBoundaries(query, 10);
+				autocompleteResults = await searchBoundaries(query, 50);
 			} catch (e) {
 				console.error('Autocomplete fetch failed:', e);
 				autocompleteResults = [];

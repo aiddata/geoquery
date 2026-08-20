@@ -45,9 +45,8 @@ def process_user_requests():
     from analytics.management.commands.manage_user_requests import _manage_user_requests
 
     _manage_user_requests(
-        download_server=getattr(
-            settings, "DOWNLOAD_BASE_URL", "geoquery.aiddata.wm.edu"
-        ),
+        download_base=getattr(settings, "DOWNLOAD_BASE_URL", "").rstrip("/"),
+        frontend_base=getattr(settings, "FRONTEND_BASE_URL", "").rstrip("/"),
         requests_dir=str(settings.REQUESTS_DIR),
         assets_dir=str(settings.ASSETS_DIR),
     )

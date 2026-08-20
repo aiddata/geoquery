@@ -126,7 +126,7 @@ def request_export(request, id):
     if not base:
         return JsonResponse({"error": "DOWNLOAD_BASE_URL is not configured"}, status=503)
 
-    download_url = f"{base}/results/{req.id}/{req.id}.zip"
+    download_url = f"{base}/requests/{req.id}/{req.id}.zip"
 
     try:
         exporter = GistExporter(

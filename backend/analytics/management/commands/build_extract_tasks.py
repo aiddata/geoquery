@@ -4,9 +4,6 @@ from logging import getLogger
 from django.core.management.base import BaseCommand
 from django.db import connection
 
-from datasets.models import DatasetResource
-from features.models import FeatMap
-from analytics.models import ExtractTask, ProcessingOption
 
 logger = getLogger(__name__)
 
@@ -31,59 +28,43 @@ class Command(BaseCommand):
 
 
 def _build_extract_tasks():
-    from features.models import Feature
-    from datasets.models import Dataset
-
-    if not Feature.objects.exists():
-        logger.info("No features found in database")
-        return {"added": 0, "elapsed": 0}
-
-    if not Dataset.objects.exists():
-        logger.info("No datasets found in database")
-        return {"added": 0, "elapsed": 0}
-
     t_start = time.perf_counter()
 
     with connection.cursor() as cursor:
         cursor.execute(
             """
+            INSERT INTO extract_tasks
+                (resource_id, fm_id, po_id, status, priority, attempts, submit_time)
             SELECT
-                dataset_resources.id AS resource_id,
-                feat_map.id AS fm_id,
-                processing_options.id AS po_id
+                dr.id,
+                fm.id,
+                po.id,
+                0, 0, 0, NOW()
             FROM coverage
-            INNER JOIN feat_map
-                ON coverage.geom_id = feat_map.geom_id
-            INNER JOIN feature_collections
-                ON feat_map.fc_id = feature_collections.id
-            INNER JOIN dataset_resources
-                ON coverage.dataset_id = dataset_resources.dataset_id
-            INNER JOIN processing_options
-                ON coverage.dataset_id = processing_options.dataset_id
-            INNER JOIN datasets
-                ON coverage.dataset_id = datasets.id
+            INNER JOIN feat_map fm
+                ON coverage.geom_id = fm.geom_id
+            INNER JOIN feature_collections fc
+                ON fm.fc_id = fc.id
+            INNER JOIN dataset_resources dr
+                ON coverage.dataset_id = dr.dataset_id
+            INNER JOIN processing_options po
+                ON coverage.dataset_id = po.dataset_id
+            INNER JOIN datasets d
+                ON coverage.dataset_id = d.id
             WHERE coverage.status = 1
-            AND processing_options.active = TRUE
-            AND feature_collections.active = TRUE
-            AND feature_collections.is_user_upload = FALSE
-            AND datasets.active = TRUE
+              AND po.active = TRUE
+              AND fc.active = TRUE
+              AND fc.is_user_upload = FALSE
+              AND d.active = TRUE
+              AND NOT EXISTS (
+                  SELECT 1 FROM extract_tasks et
+                  WHERE et.resource_id = dr.id
+                    AND et.fm_id = fm.id
+                    AND et.po_id = po.id
+              )
             """
         )
-        candidates = cursor.fetchall()
-
-    logger.info("Identified %d potential extract tasks", len(candidates))
-
-    added = 0
-    for resource_id, fm_id, po_id in candidates:
-        if not ExtractTask.objects.filter(
-            resource_id=resource_id, fm_id=fm_id, po_id=po_id
-        ).exists():
-            ExtractTask.objects.create(
-                resource=DatasetResource.objects.get(id=resource_id),
-                fm=FeatMap.objects.get(id=fm_id),
-                po=ProcessingOption.objects.get(id=po_id),
-            )
-            added += 1
+        added = cursor.rowcount
 
     elapsed = time.perf_counter() - t_start
     logger.info("Generated %d new extract tasks in %.2fs", added, elapsed)

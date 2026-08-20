@@ -69,6 +69,7 @@ def create_missing_coverage_records():
 
     if not missing_pairs:
         logger.info("No missing coverage records")
+        records = []
     else:
         records = [
             Coverage(geom_id=geom_id, dataset_id=dataset_id, status=-1)

@@ -21,7 +21,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--iso3",
             nargs="+",
-            help="Specific ISO3 codes to download (e.g., GHA AFG)",
+            help="Specific ISO3 codes to download (e.g., `--iso3 GHA AFG`. Note the space separation and no `=` after --iso3)",
         )
         parser.add_argument(
             "--data-dir",
@@ -38,12 +38,12 @@ class Command(BaseCommand):
         parser.add_argument(
             "--active",
             action="store_true",
-            help="Set feature collections as active",
+            help="Set feature collections as active (false by default)",
         )
         parser.add_argument(
             "--public",
             action="store_true",
-            help="Set feature collections as public",
+            help="Set feature collections as public (false by default)",
         )
         parser.add_argument(
             "--concurrent",
@@ -59,6 +59,11 @@ class Command(BaseCommand):
             "--reload-geometry",
             action="store_true",
             help="When updating an existing collection, wipe and re-ingest features. Without this flag, only metadata is updated.",
+        )
+        parser.add_argument(
+            "--no-refresh-views",
+            action="store_true",
+            help="Skip refreshing materialized views after ingest (useful when ingesting many datasets in sequence)",
         )
 
     def handle(self, *args, **options):
@@ -104,10 +109,10 @@ class Command(BaseCommand):
         else:
             self.process_sequential(ingest_items)
 
-        # Refresh materialized views with simplified geometries
-        self.stdout.write("Refreshing simplified-geometry materialized views...")
-        refresh_materialized_views()
-        self.stdout.write(self.style.SUCCESS("Materialized views refreshed."))
+        if not options["no_refresh_views"]:
+            self.stdout.write("Refreshing simplified-geometry materialized views...")
+            refresh_materialized_views()
+            self.stdout.write(self.style.SUCCESS("Materialized views refreshed."))
 
         self.stdout.write(self.style.SUCCESS("Finished geoBoundaries ingest"))
 

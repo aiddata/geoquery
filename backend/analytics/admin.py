@@ -31,6 +31,7 @@ class ExtractTaskAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "status",
+        "priority",
         "submit_time",
         "start_time",
         "update_time",
@@ -38,6 +39,7 @@ class ExtractTaskAdmin(admin.ModelAdmin):
     )
     list_filter = (
         "status",
+        "priority",
         "submit_time",
         "start_time",
         "update_time",

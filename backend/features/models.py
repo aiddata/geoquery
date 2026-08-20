@@ -45,6 +45,24 @@ class FeatureCollection(models.Model):
     def __str__(self):
         return self.name
 
+    @classmethod
+    def search_active_public(cls, query=""):
+        """Active, public feature collections optionally filtered by a name/title/description search.
+
+        Shared by the internal autocomplete endpoint
+        (features.views.FeatureCollectionAutocompleteView) and the public
+        boundaries/autocomplete/ endpoint (public_api.views), so the
+        active+public+search filter rule lives in exactly one place.
+        """
+        queryset = cls.objects.filter(active=True, public=True)
+        if query:
+            queryset = queryset.filter(
+                models.Q(name__icontains=query)
+                | models.Q(title__icontains=query)
+                | models.Q(description__icontains=query)
+            )
+        return queryset.order_by("name")
+
 
 class Feature(models.Model):
     """Features table for storing individual geospatial features."""

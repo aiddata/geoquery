@@ -47,16 +47,15 @@ class FeatureCollectionAutocompleteView(generics.ListAPIView):
             request.user, FeatureCollection.objects.using("replica")
         ).filter(is_user_upload=False)
 
-        # Apply search filter if query is provided
         if query:
             queryset = queryset.filter(
                 Q(name__icontains=query)
                 | Q(title__icontains=query)
                 | Q(description__icontains=query)
             )
-
-        # Order by name and limit results (limit=0 means no limit)
         queryset = queryset.order_by("name")
+
+        # Limit results (limit=0 means no limit)
         if limit > 0:
             queryset = queryset[:limit]
 
@@ -236,7 +235,12 @@ class BoundaryPresetsView(APIView):
 
     @classmethod
     def _load_presets(cls):
-        """Load boundary presets from YAML, reloading if the file has changed."""
+        """Load boundary presets from YAML, reloading if the file has changed.
+
+        Also called directly by public_api.views.PublicBoundaryPresetsView —
+        changing this method's signature or return shape affects that
+        external consumer too.
+        """
         config_path = Path(__file__).parent.parent / "config" / "boundary_presets.yaml"
         try:
             current_mtime = config_path.stat().st_mtime

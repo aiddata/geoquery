@@ -38,12 +38,13 @@ urlpatterns = [
     path("api/datasets/", include("datasets.urls")),
     path("api/analytics/", include("analytics.urls")),
     path("api/visualize/", include("visualize.urls")),
+    path("api/public/v1/", include("public_api.urls")),
 ]
 
 if settings.DEBUG:
     urlpatterns += [
         re_path(
-            r"^results/(?P<path>.*)$",
+            r"^requests/(?P<path>.*)$",
             serve,
             {"document_root": settings.REQUESTS_DIR},
         ),

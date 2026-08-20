@@ -22,14 +22,19 @@ services:
     volumes:
       - ./backend:/app/backend
       - ./requests:/requests
-      - ./data:/data
+      - type: bind
+        source: ./data
+        target: /data
+        bind:
+          create_host_path: false
     environment:
       - DJANGO_DEBUG=true
       - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
       - DB_HOST=db
       - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,backend
       - REQUESTS_DIR=/requests
-      - DOWNLOAD_BASE_URL=http://localhost:8000
+      - DOWNLOAD_BASE_URL=${DOWNLOAD_BASE_URL:-http://localhost:8000}
+      - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-http://localhost:5173}
       - PROTOMAPS_API_KEY=${PROTOMAPS_API_KEY}
       - GITHUB_GIST_TOKEN=${GITHUB_GIST_TOKEN}
       - GITHUB_OAUTH_CLIENT_ID=${GITHUB_OAUTH_CLIENT_ID}
@@ -53,14 +58,19 @@ services:
     command: uv run celery -A geoquery worker -Q processing --loglevel=info
     volumes:
       - ./backend:/app/backend
-      - ./data:/data:ro
+      - type: bind
+        source: ./data
+        target: /data
+        read_only: true
+        bind:
+          create_host_path: false
       - ./requests:/requests
     environment:
       - DJANGO_DEBUG=true
       - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
       - DB_HOST=db
       - REQUESTS_DIR=/requests
-      - DOWNLOAD_BASE_URL=http://localhost:8000
+      - DOWNLOAD_BASE_URL=${DOWNLOAD_BASE_URL:-http://localhost:8000}
       - PG_RW_DBNAME=geoquery
       - PG_RW_USER=django_user
       - PG_RW_PASSWORD=dev_password
@@ -87,7 +97,8 @@ services:
       - DB_HOST=db
       - REQUESTS_DIR=/requests
       - ASSETS_DIR=/assets
-      - DOWNLOAD_BASE_URL=http://localhost:8000
+      - DOWNLOAD_BASE_URL=${DOWNLOAD_BASE_URL:-http://localhost:8000}
+      - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-http://localhost:5173}
       - EMAIL_PASSWORD=${EMAIL_PASSWORD}
       - GITHUB_GIST_TOKEN=${GITHUB_GIST_TOKEN}
       - PG_RW_DBNAME=geoquery
