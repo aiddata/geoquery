@@ -52,7 +52,7 @@ def get_items_for_collection(source):
     """
     if is_feature_collection(source):
         return [source]
-    return list(DatasetResource.objects.filter(dataset=source).order_by("name"))
+    return list(DatasetResource.objects.filter(dataset=source).select_related("dataset").order_by("name"))
 
 
 def item_stac_id(item):

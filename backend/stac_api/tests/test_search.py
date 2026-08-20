@@ -124,6 +124,54 @@ class StacSearchViewTests(TestCase):
         self.assertEqual(data["numberMatched"], 5)
         self.assertEqual(data["numberReturned"], 2)
 
+    def test_post_accepts_bbox_as_json_array(self):
+        dataset = make_dataset(name="ds-one", path="ds-one")
+        DatasetResource.objects.create(
+            dataset=dataset, name="ds-one-in", path="/x/in.tif",
+            spatial_extent=Polygon.from_bbox((0, 0, 10, 10)),
+        )
+
+        response = self.client.post(
+            reverse("stac_api:search"),
+            data={"bbox": [0, 0, 10, 10]},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        ids = {f["id"] for f in response.json()["features"]}
+        self.assertEqual(ids, {"ds-one-in"})
+
+    def test_unknown_collection_name_returns_empty_not_error(self):
+        make_dataset(name="ds-one", path="ds-one")
+
+        response = self.client.get(reverse("stac_api:search"), {"collections": "does-not-exist"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["features"], [])
+
+    def test_combined_bbox_and_datetime_filters(self):
+        dataset = make_dataset(name="ds-one", path="ds-one")
+        DatasetResource.objects.create(
+            dataset=dataset, name="ds-one-match", path="/x/match.tif",
+            spatial_extent=Polygon.from_bbox((0, 0, 10, 10)), temporal="2020-06-01T00:00:00Z",
+        )
+        DatasetResource.objects.create(
+            dataset=dataset, name="ds-one-wrong-place", path="/x/wp.tif",
+            spatial_extent=Polygon.from_bbox((50, 50, 60, 60)), temporal="2020-06-01T00:00:00Z",
+        )
+        DatasetResource.objects.create(
+            dataset=dataset, name="ds-one-wrong-time", path="/x/wt.tif",
+            spatial_extent=Polygon.from_bbox((0, 0, 10, 10)), temporal="2021-06-01T00:00:00Z",
+        )
+
+        response = self.client.get(
+            reverse("stac_api:search"),
+            {"bbox": "0,0,10,10", "datetime": "2020-01-01T00:00:00Z/2020-12-31T00:00:00Z"},
+        )
+
+        ids = {f["id"] for f in response.json()["features"]}
+        self.assertEqual(ids, {"ds-one-match"})
+
     def test_malformed_bbox_returns_400(self):
         response = self.client.get(reverse("stac_api:search"), {"bbox": "not,a,bbox"})
         self.assertEqual(response.status_code, 400)

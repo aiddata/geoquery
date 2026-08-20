@@ -12,13 +12,16 @@ from .utils import bbox_from_geometry
 def parse_bbox_param(raw):
     if not raw:
         return None
-    parts = raw.split(",")
+    if isinstance(raw, str):
+        parts = raw.split(",")
+    else:
+        parts = list(raw)
     if len(parts) != 4:
-        raise ValidationError({"bbox": "must be 4 comma-separated numbers"})
+        raise ValidationError({"bbox": "must be 4 comma-separated numbers, or a 4-element array"})
     try:
         return [float(p) for p in parts]
-    except ValueError:
-        raise ValidationError({"bbox": "must be 4 comma-separated numbers"})
+    except (TypeError, ValueError):
+        raise ValidationError({"bbox": "must be 4 comma-separated numbers, or a 4-element array"})
 
 
 def _parse_single_datetime(raw):
@@ -56,6 +59,9 @@ def parse_limit_param(raw, default=100):
 
 
 def parse_collections_param(raw):
+    """Note: for GET, use comma-separated values (?collections=a,b) — a repeated
+    query key (?collections=a&collections=b) silently keeps only the last
+    value, since QueryDict.get() does not return the full multi-value list."""
     if not raw:
         return None
     if isinstance(raw, str):
