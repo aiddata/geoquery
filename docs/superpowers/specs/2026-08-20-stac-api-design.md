@@ -75,7 +75,7 @@ A Dataset with zero `DatasetResource` rows just produces an empty Item list for 
 Mirrors `public_api`'s test structure: `test_collections.py` (covering both Dataset- and FeatureCollection-backed Collections), `test_items.py` (DatasetResource Items and the synthetic boundary Item), `test_search.py`, `test_schema.py` (drf-spectacular schema validity). Two additions beyond that baseline:
 
 - `test_spec_conformance.py` uses `stac-pydantic` (new dev dependency) to validate representative Collection/Item/landing-page payloads against the real STAC/OGC JSON Schema — catches subtle spec violations (datetime formatting, missing required `stac_version`/`type` fields, etc.) that hand-written field-list assertions wouldn't.
-- A test asserting `Dataset.objects.values_list("name")` and `FeatureCollection.objects.values_list("name")` remain disjoint — guards the merged `/collections/` id namespace described above.
+- A test asserting the deterministic tie-break `get_collection_source()` must fall back on: when a `Dataset` and a `FeatureCollection` share a name, the `Dataset` wins. (A test that just checks the two name sets are disjoint isn't actually meaningful here — Django's test database starts empty on every run, so that check would trivially pass regardless of what real data looks like. The tie-break test is what's actually enforceable in CI; the "0 collisions in current data" fact from brainstorming was a one-time manual check, not an ongoing guard.)
 
 ## Out of scope (this Phase 1)
 
