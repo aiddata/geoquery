@@ -22,7 +22,11 @@ services:
     volumes:
       - ./backend:/app/backend
       - ./requests:/requests
-      - ./data:/data
+      - type: bind
+        source: ./data
+        target: /data
+        bind:
+          create_host_path: false
     environment:
       - DJANGO_DEBUG=true
       - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
@@ -52,7 +56,12 @@ services:
     command: uv run celery -A geoquery worker -Q processing --loglevel=info
     volumes:
       - ./backend:/app/backend
-      - ./data:/data:ro
+      - type: bind
+        source: ./data
+        target: /data
+        read_only: true
+        bind:
+          create_host_path: false
       - ./requests:/requests
     environment:
       - DJANGO_DEBUG=true
