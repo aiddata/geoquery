@@ -11,6 +11,7 @@ from features.views import BoundaryPresetsView as _InternalBoundaryPresetsView
 
 from .base import PublicApiBaseMixin
 from .serializers import (
+    PublicBoundaryDetailSerializer,
     PublicBoundaryPresetSerializer,
     PublicBoundarySerializer,
     PublicDatasetCategorySerializer,
@@ -137,6 +138,16 @@ class PublicBoundaryAutocompleteView(PublicApiBaseMixin, generics.ListAPIView):
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+
+class PublicBoundaryDetailView(PublicApiBaseMixin, generics.RetrieveAPIView):
+    """GET /api/public/v1/boundaries/{name}/ — a single boundary by name, including its member feature IDs."""
+
+    serializer_class = PublicBoundaryDetailSerializer
+    lookup_field = "name"
+
+    def get_queryset(self):
+        return FeatureCollection.objects.filter(active=True, public=True)
 
 
 class PublicBoundaryPresetsView(PublicApiBaseMixin, APIView):

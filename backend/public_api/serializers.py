@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from datasets.models import Dataset
-from features.models import FeatureCollection
+from features.models import FeatMap, FeatureCollection
 
 
 class PublicDatasetSerializer(serializers.ModelSerializer):
@@ -80,6 +80,24 @@ class PublicBoundarySerializer(serializers.ModelSerializer):
             "source_name",
             "tags",
         ]
+
+
+class PublicBoundaryDetailSerializer(PublicBoundarySerializer):
+    """Same shape as PublicBoundarySerializer plus the boundary's member Feature IDs.
+
+    feature_ids resolves via FeatMap against `obj` — the model instance
+    RetrieveAPIView.get_object() already resolved from an active+public
+    filtered queryset, so no need to repeat those filters here (see
+    PublicBoundaryDetailView.get_queryset()).
+    """
+
+    feature_ids = serializers.SerializerMethodField()
+
+    def get_feature_ids(self, obj):
+        return list(FeatMap.objects.filter(fc=obj).values_list("geom_id", flat=True).distinct())
+
+    class Meta(PublicBoundarySerializer.Meta):
+        fields = PublicBoundarySerializer.Meta.fields + ["feature_ids"]
 
 
 class PublicBoundaryPresetSerializer(serializers.Serializer):

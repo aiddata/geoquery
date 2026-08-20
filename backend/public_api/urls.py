@@ -11,7 +11,8 @@ app_name = "public_api"
 #
 # NOTE: datasets/categories/ and datasets/coverage/ must be listed
 # before datasets/<str:name>/, otherwise Django would match "categories"
-# or "coverage" as a dataset name first.
+# or "coverage" as a dataset name first. Same reason boundaries/autocomplete/
+# and boundaries/presets/ must be listed before boundaries/<str:name>/.
 api_urlpatterns = [
     path("datasets/", views.PublicDatasetListView.as_view(), name="dataset-list"),
     path(
@@ -35,6 +36,7 @@ api_urlpatterns = [
         views.PublicBoundaryPresetsView.as_view(),
         name="boundary-presets",
     ),
+    path("boundaries/<str:name>/", views.PublicBoundaryDetailView.as_view(), name="boundary-detail"),
 ]
 
 urlpatterns = api_urlpatterns + [
