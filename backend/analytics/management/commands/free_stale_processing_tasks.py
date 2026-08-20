@@ -25,9 +25,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        """
-        Replaces gqcore.utils.db.extract_task_watch.free_dangling_tasks.
-        """
+        """Reset extract tasks stuck in the 'locked' state back to pending."""
         if options["dry_run"]:
             with connection.cursor() as cursor:
                 cursor.execute(

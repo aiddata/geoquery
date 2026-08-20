@@ -6,7 +6,6 @@ GeoQuery is a web application for geospatial data extraction. Users select geogr
 
 - `frontend/` — SvelteKit app (Svelte 5, TypeScript, Tailwind CSS, shadcn-svelte)
 - `backend/` — Django project with Django REST Framework (Python, PostGIS)
-- `backend/src/gqcore/` — Legacy standalone utilities (FastAPI app, raw SQL helpers). **Do not use or extend.** All new backend API work should go through Django REST Framework.
 
 ## Development Environment
 
@@ -52,7 +51,7 @@ Three host directories are mounted into the containers, all `.gitignored`:
 
 - `./data` → `/data` — input data (`/data/rasters`, `/data/boundaries`). Dataset JSON `path` fields must use the absolute container path, e.g. `/data/rasters/esa_landcover`. Mounted read-only into `worker-processing`, which is the only worker that gets it.
 - `./requests` → `/requests` — extraction results (`settings.REQUESTS_DIR`)
-- `./assets` → `/assets` — documentation templates used by `worker-background`
+- `./assets` → `/assets` — the GeoQuery methods paper, copied into each request's output zip by `worker-background`
 
 The backend and worker containers run as `${HOST_UID:-1000}:${HOST_GID:-1000}` so files written to those mounts stay owned by the host user. Export `HOST_UID`/`HOST_GID` if your account is not `1000:1000`.
 

@@ -28,31 +28,15 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "openpyxl>=3.1.5",
     "pyarrow>=24.0.0",
     "pyproj",
-    "shapely",
-    "pydantic",
     "geopandas",
-    "pyarrow",
     "shapely",
     "rasterio",
     "rasterstats @ git+https://github.com/aiddata/geoquery-python-rasterstats@80ab2f2a01d0aa99d935ca7fe7ed422b9f52f9b7",
-    "dask[array,distributed] == 2024.10.0",
-    "dask_kubernetes == 2024.9.0",
-    "reportlab",
-    "fastapi[standard]",
     "loguru",
-    "toml",
     "numpy",
     "pandas",
-    "kubernetes",
-    "mkdocs",
-    "mkdocstrings[python]",
-    "mkdocs-material",
-    "mkdocs-gen-files",
-    "mkdocs-literate-nav",
-    "mkdocs-section-index",
     "django>=5.2.15,<6",
     "psycopg2-binary>=2.9.10",
     "djangorestframework>=3.16.1",
@@ -66,7 +50,16 @@ dependencies = [
     "whitenoise[brotli]>=6.12.0",
     "django-allauth[socialaccount]>=65.18.0",
     "django-guardian>=3.3.3",
+    "python-dotenv>=1.0",
+    "pyyaml>=6.0",
 ]
+
+[tool.setuptools]
+# The Django project runs from source (WORKDIR /app/backend), not as an installed
+# library, so this distribution exists only to carry dependencies. Setting packages
+# explicitly disables setuptools auto-discovery, which would otherwise fail on the
+# flat layout under backend/ with "Multiple top-level packages discovered".
+packages = []
 
 [tool.isort]
 profile = "black"

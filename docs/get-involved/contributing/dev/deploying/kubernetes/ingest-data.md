@@ -1,20 +1,42 @@
 # Ingest Data
 
-This guide will walk through the process of ingesting dataset and feature data using the Geoquery backend on Kubernetes.
+This guide walks through ingesting dataset and boundary data using the GeoQuery backend on Kubernetes.
 
 ## Adding Datasets
 
-1. Add the desired ingest script to an ingest folder in your workbench pod within your kubernetes namespace. Currently available ingest scripts can be found in [this folder](https://github.com/aiddata/geoquery/tree/cmhwang/ingest/datasets) within the geoquery update repository.  
+Datasets are ingested with the `ingest_dataset` management command, run from a backend pod in your namespace:
 
-2. Add the corresponding ingest json from the [geo-datasets GitHub repository](https://github.com/aiddata/geo-datasets/tree/master/datasets). Each datasets's ingest json can be found within the dataset's folder.
+```sh
+python manage.py ingest_dataset <dataset-name>
+```
 
-    #### Debug Tips
-    - You may need to edit a couple variables within the json: 
-        - Update the path in the json to match the volume path within kubernetes. The default path to the volume hosting the raster data is `/data/rasters/`.
-        - Rename the vairable bas path (if it exists) t0 title_path.
-        - Add is_global as a variable (if it doesn't already exist) and set it to true.
-    - Depending on the setting of your namespace, you may need to manually make the ouput file in the json.
+Given a bare name (e.g. `esa_landcover`), the command resolves every ingest JSON under that
+dataset's directory in the [geo-datasets repository](https://github.com/aiddata/geo-datasets/tree/master/datasets),
+recursing into subdirectories, and ingests each one in turn. You can also pass a local path or a
+raw GitHub URL to ingest a single JSON:
 
-3. In you root folder run this python command: `python /geoquery/ingest/datasets/_.py`
+```sh
+python manage.py ingest_dataset /data/esa_landcover.json
+python manage.py ingest_dataset https://raw.githubusercontent.com/aiddata/geo-datasets/master/datasets/gpm/yearly_raster_ingest.json
+```
 
-4. Enter any postgis pod in your namespace and run the command `psql -d geoquery` to enter your database. From here you can check whether the datasets have been ingested.
+Use `--edit` to open `$EDITOR` and compose the ingest JSON interactively.
+
+### Notes
+
+- The `path` field in the ingest JSON must be the absolute path **inside the container**. The
+  default volume path for raster data is `/data/rasters/`.
+- Unrecognized keys in the JSON are logged and skipped rather than causing a failure, so ingest
+  JSONs that have drifted from the current `Dataset` model will still load.
+- Each ingest JSON is applied in its own transaction. When a dataset has several, a failure in one
+  does not roll back the others — the command logs each failure and exits non-zero at the end.
+
+## Verifying
+
+Enter any PostGIS pod in your namespace and run `psql -d geoquery`, then check that the datasets
+and their processing options were created:
+
+```sql
+SELECT name, active, public FROM datasets ORDER BY name;
+SELECT dataset_id, short_name, function FROM processing_options ORDER BY dataset_id;
+```

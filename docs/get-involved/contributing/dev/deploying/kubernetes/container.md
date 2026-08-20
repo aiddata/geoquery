@@ -1,7 +1,7 @@
 # Building the Backend Container
 
 This is an OCI container designed to run GeoQuery backend jobs.
-It comes with the gqcore package preinstalled in `/src`.
+It contains the Django project at `/app/backend`, with dependencies installed into `/app/.venv`.
 
 ## Building
 - Since the Makefile loads content into the image from your repository's working directory, **please stash or commit any local changes before building!**

@@ -75,7 +75,6 @@ nav = [
         { "Overview" = "get-involved/contributing/dev/index.md" },
         { "Development" = "get-involved/contributing/dev/development.md" },
         { "Deploying" = [
-          { "Local" = "get-involved/contributing/dev/deploying/local-deployment.md" },
           { "Kubernetes" = [
             { "Overview" = "get-involved/contributing/dev/deploying/kubernetes/index.md" },
             { "Container" = "get-involved/contributing/dev/deploying/kubernetes/container.md" },
