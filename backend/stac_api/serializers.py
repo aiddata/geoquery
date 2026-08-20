@@ -69,7 +69,7 @@ class CollectionSerializer(serializers.Serializer):
         return data
 
 
-def _item_geometry_and_datetime(item):
+def item_geometry_and_datetime(item):
     """The item's own spatial_extent/temporal, falling back to the parent Dataset's."""
     if is_feature_collection(item):
         return item.spatial_extent, item.temporal_start
@@ -83,7 +83,7 @@ class ItemSerializer(serializers.Serializer):
         request = self.context["request"]
         collection_id = item.name if is_feature_collection(item) else item.dataset.name
         item_id = item_stac_id(item)
-        geom, dt = _item_geometry_and_datetime(item)
+        geom, dt = item_geometry_and_datetime(item)
 
         return {
             "type": "Feature",

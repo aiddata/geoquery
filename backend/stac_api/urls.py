@@ -9,6 +9,7 @@ app_name = "stac_api"
 api_urlpatterns = [
     path("", views.StacLandingPageView.as_view(), name="landing-page"),
     path("conformance/", views.StacConformanceView.as_view(), name="conformance"),
+    path("search/", views.StacSearchView.as_view(), name="search"),
     path("collections/", views.StacCollectionListView.as_view(), name="collection-list"),
     path("collections/<str:name>/", views.StacCollectionDetailView.as_view(), name="collection-detail"),
     path("collections/<str:name>/items/", views.StacItemListView.as_view(), name="item-list"),

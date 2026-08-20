@@ -2,6 +2,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from . import search as stac_search
 from .base import StacApiBaseMixin
 from .serializers import CollectionSerializer, ItemSerializer
 from .sources import all_collection_sources, get_collection_source, get_item, get_items_for_collection
@@ -53,6 +54,44 @@ class StacConformanceView(StacApiBaseMixin, APIView):
 
     def get(self, request):
         return Response({"conformsTo": STAC_CONFORMANCE_CLASSES})
+
+
+class StacSearchView(StacApiBaseMixin, APIView):
+    """GET/POST /api/stac/v1/search/"""
+
+    def get(self, request):
+        return self._search(request, request.query_params)
+
+    def post(self, request):
+        return self._search(request, request.data)
+
+    def _search(self, request, params):
+        bbox = stac_search.parse_bbox_param(params.get("bbox"))
+        datetime_range = stac_search.parse_datetime_param(params.get("datetime"))
+        collection_names = stac_search.parse_collections_param(params.get("collections"))
+        limit = stac_search.parse_limit_param(params.get("limit"))
+
+        matched, total = stac_search.search_items(
+            bbox=bbox, datetime_range=datetime_range, collection_names=collection_names, limit=limit
+        )
+        serializer = ItemSerializer(matched, many=True, context={"request": request})
+
+        return Response(
+            {
+                "type": "FeatureCollection",
+                "stac_version": STAC_VERSION,
+                "features": serializer.data,
+                "links": [
+                    {
+                        "rel": "self",
+                        "href": build_url(request, "/api/stac/v1/search/"),
+                        "type": "application/geo+json",
+                    }
+                ],
+                "numberMatched": total,
+                "numberReturned": len(matched),
+            }
+        )
 
 
 class StacCollectionListView(StacApiBaseMixin, APIView):
