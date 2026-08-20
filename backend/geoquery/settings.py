@@ -89,6 +89,7 @@ INSTALLED_APPS = [
     "analytics",
     "visualize",
     "public_api",
+    "stac_api",
 ]
 
 MIDDLEWARE = [
@@ -347,6 +348,7 @@ REST_FRAMEWORK = {
         "request_token": os.environ.get("THROTTLE_RATE_REQUEST_TOKEN", "10/hour"),
         "request_submit": os.environ.get("THROTTLE_RATE_REQUEST_SUBMIT", "60/hour"),
         "public_api_anon": os.environ.get("THROTTLE_RATE_PUBLIC_API_ANON", "100/hour"),
+        "stac_api_anon": os.environ.get("THROTTLE_RATE_STAC_API_ANON", "100/hour"),
     },
 }
 
