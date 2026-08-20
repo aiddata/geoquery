@@ -1115,6 +1115,18 @@ wheels = [
 ]
 
 [[package]]
+name = "geojson-pydantic"
+version = "2.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d9/76/77c6f2e608028a2885e4d9d9a28cb6801879972d4bb3106c1dca02201df6/geojson_pydantic-2.1.1.tar.gz", hash = "sha256:3b64fa2dcd98108ff8a19bfb01eee3dab41bc230be2481804aefd7c1659d1c23", size = 8156, upload-time = "2026-04-07T09:48:07.252Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/95/97/d59d999f00aec90fc7a4efb742fc11e6c160552aa1b313438d3497998644/geojson_pydantic-2.1.1-py3-none-any.whl", hash = "sha256:55354f22ededc3c070e3210fec6f518d784b65c4368c1763f2c6dc4bab79b898", size = 9456, upload-time = "2026-04-07T09:48:05.772Z" },
+]
+
+[[package]]
 name = "geopandas"
 version = "1.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1149,6 +1161,9 @@ docs = [
 notebooks = [
     { name = "ipykernel" },
 ]
+test = [
+    { name = "stac-pydantic" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1161,6 +1176,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 docs = [{ name = "zensical", specifier = "~=0.0.43" }]
 notebooks = [{ name = "ipykernel", specifier = ">=6.29" }]
+test = [{ name = "stac-pydantic", specifier = ">=3.0" }]
 
 [[package]]
 name = "geoquery-backend"
@@ -1201,6 +1217,11 @@ dependencies = [
     { name = "whitenoise", extra = ["brotli"] },
 ]
 
+[package.dev-dependencies]
+test = [
+    { name = "stac-pydantic" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "celery", extras = ["librabbitmq"], specifier = ">=5.4" },
@@ -1237,6 +1258,9 @@ requires-dist = [
     { name = "toml" },
     { name = "whitenoise", extras = ["brotli"], specifier = ">=6.12.0" },
 ]
+
+[package.metadata.requires-dev]
+test = [{ name = "stac-pydantic", specifier = ">=3.0" }]
 
 [[package]]
 name = "ghp-import"
@@ -3456,6 +3480,20 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/90/76/437d71068094df0726366574cf3432a4ed754217b436eb7429415cf2d480/sqlparse-0.5.5.tar.gz", hash = "sha256:e20d4a9b0b8585fdf63b10d30066c7c94c5d7a7ec47c889a2d83a3caa93ff28e", size = 120815, upload-time = "2025-12-19T07:17:45.073Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/49/4b/359f28a903c13438ef59ebeee215fb25da53066db67b305c125f1c6d2a25/sqlparse-0.5.5-py3-none-any.whl", hash = "sha256:12a08b3bf3eec877c519589833aed092e2444e68240a3577e8e26148acc7b1ba", size = 46138, upload-time = "2025-12-19T07:17:46.573Z" },
+]
+
+[[package]]
+name = "stac-pydantic"
+version = "3.6.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "geojson-pydantic" },
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cc/40/efef25a9a0f3d36b1264fbdd11f136bca7d3d069dc6dbd5c77c432ed20ff/stac_pydantic-3.6.0.tar.gz", hash = "sha256:29aa0b98e5223e0b0172663575a6df25f4dd359c577a2b6bfafdaa4cad18a917", size = 16287, upload-time = "2026-06-26T16:13:08.855Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/17/43/46bf5ba8595c563213a76e652d63839686b6819378b921a09d040a7faf8b/stac_pydantic-3.6.0-py3-none-any.whl", hash = "sha256:7e5ca441639274fca12d299e2a9d58c327153940f775729924e200d7103e2d5f", size = 25505, upload-time = "2026-06-26T16:13:07.955Z" },
 ]
 
 [[package]]

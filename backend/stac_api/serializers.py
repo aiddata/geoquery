@@ -70,11 +70,24 @@ class CollectionSerializer(serializers.Serializer):
 
 
 def item_geometry_and_datetime(item):
-    """The item's own spatial_extent/temporal, falling back to the parent Dataset's."""
+    """The item's own spatial_extent/temporal, falling back to the parent Dataset's.
+
+    STAC requires every Item to carry a non-null `properties.datetime`, or both
+    `start_datetime` and `end_datetime`. Since this serializer only ever emits a
+    single `datetime`, that value must never be null. When no explicit temporal
+    value is set anywhere in the chain, fall back to the record's creation
+    timestamp (`date_added`, always populated) rather than emitting a null.
+    """
     if is_feature_collection(item):
-        return item.spatial_extent, item.temporal_start
+        dt = item.temporal_start if item.temporal_start is not None else item.date_added
+        return item.spatial_extent, dt
     geom = item.spatial_extent if item.spatial_extent is not None else item.dataset.spatial_extent
-    dt = item.temporal if item.temporal is not None else item.dataset.temporal_start
+    if item.temporal is not None:
+        dt = item.temporal
+    elif item.dataset.temporal_start is not None:
+        dt = item.dataset.temporal_start
+    else:
+        dt = item.dataset.date_added
     return geom, dt
 
 
