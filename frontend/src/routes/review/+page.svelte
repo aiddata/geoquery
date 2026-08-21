@@ -13,6 +13,7 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import * as Card from '$lib/components/ui/card';
 	import * as Collapsible from '$lib/components/ui/collapsible';
+	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { ChevronLeft, ChevronRight, Trash2, Send, CheckCircle } from '@lucide/svelte';
 	import { formatKwargs } from '$lib/utils';
 
@@ -235,11 +236,28 @@
 				{:else if $selectionSummary}
 					<Card.Root class="bg-muted/40">
 						<Card.Header class="pb-3">
-							<div class="flex items-start justify-between gap-2">
-								<div class="min-w-0">
+							<div class="min-w-0 flex items-start justify-between gap-2">
+								<div class="min-w-0 flex-1">
 									<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Geographic Selection</p>
-									<p class="mt-1 truncate font-semibold">{$selectionSummary.label}</p>
-									<p class="text-sm text-muted-foreground">{$selectionSummary.detail}</p>
+									{#if $selection?.mode === 'multi' && $selection.fcs.length > 1}
+										<Tooltip.Provider>
+											<Tooltip.Root>
+												<Tooltip.Trigger class="mt-1 w-full text-left">
+													<p class="truncate font-semibold">{$selectionSummary.label}</p>
+												</Tooltip.Trigger>
+												<Tooltip.Content>
+													<ul class="space-y-0.5 text-xs">
+														{#each $selection.fcs as fc}
+															<li>{fc.title ?? fc.name}</li>
+														{/each}
+													</ul>
+												</Tooltip.Content>
+											</Tooltip.Root>
+										</Tooltip.Provider>
+									{:else}
+										<p class="mt-1 truncate font-semibold">{$selectionSummary.label}</p>
+									{/if}
+									<p class="truncate text-sm text-muted-foreground">{$selectionSummary.detail}</p>
 									{#if resolvedFeatureIds.length > 0}
 										<p class="mt-0.5 text-xs text-muted-foreground">
 											{resolvedFeatureIds.length} feature{resolvedFeatureIds.length === 1 ? '' : 's'} total
@@ -274,9 +292,9 @@
 				{#each $cart as item, i}
 					<Card.Root>
 						<Card.Header class="pb-3">
-							<div class="flex items-center gap-3">
-								<Collapsible.Root class="flex-1">
-									<div class="flex items-center gap-3">
+							<div class="min-w-0 flex items-center gap-3">
+								<Collapsible.Root class="min-w-0 flex-1">
+									<div class="min-w-0 flex items-center gap-3">
 										<Collapsible.Trigger
 											class="flex items-center text-muted-foreground hover:text-foreground"
 										>

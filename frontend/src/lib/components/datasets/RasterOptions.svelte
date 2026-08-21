@@ -19,6 +19,8 @@
 
 	let { dataset, options, onOptionsChange }: Props = $props();
 
+	let lastClickedResourceIndex = $state<number | null>(null);
+
 	let allExtractsSelected = $derived(
 		options.extractTypes.length === dataset.extract_types.length
 	);
@@ -47,15 +49,28 @@
 		}
 	}
 
-	function toggleResource(name: string) {
+	function toggleResource(name: string, index: number, event?: MouseEvent) {
 		const current = options.resources;
-		const next = current.includes(name)
-			? current.filter((r) => r !== name)
-			: [...current, name];
-		onOptionsChange({ ...options, resources: next });
+		const adding = !current.includes(name);
+
+		if (event?.shiftKey && lastClickedResourceIndex !== null) {
+			const lo = Math.min(lastClickedResourceIndex, index);
+			const hi = Math.max(lastClickedResourceIndex, index);
+			const rangeNames = dataset.resources.slice(lo, hi + 1).map((r) => r.name);
+			const next = adding
+				? [...new Set([...current, ...rangeNames])]
+				: current.filter((r) => !rangeNames.includes(r));
+			onOptionsChange({ ...options, resources: next });
+		} else {
+			const next = adding ? [...current, name] : current.filter((r) => r !== name);
+			onOptionsChange({ ...options, resources: next });
+		}
+
+		lastClickedResourceIndex = index;
 	}
 
 	function toggleAllResources() {
+		lastClickedResourceIndex = null;
 		if (allResourcesSelected) {
 			onOptionsChange({ ...options, resources: [] });
 		} else {
@@ -156,17 +171,17 @@
 							<Label class="cursor-pointer text-xs font-medium">All Time Periods</Label>
 						</div>
 
-						{#each dataset.resources as resource}
+						{#each dataset.resources as resource, i}
 							<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-							<div class="flex cursor-pointer items-center gap-2" onclick={() => toggleResource(resource.name)}>
+							<div class="flex cursor-pointer items-center gap-2" onclick={(e) => toggleResource(resource.name, i, e)}>
 								<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-								<span onclick={(e) => e.stopPropagation()}>
+								<span onclick={(e) => { e.stopPropagation(); toggleResource(resource.name, i); }}>
 									<Checkbox
 										checked={options.resources.includes(resource.name)}
-										onCheckedChange={() => toggleResource(resource.name)}
+										onCheckedChange={() => {}}
 									/>
 								</span>
-								<Label class="cursor-pointer text-xs font-normal">
+								<Label class="cursor-pointer select-none text-xs font-normal">
 									{resource.label ?? formatTemporal(resource.temporal)}
 								</Label>
 							</div>

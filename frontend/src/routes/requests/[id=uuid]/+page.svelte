@@ -171,9 +171,9 @@
 						<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
 							{request.data.is_custom_boundary ? 'Custom Boundary' : 'Geographic Selection'}
 						</p>
-						<p class="mt-1 font-semibold">{request.data.selection_label}</p>
+						<p class="mt-1 truncate font-semibold" title={request.data.selection_label}>{request.data.selection_label}</p>
 						{#if request.data.selection_detail}
-							<p class="text-sm text-muted-foreground">{request.data.selection_detail}</p>
+							<p class="truncate text-sm text-muted-foreground">{request.data.selection_detail}</p>
 						{/if}
 						{#if featureCount > 0}
 							<p class="mt-0.5 text-xs text-muted-foreground">
@@ -202,12 +202,12 @@
 					{#each request.data.datasets as item}
 						<Card.Root>
 							<Card.Header class="pb-3">
-								<Collapsible.Root>
-									<div class="flex items-center gap-3">
+								<Collapsible.Root class="min-w-0">
+									<div class="min-w-0 flex items-center gap-3">
 										<Collapsible.Trigger class="flex items-center text-muted-foreground hover:text-foreground">
 											<ChevronRight class="h-4 w-4 transition-transform [[data-state=open]_&]:rotate-90" />
 										</Collapsible.Trigger>
-										<p class="flex-1 text-sm font-medium">{item.dataset_name}</p>
+										<p class="min-w-0 flex-1 truncate text-sm font-medium">{item.dataset_name}</p>
 									</div>
 
 									<Collapsible.Content class="mt-3 space-y-1 pl-7 text-sm text-muted-foreground">

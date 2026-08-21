@@ -1,0 +1,76 @@
+{
+  "planPath": "docs/superpowers/plans/2026-08-20-stac-api.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: App scaffold, CORS/throttle base mixin, landing page + conformance",
+      "status": "completed",
+      "description": "**Goal:** Stand up the stac_api Django app wired into the project, with a shared base view mixin (open access, wildcard CORS, IP throttle) and the two data-free endpoints (/, /conformance/) that everything else builds on.\n\n**Files:**\n- Create: backend/stac_api/__init__.py, apps.py, base.py, utils.py, views.py, urls.py\n- Create: backend/stac_api/tests/__init__.py, test_base.py, test_landing_page.py\n- Modify: backend/geoquery/settings.py (INSTALLED_APPS, DEFAULT_THROTTLE_RATES)\n- Modify: backend/geoquery/urls.py\n\n**Acceptance Criteria:**\n- [ ] GET /api/stac/v1/ returns a STAC Catalog with conformsTo and links\n- [ ] GET /api/stac/v1/conformance/ returns conformsTo\n- [ ] Every stac_api response carries Access-Control-Allow-Origin: *\n- [ ] permission/auth classes are actually overridden (open, not inheriting IsAuthenticatedOrReadOnly)\n\n**Verify:** sudo docker compose exec backend uv run python manage.py test stac_api -v 2\n\nSee docs/superpowers/plans/2026-08-20-stac-api.md Task 1 for full code.\n\n```json:metadata\n{\"files\": [\"backend/stac_api/__init__.py\", \"backend/stac_api/apps.py\", \"backend/stac_api/base.py\", \"backend/stac_api/utils.py\", \"backend/stac_api/views.py\", \"backend/stac_api/urls.py\", \"backend/geoquery/settings.py\", \"backend/geoquery/urls.py\"], \"verifyCommand\": \"sudo docker compose exec backend uv run python manage.py test stac_api -v 2\", \"acceptanceCriteria\": [\"landing page returns Catalog type with conformsTo and links\", \"conformance endpoint returns conformsTo\", \"CORS header present on all responses\", \"AllowAny/no-auth actually overridden\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: Geometry and datetime helpers",
+      "status": "completed",
+      "blockedBy": [
+        0
+      ],
+      "description": "**Goal:** Pure-function helpers (bbox_from_geometry, geojson_from_geometry, to_rfc3339) appended to utils.py, reused by every serializer.\n\n**Files:**\n- Modify: backend/stac_api/utils.py\n- Create: backend/stac_api/tests/test_utils.py\n\n**Acceptance Criteria:**\n- [ ] bbox_from_geometry/geojson_from_geometry handle None and real geometry\n- [ ] to_rfc3339 handles None, naive-as-UTC, and non-UTC-aware datetimes, always outputs '...Z'\n\n**Verify:** sudo docker compose exec backend uv run python manage.py test stac_api.tests.test_utils -v 2\n\nSee docs/superpowers/plans/2026-08-20-stac-api.md Task 2 for full code.\n\n```json:metadata\n{\"files\": [\"backend/stac_api/utils.py\"], \"verifyCommand\": \"sudo docker compose exec backend uv run python manage.py test stac_api.tests.test_utils -v 2\", \"acceptanceCriteria\": [\"bbox_from_geometry None and real geometry cases\", \"geojson_from_geometry None and real geometry cases\", \"to_rfc3339 None/naive/aware/non-UTC cases all produce correct Z-suffixed output\"], \"modelTier\": \"mechanical\"}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: Collection/Item data-access layer (sources.py)",
+      "status": "completed",
+      "blockedBy": [
+        0
+      ],
+      "description": "**Goal:** sources.py \u2014 the single place that finds a collection (Dataset or FeatureCollection) by name and its items (DatasetResource rows, or one synthetic boundary item).\n\n**Files:**\n- Create: backend/stac_api/sources.py\n- Create: backend/stac_api/tests/test_sources.py\n\n**Acceptance Criteria:**\n- [ ] get_collection_source finds active+public Dataset or FeatureCollection by name, None otherwise\n- [ ] all_collection_sources combines both, name-ordered\n- [ ] get_items_for_collection: DatasetResources for a Dataset, [source] for a FeatureCollection\n- [ ] item_stac_id: resource.name for DatasetResource, f'{name}-item' for boundary\n- [ ] get_item finds by stac id or returns None\n- [ ] Dataset wins the tie-break on a name collision (documented + tested)\n\n**Verify:** sudo docker compose exec backend uv run python manage.py test stac_api.tests.test_sources -v 2\n\nSee docs/superpowers/plans/2026-08-20-stac-api.md Task 3 for full code.\n\n```json:metadata\n{\"files\": [\"backend/stac_api/sources.py\"], \"verifyCommand\": \"sudo docker compose exec backend uv run python manage.py test stac_api.tests.test_sources -v 2\", \"acceptanceCriteria\": [\"get_collection_source dataset/fc/none/inactive/private cases\", \"all_collection_sources combines and orders correctly\", \"get_items_for_collection dataset vs feature-collection branches\", \"item_stac_id both branches\", \"get_item found/not-found\", \"Dataset wins collision tie-break\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: Collections (list + detail)",
+      "status": "completed",
+      "blockedBy": [
+        1,
+        2
+      ],
+      "description": "**Goal:** GET /collections/ and GET /collections/{name}/, serializing Dataset/FeatureCollection sources into STAC Collection JSON.\n\n**Files:**\n- Create: backend/stac_api/serializers.py\n- Modify: backend/stac_api/views.py, backend/stac_api/urls.py\n- Create: backend/stac_api/tests/test_collections.py\n\n**Acceptance Criteria:**\n- [ ] GET /collections/ returns {collections: [...], links: [...]}\n- [ ] GET /collections/{name}/ returns a bare Collection; 404 if missing\n- [ ] bbox from spatial_extent, world-bbox fallback when unset\n- [ ] FeatureCollection summaries.group_class/group_level present only when set\n\n**Verify:** sudo docker compose exec backend uv run python manage.py test stac_api.tests.test_collections -v 2\n\nSee docs/superpowers/plans/2026-08-20-stac-api.md Task 4 for full code. IMPORTANT: serializers.py imports STAC_VERSION/build_url from .utils (NOT .views) to avoid a circular import \u2014 see the plan's module-layout note in Task 1.\n\n```json:metadata\n{\"files\": [\"backend/stac_api/serializers.py\", \"backend/stac_api/views.py\", \"backend/stac_api/urls.py\"], \"verifyCommand\": \"sudo docker compose exec backend uv run python manage.py test stac_api.tests.test_collections -v 2\", \"acceptanceCriteria\": [\"collection list envelope shape correct\", \"collection detail 200/404\", \"bbox fallback to world bbox\", \"summaries present/absent correctly\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: Items (list + detail)",
+      "status": "completed",
+      "blockedBy": [
+        3
+      ],
+      "description": "**Goal:** GET /collections/{name}/items/ and GET .../items/{item_id}/, serializing DatasetResource rows (and the synthetic boundary item) into STAC Item JSON with offset/limit pagination.\n\n**Files:**\n- Modify: backend/stac_api/serializers.py, backend/stac_api/views.py, backend/stac_api/urls.py\n- Create: backend/stac_api/tests/test_items.py\n\n**Acceptance Criteria:**\n- [ ] items list returns FeatureCollection envelope with numberMatched/numberReturned\n- [ ] item detail 200/404 for collection and item\n- [ ] geometry/datetime fall back to parent Dataset when resource has none\n- [ ] boundary item id is {collection}-item, assets always {}\n- [ ] via link points at FRONTEND_BASE_URL/customize\n- [ ] next link present/absent correctly under limit/offset\n\n**Verify:** sudo docker compose exec backend uv run python manage.py test stac_api.tests.test_items -v 2\n\nSee docs/superpowers/plans/2026-08-20-stac-api.md Task 5 for full code.\n\n```json:metadata\n{\"files\": [\"backend/stac_api/serializers.py\", \"backend/stac_api/views.py\", \"backend/stac_api/urls.py\"], \"verifyCommand\": \"sudo docker compose exec backend uv run python manage.py test stac_api.tests.test_items -v 2\", \"acceptanceCriteria\": [\"items list envelope and pagination correct\", \"item detail 200/404\", \"geometry/datetime fallback works\", \"via link correct\", \"assets always empty\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 6: Search endpoint",
+      "status": "completed",
+      "blockedBy": [
+        4
+      ],
+      "description": "**Goal:** GET/POST /api/stac/v1/search/ across all collections, filtered by bbox/datetime/collections/limit.\n\n**Files:**\n- Create: backend/stac_api/search.py\n- Modify: backend/stac_api/serializers.py (rename _item_geometry_and_datetime -> item_geometry_and_datetime), backend/stac_api/views.py, backend/stac_api/urls.py\n- Create: backend/stac_api/tests/test_search.py\n\n**Acceptance Criteria:**\n- [ ] no params returns all items up to limit\n- [ ] bbox filters by overlap\n- [ ] datetime interval filters (open-ended both directions via '..')\n- [ ] collections param restricts scope\n- [ ] GET and POST both work with same filters\n- [ ] malformed bbox/datetime/limit -> 400 not 500\n\n**Verify:** sudo docker compose exec backend uv run python manage.py test stac_api.tests.test_search -v 2, then full stac_api suite\n\nSee docs/superpowers/plans/2026-08-20-stac-api.md Task 6 for full code.\n\n```json:metadata\n{\"files\": [\"backend/stac_api/search.py\", \"backend/stac_api/serializers.py\", \"backend/stac_api/views.py\", \"backend/stac_api/urls.py\"], \"verifyCommand\": \"sudo docker compose exec backend uv run python manage.py test stac_api -v 2\", \"acceptanceCriteria\": [\"no-param search returns all items\", \"bbox overlap filter correct\", \"datetime interval filter correct incl open-ended\", \"collections filter correct\", \"GET and POST parity\", \"malformed params return 400\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 7: Scoped OpenAPI schema + docs",
+      "status": "completed",
+      "blockedBy": [
+        5
+      ],
+      "description": "**Goal:** /api/stac/v1/schema/ and /api/stac/v1/docs/, scoped only to stac_api routes with their own title/description, via drf-spectacular's per-view custom_settings (not the global SPECTACULAR_SETTINGS).\n\n**Files:**\n- Modify: backend/stac_api/urls.py\n- Create: backend/stac_api/tests/test_schema.py\n\n**Acceptance Criteria:**\n- [ ] schema info.title == 'GeoQuery STAC API'\n- [ ] schema paths cover exactly the stac_api routes, no public_api/internal leakage\n- [ ] docs page renders 200\n\n**Verify:** sudo docker compose exec backend uv run python manage.py test stac_api.tests.test_schema -v 2\n\nSee docs/superpowers/plans/2026-08-20-stac-api.md Task 7 for full code.\n\n```json:metadata\n{\"files\": [\"backend/stac_api/urls.py\"], \"verifyCommand\": \"sudo docker compose exec backend uv run python manage.py test stac_api.tests.test_schema -v 2\", \"acceptanceCriteria\": [\"schema title correct\", \"schema paths exactly match stac_api routes\", \"docs page 200\"], \"modelTier\": \"mechanical\"}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 8: Spec-conformance validation tests (stac-pydantic)",
+      "status": "completed",
+      "blockedBy": [
+        6
+      ],
+      "description": "**Goal:** Add stac-pydantic as a test-only dependency and validate representative Collection/Item/ItemCollection payloads against the real STAC JSON Schema.\n\n**Files:**\n- Modify: pyproject.toml (repo root, dependency-groups + default-groups)\n- Create: backend/stac_api/tests/test_spec_conformance.py\n\n**Acceptance Criteria:**\n- [ ] stac-pydantic installed and importable in the backend container\n- [ ] Dataset- and FeatureCollection-backed Collections validate via stac_pydantic.Collection\n- [ ] DatasetResource- and boundary-backed Items validate via stac_pydantic.Item\n- [ ] items list and search responses validate via stac_pydantic.ItemCollection\n\n**Verify:** uv lock && uv sync --package geoquery-backend; sudo docker compose build backend worker && sudo docker compose up -d backend worker; sudo docker compose exec backend uv run python manage.py test stac_api.tests.test_spec_conformance -v 2\n\nSee docs/superpowers/plans/2026-08-20-stac-api.md Task 8 for full code.\n\n```json:metadata\n{\"files\": [\"pyproject.toml\", \"uv.lock\", \"backend/stac_api/tests/test_spec_conformance.py\"], \"verifyCommand\": \"sudo docker compose exec backend uv run python manage.py test stac_api -v 2\", \"acceptanceCriteria\": [\"stac-pydantic importable\", \"Collection validation passes for both source types\", \"Item validation passes for both source types\", \"ItemCollection validation passes for items-list and search responses\"], \"modelTier\": \"standard\"}\n```"
+    }
+  ],
+  "lastUpdated": "2026-08-20T22:18:53.846426+00:00"
+}

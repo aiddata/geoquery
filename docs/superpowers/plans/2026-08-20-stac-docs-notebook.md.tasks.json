@@ -1,0 +1,21 @@
+{
+  "planPath": "docs/superpowers/plans/2026-08-20-stac-docs-notebook.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: Add pystac-client dependency",
+      "status": "completed",
+      "description": "**Goal:** pystac-client importable in the project's .venv, alongside the existing notebooks group deps (ipykernel).\n\n**Files:**\n- Modify: pyproject.toml (repo root)\n\n**Acceptance Criteria:**\n- [ ] pystac-client appears in the notebooks dependency-group in root pyproject.toml\n- [ ] uv.lock regenerated, includes pystac-client and transitive deps\n- [ ] import pystac_client succeeds in the project's .venv\n\n**Verify:** uv run python -c \"import pystac_client; print(pystac_client.__version__)\"\n\nSee docs/superpowers/plans/2026-08-20-stac-docs-notebook.md Task 1 for full steps.\n\n```json:metadata\n{\"files\": [\"pyproject.toml\", \"uv.lock\"], \"verifyCommand\": \"uv run python -c \\\"import pystac_client; print(pystac_client.__version__)\\\"\", \"acceptanceCriteria\": [\"pystac-client in notebooks group\", \"uv.lock regenerated\", \"import succeeds\"], \"modelTier\": \"mechanical\"}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: Write the demo notebook and link it from the tutorials index",
+      "status": "completed",
+      "blockedBy": [
+        0
+      ],
+      "description": "**Goal:** docs/using-geoquery/tutorials/stac-api-demo.ipynb walking every stac_api endpoint plus a pystac-client interop section, verified to run end-to-end against the live dev server, linked from tutorials/index.md.\n\n**Files:**\n- Create: docs/using-geoquery/tutorials/stac-api-demo.ipynb\n- Modify: docs/using-geoquery/tutorials/index.md\n\n**Acceptance Criteria:**\n- [ ] Notebook covers: setup, landing page, conformance, browse collections, get a collection, browse items, get an item, boundary collection's synthetic item, search (no params / bbox GET / equivalent POST), pystac-client interop, closing note\n- [ ] Every code cell's logic runs without error against the real running dev server (verified by extracting and running cell bodies as a plain script)\n- [ ] tutorials/index.md has a new bullet matching the existing Public API demo bullet's format\n\n**Verify:** the extracted-cells verification script runs to completion with no exceptions and sensible output\n\nSee docs/superpowers/plans/2026-08-20-stac-docs-notebook.md Task 2 for full cell-by-cell content and the exact build/verify scripts.\n\n```json:metadata\n{\"files\": [\"docs/using-geoquery/tutorials/stac-api-demo.ipynb\", \"docs/using-geoquery/tutorials/index.md\"], \"verifyCommand\": \"uv run python /tmp/stac_notebook_extracted.py\", \"acceptanceCriteria\": [\"all endpoint sections present in order\", \"code cells run without error against live server\", \"tutorials index updated\"], \"modelTier\": \"standard\"}\n```"
+    }
+  ],
+  "lastUpdated": "2026-08-20T22:50:17.625294+00:00"
+}

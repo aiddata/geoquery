@@ -39,6 +39,7 @@ urlpatterns = [
     path("api/analytics/", include("analytics.urls")),
     path("api/visualize/", include("visualize.urls")),
     path("api/public/v1/", include("public_api.urls")),
+    path("api/stac/v1/", include("stac_api.urls")),
 ]
 
 if settings.DEBUG:

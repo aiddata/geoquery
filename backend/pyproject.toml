@@ -55,12 +55,14 @@ dependencies = [
     "pyyaml>=6.0",
 ]
 
-[tool.setuptools]
-# The Django project runs from source (WORKDIR /app/backend), not as an installed
-# library, so this distribution exists only to carry dependencies. Setting packages
-# explicitly disables setuptools auto-discovery, which would otherwise fail on the
-# flat layout under backend/ with "Multiple top-level packages discovered".
-packages = []
+[dependency-groups]
+# Duplicated from root pyproject.toml: "uv sync --package geoquery-backend"
+# (see Containerfile) only reads dependency-groups declared on this member's
+# own pyproject.toml, not the workspace root's — don't remove this copy.
+test = ["stac-pydantic>=3.0"]
+
+[tool.uv]
+default-groups = ["test"]
 
 [tool.isort]
 profile = "black"

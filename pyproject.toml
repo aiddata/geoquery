@@ -11,10 +11,14 @@ dependencies = [
 
 [dependency-groups]
 docs = ["zensical~=0.0.43"]
-notebooks = ["ipykernel>=6.29"]
+notebooks = ["ipykernel>=6.29", "pystac-client>=0.9"]
+# Also duplicated in backend/pyproject.toml: "uv sync --package geoquery-backend"
+# (see backend/Containerfile) only reads dependency-groups declared on that
+# member's own pyproject.toml, not the workspace root's — both copies are needed.
+test = ["stac-pydantic>=3.0"]
 
 [tool.uv]
-default-groups = ["docs", "notebooks"]
+default-groups = ["docs", "notebooks", "test"]
 required-environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'"
 ]

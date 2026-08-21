@@ -51,6 +51,12 @@ class Command(BaseCommand):
             help="Run with concurrent processing",
         )
         parser.add_argument(
+            "--workers",
+            type=int,
+            default=8,
+            help="Max worker threads when --concurrent is used (default: 8)",
+        )
+        parser.add_argument(
             "--skip-existing",
             action="store_true",
             help="Skip feature collections that already exist",
@@ -76,6 +82,7 @@ class Command(BaseCommand):
         self.data_path = self.data_dir / self.commit
         self.skip_existing = options["skip_existing"]
         self.reload_geometry = options["reload_geometry"]
+        self.max_workers = options["workers"]
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -85,7 +92,7 @@ class Command(BaseCommand):
 
         # Filter by ISO3 if specified, reference available ISO3 codes from the geoBoundaries data_path
         if self.iso3_list is None:
-            ingest_items = [i.stem for i in self.data_path.rglob("*.gpkg") if (i.parent / f"raw_{i.stem}.json").exists()]
+            ingest_items = [i.stem for i in self.data_path.rglob("*.gpkg") if (i.parent / f"{i.stem}.json").exists()]
         else:
             ingest_items = [
                 i.stem for i in self.data_path.rglob("*.gpkg") if i.stem.split("-")[1] in self.iso3_list and (i.parent / f"raw_{i.stem}.json").exists()
@@ -129,7 +136,7 @@ class Command(BaseCommand):
 
     def process_concurrent(self, ingest_items):
         """Process items concurrently."""
-        with concurrent.futures.ProcessPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = [
                 executor.submit(self.ingest_gb_item, item) for item in ingest_items
             ]
