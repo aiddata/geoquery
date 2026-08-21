@@ -92,7 +92,7 @@ class Command(BaseCommand):
 
         # Filter by ISO3 if specified, reference available ISO3 codes from the geoBoundaries data_path
         if self.iso3_list is None:
-            ingest_items = [i.stem for i in self.data_path.rglob("*.gpkg") if (i.parent / f"raw_{i.stem}.json").exists()]
+            ingest_items = [i.stem for i in self.data_path.rglob("*.gpkg") if (i.parent / f"{i.stem}.json").exists()]
         else:
             ingest_items = [
                 i.stem for i in self.data_path.rglob("*.gpkg") if i.stem.split("-")[1] in self.iso3_list and (i.parent / f"raw_{i.stem}.json").exists()
