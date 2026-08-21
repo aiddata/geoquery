@@ -2,6 +2,13 @@
 requires = ["setuptools>=70", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+# This is a Django project, not an importable library: everything runs from the
+# backend/ directory via manage.py, so nothing needs to land in site-packages.
+# Without this, setuptools' flat-layout autodiscovery sees each Django app
+# directory as a top-level package and refuses to build.
+packages = []
+
 
 [project]
 name = "geoquery-backend"
