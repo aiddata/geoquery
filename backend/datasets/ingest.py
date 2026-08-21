@@ -114,7 +114,7 @@ def _identify_and_create_resources(dataset: Dataset, dataset_path: Path):
             except Exception as e:
                 print(f"Could not determine spatial extent for raster file {f}")
                 raise
-        elif dataset.type == "vector" or dataset.type == "feature":
+        elif dataset.type in ("vector", "feature", "boundary"):
             try:
                 spatial_bbox = get_vector_bbox(f)
             except Exception as e:
