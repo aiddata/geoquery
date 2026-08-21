@@ -22,6 +22,7 @@ from django.views.static import serve
 from stats.views import stats_view, workers_view
 
 from geoquery.views import ConfigView
+from stac_api.views import StacLandingPageView
 
 urlpatterns = [
     path("stats/", stats_view, name="stats"),
@@ -34,6 +35,15 @@ urlpatterns = [
     path("api/visualize/", include("visualize.urls")),
     path("api/public/v1/", include("public_api.urls")),
     path("api/stac/v1/", include("stac_api.urls")),
+    # Serves the catalog root directly at the no-trailing-slash path too.
+    # Without this, Django's APPEND_SLASH redirects "/api/stac/v1" to
+    # "/api/stac/v1/" via CommonMiddleware, before the view ever runs — so
+    # the redirect response carries no CORS headers, and a browser treats
+    # a redirected preflight as a failed one. This is the URL most STAC
+    # clients get configured with by hand (the "catalog URL"), so it's the
+    # one entry point worth avoiding the redirect for; everything reached
+    # from the landing page's own links is already correctly slashed.
+    path("api/stac/v1", StacLandingPageView.as_view()),
 ]
 
 if settings.DEBUG:

@@ -19,6 +19,29 @@ class StacLandingPageViewTests(TestCase):
             {"self", "root", "conformance", "data", "search", "service-doc"}.issubset(rels)
         )
 
+    def test_no_trailing_slash_serves_directly_without_a_redirect(self):
+        # Django's APPEND_SLASH would otherwise 301-redirect "/api/stac/v1"
+        # to "/api/stac/v1/" via CommonMiddleware, before the view (and
+        # StacApiBaseMixin.finalize_response) ever runs — so the redirect
+        # response carries no CORS headers. A browser treats a redirected
+        # preflight as a failed one, breaking any STAC client pointed at
+        # the catalog root without a trailing slash (the natural way to
+        # hand a client a "catalog URL"). Confirmed live against prod.
+        response = self.client.get("/api/stac/v1")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["type"], "Catalog")
+
+    def test_no_trailing_slash_preflight_carries_cors_headers(self):
+        response = self.client.options(
+            "/api/stac/v1",
+            HTTP_ORIGIN="https://stacindex.org",
+            HTTP_ACCESS_CONTROL_REQUEST_METHOD="GET",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Access-Control-Allow-Origin"], "*")
+
 
 class StacConformanceViewTests(TestCase):
     def test_returns_conformance_classes(self):
