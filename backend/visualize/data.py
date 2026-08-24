@@ -325,12 +325,16 @@ def build_explore_data(fc_ids: list[int], po_ids: list[int]) -> dict:
     }
 
 
-def build_explore_available(fc_ids: list[int]) -> list[dict]:
+def build_explore_available(fc_ids: list[int], po_ids: list[int]) -> list[dict]:
     """Return datasets + processing options that have completed extracts for
-    the given FC IDs. Used by the explore page to populate the option picker."""
+    the given FC IDs. Used by the explore page to populate the option picker.
+
+    The caller is responsible for having narrowed both id lists to what the
+    requesting user may see -- see catalog.access and ExploreAvailableView.
+    """
     rows = (
         ExtractTask.objects
-        .filter(fm__fc_id__in=fc_ids, status=1)
+        .filter(fm__fc_id__in=fc_ids, po_id__in=po_ids, status=1)
         .values(
             "po_id",
             "po__short_name",

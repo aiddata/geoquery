@@ -1,4 +1,3 @@
-
 import time
 import textwrap
 import time
@@ -14,6 +13,7 @@ from analytics.models import Request
 from logging import getLogger
 
 logger = getLogger(__name__)
+
 
 class Command(BaseCommand):
     help = "Send email to admin about users who satisfy criteria for contact (e.g. multiple requests within timeframe but no contact or comments requested flags)"
@@ -62,20 +62,35 @@ class Command(BaseCommand):
             help="Minimum number of days since latest request to qualify for contact. Default is 7.",
         )
 
-
     def handle(self, *args, **options):
         """
         This command identifies users who satisfy criteria for contact (e.g. multiple requests within timeframe but no contact or comments requested flags) and either automatically sends them an email requesting comments or flags them for manual contact by staff.
         """
-        _run_user_outreach(options["ndays"], options["request_count"], options["earliest_request"], options["latest_request"], options["mode"], options["limit"], options["dry_run"])
+        _run_user_outreach(
+            options["ndays"],
+            options["request_count"],
+            options["earliest_request"],
+            options["latest_request"],
+            options["mode"],
+            options["limit"],
+            options["dry_run"],
+        )
 
 
-def _run_user_outreach(n_days, request_count, earliest_request, latest_request, mode="manual", email_limit=50, dry_run=False):
+def _run_user_outreach(
+    n_days,
+    request_count,
+    earliest_request,
+    latest_request,
+    mode="manual",
+    email_limit=50,
+    dry_run=False,
+):
     current_timestamp = int(time.time())
 
     def to_seconds(days):
         """convert days to seconds"""
-        return days*24*60*60
+        return days * 24 * 60 * 60
 
     # get timestamp for ndays before present time
     # used to get requests for past n days
@@ -103,27 +118,25 @@ def _run_user_outreach(n_days, request_count, earliest_request, latest_request, 
 
     for r in request_objects:
         request_dict = {
-            'contact': r.contact,
-            'contact_flag': r.contact_flag,
-            'request_time': r.submit_time,
-            'complete_time': r.complete_time,
-            'status': r.status,
-            'count': 1
+            "contact": r.contact,
+            "contact_flag": r.contact_flag,
+            "request_time": r.submit_time,
+            "complete_time": r.complete_time,
+            "status": r.status,
+            "count": 1,
         }
 
-
-        if hasattr(r, 'comments_requested'):
-            request_dict['comments_requested'] = r.comments_requested
+        if hasattr(r, "comments_requested"):
+            request_dict["comments_requested"] = r.comments_requested
         else:
-            request_dict['comments_requested'] = 0
+            request_dict["comments_requested"] = 0
 
-        if hasattr(r, 'contact_flag'):
-            request_dict['contact_flag'] = r.contact_flag
+        if hasattr(r, "contact_flag"):
+            request_dict["contact_flag"] = r.contact_flag
         else:
-            request_dict['contact_flag'] = 0
+            request_dict["contact_flag"] = 0
 
         request_df_data.append(request_dict)
-
 
     request_df = pd.DataFrame(request_df_data)
 
@@ -133,25 +146,32 @@ def _run_user_outreach(n_days, request_count, earliest_request, latest_request, 
     request_df["earliest_time"] = request_df[time_field]
     request_df["latest_time"] = request_df[time_field]
 
-
     # convert to user aggregated dataframe
-    user_df = request_df.groupby('contact', as_index=False).agg({
-        "count": "sum",
-        "comments_requested": "sum",
-        "contact_flag": "sum",
-        "earliest_time": "min",
-        "latest_time": "max"
-    })
+    user_df = request_df.groupby("contact", as_index=False).agg(
+        {
+            "count": "sum",
+            "comments_requested": "sum",
+            "contact_flag": "sum",
+            "earliest_time": "min",
+            "latest_time": "max",
+        }
+    )
 
-    current_dt = pd.Timestamp(current_timestamp, unit='s', tz='UTC')
+    current_dt = pd.Timestamp(current_timestamp, unit="s", tz="UTC")
 
     # filter
     valid_df = user_df.loc[
-        (user_df["comments_requested"] == 0) &
-        (user_df["contact_flag"] == 0) &
-        (user_df["count"] > request_count) &
-        (current_dt - user_df["earliest_time"] > pd.Timedelta(seconds=to_seconds(earliest_request))) &
-        (current_dt - user_df["latest_time"] > pd.Timedelta(seconds=to_seconds(latest_request)))
+        (user_df["comments_requested"] == 0)
+        & (user_df["contact_flag"] == 0)
+        & (user_df["count"] > request_count)
+        & (
+            current_dt - user_df["earliest_time"]
+            > pd.Timedelta(seconds=to_seconds(earliest_request))
+        )
+        & (
+            current_dt - user_df["latest_time"]
+            > pd.Timedelta(seconds=to_seconds(latest_request))
+        )
     ]
     valid_user_count = len(valid_df)
 
@@ -165,13 +185,12 @@ def _run_user_outreach(n_days, request_count, earliest_request, latest_request, 
 
     # send list of users to staff emails
     if not dry_run and mode == "manual" and valid_user_count > 0:
-
         email_list = valid_df["contact"].tolist()
         email_list_str = "\n\t".join(email_list)
 
         mail_to = "geo@aiddata.org, info@aiddata.org"
 
-        mail_subject = ("Your weekly list of GeoQuery user emails")
+        mail_subject = "Your weekly list of GeoQuery user emails"
 
         mail_message = (
             """
@@ -199,8 +218,8 @@ def _run_user_outreach(n_days, request_count, earliest_request, latest_request, 
 
             Thanks!
             \tAidData's GeoQuery Team
-            """).format(email_list_str)
-
+            """
+        ).format(email_list_str)
 
         mail_message = textwrap.dedent(mail_message)
 
@@ -212,37 +231,27 @@ def _run_user_outreach(n_days, request_count, earliest_request, latest_request, 
             )
             raise mail_status[2]
 
-
     # email any users who pass above filtering with request for comments
     # add "comments_requested" = 1 flag to all of their existing requests
     for ix, user_info in valid_df.iterrows():
-
         user_email = user_info["contact"]
 
         if mode == "auto" and ix >= email_limit:
-            logger.warning(
-                "\n Warning: maximum emails reached. Exiting."
-            )
+            logger.warning("\n Warning: maximum emails reached. Exiting.")
             break
 
-        logger.info(
-            f'\t{ix}: {user_email}'
-        )
+        logger.info(f"\t{ix}: {user_email}")
 
         # automated request for comments
         if not dry_run and mode == "auto":
-
-            logger.info(
-                "sending emails..."
-            )
+            logger.info("sending emails...")
 
             # avoid gmail email per second limits
             time.sleep(1)
 
-            user_mail_subject = ("Was GeoQuery helpful?")
+            user_mail_subject = "Was GeoQuery helpful?"
 
-            user_mail_message = (
-                """
+            user_mail_message = """
                 Hello there!
 
                 We would like to hear about your experience using AidData's GeoQuery tool. Would you
@@ -258,10 +267,11 @@ def _run_user_outreach(n_days, request_count, earliest_request, latest_request, 
                 Thanks!
                 \tAidData's GeoQuery Team
                 """
-            )
             user_mail_message = textwrap.dedent(user_mail_message)
 
-            mail_status = email.send_email(user_email, user_mail_subject, user_mail_message)
+            mail_status = email.send_email(
+                user_email, user_mail_subject, user_mail_message
+            )
 
             with connection.cursor() as cursor:
                 cursor.execute(
@@ -275,7 +285,6 @@ def _run_user_outreach(n_days, request_count, earliest_request, latest_request, 
 
         # flag as being included in list for staff to manually email
         elif not dry_run and mode == "manual":
-
             with connection.cursor() as cursor:
                 cursor.execute(
                     """
@@ -290,7 +299,7 @@ def _run_user_outreach(n_days, request_count, earliest_request, latest_request, 
         f"""
         ---------------------------------------
         Finished checking requests"
-        {time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())}
+        {time.strftime("%Y-%m-%d  %H:%M:%S", time.localtime())}
         ---------------------------------------
         """
     )

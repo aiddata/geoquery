@@ -44,12 +44,7 @@ class DocBuilder:
     def _esc(text) -> str:
         if text is None:
             return ""
-        return (
-            str(text)
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-        )
+        return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
     @staticmethod
     def _fmt_dt(dt) -> str:
@@ -81,13 +76,18 @@ class DocBuilder:
             self._kv("Email", self._esc(req.contact or "—")),
             self._kv("Submitted", self._fmt_dt(req.submit_time)),
             self._kv("Completed", self._fmt_dt(req.complete_time)),
-            self._kv("Download", f'<a href="{self._esc(dl_url)}">{self._esc(dl_url)}</a>'),
+            self._kv(
+                "Download", f'<a href="{self._esc(dl_url)}">{self._esc(dl_url)}</a>'
+            ),
         ]
         frontend_base = getattr(settings, "FRONTEND_BASE_URL", "").rstrip("/")
         if frontend_base:
             viz_url = f"{frontend_base}/viz/{req.id}"
             rows.append(
-                self._kv("Visualization", f'<a href="{self._esc(viz_url)}">{self._esc(viz_url)}</a>')
+                self._kv(
+                    "Visualization",
+                    f'<a href="{self._esc(viz_url)}">{self._esc(viz_url)}</a>',
+                )
             )
         return f"<section><h2>Request Info</h2>{self._table(rows)}</section>"
 
@@ -99,7 +99,9 @@ class DocBuilder:
             if isinstance(val, dict):
                 if val.get("type") == "range":
                     parts.append(f"{key}: {val.get('start')}–{val.get('end')}")
-                elif val.get("type") == "categorical" and isinstance(val.get("selected"), list):
+                elif val.get("type") == "categorical" and isinstance(
+                    val.get("selected"), list
+                ):
                     parts.append(f"{key}: {', '.join(str(s) for s in val['selected'])}")
                 else:
                     parts.append(f"{key}: {json.dumps(val)}")
@@ -110,9 +112,7 @@ class DocBuilder:
     @staticmethod
     def _kwargs_hash(kwargs: dict) -> str:
         """Return the 8-char MD5 hash used to suffix output column names."""
-        return hashlib.md5(
-            json.dumps(kwargs, sort_keys=True).encode()
-        ).hexdigest()[:8]
+        return hashlib.md5(json.dumps(kwargs, sort_keys=True).encode()).hexdigest()[:8]
 
     @staticmethod
     def _fmt_operation(op: dict) -> str:
@@ -144,9 +144,13 @@ class DocBuilder:
 
         ops = data.get("boundary_operations") or []
         if ops:
-            ops_html = "<ol style='margin:0;padding-left:1.2em;'>" + "".join(
-                f"<li>{self._esc(self._fmt_operation(op))}</li>" for op in ops
-            ) + "</ol>"
+            ops_html = (
+                "<ol style='margin:0;padding-left:1.2em;'>"
+                + "".join(
+                    f"<li>{self._esc(self._fmt_operation(op))}</li>" for op in ops
+                )
+                + "</ol>"
+            )
             rows.append(self._kv(f"Operations ({len(ops)})", ops_html))
 
         return f"<section><h2>{heading}</h2>{self._table(rows)}</section>"
@@ -166,16 +170,25 @@ class DocBuilder:
 
             resource_labels = ds.get("resource_labels") or ds.get("resources") or []
             if resource_labels:
-                rows.append(self._kv("Time periods", self._esc(", ".join(str(l) for l in resource_labels))))
+                rows.append(
+                    self._kv(
+                        "Time periods",
+                        self._esc(", ".join(str(l) for l in resource_labels)),
+                    )
+                )
 
             # pull additional metadata from the database
             try:
                 db_ds = Dataset.objects.filter(name=name).first()
                 if db_ds:
                     if db_ds.description:
-                        rows.append(self._kv("Description", self._esc(db_ds.description)))
+                        rows.append(
+                            self._kv("Description", self._esc(db_ds.description))
+                        )
                     if db_ds.variable_description:
-                        rows.append(self._kv("Variable", self._esc(db_ds.variable_description)))
+                        rows.append(
+                            self._kv("Variable", self._esc(db_ds.variable_description))
+                        )
                     if db_ds.details:
                         rows.append(self._kv("Details", self._esc(db_ds.details)))
                     if db_ds.source_name:
@@ -183,12 +196,23 @@ class DocBuilder:
                         if db_ds.source_url:
                             src = f'<a href="{self._esc(db_ds.source_url)}">{src}</a>'
                         rows.append(self._kv("Source", src))
-                    if db_ds.temporal_name and db_ds.temporal_name != "Temporally Invariant":
-                        rows.append(self._kv("Temporal coverage", self._esc(db_ds.temporal_name)))
+                    if (
+                        db_ds.temporal_name
+                        and db_ds.temporal_name != "Temporally Invariant"
+                    ):
+                        rows.append(
+                            self._kv(
+                                "Temporal coverage", self._esc(db_ds.temporal_name)
+                            )
+                        )
                     if db_ds.citation:
-                        rows.append(self._kv("Dataset citation", self._esc(db_ds.citation)))
+                        rows.append(
+                            self._kv("Dataset citation", self._esc(db_ds.citation))
+                        )
                     if db_ds.date_updated:
-                        rows.append(self._kv("Last updated", self._esc(str(db_ds.date_updated))))
+                        rows.append(
+                            self._kv("Last updated", self._esc(str(db_ds.date_updated)))
+                        )
             except Exception:
                 pass
 
@@ -209,24 +233,30 @@ class DocBuilder:
                     + "</li>"
                     for et in extract_types
                 )
-                rows.append(self._kv(
-                    f"Extract types ({len(extract_types)})",
-                    f"<ul style='margin:0;padding-left:1.2em;'>{et_items}</ul>",
-                ))
+                rows.append(
+                    self._kv(
+                        f"Extract types ({len(extract_types)})",
+                        f"<ul style='margin:0;padding-left:1.2em;'>{et_items}</ul>",
+                    )
+                )
 
             kwargs = ds.get("kwargs")
             if kwargs:
                 kwargs_hash = self._kwargs_hash(kwargs)
                 filter_desc = self._esc(self._fmt_kwargs(kwargs))
-                rows.append(self._kv(
-                    "Filters applied",
-                    f"{filter_desc} <code style='font-size:.8em;color:#666;'>({kwargs_hash})</code>",
-                ))
-                rows.append(self._kv(
-                    "Output column suffix",
-                    f"<code>_{kwargs_hash}</code> — appended to each extract-type column name "
-                    f"to distinguish this filter combination",
-                ))
+                rows.append(
+                    self._kv(
+                        "Filters applied",
+                        f"{filter_desc} <code style='font-size:.8em;color:#666;'>({kwargs_hash})</code>",
+                    )
+                )
+                rows.append(
+                    self._kv(
+                        "Output column suffix",
+                        f"<code>_{kwargs_hash}</code> — appended to each extract-type column name "
+                        f"to distinguish this filter combination",
+                    )
+                )
 
             cards.append(
                 f'<div class="dataset-card">'
@@ -235,12 +265,7 @@ class DocBuilder:
                 f"</div>"
             )
 
-        return (
-            f"<section>"
-            f"<h2>Datasets ({len(datasets)})</h2>"
-            f'{"".join(cards)}'
-            f"</section>"
-        )
+        return f"<section><h2>Datasets ({len(datasets)})</h2>{''.join(cards)}</section>"
 
     def _section_citation(self) -> str:
         return (

@@ -4,20 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('analytics', '0001_initial'),
+        ("analytics", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='request',
-            name='comments_requested',
+            model_name="request",
+            name="comments_requested",
             field=models.BooleanField(default=False),
         ),
         migrations.AddField(
-            model_name='request',
-            name='contact_flag',
+            model_name="request",
+            name="contact_flag",
             field=models.BooleanField(default=False),
         ),
     ]

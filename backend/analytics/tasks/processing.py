@@ -14,27 +14,20 @@ from analytics.models import ExtractTask
 logger = logging.getLogger(__name__)
 
 
-# Processor function registry — mirrors gqcore.utils.processors
-PROCESSOR_FUNCTIONS = {}
-
-
-def _import_processors():
-    """Lazily import processor functions from gqcore.utils.processors."""
-    global PROCESSOR_FUNCTIONS
-    if PROCESSOR_FUNCTIONS:
-        return
-    import gqcore.utils.processors as proc_module
-
-    for name in dir(proc_module):
-        obj = getattr(proc_module, name)
-        if callable(obj) and not name.startswith("_"):
-            PROCESSOR_FUNCTIONS[name] = obj
+# Populated on first use from analytics.processors. The import is deferred because
+# Celery autodiscovery loads this module in every container, but only the processing
+# worker ever needs rasterstats/geopandas.
+_registry = None
 
 
 def get_func(op):
     """Get the processor function for the given operation name."""
-    _import_processors()
-    func = PROCESSOR_FUNCTIONS.get(op)
+    global _registry
+    if _registry is None:
+        from analytics.processors import REGISTRY
+
+        _registry = REGISTRY
+    func = _registry.get(op)
     if func is None:
         raise ValueError(f"Operation {op} not supported.")
     return func

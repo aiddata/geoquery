@@ -97,7 +97,14 @@ class FeatureCollectionAdmin(GISModelAdmin):
     )
 
     def get_queryset(self, request):
-        return super().get_queryset(request).annotate(num_features=Count("featmap"))
+        qs = super().get_queryset(request)
+        # CatalogAdmin uses this model as an autocomplete source, which calls
+        # get_queryset() on every keystroke. The feature count forces a GROUP BY
+        # over the multi-million-row feat_map table and is not rendered in the
+        # autocomplete results anyway.
+        if request.path.endswith("/autocomplete/"):
+            return qs
+        return qs.annotate(num_features=Count("featmap"))
 
     @admin.display(description="Features", ordering="num_features")
     def feature_count(self, obj):

@@ -1,3 +1,36 @@
+// ── Fetch helpers ───────────────────────────────────────────────
+
+function getCookie(name: string): string | null {
+	const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+	return match ? decodeURIComponent(match[1]) : null;
+}
+
+const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+/**
+ * Return the CSRF token, bootstrapping the cookie from the backend if needed.
+ * Django requires X-CSRFToken on unsafe methods for session-authenticated
+ * requests (logged-in submissions, allauth headless calls).
+ */
+export async function ensureCsrfCookie(): Promise<string> {
+	let token = getCookie('csrftoken');
+	if (!token) {
+		await fetch('/api/auth/csrf/');
+		token = getCookie('csrftoken') ?? '';
+	}
+	return token;
+}
+
+/** fetch that attaches the CSRF header on unsafe methods and sends cookies. */
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+	const method = (init.method ?? 'GET').toUpperCase();
+	const headers = new Headers(init.headers);
+	if (UNSAFE_METHODS.has(method)) {
+		headers.set('X-CSRFToken', await ensureCsrfCookie());
+	}
+	return fetch(path, { ...init, headers, credentials: 'same-origin' });
+}
+
 // ── Config ──────────────────────────────────────────────────────
 
 export interface AppConfig {
@@ -150,7 +183,10 @@ export async function fetchFeatureIds(fcIds: number[]): Promise<number[]> {
 // ── Dataset API ────────────────────────────────────────────────
 
 export async function fetchDatasetsForFeatures(featureIds: number[]): Promise<DatasetSummary[]> {
-	const response = await fetch('/api/datasets/coverage/', {
+	// Must go through apiFetch: this endpoint authenticates the session so that
+	// catalog-granted datasets are included, and DRF then enforces CSRF on it
+	// for logged-in users. A bare fetch 403s once you sign in.
+	const response = await apiFetch('/api/datasets/coverage/', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ featureIds }),
@@ -257,7 +293,7 @@ export async function submitRequest(payload: {
 	datasets: RequestDataset[];
 	customBoundary?: CustomBoundaryPayload;
 }): Promise<SubmittedRequest> {
-	const response = await fetch('/api/analytics/requests/', {
+	const response = await apiFetch('/api/analytics/requests/', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(payload)
@@ -278,7 +314,7 @@ export async function fetchRequestDetail(id: string): Promise<RequestDetail> {
 }
 
 export async function requestHistoryLink(email: string): Promise<void> {
-	const response = await fetch('/api/analytics/request-token/', {
+	const response = await apiFetch('/api/analytics/request-token/', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ email })
@@ -351,6 +387,14 @@ export async function fetchExploreData(fcIds: number[], poIds: number[]): Promis
 		`/api/visualize/explore/?fc=${fcIds.join(',')}&po=${poIds.join(',')}`
 	);
 	if (!response.ok) throw new Error(`Failed to fetch explore data: ${response.status}`);
+	return response.json();
+}
+
+export async function fetchMyRequests(): Promise<PastRequest[]> {
+	const response = await apiFetch('/api/analytics/my-requests/');
+	if (!response.ok) {
+		throw new Error(`Failed to fetch requests: ${response.status}`);
+	}
 	return response.json();
 }
 

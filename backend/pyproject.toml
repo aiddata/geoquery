@@ -2,6 +2,13 @@
 requires = ["setuptools>=70", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+# This is a Django project, not an importable library: everything runs from the
+# backend/ directory via manage.py, so nothing needs to land in site-packages.
+# Without this, setuptools' flat-layout autodiscovery sees each Django app
+# directory as a top-level package and refuses to build.
+packages = []
+
 
 [project]
 name = "geoquery-backend"
@@ -28,30 +35,17 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "pyarrow>=24.0.0",
     "pyproj",
-    "shapely",
-    "pydantic",
     "geopandas",
-    "pyarrow",
     "shapely",
     "rasterio",
     "rasterstats @ git+https://github.com/aiddata/geoquery-python-rasterstats@80ab2f2a01d0aa99d935ca7fe7ed422b9f52f9b7",
-    "dask[array,distributed] == 2024.10.0",
-    "dask_kubernetes == 2024.9.0",
-    "reportlab",
-    "fastapi[standard]",
     "loguru",
-    "toml",
     "numpy",
     "pandas",
-    "kubernetes",
-    "mkdocs",
-    "mkdocstrings[python]",
-    "mkdocs-material",
-    "mkdocs-gen-files",
-    "mkdocs-literate-nav",
-    "mkdocs-section-index",
     "django>=5.2.15,<6",
+    "uvicorn[standard]>=0.35",
     "psycopg2-binary>=2.9.10",
     "djangorestframework>=3.16.1",
     "djangorestframework-gis>=1.2.0",
@@ -62,6 +56,10 @@ dependencies = [
     "django-celery-results>=2.6.0",
     "django-prometheus>=2.5.0",
     "whitenoise[brotli]>=6.12.0",
+    "django-allauth[socialaccount]>=65.18.0",
+    "django-guardian>=3.3.3",
+    "python-dotenv>=1.0",
+    "pyyaml>=6.0",
 ]
 
 [dependency-groups]

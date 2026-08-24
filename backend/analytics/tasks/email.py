@@ -5,22 +5,23 @@ import dotenv
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-class GeoEmail():
-    """used for sending emails within geo framework
-    """
-    def __init__(self):
 
+class GeoEmail:
+    """used for sending emails within geo framework"""
+
+    def __init__(self):
         # TODO: this should be refactored to use a more secure method of storing email password
         dotenv.load_dotenv()
-        self.email_pw = os.getenv('EMAIL_PASSWORD')
+        self.email_pw = os.getenv("EMAIL_PASSWORD")
 
         self.defaults = {
-            'reply_to': 'AidData GeoQuery <geo@aiddata.wm.edu>',
-            'sender': 'noreply@aiddata.wm.edu'
+            "reply_to": "AidData GeoQuery <geo@aiddata.wm.edu>",
+            "sender": "noreply@aiddata.wm.edu",
         }
 
-
-    def send_email(self, receiver, subject, message, sender=None, reply_to=None, passwd=None):
+    def send_email(
+        self, receiver, subject, message, sender=None, reply_to=None, passwd=None
+    ):
         """send an email
 
         Args:
@@ -37,9 +38,9 @@ class GeoEmail():
         receiver_str = ", ".join(receiver_list)
 
         if sender is None:
-            sender = self.defaults['sender']
+            sender = self.defaults["sender"]
         if reply_to is None:
-            reply_to = self.defaults['reply_to']
+            reply_to = self.defaults["reply_to"]
 
         try:
             # source:
@@ -48,13 +49,13 @@ class GeoEmail():
 
             msg = MIMEMultipart()
 
-            msg.add_header('reply-to', reply_to)
-            msg['From'] = reply_to
-            msg['To'] = receiver_str
-            msg['Subject'] = subject
+            msg.add_header("reply-to", reply_to)
+            msg["From"] = reply_to
+            msg["To"] = receiver_str
+            msg["Subject"] = subject
             msg.attach(MIMEText(message))
 
-            mailserver = smtplib.SMTP('smtp.gmail.com', 587)
+            mailserver = smtplib.SMTP("smtp.gmail.com", 587)
             # identify ourselves to smtp gmail client
             mailserver.ehlo()
             # secure our email with tls encryption
@@ -73,8 +74,9 @@ class GeoEmail():
         except Exception as e:
             return 0, "Error sending email", e
 
-
-    def send_backup_email(self, receiver, subject, message, sender=None, reply_to=None, passwd=None):
+    def send_backup_email(
+        self, receiver, subject, message, sender=None, reply_to=None, passwd=None
+    ):
         """send an email using alternative method
 
         Args:
@@ -89,12 +91,11 @@ class GeoEmail():
         """
 
         if sender is None:
-            sender = self.defaults['sender']
+            sender = self.defaults["sender"]
         if reply_to is None:
-            reply_to = self.defaults['reply_to']
+            reply_to = self.defaults["reply_to"]
 
         try:
-
             # source:
             # http://effbot.org/pyfaq/how-do-i-send-mail-from-a-python-script.htm
             FROM = reply_to
@@ -104,7 +105,7 @@ class GeoEmail():
             BCC = []
             # who it is going to, main, cc, bcc
             # must be a list
-            TO = MAIN + CC +  BCC
+            TO = MAIN + CC + BCC
 
             # Prepare actual message
             message = """\
@@ -114,7 +115,7 @@ class GeoEmail():
             Subject: %s
 
             %s
-            """ % (FROM, ', '.join(MAIN), ', '.join(CC), subject, message)
+            """ % (FROM, ", ".join(MAIN), ", ".join(CC), subject, message)
 
             # Send the mail
             SERVER = "localhost"

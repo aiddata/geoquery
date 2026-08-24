@@ -1,9 +1,13 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { afterNavigate } from '$app/navigation';
 	import { gtagEvent } from '$lib/analytics';
+	import { initAuth } from '$lib/stores/auth';
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
+
+	onMount(initAuth);
 
 	afterNavigate(({ to }) => {
 		if (to) {

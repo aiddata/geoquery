@@ -84,29 +84,30 @@ def create_missing_coverage_records():
 
 
 def run_missing_coverage_checks(sync=False):
-        t_start = time.perf_counter()
+    t_start = time.perf_counter()
 
-        untested_dataset_ids = list(
-            Coverage.objects.filter(status=-1)
-            .values_list("dataset_id", flat=True)
-            .distinct()
-        )
+    untested_dataset_ids = list(
+        Coverage.objects.filter(status=-1)
+        .values_list("dataset_id", flat=True)
+        .distinct()
+    )
 
-        if not untested_dataset_ids:
-            logger.info("No untested coverage records to process")
-            return
+    if not untested_dataset_ids:
+        logger.info("No untested coverage records to process")
+        return
 
-        for did in untested_dataset_ids:
+    for did in untested_dataset_ids:
+        if sync:
+            result = test_coverage_for_dataset(did)
+            logger.info(
+                f"Dataset {did}: {result['covered']} covered, {result['not_covered']} not covered"
+            )
+        else:
+            test_coverage_for_dataset.delay(did)
+            logger.info(f"Dispatched coverage check for dataset {did}")
 
-            if sync:
-                result = test_coverage_for_dataset(did)
-                logger.info(f"Dataset {did}: {result['covered']} covered, {result['not_covered']} not covered")
-            else:
-                test_coverage_for_dataset.delay(did)
-                logger.info(f"Dispatched coverage check for dataset {did}")
-
-        elapsed = time.perf_counter() - t_start
-        logger.info(f"Coverage checking completed/dispatched in {elapsed:.2f}s")
+    elapsed = time.perf_counter() - t_start
+    logger.info(f"Coverage checking completed/dispatched in {elapsed:.2f}s")
 
 
 def test_single_coverage_record(feature_id, dataset_id):
@@ -130,11 +131,20 @@ def test_single_coverage_record(feature_id, dataset_id):
         row = cursor.fetchone()
 
     if row is None:
-        logger.warning("No coverage record found for feature %s and dataset %s", feature_id, dataset_id)
+        logger.warning(
+            "No coverage record found for feature %s and dataset %s",
+            feature_id,
+            dataset_id,
+        )
         return None
 
     status = row[0]
-    logger.info("Coverage tested for feature %s and dataset %s: status=%d", feature_id, dataset_id, status)
+    logger.info(
+        "Coverage tested for feature %s and dataset %s: status=%d",
+        feature_id,
+        dataset_id,
+        status,
+    )
     return {"feature_id": feature_id, "dataset_id": dataset_id, "status": status}
 
 
@@ -165,10 +175,15 @@ def _test_coverage_for_feature(feature_id):
         )
         rows = cursor.fetchall()
 
-
     covered = [dataset_id for dataset_id, status in rows if status == 1]
     not_covered = [dataset_id for dataset_id, status in rows if status == 0]
-    logger.info("Coverage tested for feature %s (%d records updated). covered: %s, not covered: %s", feature_id, len(rows), covered, not_covered)
+    logger.info(
+        "Coverage tested for feature %s (%d records updated). covered: %s, not covered: %s",
+        feature_id,
+        len(rows),
+        covered,
+        not_covered,
+    )
     return {
         "feature_id": feature_id,
         "updated": len(rows),
@@ -203,7 +218,10 @@ def test_coverage_for_feature_collection(feature_collection_id):
         len(feature_ids),
         feature_collection_id,
     )
-    return {"feature_collection_id": feature_collection_id, "dispatched": len(feature_ids)}
+    return {
+        "feature_collection_id": feature_collection_id,
+        "dispatched": len(feature_ids),
+    }
 
 
 @shared_task
@@ -238,7 +256,10 @@ def test_coverage_for_dataset(dataset_id):
     not_covered = [geom_id for geom_id, status in rows if status == 0]
     logger.info(
         "Coverage tested for dataset %s (%d records updated). covered: %s, not covered: %s",
-        dataset_id, len(rows), covered, not_covered,
+        dataset_id,
+        len(rows),
+        covered,
+        not_covered,
     )
     return {
         "dataset_id": dataset_id,

@@ -1,6 +1,6 @@
-# geoquery-update
+# geoquery
 
-Development of an updated version of [GeoQuery](https://geoquery.org), built using Django and Svelte.
+AidData's [GeoQuery](https://geoquery.org), built using Django and Svelte.
 
 ## Development
 
@@ -47,11 +47,9 @@ All documentation can be found in `/docs`.
 
 To view the documentation in your web browser, follow the following steps:
 
-- Install gqcore, this repository's Python package:
+- Run the docs server from the root of this repository:
   ```sh
-  # cd to the root of this repository
-  pip install -e .
+  uv run --only-group docs zensical serve
   ```
-- Run `mkdocs serve` from the root of this repository
-- Visit http://localhost:8000 in your browser
+- Visit http://127.0.0.1:8001 in your browser
 - Changes to files in `/docs` will render live in your browser!

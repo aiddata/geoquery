@@ -23,8 +23,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("true", "1", "yes", "on")
-if not DEBUG:
-    DEBUG = True
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
@@ -61,6 +59,15 @@ CSRF_TRUSTED_ORIGINS = [
     for origin in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
     if origin.strip()
 ]
+# In dev the Vite proxy rewrites the Host header (changeOrigin), so unsafe
+# requests arrive with Origin http://localhost:5173 but Host localhost:8000
+# and would fail Django's CSRF origin check without this.
+if DEBUG and not CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+    ]
 
 # Prometheus metrics (disabled by default)
 PROMETHEUS_ENABLED = os.getenv("PROMETHEUS_ENABLED", "False").lower() in (
@@ -83,10 +90,18 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "corsheaders",
     "django_celery_results",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.github",
+    "allauth.headless",
+    "guardian",
     "geoquery",
+    "accounts",
     "features",
     "datasets",
     "analytics",
+    "catalog",
     "visualize",
     "public_api",
     "stac_api",
@@ -100,6 +115,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -142,22 +158,54 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "geoquery.wsgi.application"
 
-DATABASES = {
-    "default": {
+def _pg(prefix, fallback=None):
+    """Build a database config from ``<prefix>_*`` env vars.
+
+    Two prefixes are in play in the cluster: ``PG_RW_*`` points at the
+    read/write pgBouncer, ``PG_RO_*`` at the read-only one in front of the
+    standbys. Only the backend pods are given ``PG_RO_*``; workers, beat,
+    ingest and the migration Job get ``PG_RW_*`` alone, so ``fallback`` is what
+    keeps a stray ``.using("replica")`` in those processes pointing at the
+    primary instead of crashing on startup.
+    """
+
+    def env(suffix, default):
+        val = os.getenv(f"{prefix}_{suffix}")
+        if val is None and fallback:
+            val = os.getenv(f"{fallback}_{suffix}")
+        return default if val is None else val
+
+    return {
         "ENGINE": "django_prometheus.db.backends.postgis"
         if PROMETHEUS_ENABLED
         else "django.contrib.gis.db.backends.postgis",
-        "NAME": os.getenv("PG_DBNAME", "geoquery"),
-        "USER": os.getenv("PG_USER", "django_user"),
-        "PASSWORD": os.getenv("PG_PASSWORD", ""),
-        "HOST": os.getenv("PG_HOST", "localhost"),
-        "PORT": os.getenv("PG_PORT", "5432"),
+        "NAME": env("DBNAME", "geoquery"),
+        "USER": env("USER", "django_user"),
+        "PASSWORD": env("PASSWORD", ""),
+        "HOST": env("HOST", "localhost"),
+        "PORT": env("PORT", "5432"),
         "OPTIONS": {
             "sslmode": os.getenv("PG_SSL_MODE", "prefer"),
         },
-        "CONN_MAX_AGE": 0,  # New connection per request
+        "CONN_MAX_AGE": 0,  # New connection per request; pgBouncer holds the pool
+        # Server-side cursors are connection-local, so they break under
+        # pgBouncer's transaction pooling. Django falls back to a client-side
+        # fetch. Load-bearing for the .iterator() in
+        # accounts/management/commands/backfill_request_claims.py.
+        "DISABLE_SERVER_SIDE_CURSORS": True,
     }
+
+
+# Do NOT add "TIME_ZONE" here: Django raises ImproperlyConfigured for
+# PostgreSQL when USE_TZ is True. The CloudNativePG Cluster sets the server's
+# timezone to UTC instead, which stops Django emitting a SET TIME ZONE on
+# every connection.
+DATABASES = {
+    "default": _pg("PG_RW"),
+    "replica": {**_pg("PG_RO", fallback="PG_RW"), "TEST": {"MIRROR": "default"}},
 }
+
+DATABASE_ROUTERS = ["geoquery.dbrouter.ReadReplicaRouter"]
 
 
 # Password validation
@@ -239,6 +287,82 @@ DOCS_DIR = Path(os.environ.get("DOCS_DIR", str(BASE_DIR.parent / "docs")))
 DOWNLOAD_BASE_URL = os.environ.get("DOWNLOAD_BASE_URL", "http://localhost:8000")
 FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173")
 TOKEN_EXPIRY_MONTHS = int(os.environ.get("TOKEN_EXPIRY_MONTHS", "6"))
+
+# Authentication (django-allauth, headless mode for the SPA)
+AUTH_USER_MODEL = "accounts.User"
+
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",  # admin login
+    "allauth.account.auth_backends.AuthenticationBackend",
+    # Object permissions on Catalog (see the catalog app). Not used by
+    # catalog.access, which calls get_objects_for_user directly, but without it
+    # `manage.py check` raises guardian.W001 and user.has_perm(perm, obj)
+    # silently returns False in the admin and templates.
+    "guardian.backends.ObjectPermissionBackend",
+]
+
+# No phantom anonymous User row: accounts.User has a unique, required email and
+# is managed by allauth, so guardian's post_migrate receiver would insert a row
+# that collides with the next blank-email user. Setting this to None disables
+# that receiver -- it is read at import time, so it must be in place before the
+# first migrate with guardian installed. Anonymous callers are short-circuited
+# in catalog.access before guardian is ever consulted, because guardian's own
+# None guard covers only the has_perm path, not get_objects_for_user.
+ANONYMOUS_USER_NAME = None
+
+ACCOUNT_LOGIN_METHODS = {"email"}
+ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"
+# Multi-email (add + verify secondary addresses) is how users claim historical
+# requests submitted under other emails. ACCOUNT_CHANGE_EMAIL must stay False:
+# enabling it silently deletes secondary EmailAddress rows.
+ACCOUNT_CHANGE_EMAIL = False
+ACCOUNT_MAX_EMAIL_ADDRESSES = 5
+ACCOUNT_EMAIL_SUBJECT_PREFIX = "[GeoQuery] "
+ACCOUNT_ADAPTER = "accounts.adapter.AccountAdapter"
+SOCIALACCOUNT_ADAPTER = "accounts.adapter.SocialAccountAdapter"
+
+SOCIALACCOUNT_PROVIDERS = {
+    "github": {
+        "APP": {
+            "client_id": os.environ.get("GITHUB_OAUTH_CLIENT_ID", ""),
+            "secret": os.environ.get("GITHUB_OAUTH_CLIENT_SECRET", ""),
+        },
+        # user:email is required to fetch verified addresses when the user's
+        # profile email is private.
+        "SCOPE": ["read:user", "user:email"],
+    }
+}
+SOCIALACCOUNT_QUERY_EMAIL = True
+# A GitHub login whose verified email already belongs to an existing account
+# logs into that account instead of creating a duplicate.
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+SOCIALACCOUNT_STORE_TOKENS = False
+
+HEADLESS_ONLY = True
+HEADLESS_SERVE_SPECIFICATION = DEBUG
+HEADLESS_FRONTEND_URLS = {
+    "account_confirm_email": f"{FRONTEND_BASE_URL}/account/verify-email/{{key}}",
+    "account_reset_password_from_key": f"{FRONTEND_BASE_URL}/account/password-reset/{{key}}",
+    "account_signup": f"{FRONTEND_BASE_URL}/account",
+    "socialaccount_login_error": f"{FRONTEND_BASE_URL}/account/provider/callback",
+}
+
+# Email (Django's framework; allauth verification mail sends through this).
+# Dev default prints emails to the backend container log.
+EMAIL_BACKEND = os.environ.get(
+    "DJANGO_EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend"
+    if DEBUG
+    else "django.core.mail.backends.smtp.EmailBackend",
+)
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = "noreply@aiddata.wm.edu"
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_PASSWORD", "")
+DEFAULT_FROM_EMAIL = "AidData GeoQuery <geoquery@aiddata.wm.edu>"
 
 # Protomaps
 PROTOMAPS_API_KEY = os.environ.get("PROTOMAPS_API_KEY", "")
@@ -348,7 +472,6 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
-        "rest_framework.authentication.TokenAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",

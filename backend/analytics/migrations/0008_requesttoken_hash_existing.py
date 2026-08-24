@@ -9,7 +9,6 @@ def clear_plaintext_tokens(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("analytics", "0007_remove_requesttoken_email_unique"),
     ]

@@ -4,14 +4,13 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('analytics', '0004_request_data_jsonfield'),
+        ("analytics", "0004_request_data_jsonfield"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='request',
-            name='date',
+            model_name="request",
+            name="date",
         ),
     ]

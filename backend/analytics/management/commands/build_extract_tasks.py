@@ -20,9 +20,11 @@ class Command(BaseCommand):
 
     def handle(self, *_args, **_options):
         result = _build_extract_tasks()
-        self.stdout.write(self.style.SUCCESS(
-            f"Generated {result['added']} new extract tasks in {result['elapsed']:.2f}s"
-        ))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Generated {result['added']} new extract tasks in {result['elapsed']:.2f}s"
+            )
+        )
 
 
 def _build_extract_tasks():

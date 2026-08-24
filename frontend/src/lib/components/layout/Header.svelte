@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import UserMenu from '$lib/components/layout/UserMenu.svelte';
 	import { openSidebar, currentStep, type Step } from '$lib/stores/ui';
 	import { CircleHelp, History, MapPin, Star, ClipboardList, BookOpen, Map } from '@lucide/svelte';
 	import geoqueryLogo from '$lib/assets/aiddata_geoquery_wordmark.png';
@@ -41,6 +42,8 @@
 				<History />
 				<span class="hidden sm:inline">Past Requests</span>
 			</Button>
+
+			<UserMenu />
 		</div>
 	</div>
 

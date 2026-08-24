@@ -30,15 +30,15 @@ site_author = "Jacob Hall"
 # Read more: https://zensical.org/docs/setup/basics/#site_url
 #site_url = "https://www.example.com/"
 
-repo_url = "https://github.com/aiddata/geoquery-update"
-repo_name = "aiddata/geoquery-update"
+repo_url = "https://github.com/aiddata/geoquery"
+repo_name = "aiddata/geoquery"
 
 # The copyright notice appears in the page footer and can contain an HTML
 # fragment.
 #
 # Read more: https://zensical.org/docs/setup/basics/#copyright
 copyright = """
-Copyright &copy; 2025 AidData
+Copyright &copy; 2026 AidData
 """
 
 # Zensical supports both implicit navigation and explicitly defined navigation.
@@ -75,7 +75,6 @@ nav = [
         { "Overview" = "get-involved/contributing/dev/index.md" },
         { "Development" = "get-involved/contributing/dev/development.md" },
         { "Deploying" = [
-          { "Local" = "get-involved/contributing/dev/deploying/local-deployment.md" },
           { "Kubernetes" = [
             { "Overview" = "get-involved/contributing/dev/deploying/kubernetes/index.md" },
             { "Container" = "get-involved/contributing/dev/deploying/kubernetes/container.md" },

@@ -4,18 +4,28 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from analytics.models import Coverage
+from catalog.access import visible_datasets
 
 from .models import Dataset
 from .serializers import DatasetDetailSerializer, DatasetSummarySerializer
 
 
+def _replica_datasets(user):
+    """Catalog reads off the standby.
+
+    Datasets and their catalog membership are written by admins and the ingest
+    command, never by the request path, so nothing here is read-after-write.
+    """
+    return visible_datasets(user, Dataset.objects.using("replica"))
+
+
 class DatasetListView(generics.ListAPIView):
-    """List all active/public datasets with no feature filtering."""
+    """List the datasets visible to the caller, with no feature filtering."""
 
     serializer_class = DatasetSummarySerializer
 
     def get_queryset(self):
-        return Dataset.objects.filter(active=True, public=True).order_by("type", "-date_updated")
+        return _replica_datasets(self.request.user).order_by("type", "-date_updated")
 
     def list(self, request, *args, **kwargs):
         """Return a flat list (no pagination wrapper) to match the frontend expectation."""
@@ -32,7 +42,10 @@ class DatasetCoverageView(APIView):
     Accepts a POST body instead of query params to avoid URL length limits for large selections.
     """
 
-    authentication_classes = []
+    # Authentication is left at the project default (SessionAuthentication) so
+    # catalog grants can be resolved; AllowAny keeps anonymous POSTs working.
+    # Note DRF enforces CSRF on this endpoint for logged-in users only, so the
+    # frontend must call it through apiFetch.
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -40,11 +53,12 @@ class DatasetCoverageView(APIView):
         if not isinstance(feature_ids, list) or not all(isinstance(i, int) for i in feature_ids):
             return Response({"error": "featureIds must be a list of integers"}, status=400)
 
-        qs = Dataset.objects.filter(active=True, public=True)
+        qs = _replica_datasets(request.user)
 
         if feature_ids:
             covered_ids = (
-                Coverage.objects.filter(geom_id__in=feature_ids)
+                Coverage.objects.using("replica")
+                .filter(geom_id__in=feature_ids)
                 .values_list("dataset_id", flat=True)
                 .distinct()
             )
@@ -69,7 +83,9 @@ class DatasetDetailView(generics.RetrieveAPIView):
     lookup_field = "name"
 
     def get_queryset(self):
-        return Dataset.objects.filter(active=True, public=True).prefetch_related(
+        # A dataset the caller may not see 404s rather than 403s, so the detail
+        # endpoint cannot be used to enumerate private dataset names.
+        return _replica_datasets(self.request.user).prefetch_related(
             "resources", "mappings", "processing_options"
         )
 
@@ -78,12 +94,12 @@ class DatasetCategoryView(generics.ListAPIView):
     """Return the distinct dataset tag categories.
 
     Returns a list of {tag, display} objects derived from the tags
-    ArrayField across all active/public datasets.
+    ArrayField across every dataset visible to the caller.
     """
 
     def list(self, request, *args, **kwargs):
         tags = (
-            Dataset.objects.filter(active=True, public=True)
+            _replica_datasets(request.user)
             .exclude(tags__isnull=True)
             .exclude(tags=[])
             .values_list("tags", flat=True)

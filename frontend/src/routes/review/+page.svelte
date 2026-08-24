@@ -5,6 +5,7 @@
 	import { selection, selectionSummary } from '$lib/stores/selection';
 	import { customBoundary } from '$lib/stores/customBoundary';
 	import { submitRequest, type SubmittedRequest, type CustomBoundaryPayload } from '$lib/api';
+	import { auth } from '$lib/stores/auth';
 	import { gtagEvent } from '$lib/analytics';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -31,6 +32,15 @@
 
 	let requestName = $state(`Request ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
 	let email = $state('');
+
+	// Signed-in users submit under their account email so the request is
+	// linked to their account; anonymous users type an email as before.
+	let isSignedIn = $derived($auth.status === 'authenticated');
+	$effect(() => {
+		if ($auth.status === 'authenticated') {
+			email = $auth.user.email;
+		}
+	});
 
 	let submitting = $state(false);
 	let submitError = $state<string | null>(null);
@@ -357,10 +367,18 @@
 						type="email"
 						bind:value={email}
 						placeholder="you@example.com"
+						disabled={isSignedIn}
 					/>
-					<p class="text-xs text-muted-foreground">
-						We'll send a download link to this address when your data is ready.
-					</p>
+					{#if isSignedIn}
+						<p class="text-xs text-muted-foreground">
+							Submitting as {email} — this request will be linked to your account.
+							Manage addresses in <a href="/account" class="underline">your account</a>.
+						</p>
+					{:else}
+						<p class="text-xs text-muted-foreground">
+							We'll send a download link to this address when your data is ready.
+						</p>
+					{/if}
 				</div>
 
 				<Separator />

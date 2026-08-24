@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from catalog.access import filter_processing_options
+
 from .models import Dataset, DatasetResource
 
 
@@ -69,8 +71,16 @@ class DatasetDetailSerializer(serializers.ModelSerializer):
         ]
 
     def get_extract_types(self, obj):
+        # `.all()` returns the list cached by DatasetDetailView's prefetch;
+        # chaining `.filter()` onto the related manager would re-query and
+        # defeat it, so filter_processing_options iterates in Python instead.
+        # A bare DatasetDetailSerializer(obj) with no request context degrades
+        # to public-only rather than raising.
+        request = self.context.get("request")
         pos = sorted(
-            (po for po in obj.processing_options.all() if po.active and po.public),
+            filter_processing_options(
+                getattr(request, "user", None), obj.processing_options.all()
+            ),
             key=lambda po: po.short_name,
         )
         return [{"short_name": po.short_name, "description": po.description} for po in pos]
