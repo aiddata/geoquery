@@ -146,68 +146,48 @@ class RequestView(APIView):
                 warnings.append(f"Skipped dataset missing datasetName: {ds}")
                 continue
 
-            if task_kwargs:
-                # Per-request tasks: kwargs vary per submission so tasks cannot be shared.
-                # get_or_create against the functional unique index on
-                # (resource_id, fm_id, po_id, MD5(COALESCE(kwargs::text, ''))) ensures
-                # identical filter combinations reuse the same task row.
-                try:
-                    dataset_obj = Dataset.objects.get(name=dataset_name, active=True)
-                except Dataset.DoesNotExist:
-                    warnings.append(f"Dataset '{dataset_name}' not found or inactive.")
-                    continue
+            # get_or_create against the functional unique index on
+            # (resource_id, fm_id, po_id, MD5(COALESCE(kwargs::text, ''))) ensures
+            # identical combinations reuse the same task row whether or not
+            # build_extract_tasks has run yet.
+            try:
+                dataset_obj = Dataset.objects.get(name=dataset_name, active=True)
+            except Dataset.DoesNotExist:
+                warnings.append(f"Dataset '{dataset_name}' not found or inactive.")
+                continue
 
-                po_qs = ProcessingOption.objects.filter(dataset=dataset_obj, active=True, public=True)
-                if extract_types:
-                    po_qs = po_qs.filter(short_name__in=extract_types)
+            po_qs = ProcessingOption.objects.filter(dataset=dataset_obj, active=True, public=True)
+            if extract_types:
+                po_qs = po_qs.filter(short_name__in=extract_types)
 
-                resource_qs = DatasetResource.objects.filter(dataset=dataset_obj)
-                if resources:
-                    resource_qs = resource_qs.filter(name__in=resources)
+            resource_qs = DatasetResource.objects.filter(dataset=dataset_obj)
+            if resources:
+                resource_qs = resource_qs.filter(name__in=resources)
 
-                pos = list(po_qs)
-                resource_list = list(resource_qs)
-                fms = list(FeatMap.objects.filter(geom_id__in=feature_ids))
+            pos = list(po_qs)
+            resource_list = list(resource_qs)
+            fms = list(FeatMap.objects.filter(geom_id__in=feature_ids))
 
-                if not pos or not resource_list or not fms:
-                    warnings.append(
-                        f"No processing options, resources, or features found for dataset '{dataset_name}'."
-                    )
-                    continue
-
-                task_ids = []
-                for fm in fms:
-                    for resource in resource_list:
-                        for po in pos:
-                            task, _ = ExtractTask.objects.get_or_create(
-                                resource=resource,
-                                fm=fm,
-                                po=po,
-                                kwargs=task_kwargs,
-                            )
-                            if task.priority < 1:
-                                task.priority = 1
-                                task.save(update_fields=["priority"])
-                            task_ids.append(task.id)
-            else:
-                # Standard path: reuse pre-computed shared tasks (no per-request kwargs).
-                tasks = ExtractTask.objects.filter(
-                    fm__geom_id__in=feature_ids,
-                    resource__dataset__name=dataset_name,
+            if not pos or not resource_list or not fms:
+                warnings.append(
+                    f"No processing options, resources, or features found for dataset '{dataset_name}'."
                 )
-                if extract_types:
-                    tasks = tasks.filter(po__short_name__in=extract_types)
-                if resources:
-                    tasks = tasks.filter(resource__name__in=resources)
+                continue
 
-                task_ids = list(tasks.values_list("id", flat=True))
-                tasks.filter(priority__lt=1).update(priority=1)
-                if not task_ids:
-                    warnings.append(
-                        f"No extract tasks found for dataset '{dataset_name}' "
-                        f"across {len(feature_ids)} feature(s)"
-                    )
-                    continue
+            task_ids = []
+            for fm in fms:
+                for resource in resource_list:
+                    for po in pos:
+                        task, _ = ExtractTask.objects.get_or_create(
+                            resource=resource,
+                            fm=fm,
+                            po=po,
+                            kwargs=task_kwargs,
+                        )
+                        if task.priority < 1:
+                            task.priority = 1
+                            task.save(update_fields=["priority"])
+                        task_ids.append(task.id)
 
             all_task_ids.update(task_ids)
             valid_datasets.append({
