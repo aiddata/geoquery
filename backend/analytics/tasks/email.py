@@ -62,6 +62,8 @@ class GeoEmail():
             # re-identify ourselves as an encrypted connection
             mailserver.ehlo()
 
+            if not self.email_pw:
+                raise ValueError("EMAIL_PASSWORD environment variable is not set")
             mailserver.login(sender, self.email_pw)
             mailserver.sendmail(sender, receiver_list, msg.as_string())
             mailserver.quit()
