@@ -4,7 +4,7 @@ from pathlib import Path
 import geopandas as gpd
 import shapely
 from django.contrib.gis.geos import GEOSGeometry
-from django.core.management.base import BaseCommand
+from analytics.management.commands.base import BaseIngestCommand
 from django.db import transaction
 from loguru import logger
 
@@ -12,7 +12,7 @@ from features.matviews import refresh_materialized_views
 from features.models import FeatMap, Feature, FeatureCollection
 
 
-class Command(BaseCommand):
+class Command(BaseIngestCommand):
     help = "Ingest TIGER  data into the features database"
 
     def add_arguments(self, parser):

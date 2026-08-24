@@ -5,8 +5,9 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import CommandError
 
+from analytics.management.commands.base import BaseIngestCommand
 from datasets.ingest import ingest_dataset
 
 GEO_DATASETS_REPO = "aiddata/geo-datasets"
@@ -15,7 +16,7 @@ GITHUB_API_BASE = f"https://api.github.com/repos/{GEO_DATASETS_REPO}/contents"
 GITHUB_RAW_BASE = f"https://raw.githubusercontent.com/{GEO_DATASETS_REPO}/{GEO_DATASETS_BRANCH}"
 
 
-class Command(BaseCommand):
+class Command(BaseIngestCommand):
     help = (
         "Ingest a dataset from a JSON metadata file, URL, or geo-datasets dataset name. "
         "When given a name (e.g. 'acled'), resolves all ingest JSONs from the "

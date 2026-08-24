@@ -6,7 +6,9 @@ from pathlib import Path
 import geopandas as gpd
 import shapely
 from django.contrib.gis.geos import GEOSGeometry
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import CommandError
+
+from analytics.management.commands.base import BaseIngestCommand
 from django.db import transaction
 from loguru import logger
 
@@ -14,7 +16,7 @@ from features.matviews import refresh_materialized_views
 from features.models import FeatMap, Feature, FeatureCollection
 
 
-class Command(BaseCommand):
+class Command(BaseIngestCommand):
     help = "Ingest a generic boundary dataset from a boundary_ingest.json file or URL"
 
     def add_arguments(self, parser):

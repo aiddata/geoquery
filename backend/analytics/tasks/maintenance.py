@@ -90,6 +90,40 @@ def sweep_coverage_records():
 
 
 @shared_task
+def trigger_coverage_and_extract():
+    """Create missing coverage records, check all uncovered ones, then build extract tasks.
+
+    Uses a Celery chord so build_extract_tasks only fires after every coverage
+    check task has completed.
+    """
+    from celery import chord, group
+
+    from analytics.models import Coverage
+    from analytics.tasks.coverage import create_missing_coverage_records, test_coverage_for_dataset
+
+    result = create_missing_coverage_records()
+    logger.info("Created %d missing coverage records", result["created"])
+
+    unchecked_ids = list(
+        Coverage.objects.filter(status=-1).values_list("dataset_id", flat=True).distinct()
+    )
+
+    if not unchecked_ids:
+        logger.info("No unchecked coverage records; running build_extract_tasks directly")
+        from analytics.management.commands.build_extract_tasks import _build_extract_tasks
+
+        return _build_extract_tasks()
+
+    chord(
+        group(test_coverage_for_dataset.s(did) for did in unchecked_ids),
+        build_extract_tasks.si(),
+    ).delay()
+
+    logger.info("Dispatched coverage chord for %d datasets → build_extract_tasks", len(unchecked_ids))
+    return {"dispatched": len(unchecked_ids)}
+
+
+@shared_task
 def run_user_outreach():
     """Flag users who qualify for outreach (manual mode, default criteria)."""
     from analytics.management.commands.run_user_outreach import _run_user_outreach
