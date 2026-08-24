@@ -1,0 +1,178 @@
+name: Deploy GeoQuery
+
+# Include [PUSH-X.Y.Z] in a geoquery commit message to trigger a release, e.g.:
+#   git commit -m "feat: add thing [PUSH-0.14.6]"
+# Both build workflows must succeed for that commit before the deploy runs.
+# The version from the marker becomes the helm chart version.
+on:
+  workflow_run:
+    workflows:
+      - "Build backend container"
+      - "Build frontend container"
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      chart_version:
+        description: 'Helm chart version (e.g. 0.14.6)'
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve context and check deploy marker
+        id: ctx
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.chart_version }}"
+            BRANCH="${{ github.ref_name }}"
+            SHA=$(gh api "repos/${{ github.repository }}/git/refs/heads/${BRANCH}" \
+              --jq '.object.sha')
+          else
+            # Skip immediately if the triggering workflow failed.
+            if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+              echo "Triggering build did not succeed — skipping."
+              echo "skip=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            SHA="${{ github.event.workflow_run.head_sha }}"
+            BRANCH="${{ github.event.workflow_run.head_branch }}"
+
+            # Extract version from commit message marker [PUSH-X.Y.Z].
+            COMMIT_MSG=$(gh api "repos/${{ github.repository }}/commits/${SHA}" \
+              --jq '.commit.message')
+            VERSION=$(echo "$COMMIT_MSG" | grep -oP '\[PUSH-\K[0-9]+\.[0-9]+\.[0-9]+(?=\])' || true)
+
+            if [ -z "$VERSION" ]; then
+              echo "No [PUSH-X.Y.Z] marker in commit message — skipping."
+              echo "skip=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            echo "Deploy marker found: [PUSH-${VERSION}]"
+          fi
+
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "sha=${SHA}" >> $GITHUB_OUTPUT
+          echo "sha_short=${SHA:0:7}" >> $GITHUB_OUTPUT
+          echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify both builds succeeded for this commit
+        if: steps.ctx.outputs.skip != 'true'
+        id: builds
+        run: |
+          SHA="${{ steps.ctx.outputs.sha }}"
+          BRANCH="${{ steps.ctx.outputs.branch }}"
+
+          for WF_NAME in "Build backend container" "Build frontend container"; do
+            WF_ID=$(gh api "repos/${{ github.repository }}/actions/workflows" \
+              --jq ".workflows[] | select(.name == \"${WF_NAME}\") | .id")
+            if [ -z "$WF_ID" ]; then
+              echo "ERROR: workflow '${WF_NAME}' not found"
+              exit 1
+            fi
+            CONCLUSION=$(gh api \
+              "repos/${{ github.repository }}/actions/workflows/${WF_ID}/runs?head_sha=${SHA}&branch=${BRANCH}&per_page=1" \
+              --jq '.workflow_runs[0].conclusion // "none"')
+            echo "${WF_NAME}: ${CONCLUSION}"
+            if [ "$CONCLUSION" != "success" ]; then
+              echo "Build '${WF_NAME}' not yet successful (${CONCLUSION}) — skipping this run."
+              echo "skip=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          done
+
+          echo "Both builds green — proceeding."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout helm-charts
+        if: steps.ctx.outputs.skip != 'true' && steps.builds.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: aiddata/helm-charts
+          token: ${{ secrets.DEPLOY_TOKEN }}
+          path: helm-charts
+
+      - name: Update Chart.yaml and values.yaml
+        if: steps.ctx.outputs.skip != 'true' && steps.builds.outputs.skip != 'true'
+        run: |
+          VERSION="${{ steps.ctx.outputs.version }}"
+          SHA_SHORT="${{ steps.ctx.outputs.sha_short }}"
+
+          sed -i "s/^version:.*/version: ${VERSION}/" helm-charts/charts/geoquery/Chart.yaml
+          sed -i "s|image: ghcr.io/aiddata/geoquery-frontend:.*|image: ghcr.io/aiddata/geoquery-frontend:${SHA_SHORT}|" \
+            helm-charts/charts/geoquery/values.yaml
+          sed -i "s|image: ghcr.io/aiddata/geoquery-backend:.*|image: ghcr.io/aiddata/geoquery-backend:${SHA_SHORT}|" \
+            helm-charts/charts/geoquery/values.yaml
+
+          echo "Chart.yaml:" && grep '^version:' helm-charts/charts/geoquery/Chart.yaml
+          echo "values.yaml:" && grep 'image: ghcr.io/aiddata/geoquery-' helm-charts/charts/geoquery/values.yaml
+
+      - name: Commit and push helm-charts
+        if: steps.ctx.outputs.skip != 'true' && steps.builds.outputs.skip != 'true'
+        run: |
+          cd helm-charts
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add charts/geoquery/Chart.yaml charts/geoquery/values.yaml
+          git commit -m "chore: bump geoquery chart to ${{ steps.ctx.outputs.version }} (app ${{ steps.ctx.outputs.sha_short }})"
+          git push
+
+      - name: Checkout nova-fluxcd
+        if: steps.ctx.outputs.skip != 'true' && steps.builds.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: aiddata/nova-fluxcd
+          token: ${{ secrets.DEPLOY_TOKEN }}
+          path: nova-fluxcd
+
+      - name: Determine overlay path
+        if: steps.ctx.outputs.skip != 'true' && steps.builds.outputs.skip != 'true'
+        id: overlay
+        run: |
+          BRANCH="${{ steps.ctx.outputs.branch }}"
+          OVERLAY="$( [ "$BRANCH" = "main" ] && echo "prod" || echo "$BRANCH" )"
+          KUST_PATH="geoquery/app/overlays/${OVERLAY}/kustomization.yaml"
+          if [ ! -f "nova-fluxcd/${KUST_PATH}" ]; then
+            echo "ERROR: overlay not found: ${KUST_PATH}"
+            exit 1
+          fi
+          echo "overlay=${OVERLAY}" >> $GITHUB_OUTPUT
+          echo "path=${KUST_PATH}" >> $GITHUB_OUTPUT
+
+      - name: Update kustomization.yaml
+        if: steps.ctx.outputs.skip != 'true' && steps.builds.outputs.skip != 'true'
+        run: |
+          python3 - <<'PYEOF'
+          import re, os, sys
+          version = os.environ['VERSION']
+          path = os.path.join('nova-fluxcd', os.environ['KUST_PATH'])
+          content = open(path).read()
+          updated = re.sub(
+              r'(path: /spec/chart/spec/version\s*\n\s*value: ")[^"]*"',
+              rf'\g<1>{version}"',
+              content,
+          )
+          if updated == content:
+              print(f"ERROR: version pattern not found in {path}", file=sys.stderr)
+              sys.exit(1)
+          open(path, 'w').write(updated)
+          print(f"Updated {path} → {version}")
+          PYEOF
+        env:
+          VERSION: ${{ steps.ctx.outputs.version }}
+          KUST_PATH: ${{ steps.overlay.outputs.path }}
+
+      - name: Commit and push nova-fluxcd
+        if: steps.ctx.outputs.skip != 'true' && steps.builds.outputs.skip != 'true'
+        run: |
+          cd nova-fluxcd
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "${{ steps.overlay.outputs.path }}"
+          git commit -m "chore: deploy geoquery ${{ steps.ctx.outputs.version }} to ${{ steps.overlay.outputs.overlay }}"
+          git push
