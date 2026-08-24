@@ -46,11 +46,10 @@ urlpatterns = [
     path("api/stac/v1", StacLandingPageView.as_view()),
 ]
 
-if settings.DEBUG:
-    urlpatterns += [
-        re_path(
-            r"^requests/(?P<path>.*)$",
-            serve,
-            {"document_root": settings.REQUESTS_DIR},
-        ),
-    ]
+urlpatterns += [
+    re_path(
+        r"^requests/(?P<path>.*)$",
+        serve,
+        {"document_root": settings.REQUESTS_DIR},
+    ),
+]
