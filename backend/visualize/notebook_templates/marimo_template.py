@@ -43,7 +43,14 @@ def _():
     OUT.mkdir(exist_ok=True)
 
     zip_path = OUT / "results.zip"
-    urllib.request.urlretrieve(DOWNLOAD_URL, zip_path)
+
+
+    opener = urllib.request.build_opener()
+    opener.addheaders = [("User-Agent", "Mozilla/5.0")]
+    with opener.open(DOWNLOAD_URL) as r:
+        zip_path.write_bytes(r.read())
+    print("Downloaded:", zip_path.stat().st_size, "bytes")
+
 
     with zipfile.ZipFile(zip_path) as zf:
         zf.extractall(OUT)
