@@ -22,3 +22,5 @@ postgres/
 .agent/
 k8s/
 .worktrees/
+
+manage_secrets.sh
