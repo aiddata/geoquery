@@ -76,7 +76,7 @@ class Command(BaseIngestCommand):
         self.iso3_list = options.get("iso3")
         self.set_active = options["active"]
         self.set_public = options["public"]
-        self.run_concurrent = options["concurrent"]
+        self.run_sequential = options["sequential"]
         self.data_dir = Path(options["data_dir"])
         self.commit = options["commit"]
         self.data_path = self.data_dir / self.commit
@@ -112,10 +112,10 @@ class Command(BaseIngestCommand):
         )
 
         # Process items
-        if self.run_concurrent:
-            self.process_concurrent(ingest_items)
-        else:
+        if self.run_sequential:
             self.process_sequential(ingest_items)
+        else:
+            self.process_concurrent(ingest_items)
 
         self.stdout.write(self.style.SUCCESS("Finished geoBoundaries ingest"))
 
