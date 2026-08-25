@@ -93,10 +93,11 @@ class Command(BaseIngestCommand):
 
         # Filter by ISO3 if specified, reference available ISO3 codes from the geoBoundaries data_path
         if self.iso3_list is None:
-            ingest_items = [i.stem for i in self.data_path.rglob("*.gpkg") if (i.parent / f"{i.stem}.json").exists()]
+            ingest_items = [
+                i.stem for i in self.data_path.rglob("*.gpkg") if (i.parent / f"{i.stem}.json").exists()]
         else:
             ingest_items = [
-                i.stem for i in self.data_path.rglob("*.gpkg") if i.stem.split("-")[1] in self.iso3_list and (i.parent / f"raw_{i.stem}.json").exists()
+                i.stem for i in self.data_path.rglob("*.gpkg") if (i.parent / f"{i.stem}.json").exists() and i.stem.split("-")[1] in self.iso3_list
             ]
 
         ingest_items = sorted(ingest_items)
@@ -155,9 +156,9 @@ class Command(BaseIngestCommand):
     @transaction.atomic
     def ingest_gb_item(self, fname):
         """Ingest a single geoBoundaries item."""
-        item = json.loads((self.data_path / f"raw_{fname}.json").read_text())
-        iso3 = item["boundaryISO"]
-        boundary_type = item["boundaryType"]
+        # item = json.loads((self.data_path / f"{fname}.json").read_text())
+        iso3 = fname.split("-")[1]
+        boundary_type = fname.split("-")[2]
         fc_name = f"gB_{self.commit}_{iso3}_{boundary_type}"
 
         # Check if already exists
@@ -171,8 +172,7 @@ class Command(BaseIngestCommand):
         self.stdout.write(f"Processing: {fc_name}")
 
         # Process geodata
-        item_stem = Path(item["gjDownloadURL"]).stem
-        gpkg_path = self.data_path / f"{item_stem}.gpkg"
+        gpkg_path = self.data_path / f"{fname}.gpkg"
 
         logger.debug(f"Reading {gpkg_path}")
         try:
