@@ -109,5 +109,3 @@ Things that will trip you up:
 Processing options are a special case: catalog membership on an option only
 *widens* the option list for a dataset the caller can already see. It never
 grants the dataset itself.
-
-.
