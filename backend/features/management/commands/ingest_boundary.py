@@ -12,7 +12,7 @@ from analytics.management.commands.base import BaseIngestCommand
 from django.db import transaction
 from loguru import logger
 
-from features.matviews import refresh_materialized_views
+from features.matviews import update_simplified_geometries
 from features.models import FeatMap, Feature, FeatureCollection
 
 
@@ -37,7 +37,7 @@ class Command(BaseIngestCommand):
         parser.add_argument(
             "--no-refresh-views",
             action="store_true",
-            help="Skip refreshing materialized views after ingest (useful when ingesting many datasets in sequence)",
+            help="Skip updating the simplified-geometry tables during ingest (run `manage.py rebuild_simplified_geometries` afterwards)",
         )
 
     def handle(self, *args, **options):
@@ -59,15 +59,11 @@ class Command(BaseIngestCommand):
                 ingest_dict,
                 skip_existing=options["skip_existing"],
                 reload_geometry=options["reload_geometry"],
+                refresh_views=not options["no_refresh_views"],
             )
         finally:
             if tmp_path is not None:
                 tmp_path.unlink(missing_ok=True)
-
-        if not options["no_refresh_views"]:
-            self.stdout.write("Refreshing simplified-geometry materialized views...")
-            refresh_materialized_views()
-            self.stdout.write(self.style.SUCCESS("Materialized views refreshed."))
 
         self.stdout.write(self.style.SUCCESS("Done."))
 
@@ -86,7 +82,7 @@ class Command(BaseIngestCommand):
             raise CommandError(f"Failed to download {url}: {exc}")
 
     @transaction.atomic
-    def ingest_boundary(self, ingest_dict: dict, skip_existing: bool, reload_geometry: bool):
+    def ingest_boundary(self, ingest_dict: dict, skip_existing: bool, reload_geometry: bool, refresh_views: bool = True):
         fc_name = ingest_dict.get("name")
         if not fc_name:
             raise ValueError("boundary_ingest.json must have a 'name' field")
@@ -142,4 +138,11 @@ class Command(BaseIngestCommand):
 
         feature_count = FeatMap.objects.filter(fc=fc).count()
         self.stdout.write(self.style.SUCCESS(f"  Inserted {feature_count} features for {fc_name}"))
+
+        # Inside the atomic block, so the simplified rows commit with the
+        # features they were derived from.
+        if refresh_views:
+            update_simplified_geometries(fc.id)
+            self.stdout.write(f"  Updated simplified geometries for {fc_name}")
+
         logger.info(f"Successfully ingested {fc_name}")

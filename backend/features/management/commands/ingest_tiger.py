@@ -8,7 +8,7 @@ from analytics.management.commands.base import BaseIngestCommand
 from django.db import transaction
 from loguru import logger
 
-from features.matviews import refresh_materialized_views
+from features.matviews import update_simplified_geometries
 from features.models import FeatMap, Feature, FeatureCollection
 
 
@@ -53,11 +53,6 @@ class Command(BaseIngestCommand):
         )
 
         self.ingest_tiger_item()
-
-        # Refresh materialized views with simplified geometries
-        self.stdout.write("Refreshing simplified-geometry materialized views...")
-        refresh_materialized_views()
-        self.stdout.write(self.style.SUCCESS("Materialized views refreshed."))
 
         self.stdout.write(self.style.SUCCESS("Finished TIGER ingest"))
 
@@ -126,5 +121,10 @@ class Command(BaseIngestCommand):
         self.stdout.write(
             self.style.SUCCESS(f"  Inserted {feature_count} features for {fc_name}")
         )
+
+        # Inside the atomic block, so the simplified rows commit with the
+        # features they were derived from.
+        update_simplified_geometries(fc.id)
+        self.stdout.write(f"  Updated simplified geometries for {fc_name}")
 
         logger.info(f"Successfully ingested {fc_name}")

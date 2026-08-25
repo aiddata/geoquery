@@ -5,8 +5,6 @@ The rule under test, from catalog.access:
     visible = active AND (public OR member of a catalog the caller can access)
 """
 
-from unittest import mock
-
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser, Group
 from django.contrib.contenttypes.models import ContentType
@@ -34,15 +32,8 @@ User = get_user_model()
 
 
 def make_fc(**kwargs):
-    """Create a FeatureCollection without refreshing the matviews.
-
-    features.signals fires refresh_materialized_views() on every non-upload
-    FeatureCollection save, which issues three REFRESH MATERIALIZED VIEW
-    statements per row created.
-    """
     kwargs.setdefault("path", f"/data/boundaries/{kwargs['name']}.gpkg")
-    with mock.patch("features.matviews.refresh_materialized_views"):
-        return FeatureCollection.objects.create(**kwargs)
+    return FeatureCollection.objects.create(**kwargs)
 
 
 def make_dataset(**kwargs):

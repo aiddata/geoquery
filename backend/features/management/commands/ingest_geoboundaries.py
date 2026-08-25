@@ -10,7 +10,7 @@ from analytics.management.commands.base import BaseIngestCommand
 from django.db import transaction
 from loguru import logger
 
-from features.matviews import refresh_materialized_views
+from features.matviews import update_simplified_geometries
 from features.models import FeatMap, Feature, FeatureCollection
 
 
@@ -69,7 +69,7 @@ class Command(BaseIngestCommand):
         parser.add_argument(
             "--no-refresh-views",
             action="store_true",
-            help="Skip refreshing materialized views after ingest (useful when ingesting many datasets in sequence)",
+            help="Skip updating the simplified-geometry tables during ingest (run `manage.py rebuild_simplified_geometries` afterwards)",
         )
 
     def handle(self, *args, **options):
@@ -83,6 +83,7 @@ class Command(BaseIngestCommand):
         self.skip_existing = options["skip_existing"]
         self.reload_geometry = options["reload_geometry"]
         self.max_workers = options["workers"]
+        self.refresh_views = not options["no_refresh_views"]
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -115,11 +116,6 @@ class Command(BaseIngestCommand):
             self.process_concurrent(ingest_items)
         else:
             self.process_sequential(ingest_items)
-
-        if not options["no_refresh_views"]:
-            self.stdout.write("Refreshing simplified-geometry materialized views...")
-            refresh_materialized_views()
-            self.stdout.write(self.style.SUCCESS("Materialized views refreshed."))
 
         self.stdout.write(self.style.SUCCESS("Finished geoBoundaries ingest"))
 
@@ -262,5 +258,11 @@ class Command(BaseIngestCommand):
         self.stdout.write(
             self.style.SUCCESS(f"  Inserted {feature_count} features for {fc_name}")
         )
+
+        # Inside the atomic block, so the simplified rows commit with the
+        # features they were derived from.
+        if self.refresh_views:
+            update_simplified_geometries(fc.id)
+            self.stdout.write(f"  Updated simplified geometries for {fc_name}")
 
         logger.info(f"Successfully ingested {fc_name}")
