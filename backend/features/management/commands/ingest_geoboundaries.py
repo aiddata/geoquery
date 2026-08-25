@@ -19,11 +19,6 @@ class Command(BaseIngestCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--iso3",
-            nargs="+",
-            help="Specific ISO3 codes to download (e.g., `--iso3 GHA AFG`. Note the space separation and no `=` after --iso3)",
-        )
-        parser.add_argument(
             "--data-dir",
             type=str,
             default="/data/boundaries/geoboundaries/",
@@ -36,6 +31,11 @@ class Command(BaseIngestCommand):
             help="GitHub commit 7 char short hash for downloaded files (e.g., 57dcd43)",
         )
         parser.add_argument(
+            "--iso3",
+            nargs="+",
+            help="Specific ISO3 codes to download (e.g., `--iso3 GHA AFG`. Note the space separation and no `=` after --iso3). Defaults to all available in data dir if not specified.",
+        )
+        parser.add_argument(
             "--active",
             action="store_true",
             help="Set feature collections as active (false by default)",
@@ -46,30 +46,30 @@ class Command(BaseIngestCommand):
             help="Set feature collections as public (false by default)",
         )
         parser.add_argument(
-            "--concurrent",
-            action="store_true",
-            help="Run with concurrent processing",
-        )
-        parser.add_argument(
             "--workers",
             type=int,
             default=8,
-            help="Max worker threads when --concurrent is used (default: 8)",
+            help="Max worker threads used when running concurrently (default: 8)",
+        )
+        parser.add_argument(
+            "--sequential",
+            action="store_true",
+            help="Run with sequential processing (default: false, concurrent processing is used)",
         )
         parser.add_argument(
             "--skip-existing",
             action="store_true",
-            help="Skip feature collections that already exist",
+            help="Skip feature collections that already exist (default: false)",
         )
         parser.add_argument(
             "--reload-geometry",
             action="store_true",
-            help="When updating an existing collection, wipe and re-ingest features. Without this flag, only metadata is updated.",
+            help="When updating an existing collection, wipe and re-ingest features. Without this flag, only metadata is updated. (default: false)",
         )
         parser.add_argument(
-            "--no-refresh-views",
+            "--refresh-views",
             action="store_true",
-            help="Skip updating the simplified-geometry tables during ingest (run `manage.py rebuild_simplified_geometries` afterwards)",
+            help="Skip updating the simplified-geometry tables during ingest by default (run `manage.py rebuild_simplified_geometries` afterwards)",
         )
 
     def handle(self, *args, **options):
@@ -83,7 +83,7 @@ class Command(BaseIngestCommand):
         self.skip_existing = options["skip_existing"]
         self.reload_geometry = options["reload_geometry"]
         self.max_workers = options["workers"]
-        self.refresh_views = not options["no_refresh_views"]
+        self.refresh_views = options["refresh_views"]
 
         self.stdout.write(
             self.style.SUCCESS(
