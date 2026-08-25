@@ -4,7 +4,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.db.models import Q
 from rest_framework import status
@@ -201,19 +201,33 @@ class RequestView(APIView):
                 )
                 continue
 
-            # get_or_create against the functional unique index on
-            # (resource_id, fm_id, po_id, MD5(COALESCE(kwargs::text, ''))) ensures
-            # identical combinations reuse the same task row.
+            # The functional unique index is on
+            # (resource_id, fm_id, po_id, MD5(COALESCE(kwargs::text, ''))).
+            # Django JSONField maps None to JSON null for equality queries, but
+            # rows with no kwargs (e.g. from build_extract_tasks) have SQL NULL.
+            # Use isnull lookup for the None case so the GET matches SQL NULL rows.
+            if task_kwargs is None:
+                kwargs_lookup = {"kwargs__isnull": True}
+            else:
+                kwargs_lookup = {"kwargs": task_kwargs}
+
             task_ids = []
             for fm in fms:
                 for resource in resource_list:
                     for po in pos:
-                        task, _ = ExtractTask.objects.get_or_create(
-                            resource=resource,
-                            fm=fm,
-                            po=po,
-                            kwargs=task_kwargs,
-                        )
+                        try:
+                            task = ExtractTask.objects.get(
+                                resource=resource, fm=fm, po=po, **kwargs_lookup
+                            )
+                        except ExtractTask.DoesNotExist:
+                            try:
+                                task = ExtractTask.objects.create(
+                                    resource=resource, fm=fm, po=po, kwargs=task_kwargs
+                                )
+                            except IntegrityError:
+                                task = ExtractTask.objects.get(
+                                    resource=resource, fm=fm, po=po, **kwargs_lookup
+                                )
                         if task.priority < 1:
                             task.priority = 1
                             task.save(update_fields=["priority"])
