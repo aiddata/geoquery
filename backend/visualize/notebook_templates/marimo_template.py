@@ -127,16 +127,17 @@ def _(df, joined):
     import matplotlib.pyplot as plt
 
     # Change `col` to any extract column from df.columns
-    extract_cols = [c for c in df.columns if c not in ["geom_id", "feature_collection"] and not c.startswith(("boundary.",))]
-    col = extract_cols[0] if extract_cols else None
+    extract_cols1 = [c for c in df.columns if c not in ["geom_id", "feature_collection"] and not c.startswith(("boundary.",))]
+    col = extract_cols1[0] if extract_cols1 else None
 
     fig, ax = plt.subplots(figsize=(12, 7))
-    joined.plot(column=col, legend=True, cmap="YlOrRd", ax=ax)
+    plot_joined = joined.copy()
+    plot_joined.plot(column=col, legend=True, cmap="YlOrRd", ax=ax)
     ax.set_title(col or "Features")
     ax.axis("off")
     plt.tight_layout()
     fig
-    return ax, col, extract_cols, fig, plt
+    return ax, col, extract_cols1, fig, plt
 
 
 # ── 6. Time series (mean per extract column) ─────────────────────────────────
@@ -145,9 +146,9 @@ def _(df, joined):
 @app.cell
 def _(df, plt):
     # Mean of each extract column — useful when columns represent time periods.
-    extract_cols = [c for c in df.columns if c not in ["geom_id", "feature_collection"] and not c.startswith(("boundary.",))]
+    extract_cols2 = [c for c in df.columns if c not in ["geom_id", "feature_collection"] and not c.startswith(("boundary.",))]
 
-    extract_numeric = df.drop(columns=[c for c in df.columns if c not in extract_cols], errors="ignore").select_dtypes("number")
+    extract_numeric = df.drop(columns=[c for c in df.columns if c not in extract_cols2], errors="ignore").select_dtypes("number")
     means = extract_numeric.mean()
 
     fig2, ax2 = plt.subplots(figsize=(12, 4))
