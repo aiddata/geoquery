@@ -47,40 +47,30 @@ def create_coverage_records_for_feature(feature_id):
 
 
 def create_missing_coverage_records():
-    # Find all (feature, dataset) pairs that don't yet have a coverage record
     t_start = time.perf_counter()
 
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            SELECT f.id AS geom_id, d.id AS dataset_id
+            INSERT INTO coverage (geom_id, dataset_id, status)
+            SELECT f.id, d.id, -1
             FROM features f
             CROSS JOIN datasets d
             LEFT JOIN coverage c ON c.geom_id = f.id AND c.dataset_id = d.id
-            WHERE (c.geom_id IS NULL OR c.status = -1)
+            WHERE c.geom_id IS NULL
             AND NOT EXISTS (
                 SELECT 1 FROM feat_map fm
                 JOIN feature_collections fc ON fm.fc_id = fc.id
                 WHERE fm.geom_id = f.id AND fc.is_user_upload = TRUE
             )
+            ON CONFLICT DO NOTHING
             """
         )
-        missing_pairs = cursor.fetchall()
+        created = cursor.rowcount
 
-    if not missing_pairs:
-        logger.info("No missing coverage records")
-        records = []
-    else:
-        records = [
-            Coverage(geom_id=geom_id, dataset_id=dataset_id, status=-1)
-            for geom_id, dataset_id in missing_pairs
-        ]
-        Coverage.objects.bulk_create(records, ignore_conflicts=True)
-
-        elapsed = time.perf_counter() - t_start
-        logger.info("Inserted %d coverage records in %.2f}s", len(records), elapsed)
-
-    return {"created": len(records)}
+    elapsed = time.perf_counter() - t_start
+    logger.info("Inserted %d coverage records in %.2fs", created, elapsed)
+    return {"created": created}
 
 
 def run_missing_coverage_checks(sync=False):
@@ -158,37 +148,40 @@ def _test_coverage_for_feature(feature_id):
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            UPDATE coverage
-            SET status = CASE
-                WHEN dataset_id = ANY(
-                    SELECT datasets.id
-                    FROM datasets
-                    JOIN features ON ST_Contains(datasets.spatial_extent, features.shape)
-                    WHERE features.id = %s
-                ) THEN 1
-                ELSE 0
-            END
-            WHERE geom_id = %s AND status = -1
-            RETURNING dataset_id, status;
+            WITH updated AS (
+                UPDATE coverage
+                SET status = CASE
+                    WHEN dataset_id = ANY(
+                        SELECT datasets.id
+                        FROM datasets
+                        JOIN features ON ST_Contains(datasets.spatial_extent, features.shape)
+                        WHERE features.id = %s
+                    ) THEN 1
+                    ELSE 0
+                END
+                WHERE geom_id = %s AND status = -1
+                RETURNING status
+            )
+            SELECT
+                COUNT(*) FILTER (WHERE status = 1),
+                COUNT(*) FILTER (WHERE status = 0)
+            FROM updated
             """,
             [feature_id, feature_id],
         )
-        rows = cursor.fetchall()
+        covered, not_covered = cursor.fetchone()
 
-    covered = [dataset_id for dataset_id, status in rows if status == 1]
-    not_covered = [dataset_id for dataset_id, status in rows if status == 0]
     logger.info(
-        "Coverage tested for feature %s (%d records updated). covered: %s, not covered: %s",
+        "Coverage tested for feature %s: %d covered, %d not covered",
         feature_id,
-        len(rows),
         covered,
         not_covered,
     )
     return {
         "feature_id": feature_id,
-        "updated": len(rows),
-        "covered": len(covered),
-        "not_covered": len(not_covered),
+        "updated": covered + not_covered,
+        "covered": covered,
+        "not_covered": not_covered,
     }
 
 
@@ -197,31 +190,32 @@ def test_coverage_for_feature(feature_id):
     return _test_coverage_for_feature(feature_id)
 
 
+_DISPATCH_BATCH_SIZE = 500
+
+
 @shared_task
 def test_coverage_for_feature_collection(feature_collection_id):
+    dispatched = 0
     with connection.cursor() as cursor:
         cursor.execute(
             "SELECT geom_id FROM feat_map WHERE fc_id = %s",
             [feature_collection_id],
         )
-        feature_ids = [row[0] for row in cursor.fetchall()]
+        batch = cursor.fetchmany(_DISPATCH_BATCH_SIZE)
+        while batch:
+            group(test_coverage_for_feature.s(row[0]) for row in batch).delay()
+            dispatched += len(batch)
+            batch = cursor.fetchmany(_DISPATCH_BATCH_SIZE)
 
-    if not feature_ids:
+    if not dispatched:
         logger.warning("No features found for collection %s", feature_collection_id)
-        return {"feature_collection_id": feature_collection_id, "dispatched": 0}
-
-    job = group(test_coverage_for_feature.s(fid) for fid in feature_ids)
-    job.delay()
-
-    logger.info(
-        "Dispatched coverage tasks for %d features in collection %s",
-        len(feature_ids),
-        feature_collection_id,
-    )
-    return {
-        "feature_collection_id": feature_collection_id,
-        "dispatched": len(feature_ids),
-    }
+    else:
+        logger.info(
+            "Dispatched coverage tasks for %d features in collection %s",
+            dispatched,
+            feature_collection_id,
+        )
+    return {"feature_collection_id": feature_collection_id, "dispatched": dispatched}
 
 
 @shared_task
@@ -235,35 +229,38 @@ def test_coverage_for_dataset(dataset_id):
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            UPDATE coverage
-            SET status = CASE
-                WHEN geom_id = ANY(
-                    SELECT features.id
-                    FROM datasets
-                    JOIN features ON ST_Contains(datasets.spatial_extent, features.shape)
-                    WHERE datasets.id = %s
-                ) THEN 1
-                ELSE 0
-            END
-            WHERE dataset_id = %s AND status = -1
-            RETURNING geom_id, status;
+            WITH updated AS (
+                UPDATE coverage
+                SET status = CASE
+                    WHEN geom_id = ANY(
+                        SELECT features.id
+                        FROM datasets
+                        JOIN features ON ST_Contains(datasets.spatial_extent, features.shape)
+                        WHERE datasets.id = %s
+                    ) THEN 1
+                    ELSE 0
+                END
+                WHERE dataset_id = %s AND status = -1
+                RETURNING status
+            )
+            SELECT
+                COUNT(*) FILTER (WHERE status = 1),
+                COUNT(*) FILTER (WHERE status = 0)
+            FROM updated
             """,
             [dataset_id, dataset_id],
         )
-        rows = cursor.fetchall()
+        covered, not_covered = cursor.fetchone()
 
-    covered = [geom_id for geom_id, status in rows if status == 1]
-    not_covered = [geom_id for geom_id, status in rows if status == 0]
     logger.info(
-        "Coverage tested for dataset %s (%d records updated). covered: %s, not covered: %s",
+        "Coverage tested for dataset %s: %d covered, %d not covered",
         dataset_id,
-        len(rows),
         covered,
         not_covered,
     )
     return {
         "dataset_id": dataset_id,
-        "updated": len(rows),
-        "covered": len(covered),
-        "not_covered": len(not_covered),
+        "updated": covered + not_covered,
+        "covered": covered,
+        "not_covered": not_covered,
     }
