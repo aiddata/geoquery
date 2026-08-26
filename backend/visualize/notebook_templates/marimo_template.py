@@ -29,6 +29,22 @@ def _(mo):
     return
 
 
+@app.cell
+def _(mo):
+    mo.callout(
+        mo.md(
+            """
+            **Fork this notebook before running.**
+
+            This notebook is shared as read-only. To run the cells, click **Fork** in the
+            top-right corner of the MoLab toolbar to create your own editable copy.
+            """
+        ),
+        kind="warn",
+    )
+    return
+
+
 # ── 1. Download & extract ────────────────────────────────────────────────────
 
 
