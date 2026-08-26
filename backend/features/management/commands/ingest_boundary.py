@@ -16,6 +16,19 @@ from features.matviews import update_simplified_geometries
 from features.models import FeatMap, Feature, FeatureCollection
 
 
+def _to_json_safe(d: dict) -> dict:
+    import math
+    result = {}
+    for k, v in d.items():
+        if hasattr(v, "isoformat"):
+            result[k] = v.isoformat()
+        elif isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+            result[k] = None
+        else:
+            result[k] = v
+    return result
+
+
 class Command(BaseIngestCommand):
     help = "Ingest a generic boundary dataset from a boundary_ingest.json file or URL"
 
@@ -132,7 +145,7 @@ class Command(BaseIngestCommand):
                 fc=fc,
                 geom=feature_geom,
                 name=row.get("shapeName"),
-                attr=row.drop(["geometry"]).to_dict(),
+                attr=_to_json_safe(row.drop(["geometry"]).to_dict()),
                 parent=None,
             )
 
