@@ -2,7 +2,7 @@ name: Deploy GeoQuery
 
 # Include [DEPLOY-X.Y.Z] in a geoquery commit message to trigger a release, e.g.:
 #   git commit -m "feat: add thing [DEPLOY-0.14.6]"
-# Both build workflows must succeed for that commit before the deploy runs.
+# Most recent of both build workflows must succeed for that commit before the deploy runs, or this yaml must be edited directly.
 # The version from the marker becomes the helm chart version.
 on:
   workflow_run:
