@@ -2,8 +2,9 @@ name: Deploy GeoQuery
 
 # Include [DEPLOY-X.Y.Z] in a geoquery commit message to trigger a release, e.g.:
 #   git commit -m "feat: add thing [DEPLOY-0.14.6]"
-# Most recent of both build workflows must succeed for that commit before the deploy runs, or this yaml must be edited directly.
-# The version from the marker becomes the helm chart version.
+# The most recent successful run of both build workflows on the branch must
+# exist before the deploy proceeds. The version from the marker becomes the
+# helm chart version.
 on:
   workflow_run:
     workflows:
@@ -33,28 +34,37 @@ jobs:
             BRANCH="${{ github.ref_name }}"
             SHA=$(gh api "repos/${{ github.repository }}/git/refs/heads/${BRANCH}" \
               --jq '.object.sha')
-          else
-            # Skip immediately if the triggering workflow failed.
-            if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
-              echo "Triggering build did not succeed — skipping."
-              echo "skip=true" >> $GITHUB_OUTPUT
-              exit 0
-            fi
 
-            SHA="${{ github.event.workflow_run.head_sha }}"
-            BRANCH="${{ github.event.workflow_run.head_branch }}"
-
-            # Extract version from commit message marker [DEPLOY-X.Y.Z].
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            SHA="${{ github.sha }}"
+            BRANCH="${{ github.ref_name }}"
             COMMIT_MSG=$(gh api "repos/${{ github.repository }}/commits/${SHA}" \
               --jq '.commit.message')
             VERSION=$(echo "$COMMIT_MSG" | grep -oP '\[DEPLOY-\K[0-9]+\.[0-9]+\.[0-9]+(?=\])' || true)
-
             if [ -z "$VERSION" ]; then
               echo "No [DEPLOY-X.Y.Z] marker in commit message — skipping."
               echo "skip=true" >> $GITHUB_OUTPUT
               exit 0
             fi
+            echo "Deploy marker found: [DEPLOY-${VERSION}]"
 
+          else
+            # workflow_run
+            if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+              echo "Triggering build did not succeed — skipping."
+              echo "skip=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            SHA="${{ github.event.workflow_run.head_sha }}"
+            BRANCH="${{ github.event.workflow_run.head_branch }}"
+            COMMIT_MSG=$(gh api "repos/${{ github.repository }}/commits/${SHA}" \
+              --jq '.commit.message')
+            VERSION=$(echo "$COMMIT_MSG" | grep -oP '\[DEPLOY-\K[0-9]+\.[0-9]+\.[0-9]+(?=\])' || true)
+            if [ -z "$VERSION" ]; then
+              echo "No [DEPLOY-X.Y.Z] marker in commit message — skipping."
+              echo "skip=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
             echo "Deploy marker found: [DEPLOY-${VERSION}]"
           fi
 

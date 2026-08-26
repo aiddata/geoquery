@@ -3,12 +3,9 @@ on:
   push:
     branches:
       - main
-      - develop
-      - jwhall
     paths:
       - "frontend/**"
       - ".github/workflows/build-frontend.yaml"
-
 jobs:
   build:
     name: Build Image

@@ -3,14 +3,11 @@ on:
   push:
     branches:
       - main
-      - develop
-      - jwhall
     paths:
       - "backend/**"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/build-backend.yaml"
-
 jobs:
   build:
     name: Build Image
