@@ -50,6 +50,7 @@ ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").sp
 # Safe here because the origin is only reachable through the tunnel, so a client
 # cannot spoof this header.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_PORT = True
 
 # Origins Django trusts for unsafe (POST) requests; each must include the scheme.
 # Required since Django 4.0 for HTTPS-behind-proxy POSTs such as the admin login.
