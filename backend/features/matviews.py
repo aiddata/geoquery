@@ -24,23 +24,26 @@ SIMPLIFIED_GEOMETRY_TABLES = [
 # computed for that collection.
 _INSERT_SQL = """
     INSERT INTO {table} (fm_id, geom_id, fc_id, name, attr, shape)
-    SELECT
-        fm.id,
-        fm.geom_id,
-        fm.fc_id,
-        fm.name,
-        fm.attr,
-        ST_Transform(
-            ST_SetSRID(
-                ST_CoverageSimplify(f.shape, {tolerance})
-                    OVER (PARTITION BY fm.fc_id),
-                4326
-            ),
-            3857
-        )
-    FROM feat_map fm
-    JOIN features f ON fm.geom_id = f.id
-    WHERE fm.fc_id = %s
+    SELECT fm_id, geom_id, fc_id, name, attr, shape FROM (
+        SELECT
+            fm.id AS fm_id,
+            fm.geom_id,
+            fm.fc_id,
+            fm.name,
+            fm.attr,
+            ST_Transform(
+                ST_SetSRID(
+                    ST_CoverageSimplify(f.shape, {tolerance})
+                        OVER (PARTITION BY fm.fc_id),
+                    4326
+                ),
+                3857
+            ) AS shape
+        FROM feat_map fm
+        JOIN features f ON fm.geom_id = f.id
+        WHERE fm.fc_id = %s
+    ) simplified
+    WHERE NOT ST_IsEmpty(shape) AND ST_IsValid(shape)
 """
 
 
