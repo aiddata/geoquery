@@ -14,8 +14,8 @@ from django.db import connection, transaction
 from loguru import logger
 
 SIMPLIFIED_GEOMETRY_TABLES = [
-    ("features_simplified_z0_5", 0.044),
-    ("features_simplified_z6_9", 0.003),
+    ("features_simplified_z0_5", 0.5),
+    ("features_simplified_z6_9", 0.005),
     ("features_simplified_z10_12", 0.0003),
 ]
 
