@@ -21,7 +21,7 @@ SIMPLIFIED_GEOMETRY_TABLES = [
 
 # With WHERE fc_id = %s the window collapses to a single partition, so the
 # rows produced are identical to what the old whole-table matview refresh
-# computed for that collection.
+# computed for that collection. Ignore invalid geoms due to simplfication.
 _INSERT_SQL = """
     INSERT INTO {table} (fm_id, geom_id, fc_id, name, attr, shape)
     SELECT fm_id, geom_id, fc_id, name, attr, shape FROM (
