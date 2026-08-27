@@ -7,6 +7,10 @@ from django.db import connection
 
 logger = logging.getLogger(__name__)
 
+_COVERAGE_INSERT_CHUNK = 1000   # features per chunk when creating coverage records
+_COVERAGE_TEST_CHUNK = 5000     # coverage rows per task invocation when testing
+_DISPATCH_BATCH_SIZE = 500      # Celery task signatures per group dispatch
+
 
 def create_coverage_records_for_dataset(dataset_id):
     """Insert coverage rows (status=-1) for a dataset against all existing features."""
@@ -50,27 +54,42 @@ def create_missing_coverage_records():
     t_start = time.perf_counter()
 
     with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            INSERT INTO coverage (geom_id, dataset_id, status)
-            SELECT f.id, d.id, -1
-            FROM features f
-            CROSS JOIN datasets d
-            LEFT JOIN coverage c ON c.geom_id = f.id AND c.dataset_id = d.id
-            WHERE c.geom_id IS NULL
-            AND NOT EXISTS (
-                SELECT 1 FROM feat_map fm
-                JOIN feature_collections fc ON fm.fc_id = fc.id
-                WHERE fm.geom_id = f.id AND fc.is_user_upload = TRUE
+        cursor.execute("SELECT MIN(id), MAX(id) FROM features")
+        min_id, max_id = cursor.fetchone()
+
+    if min_id is None:
+        logger.info("No features found, skipping")
+        return {"created": 0}
+
+    total = 0
+    lo = min_id
+    while lo <= max_id:
+        hi = lo + _COVERAGE_INSERT_CHUNK - 1
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO coverage (geom_id, dataset_id, status)
+                SELECT f.id, d.id, -1
+                FROM features f
+                CROSS JOIN datasets d
+                LEFT JOIN coverage c ON c.geom_id = f.id AND c.dataset_id = d.id
+                WHERE c.geom_id IS NULL
+                AND f.id BETWEEN %s AND %s
+                AND NOT EXISTS (
+                    SELECT 1 FROM feat_map fm
+                    JOIN feature_collections fc ON fm.fc_id = fc.id
+                    WHERE fm.geom_id = f.id AND fc.is_user_upload = TRUE
+                )
+                ON CONFLICT DO NOTHING
+                """,
+                [lo, hi],
             )
-            ON CONFLICT DO NOTHING
-            """
-        )
-        created = cursor.rowcount
+            total += cursor.rowcount
+        lo = hi + 1
 
     elapsed = time.perf_counter() - t_start
-    logger.info("Inserted %d coverage records in %.2fs", created, elapsed)
-    return {"created": created}
+    logger.info("Inserted %d coverage records in %.2fs", total, elapsed)
+    return {"created": total}
 
 
 def run_missing_coverage_checks(sync=False):
@@ -190,9 +209,6 @@ def test_coverage_for_feature(feature_id):
     return _test_coverage_for_feature(feature_id)
 
 
-_DISPATCH_BATCH_SIZE = 500
-
-
 @shared_task
 def test_coverage_for_feature_collection(feature_collection_id):
     dispatched = 0
@@ -220,47 +236,52 @@ def test_coverage_for_feature_collection(feature_collection_id):
 
 @shared_task
 def test_coverage_for_dataset(dataset_id):
-    """Test spatial coverage for a single dataset against all features.
+    """Test spatial coverage for one chunk of untested records for a dataset.
 
-    Checks whether each feature falls within the dataset's spatial extent
-    using ST_Contains. Sets coverage status to 1 (covered) or 0 (not covered).
-    Only operates on records with status = -1 (untested).
+    Processes up to _COVERAGE_TEST_CHUNK records per invocation and re-queues
+    itself if more remain. ST_Contains is evaluated only against the batch
+    features, not the full features table.
     """
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            WITH updated AS (
-                UPDATE coverage
-                SET status = CASE
-                    WHEN geom_id = ANY(
-                        SELECT features.id
-                        FROM datasets
-                        JOIN features ON ST_Contains(datasets.spatial_extent, features.shape)
-                        WHERE datasets.id = %s
-                    ) THEN 1
-                    ELSE 0
-                END
+            WITH batch AS (
+                SELECT geom_id FROM coverage
                 WHERE dataset_id = %s AND status = -1
-                RETURNING status
+                LIMIT %s
+            ),
+            updated AS (
+                UPDATE coverage c
+                SET status = CASE WHEN ST_Contains(d.spatial_extent, f.shape) THEN 1 ELSE 0 END
+                FROM batch b
+                JOIN features f ON f.id = b.geom_id
+                CROSS JOIN (SELECT spatial_extent FROM datasets WHERE id = %s) d
+                WHERE c.geom_id = b.geom_id AND c.dataset_id = %s AND c.status = -1
+                RETURNING c.status
             )
             SELECT
                 COUNT(*) FILTER (WHERE status = 1),
                 COUNT(*) FILTER (WHERE status = 0)
             FROM updated
             """,
-            [dataset_id, dataset_id],
+            [dataset_id, _COVERAGE_TEST_CHUNK, dataset_id, dataset_id],
         )
         covered, not_covered = cursor.fetchone()
 
+    total = covered + not_covered
     logger.info(
-        "Coverage tested for dataset %s: %d covered, %d not covered",
+        "Dataset %s: %d covered, %d not covered in this chunk",
         dataset_id,
         covered,
         not_covered,
     )
+
+    if total >= _COVERAGE_TEST_CHUNK:
+        test_coverage_for_dataset.delay(dataset_id)
+
     return {
         "dataset_id": dataset_id,
-        "updated": covered + not_covered,
         "covered": covered,
         "not_covered": not_covered,
+        "done": total < _COVERAGE_TEST_CHUNK,
     }
