@@ -485,6 +485,11 @@ REST_FRAMEWORK = {
     },
 }
 
+# Custom boundary requests are sent as JSON in the request body (not multipart).
+# Django's default DATA_UPLOAD_MAX_MEMORY_SIZE is 2.5 MB; raise it to match the
+# 50 MB file size limit enforced on the frontend.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50 MB
+
 SPECTACULAR_SETTINGS = {
     "TITLE": "GeoQuery Public API",
     "DESCRIPTION": (
