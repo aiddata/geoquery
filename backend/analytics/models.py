@@ -91,9 +91,6 @@ class ExtractTask(models.Model):
 
     class Meta:
         db_table = "extract_tasks"
-        constraints = [
-            models.UniqueConstraint(fields=["id"], name="extract_tasks_id_unique"),
-        ]
 
     def __str__(self):
         return (
