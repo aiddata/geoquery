@@ -17,23 +17,22 @@ from features.models import FeatMap, Feature, FeatureCollection
 def ingest_custom_boundary(
     geojson_fc: dict,
     datasets: list[dict],
-    contact: str,
-    name: str | None,
-    selection_label: str | None,
-    selection_detail: str | None,
-    upload_metadata: dict | None = None,
+    req: "Request",
     user=None,
-) -> tuple[Request, int, list[str]]:
+) -> tuple[int, list[str]]:
     """
-    Ingest a user-uploaded GeoJSON FeatureCollection and create a Request.
+    Ingest a user-uploaded GeoJSON FeatureCollection into an existing Request.
 
     Creates FeatureCollection, Feature, and FeatMap records with is_user_upload=True,
     then builds ExtractTasks directly from the selected datasets without coverage checks.
+    Updates req.data with the ingested feature IDs and fc_id, and sets req.status = -1.
 
-    Returns (request, task_count, warnings).
+    Returns (task_count, warnings).
     Raises ValueError if no extract tasks can be created.
     """
     fc_uid = str(uuid.uuid4())
+
+    upload_metadata = req.data.get("upload_metadata") or {}
 
     fc = FeatureCollection.objects.create(
         name=f"user_upload_{fc_uid}",
@@ -41,7 +40,7 @@ def ingest_custom_boundary(
         is_user_upload=True,
         active=True,
         public=False,
-        upload_metadata=upload_metadata or {},
+        upload_metadata=upload_metadata,
     )
 
     # bulk_create bypasses post_save signals — intentional for user uploads
@@ -160,27 +159,17 @@ def ingest_custom_boundary(
 
     feature_ids = [fm.geom_id for fm in feat_map_objs]
 
-    req = Request.objects.create(
-        contact=contact,
-        custom_name=name or None,
-        user=user,
-        source="web_custom",
-        status=-1,
-        data={
-            "selection_label": selection_label,
-            "selection_detail": selection_detail,
-            "feature_ids": feature_ids,
-            "datasets": valid_datasets,
-            "is_custom_boundary": True,
-            "fc_id": fc.id,
-            "boundary_file_name": (upload_metadata or {}).get("fileName"),
-            "boundary_operations": (upload_metadata or {}).get("operations") or [],
-            "boundary_feature_count": (upload_metadata or {}).get("featureCount"),
-        },
-    )
+    req.data = {
+        **req.data,
+        "feature_ids": feature_ids,
+        "datasets": valid_datasets,
+        "fc_id": fc.id,
+    }
+    req.status = -1
+    req.save(update_fields=["data", "status"])
 
     RequestMap.objects.bulk_create(
         [RequestMap(request=req, task_id=task_id) for task_id in all_task_ids]
     )
 
-    return req, len(all_task_ids), warnings
+    return len(all_task_ids), warnings

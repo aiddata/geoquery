@@ -238,7 +238,7 @@ export interface SubmittedRequest {
 	status: number;
 	status_label: string;
 	submit_time: string;
-	task_count: number;
+	task_count: number | null;
 	warnings?: string[];
 }
 

@@ -13,7 +13,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from analytics.ingest import ingest_custom_boundary
+from analytics.tasks.ingest import ingest_custom_boundary_task
 from analytics.tasks.email import GeoEmail
 from analytics.throttles import RequestSubmitThrottle, RequestTokenThrottle
 from catalog.access import (
@@ -31,6 +31,7 @@ _STATUS_LABELS = {
     0: "processing",
     1: "completed",
     2: "preparing",
+    3: "ingesting",
 }
 
 
@@ -107,42 +108,49 @@ class RequestView(APIView):
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            try:
-                req, task_count, warnings = ingest_custom_boundary(
-                    geojson_fc=geojson_fc,
-                    datasets=datasets,
-                    contact=email,
-                    name=name or None,
-                    selection_label=(request.data.get("selectionLabel") or "").strip()
-                    or None,
-                    selection_detail=(request.data.get("selectionDetail") or "").strip()
-                    or None,
-                    upload_metadata={
-                        "fileName": custom_boundary.get("fileName"),
-                        "featureCount": custom_boundary.get("featureCount"),
-                        "operations": custom_boundary.get("operations") or [],
-                    },
-                    user=user,
-                )
-            except ValueError as e:
-                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-            except Exception as e:
-                return Response(
-                    {"error": f"Failed to ingest custom boundary: {e}"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-
-            response_data = {
-                "id": str(req.id),
-                "name": req.custom_name,
-                "status": req.status,
-                "status_label": _STATUS_LABELS.get(req.status, "unknown"),
-                "submit_time": req.submit_time,
-                "task_count": task_count,
+            selection_label = (request.data.get("selectionLabel") or "").strip() or None
+            selection_detail = (request.data.get("selectionDetail") or "").strip() or None
+            upload_metadata = {
+                "fileName": custom_boundary.get("fileName"),
+                "featureCount": custom_boundary.get("featureCount"),
+                "operations": custom_boundary.get("operations") or [],
             }
-            if warnings:
-                response_data["warnings"] = warnings
-            return Response(response_data, status=status.HTTP_201_CREATED)
+
+            req = Request.objects.create(
+                contact=email,
+                custom_name=name or None,
+                user=user,
+                source="web_custom",
+                status=3,
+                data={
+                    "selection_label": selection_label,
+                    "selection_detail": selection_detail,
+                    "is_custom_boundary": True,
+                    "boundary_file_name": upload_metadata.get("fileName"),
+                    "boundary_operations": upload_metadata.get("operations") or [],
+                    "boundary_feature_count": upload_metadata.get("featureCount"),
+                    "upload_metadata": upload_metadata,
+                },
+            )
+
+            ingest_custom_boundary_task.delay(
+                str(req.id),
+                geojson_fc,
+                datasets,
+                user.id if user else None,
+            )
+
+            return Response(
+                {
+                    "id": str(req.id),
+                    "name": req.custom_name,
+                    "status": req.status,
+                    "status_label": _STATUS_LABELS.get(req.status, "unknown"),
+                    "submit_time": req.submit_time,
+                    "task_count": None,
+                },
+                status=status.HTTP_201_CREATED,
+            )
 
         # ── Standard boundary submission path ─────────────────────────────────────
         if not feature_ids:
