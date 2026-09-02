@@ -1,3 +1,4 @@
+from django.db.models import Q
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics
 from rest_framework.exceptions import ValidationError
@@ -106,7 +107,7 @@ class PublicDatasetCoverageView(PublicApiBaseMixin, APIView):
                 .values_list("dataset_id", flat=True)
                 .distinct()
             )
-            qs = qs.filter(id__in=covered_ids)
+            qs = qs.filter(Q(is_global=True) | Q(id__in=covered_ids))
 
         qs = qs.order_by("type", "-date_updated")
         return Response(PublicDatasetSerializer(qs, many=True).data)

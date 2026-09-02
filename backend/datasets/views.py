@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework import generics
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -62,7 +63,7 @@ class DatasetCoverageView(APIView):
                 .values_list("dataset_id", flat=True)
                 .distinct()
             )
-            qs = qs.filter(id__in=covered_ids)
+            qs = qs.filter(Q(is_global=True) | Q(id__in=covered_ids))
 
         qs = qs.order_by("type", "-date_updated")
         return Response(DatasetSummarySerializer(qs, many=True).data)

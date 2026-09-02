@@ -4,6 +4,7 @@ import time
 from analytics.models import Coverage
 from celery import group, shared_task
 from django.db import connection
+from datasets.models import Dataset
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,9 @@ _DISPATCH_BATCH_SIZE = 500      # Celery task signatures per group dispatch
 
 def create_coverage_records_for_dataset(dataset_id):
     """Insert coverage rows (status=-1) for a dataset against all existing features."""
+    if Dataset.objects.filter(id=dataset_id, is_global=True).exists():
+        logger.info("Dataset %s is global, skipping coverage record creation", dataset_id)
+        return 0
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -75,6 +79,7 @@ def create_missing_coverage_records():
                 LEFT JOIN coverage c ON c.geom_id = f.id AND c.dataset_id = d.id
                 WHERE c.geom_id IS NULL
                 AND f.id BETWEEN %s AND %s
+                AND NOT d.is_global
                 AND NOT EXISTS (
                     SELECT 1 FROM feat_map fm
                     JOIN feature_collections fc ON fm.fc_id = fc.id
@@ -175,6 +180,7 @@ def _test_coverage_for_feature(feature_id):
                         FROM datasets
                         JOIN features ON ST_Contains(datasets.spatial_extent, features.shape)
                         WHERE features.id = %s
+                        AND NOT datasets.is_global
                     ) THEN 1
                     ELSE 0
                 END
@@ -242,6 +248,9 @@ def test_coverage_for_dataset(dataset_id):
     itself if more remain. ST_Contains is evaluated only against the batch
     features, not the full features table.
     """
+    if Dataset.objects.filter(id=dataset_id, is_global=True).exists():
+        logger.info("Dataset %s is global, skipping coverage test", dataset_id)
+        return {"dataset_id": dataset_id, "covered": 0, "not_covered": 0, "done": True}
     with connection.cursor() as cursor:
         cursor.execute(
             """
