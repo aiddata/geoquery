@@ -141,3 +141,19 @@ def run_extract_task(task_id):
                 [repr(exc)[:100], task_id],
             )
         raise
+
+    finally:
+        # Keep this worker chain alive: dispatch the next pending task so the
+        # worker slot doesn't go idle between beat invocations.
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id FROM extract_tasks
+                WHERE status = 0
+                ORDER BY priority DESC, submit_time ASC
+                LIMIT 1
+                """,
+            )
+            row = cursor.fetchone()
+        if row:
+            run_extract_task.delay(row[0])

@@ -31,10 +31,36 @@ def free_stale_processing_tasks():
 
 @shared_task
 def dispatch_processing_tasks():
-    """Dispatch pending extract tasks (status=0) to Celery workers."""
+    """Bootstrap or top up extract task chains to fill idle worker slots.
+
+    Each running extract task self-chains (dispatches the next task on
+    completion), so this beat only needs to fill gaps — idle workers after
+    startup, or chains that died due to worker crashes.
+    """
+    from celery import current_app
     from analytics.management.commands.run_processing_tasks import _run_processing_tasks
 
-    return _run_processing_tasks()
+    TASK = "analytics.tasks.processing.run_extract_task"
+    inspect = current_app.control.inspect(timeout=5.0)
+    stats = inspect.stats() or {}
+    active = inspect.active() or {}
+    reserved = inspect.reserved() or {}
+
+    total_slots = sum(w.get("pool", {}).get("max-concurrency", 0) for w in stats.values())
+    in_flight = sum(
+        1 for tasks in list(active.values()) + list(reserved.values())
+        for t in tasks if t["name"] == TASK
+    )
+    to_dispatch = max(0, total_slots - in_flight)
+
+    logger.info(
+        "Extract tasks: %d total slots, %d in flight, dispatching %d",
+        total_slots, in_flight, to_dispatch,
+    )
+    if to_dispatch == 0:
+        return {"dispatched": 0, "total_slots": total_slots, "in_flight": in_flight}
+
+    return _run_processing_tasks(limit=to_dispatch)
 
 
 @shared_task
