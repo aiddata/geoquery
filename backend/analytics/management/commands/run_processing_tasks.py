@@ -3,13 +3,13 @@ from logging import getLogger
 from django.core.management.base import BaseCommand
 from django.db import connection
 
-from analytics.tasks.processing import run_extract_task
+from analytics.tasks.processing import dispatch_pending_tasks
 
 logger = getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Trigger dispatching of pending processing tasks (e.g. extract tasks) to Celery workers"
+    help = "Dispatch pending extract tasks (status=0) to the processing workers"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -30,28 +30,25 @@ class Command(BaseCommand):
 
 
 def _run_processing_tasks(limit=1000, dry_run=False):
-    """Dispatch pending extract tasks (status=0) to Celery workers."""
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT id FROM extract_tasks
-            WHERE status = 0
-            ORDER BY priority DESC, submit_time ASC
-            LIMIT %s
-            """,
-            [limit],
-        )
-        task_ids = [row[0] for row in cursor.fetchall()]
+    """Claim up to ``limit`` pending extract tasks and dispatch them to Celery.
 
-    if not task_ids:
-        logger.info("No pending extract tasks to dispatch")
-        return {"dispatched": 0}
+    Rows move to queued (status=3) as they are claimed, so calling this again
+    before the workers catch up dispatches the *next* batch rather than the
+    same one twice.
+    """
+    if dry_run:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT COUNT(*) FROM (SELECT 1 FROM extract_tasks WHERE status = 0 LIMIT %s) AS pending",
+                [limit],
+            )
+            count = cursor.fetchone()[0]
+        logger.info("Would dispatch %d extract tasks (dry-run)", count)
+        return {"dispatched": count, "dry_run": True}
 
-    if not dry_run:
-        for tid in task_ids:
-            run_extract_task.delay(tid)
+    task_ids = dispatch_pending_tasks(limit)
+    if task_ids:
         logger.info("Dispatched %d extract tasks", len(task_ids))
     else:
-        logger.info("Would dispatch %d extract tasks (dry-run)", len(task_ids))
-
-    return {"dispatched": len(task_ids), "dry_run": dry_run}
+        logger.info("No pending extract tasks to dispatch")
+    return {"dispatched": len(task_ids), "dry_run": False}

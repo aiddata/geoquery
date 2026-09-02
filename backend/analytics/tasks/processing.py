@@ -55,14 +55,73 @@ def _store_extract_value(extract_task_id, name, value):
         )
 
 
+def claim_pending_tasks(limit=1):
+    """Move up to ``limit`` pending tasks (status=0) to queued (status=3).
+
+    Returns the claimed ids, highest priority then oldest first. Because the
+    rows are claimed in the same statement that selects them, concurrent
+    callers get disjoint sets: FOR UPDATE SKIP LOCKED steps past rows another
+    transaction is claiming rather than waiting on them or handing out the
+    same row twice. A queued row whose message never arrives (broker outage,
+    worker killed mid-publish) is returned to pending by
+    free_stale_processing_tasks.
+    """
+    # RETURNING gives no ordering guarantee, so re-sort the (at most `limit`)
+    # claimed rows: the beat dispatches its batch in the order returned here.
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            WITH claimed AS (
+                UPDATE extract_tasks
+                SET status = 3, update_time = NOW()
+                WHERE id IN (
+                    SELECT id FROM extract_tasks
+                    WHERE status = 0
+                    ORDER BY priority DESC, submit_time ASC
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT %s
+                )
+                RETURNING id, priority, submit_time
+            )
+            SELECT id FROM claimed ORDER BY priority DESC, submit_time ASC
+            """,
+            [limit],
+        )
+        return [row[0] for row in cursor.fetchall()]
+
+
+def dispatch_pending_tasks(limit=1):
+    """Claim up to ``limit`` pending tasks and send each to the processing queue."""
+    task_ids = claim_pending_tasks(limit)
+    for task_id in task_ids:
+        run_extract_task.delay(task_id)
+    return task_ids
+
+
 @shared_task
 def run_extract_task(task_id):
-    """Run a single extract task by ID.
+    """Run a single extract task by ID, then dispatch the next pending one.
 
-    Locks the task row (SELECT ... FOR UPDATE SKIP LOCKED), executes the
-    processor function against the feature geometry and raster resource,
-    then stores results.  On success the task status is set to 1; on
-    failure it is set to -1 with the error message recorded.
+    Every exit path -- success, failure, or a no-op because the row was
+    already taken -- chains into the next task, so the worker slot stays busy
+    without waiting for the dispatch_processing_tasks beat.
+    """
+    try:
+        return _run_extract_task(task_id)
+    finally:
+        try:
+            dispatch_pending_tasks(1)
+        except Exception:
+            # Don't let a broker hiccup replace this task's own outcome. The
+            # beat bootstraps a replacement chain on its next tick.
+            logger.exception("Task %s could not dispatch a successor", task_id)
+
+
+def _run_extract_task(task_id):
+    """Lock the task row, run the processor, and store the results.
+
+    Accepts rows in pending (0) or queued (3). On success the status is set
+    to 1; on failure it is set to -1 with the error message recorded.
     """
     logger.info("Running extract task %s", task_id)
     now = timezone.now
@@ -73,7 +132,7 @@ def run_extract_task(task_id):
             .select_related("resource__dataset", "po", "fm__fc", "fm__geom")
             .filter(
                 id=task_id,
-                status=0,
+                status__in=(0, 3),
                 fm__fc__active=True,
                 resource__dataset__active=True,
                 po__active=True,
@@ -141,19 +200,3 @@ def run_extract_task(task_id):
                 [repr(exc)[:100], task_id],
             )
         raise
-
-    finally:
-        # Keep this worker chain alive: dispatch the next pending task so the
-        # worker slot doesn't go idle between beat invocations.
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT id FROM extract_tasks
-                WHERE status = 0
-                ORDER BY priority DESC, submit_time ASC
-                LIMIT 1
-                """,
-            )
-            row = cursor.fetchone()
-        if row:
-            run_extract_task.delay(row[0])

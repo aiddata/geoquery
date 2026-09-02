@@ -34,28 +34,56 @@ def dispatch_processing_tasks():
     """Bootstrap or top up extract task chains to fill idle worker slots.
 
     Each running extract task self-chains (dispatches the next task on
-    completion), so this beat only needs to fill gaps — idle workers after
+    completion), so this beat only needs to fill gaps -- idle workers after
     startup, or chains that died due to worker crashes.
     """
     from celery import current_app
     from analytics.management.commands.run_processing_tasks import _run_processing_tasks
 
     TASK = "analytics.tasks.processing.run_extract_task"
+    queue = settings.CELERY_TASK_ROUTES[TASK]["queue"]
+
+    # Only workers consuming the processing queue can run extract tasks, so
+    # find those first and scope the remaining broadcasts to them. That keeps
+    # the background workers' pool slots out of the count, and lets each call
+    # return as soon as those workers reply instead of waiting out the timeout
+    # on stale entries in the gossip table.
     inspect = current_app.control.inspect(timeout=5.0)
+    active_queues = inspect.active_queues() or {}
+    workers = [
+        name
+        for name, queues in active_queues.items()
+        if any(q.get("name") == queue for q in queues)
+    ]
+    if not workers:
+        logger.warning("No workers consuming the %r queue; nothing dispatched", queue)
+        return {"dispatched": 0, "total_slots": 0, "in_flight": 0}
+
+    inspect = current_app.control.inspect(destination=workers, timeout=5.0)
     stats = inspect.stats() or {}
     active = inspect.active() or {}
     reserved = inspect.reserved() or {}
 
-    total_slots = sum(w.get("pool", {}).get("max-concurrency", 0) for w in stats.values())
+    # Filter by name as well as by destination, so a reply from a worker that
+    # joined between the two broadcasts can't be counted on one side only.
+    total_slots = sum(
+        w.get("pool", {}).get("max-concurrency", 0)
+        for name, w in stats.items()
+        if name in workers
+    )
     in_flight = sum(
-        1 for tasks in list(active.values()) + list(reserved.values())
-        for t in tasks if t["name"] == TASK
+        1
+        for source in (active, reserved)
+        for name, tasks in source.items()
+        if name in workers
+        for t in tasks
+        if t["name"] == TASK
     )
     to_dispatch = max(0, total_slots - in_flight)
 
     logger.info(
-        "Extract tasks: %d total slots, %d in flight, dispatching %d",
-        total_slots, in_flight, to_dispatch,
+        "Extract tasks: %d workers, %d total slots, %d in flight, dispatching %d",
+        len(workers), total_slots, in_flight, to_dispatch,
     )
     if to_dispatch == 0:
         return {"dispatched": 0, "total_slots": total_slots, "in_flight": in_flight}
