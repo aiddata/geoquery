@@ -188,7 +188,7 @@ def _sync_mappings(dataset: Dataset, mappings: dict[str, int] | None):
 
 
 # JSON keys that don't map directly to Dataset model fields
-_NON_MODEL_KEYS = {"mappings", "processing_options", "is_global"}
+_NON_MODEL_KEYS = {"mappings", "processing_options"}
 
 
 def _dataset_fields_from_json(data: dict) -> dict:
