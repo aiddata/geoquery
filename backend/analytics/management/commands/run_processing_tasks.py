@@ -21,7 +21,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--limit",
             type=int,
-            default=1000,
+            default=100,
             help="Maximum number of tasks to dispatch",
         )
 

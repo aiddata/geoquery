@@ -17,33 +17,43 @@ BATCH_STATEMENT_TIMEOUT_MS = 5 * 60 * 1000  # 5 minutes
 _INSERT_BATCH_SQL = """
     INSERT INTO extract_tasks
         (resource_id, fm_id, po_id, status, priority, attempts, submit_time)
-    SELECT
-        dr.id,
-        fm.id,
-        po.id,
-        0, 0, 0, NOW()
-    FROM coverage
-    INNER JOIN feat_map fm
-        ON coverage.geom_id = fm.geom_id
-    INNER JOIN feature_collections fc
-        ON fm.fc_id = fc.id
-    INNER JOIN dataset_resources dr
-        ON coverage.dataset_id = dr.dataset_id
-    INNER JOIN processing_options po
-        ON coverage.dataset_id = po.dataset_id
-    INNER JOIN datasets d
-        ON coverage.dataset_id = d.id
-    WHERE coverage.status = 1
-      AND po.active = TRUE
-      AND fc.active = TRUE
-      AND fc.is_user_upload = FALSE
-      AND d.active = TRUE
-      AND NOT EXISTS (
-          SELECT 1 FROM extract_tasks et
-          WHERE et.resource_id = dr.id
-            AND et.fm_id = fm.id
-            AND et.po_id = po.id
-      )
+    SELECT candidates.dr_id, candidates.fm_id, candidates.po_id, 0, 0, 0, NOW()
+    FROM (
+        -- Non-global datasets: require a confirmed coverage row (status=1)
+        SELECT dr.id AS dr_id, fm.id AS fm_id, po.id AS po_id
+        FROM coverage
+        INNER JOIN feat_map fm            ON coverage.geom_id = fm.geom_id
+        INNER JOIN feature_collections fc ON fm.fc_id = fc.id
+        INNER JOIN dataset_resources dr   ON coverage.dataset_id = dr.dataset_id
+        INNER JOIN processing_options po  ON coverage.dataset_id = po.dataset_id
+        INNER JOIN datasets d             ON coverage.dataset_id = d.id
+        WHERE coverage.status = 1
+          AND po.active = TRUE
+          AND fc.active = TRUE
+          AND fc.is_user_upload = FALSE
+          AND d.active = TRUE
+
+        UNION ALL
+
+        -- Global datasets: cover all boundaries by definition, skip coverage table
+        SELECT dr.id, fm.id, po.id
+        FROM datasets d
+        INNER JOIN dataset_resources dr   ON dr.dataset_id = d.id
+        INNER JOIN processing_options po  ON po.dataset_id = d.id
+        CROSS JOIN feat_map fm
+        INNER JOIN feature_collections fc ON fm.fc_id = fc.id
+        WHERE d.is_global = TRUE
+          AND d.active = TRUE
+          AND po.active = TRUE
+          AND fc.active = TRUE
+          AND fc.is_user_upload = FALSE
+    ) candidates
+    WHERE NOT EXISTS (
+        SELECT 1 FROM extract_tasks et
+        WHERE et.resource_id = candidates.dr_id
+          AND et.fm_id = candidates.fm_id
+          AND et.po_id = candidates.po_id
+    )
     LIMIT %s
 """
 

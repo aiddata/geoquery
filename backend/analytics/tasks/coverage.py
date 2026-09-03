@@ -36,14 +36,15 @@ def create_coverage_records_for_dataset(dataset_id):
 
 
 def create_coverage_records_for_feature(feature_id):
-    """Insert coverage rows (status=-1) for a feature against all existing datasets."""
+    """Insert coverage rows (status=-1) for a feature against all non-global datasets."""
     with connection.cursor() as cursor:
         cursor.execute(
             """
             INSERT INTO coverage (geom_id, dataset_id, status)
             SELECT %s, d.id, -1
             FROM datasets d
-            WHERE NOT EXISTS (
+            WHERE NOT d.is_global
+              AND NOT EXISTS (
                 SELECT 1 FROM coverage c WHERE c.geom_id = %s AND c.dataset_id = d.id
             )
             """,
