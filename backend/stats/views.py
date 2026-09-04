@@ -12,6 +12,7 @@ def stats_view(request):
 
 
 def workers_view(request):
+    # Status codes: 0=pending, 3=claimed, 2=processing, 1=completed, -1=error
     from analytics.models import ExtractTask, Request
 
     extract_counts = dict(

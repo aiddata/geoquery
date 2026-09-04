@@ -456,7 +456,7 @@ TEMPLATE = """<!DOCTYPE html>
 
   updateChart();
 
-  // ── Live status polling ───────────────────────────────────────────────────
+  // ── Live status polling (DB-only, no Celery inspect) ─────────────────────
   async function refreshLive() {
     try {
       const res = await fetch('/stats/workers/');
