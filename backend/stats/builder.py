@@ -7,7 +7,7 @@ from pathlib import Path
 from django.db.models import Count
 from django.db.models.functions import TruncDay, TruncMonth, TruncYear
 
-from analytics.models import Request
+from analytics.models import ExtractTask, Request
 
 # Map DB status codes → display groupings
 _STATUS_GROUPS = {
@@ -74,10 +74,27 @@ class StatsBuilder:
                     if r["bucket"] is not None
                 ]
 
+        # Extract task completions over time
+        extract_time_series: dict[str, list] = {}
+        qs_extract = ExtractTask.objects.filter(status=1, complete_time__isnull=False)
+        for period, trunc_fn in trunc_fns.items():
+            rows = (
+                qs_extract.annotate(bucket=trunc_fn("complete_time"))
+                .values("bucket")
+                .annotate(count=Count("id"))
+                .order_by("bucket")
+            )
+            extract_time_series[period] = [
+                {"date": r["bucket"].strftime(fmt_str[period]), "count": r["count"]}
+                for r in rows
+                if r["bucket"] is not None
+            ]
+
         return {
             "total": total,
             "status_counts": status_counts,
             "time_series": time_series,
+            "extract_time_series": extract_time_series,
             "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         }
 

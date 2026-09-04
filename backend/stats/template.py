@@ -341,6 +341,27 @@ TEMPLATE = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Extract task completions chart -->
+  <div class="chart-panel" style="margin-top:16px">
+    <div class="chart-panel-header">
+      <div>
+        <div class="chart-title">Extract Task Completions Over Time</div>
+        <div class="chart-subtitle" id="ext-chart-subtitle"></div>
+      </div>
+      <div class="chart-controls">
+        <select class="period-select" id="ext-period-select">
+          <option value="day">Day</option>
+          <option value="month" selected>Month</option>
+          <option value="year">Year</option>
+        </select>
+      </div>
+    </div>
+    <div class="chart-container">
+      <canvas id="ext-time-chart"></canvas>
+      <div class="no-data" id="ext-no-data-msg" style="display:none">No data for this selection.</div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -455,6 +476,86 @@ TEMPLATE = """<!DOCTYPE html>
   });
 
   updateChart();
+
+  // ── Extract task completions chart ────────────────────────────────────────
+  let extCurrentPeriod = 'month';
+  let extChart = null;
+
+  function updateExtChart() {
+    const series = (DATA.extract_time_series || {})[extCurrentPeriod] || [];
+    const labels = series.map(r => r.date);
+    const counts = series.map(r => r.count);
+    const canvasEl = document.getElementById('ext-time-chart');
+    const noDataEl = document.getElementById('ext-no-data-msg');
+
+    const periodLabel = extCurrentPeriod === 'day' ? 'Daily' : extCurrentPeriod === 'month' ? 'Monthly' : 'Yearly';
+    document.getElementById('ext-chart-subtitle').textContent = periodLabel + ' completed extract tasks';
+
+    if (series.length === 0) {
+      canvasEl.style.display = 'none';
+      noDataEl.style.display = '';
+      return;
+    }
+    canvasEl.style.display = '';
+    noDataEl.style.display = 'none';
+
+    if (extChart) {
+      extChart.data.labels = labels;
+      extChart.data.datasets[0].data = counts;
+      extChart.update();
+    } else {
+      const ctx = canvasEl.getContext('2d');
+      extChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Completed',
+            data: counts,
+            backgroundColor: '#16a34a',
+            borderRadius: 3,
+            borderSkipped: false,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: items => items[0].label,
+                label: item => ' ' + item.raw.toLocaleString() + ' task' + (item.raw === 1 ? '' : 's'),
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { font: { size: 11 }, color: '#64748b', maxRotation: 45 }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                font: { size: 11 },
+                color: '#64748b',
+                stepSize: 1,
+                callback: v => Number.isInteger(v) ? v : null,
+              },
+              grid: { color: '#f1f5f9' }
+            }
+          }
+        }
+      });
+    }
+  }
+
+  document.getElementById('ext-period-select').addEventListener('change', e => {
+    extCurrentPeriod = e.target.value;
+    updateExtChart();
+  });
+
+  updateExtChart();
 
   // ── Live status polling (DB-only, no Celery inspect) ─────────────────────
   async function refreshLive() {
