@@ -142,6 +142,7 @@
 	});
 
 	let mapFrame: MapFrame;
+	let mapZoom = $state(2);
 
 	// Local staged selection (not yet committed to store)
 	let staged = $state<StagedSelection>(_init.staged);
@@ -617,14 +618,18 @@
 	</div>
 
 	<!-- Zoom Controls -->
-	<div class="absolute right-4 top-4 z-10">
+	<div class="absolute right-4 top-4 z-10 flex flex-col items-center gap-1">
 		<ZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
+		<div class="rounded bg-white/80 px-1.5 py-0.5 text-xs text-gray-600 shadow dark:bg-gray-900/80 dark:text-gray-300">
+			{mapZoom.toFixed(1)}
+		</div>
 	</div>
 
 	<!-- Map -->
 	<MapFrame
 		bind:this={mapFrame}
 		class="flex-1"
+		onZoomChange={(z) => (mapZoom = z)}
 		fcStyles={$customBoundary.active ? [] : mapFcStyles}
 		activeFcName={$customBoundary.active ? null : activeFcName}
 		selectedFeatureIds={$customBoundary.active ? [] : displaySelectedFeatureIds}

@@ -20,6 +20,7 @@
 		selectedFeatureIds?: number[];
 		bbox?: [number, number, number, number] | null;
 		onFeatureClick?: (featureId: number) => void;
+		onZoomChange?: (zoom: number) => void;
 		userGeoJSON?: FeatureCollection | null;
 	}
 
@@ -30,6 +31,7 @@
 		selectedFeatureIds = [],
 		bbox = null,
 		onFeatureClick,
+		onZoomChange,
 		userGeoJSON = null,
 	}: Props = $props();
 
@@ -42,7 +44,6 @@
 	let mapContainer: HTMLDivElement;
 	let map: maplibregl.Map | null = $state(null);
 	let mapReady = $state(false);
-	let currentZoom = $state(2);
 
 	let popup: maplibregl.Popup | null = null;
 	let hoveredFeatureId: number | null = null;
@@ -80,11 +81,11 @@
 
 			map.on('load', () => {
 				mapReady = true;
-				currentZoom = map!.getZoom();
+				onZoomChange?.(map!.getZoom());
 			});
 
 			map.on('zoom', () => {
-				currentZoom = map!.getZoom();
+				onZoomChange?.(map!.getZoom());
 			});
 
 			map.on('error', (e) => {
@@ -320,11 +321,4 @@
 	}
 </script>
 
-<div class="relative h-full w-full {className}">
-	<div bind:this={mapContainer} class="absolute inset-0"></div>
-	{#if mapReady}
-		<div class="pointer-events-none absolute bottom-8 left-2 z-10 rounded bg-white/80 px-1.5 py-0.5 text-xs text-gray-600 shadow dark:bg-gray-900/80 dark:text-gray-300">
-			Zoom: {currentZoom.toFixed(1)}
-		</div>
-	{/if}
-</div>
+<div bind:this={mapContainer} class="h-full w-full {className}"></div>
