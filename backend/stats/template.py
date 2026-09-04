@@ -224,28 +224,8 @@ TEMPLATE = """<!DOCTYPE html>
     .queue-val   { font-size: 18px; font-weight: 700; color: #0f172a; min-width: 40px; text-align: right; }
     .queue-val.active  { color: #2563eb; }
     .queue-val.pending { color: #d97706; }
+    .queue-val.error   { color: #dc2626; }
 
-    /* Worker cards */
-    .worker-list { display: flex; flex-direction: column; gap: 8px; }
-    .worker-card {
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 10px 14px;
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-    }
-    .worker-indicator {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      margin-top: 4px;
-      flex-shrink: 0;
-    }
-    .worker-indicator.online  { background: #22c55e; }
-    .worker-indicator.offline { background: #94a3b8; }
-    .worker-name  { font-size: 12px; font-weight: 600; color: #0f172a; }
-    .worker-tasks { font-size: 11px; color: #64748b; margin-top: 2px; }
-    .worker-empty { font-size: 13px; color: #94a3b8; }
   </style>
 </head>
 <body>
@@ -306,20 +286,31 @@ TEMPLATE = """<!DOCTYPE html>
             <span class="queue-label">Requests processing</span>
             <span class="queue-val active" id="q-req-processing">—</span>
           </div>
-          <div class="queue-row">
-            <span class="queue-label">Extract tasks pending</span>
-            <span class="queue-val pending" id="q-ext-pending">—</span>
-          </div>
-          <div class="queue-row">
-            <span class="queue-label">Extract tasks running</span>
-            <span class="queue-val active" id="q-ext-processing">—</span>
-          </div>
         </div>
       </div>
       <div>
-        <div class="live-section-title">Workers</div>
-        <div class="worker-list" id="worker-list">
-          <div class="worker-empty">Loading…</div>
+        <div class="live-section-title">Extract Tasks</div>
+        <div class="queue-rows">
+          <div class="queue-row">
+            <span class="queue-label">Pending</span>
+            <span class="queue-val pending" id="q-ext-pending2">—</span>
+          </div>
+          <div class="queue-row">
+            <span class="queue-label">Claimed</span>
+            <span class="queue-val active" id="q-ext-claimed">—</span>
+          </div>
+          <div class="queue-row">
+            <span class="queue-label">Processing</span>
+            <span class="queue-val active" id="q-ext-processing2">—</span>
+          </div>
+          <div class="queue-row">
+            <span class="queue-label">Completed</span>
+            <span class="queue-val" id="q-ext-completed">—</span>
+          </div>
+          <div class="queue-row">
+            <span class="queue-label">Error</span>
+            <span class="queue-val error" id="q-ext-error">—</span>
+          </div>
         </div>
       </div>
     </div>
@@ -465,40 +456,23 @@ TEMPLATE = """<!DOCTYPE html>
 
   updateChart();
 
-  // ── Live worker polling ───────────────────────────────────────────────────
+  // ── Live status polling ───────────────────────────────────────────────────
   async function refreshLive() {
     try {
       const res = await fetch('/stats/workers/');
       if (!res.ok) throw new Error(res.status);
       const d = await res.json();
 
-      document.getElementById('q-req-queued').textContent     = (d.queues.requests_queued || 0).toLocaleString();
-      document.getElementById('q-req-processing').textContent = (d.queues.requests_processing || 0).toLocaleString();
-      document.getElementById('q-ext-pending').textContent    = (d.queues.extract_pending || 0).toLocaleString();
-      document.getElementById('q-ext-processing').textContent = (d.queues.extract_processing || 0).toLocaleString();
-
-      const list = document.getElementById('worker-list');
-      if (!d.workers || d.workers.length === 0) {
-        list.innerHTML = '<div class="worker-empty">No workers online.</div>';
-      } else {
-        list.innerHTML = d.workers.map(w => {
-          const taskText = w.running > 0
-            ? w.running_tasks.join(', ') || w.running + ' task(s)'
-            : 'Idle';
-          const reserved = w.reserved > 0 ? ` &nbsp;·&nbsp; ${w.reserved} reserved` : '';
-          return `<div class="worker-card">
-            <div class="worker-indicator online"></div>
-            <div>
-              <div class="worker-name">${w.name}</div>
-              <div class="worker-tasks">${taskText}${reserved}</div>
-            </div>
-          </div>`;
-        }).join('');
-      }
+      document.getElementById('q-req-queued').textContent      = (d.queues.requests_queued || 0).toLocaleString();
+      document.getElementById('q-req-processing').textContent  = (d.queues.requests_processing || 0).toLocaleString();
+      document.getElementById('q-ext-pending2').textContent    = (d.queues.extract_pending || 0).toLocaleString();
+      document.getElementById('q-ext-claimed').textContent     = (d.queues.extract_claimed || 0).toLocaleString();
+      document.getElementById('q-ext-processing2').textContent = (d.queues.extract_processing || 0).toLocaleString();
+      document.getElementById('q-ext-completed').textContent   = (d.queues.extract_completed || 0).toLocaleString();
+      document.getElementById('q-ext-error').textContent       = (d.queues.extract_error || 0).toLocaleString();
 
       const now = new Date();
-      document.getElementById('live-updated').textContent =
-        'Updated ' + now.toLocaleTimeString();
+      document.getElementById('live-updated').textContent = 'Updated ' + now.toLocaleTimeString();
     } catch (e) {
       document.getElementById('live-updated').textContent = 'Update failed';
     }
