@@ -38,6 +38,26 @@ class Dataset(models.Model):
     type = models.CharField(max_length=100)
     processing_class = models.CharField(max_length=50, default="zonal_stats")
 
+    TASK_GROUP_PERIOD_CHOICES = [
+        ("day", "Day"),
+        ("week", "Week"),
+        ("month", "Month"),
+        ("quarter", "Quarter"),
+        ("year", "Year"),
+    ]
+    task_group_period = models.CharField(
+        max_length=10,
+        choices=TASK_GROUP_PERIOD_CHOICES,
+        null=True,
+        blank=True,
+        help_text=(
+            "If set, build_extract_tasks groups this dataset's resources into "
+            "one task per date_trunc(task_group_period, temporal) bucket per "
+            "feature/po, instead of one task per resource. Null = standard "
+            "(one task per resource)."
+        ),
+    )
+
     class Meta:
         db_table = "datasets"
         ordering = ["name"]
