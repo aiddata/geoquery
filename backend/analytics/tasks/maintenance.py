@@ -121,12 +121,42 @@ def build_stats_report():
     return {"status": status}
 
 
+N_EXTRACT_TASK_BUILDERS = 6
+
+
 @shared_task
 def build_extract_tasks():
-    """Create ExtractTask rows for any covered (status=1) dataset/feature pairs that don't have one yet."""
-    from analytics.management.commands.build_extract_tasks import _build_extract_tasks
+    """Launch parallel global-dataset task generation, plus one pass over the
+    (cheap) non-global/coverage-gated branch.
 
-    return _build_extract_tasks()
+    Fire-and-forget for the parallel workers: this does not wait on them,
+    since blocking on child-task results from within the same worker pool
+    risks deadlock if all concurrency slots end up waiting rather than
+    working. try_acquire_build_run guards against celery-beat's daily
+    schedule launching a fresh wave on top of one still working through the
+    backlog -- see build_extract_tasks.py for why that matters.
+    """
+    from analytics.management.commands.build_extract_tasks import (
+        _build_non_global_tasks,
+        try_acquire_build_run,
+    )
+
+    if try_acquire_build_run():
+        for _ in range(N_EXTRACT_TASK_BUILDERS):
+            build_extract_tasks_worker.delay()
+    else:
+        logger.info("build_extract_tasks: a wave is already in progress, not dispatching another")
+
+    return _build_non_global_tasks()
+
+
+@shared_task
+def build_extract_tasks_worker():
+    """One parallel worker's share of the global-dataset backlog. Safe to run
+    many of these concurrently -- see build_extract_tasks.py."""
+    from analytics.management.commands.build_extract_tasks import _build_global_tasks
+
+    return _build_global_tasks()
 
 
 @shared_task

@@ -49,6 +49,12 @@ _INSERT_NON_GLOBAL_BATCH_SQL = """
 # reaching new ones. Instead, extract_task_build_progress tracks completion per
 # (resource, po) pair, and each batch is scoped to a single pair's remaining
 # feat_map rows -- bounded by feat_map's size (under 1M), not the full cross.
+#
+# Pairs are independent, so this is parallelizable: multiple workers claim
+# disjoint pairs via SELECT ... FOR UPDATE SKIP LOCKED and work concurrently.
+# See tasks/maintenance.py for the parallel dispatch and the run-lock that
+# keeps a slow-but-alive wave of workers from getting duplicated by the next
+# scheduled trigger.
 
 _SYNC_PROGRESS_PAIRS_SQL = """
     INSERT INTO extract_task_build_progress (resource_id, po_id)
@@ -62,22 +68,42 @@ _SYNC_PROGRESS_PAIRS_SQL = """
 
 _MAX_FEAT_MAP_ID_SQL = "SELECT COALESCE(MAX(id), 0) FROM feat_map"
 
-# Fetched as a page rather than one at a time: if a single pair's batch keeps
-# timing out, always re-selecting "the next incomplete pair" would retry that
-# same pair forever and block every other pair behind it. Trying a whole page
-# per round means one stuck pair can't stall the rest.
+# Fetched/claimed as a page rather than one at a time: if a single pair's
+# batch keeps timing out, always re-selecting "the next incomplete pair"
+# would retry that same pair forever and block every other pair behind it.
+# A whole page per round means one stuck pair can't stall the rest.
 PAIRS_PER_ROUND = 50
 
-_NEXT_PROGRESS_PAIRS_SQL = """
-    SELECT p.resource_id, p.po_id, p.completed_up_to_fm_id
-    FROM extract_task_build_progress p
-    INNER JOIN dataset_resources dr ON dr.id = p.resource_id
-    INNER JOIN processing_options po ON po.id = p.po_id AND po.dataset_id = dr.dataset_id
-    INNER JOIN datasets d ON d.id = dr.dataset_id AND d.is_global = TRUE AND d.active = TRUE
-    WHERE po.active = TRUE
-      AND (p.completed_up_to_fm_id IS NULL OR p.completed_up_to_fm_id < %s)
-    ORDER BY p.resource_id, p.po_id
-    LIMIT %s
+# How long a pair can sit claimed before another worker treats the claim as
+# dead (the claiming worker crashed) and takes it. Comfortably longer than
+# one batch's max duration (BATCH_STATEMENT_TIMEOUT_MS).
+CLAIM_STALE_MINUTES = 10
+
+_CLAIM_PROGRESS_PAIRS_SQL = """
+    WITH candidates AS (
+        SELECT p.resource_id, p.po_id
+        FROM extract_task_build_progress p
+        INNER JOIN dataset_resources dr ON dr.id = p.resource_id
+        INNER JOIN processing_options po ON po.id = p.po_id AND po.dataset_id = dr.dataset_id
+        INNER JOIN datasets d ON d.id = dr.dataset_id AND d.is_global = TRUE AND d.active = TRUE
+        WHERE po.active = TRUE
+          AND (p.completed_up_to_fm_id IS NULL OR p.completed_up_to_fm_id < %(current_max_fm_id)s)
+          AND (p.claimed_at IS NULL OR p.claimed_at < NOW() - INTERVAL '{stale_minutes} minutes')
+        ORDER BY p.resource_id, p.po_id
+        LIMIT %(limit)s
+        FOR UPDATE OF p SKIP LOCKED
+    )
+    UPDATE extract_task_build_progress p
+    SET claimed_at = NOW()
+    FROM candidates c
+    WHERE p.resource_id = c.resource_id AND p.po_id = c.po_id
+    RETURNING p.resource_id, p.po_id, p.completed_up_to_fm_id
+""".format(stale_minutes=CLAIM_STALE_MINUTES)
+
+_RELEASE_CLAIM_SQL = """
+    UPDATE extract_task_build_progress
+    SET claimed_at = NULL
+    WHERE resource_id = %s AND po_id = %s
 """
 
 _INSERT_GLOBAL_PAIR_BATCH_SQL = """
@@ -101,8 +127,43 @@ _INSERT_GLOBAL_PAIR_BATCH_SQL = """
 
 _MARK_PAIR_CAUGHT_UP_SQL = """
     UPDATE extract_task_build_progress
-    SET completed_up_to_fm_id = %s
+    SET completed_up_to_fm_id = %s, claimed_at = NULL
     WHERE resource_id = %s AND po_id = %s
+"""
+
+# extract_task_build_run is a singleton row coordinating parallel workers so
+# a scheduled re-trigger can't launch a fresh wave on top of one still
+# grinding through the backlog -- the same unbounded daily pileup that
+# caused the original bloat incident, at the task-dispatch level this time.
+# in_progress + last_progress_at is a heartbeat, not a fixed timeout: any
+# worker's successful batch refreshes it, so "still actively working through
+# a big backlog" (frequent heartbeat) is distinguishable from "workers died
+# silently" (stale heartbeat) without having to guess how long the backlog
+# should take.
+RUN_STALE_MINUTES = 30
+
+_TRY_ACQUIRE_RUN_SQL = """
+    UPDATE extract_task_build_run
+    SET in_progress = TRUE, last_progress_at = NOW()
+    WHERE id = 1
+      AND (NOT in_progress OR last_progress_at < NOW() - INTERVAL '{stale_minutes} minutes')
+    RETURNING TRUE
+""".format(stale_minutes=RUN_STALE_MINUTES)
+
+_HEARTBEAT_RUN_SQL = "UPDATE extract_task_build_run SET last_progress_at = NOW() WHERE id = 1"
+
+_RELEASE_RUN_SQL = "UPDATE extract_task_build_run SET in_progress = FALSE WHERE id = 1"
+
+_ANY_INCOMPLETE_GLOBAL_PAIRS_SQL = """
+    SELECT EXISTS (
+        SELECT 1
+        FROM extract_task_build_progress p
+        INNER JOIN dataset_resources dr ON dr.id = p.resource_id
+        INNER JOIN processing_options po ON po.id = p.po_id AND po.dataset_id = dr.dataset_id
+        INNER JOIN datasets d ON d.id = dr.dataset_id AND d.is_global = TRUE AND d.active = TRUE
+        WHERE po.active = TRUE
+          AND (p.completed_up_to_fm_id IS NULL OR p.completed_up_to_fm_id < %s)
+    )
 """
 
 
@@ -141,7 +202,34 @@ def _run_batch(sql, params):
         return None
 
 
-def _build_global_tasks(batch_size):
+def try_acquire_build_run():
+    """Claim the singleton run-lock. Returns True if the caller should dispatch
+    a fresh wave of parallel workers, False if a previous wave's heartbeat is
+    still fresh (already running)."""
+    with connection.cursor() as cursor:
+        cursor.execute(_TRY_ACQUIRE_RUN_SQL)
+        return cursor.fetchone() is not None
+
+
+def _any_incomplete_global_pairs(current_max_fm_id):
+    with connection.cursor() as cursor:
+        cursor.execute(_ANY_INCOMPLETE_GLOBAL_PAIRS_SQL, [current_max_fm_id])
+        return cursor.fetchone()[0]
+
+
+def _release_build_run_if_done(current_max_fm_id):
+    if not _any_incomplete_global_pairs(current_max_fm_id):
+        with connection.cursor() as cursor:
+            cursor.execute(_RELEASE_RUN_SQL)
+
+
+def _build_global_tasks(batch_size=BATCH_SIZE):
+    """One parallel worker's share of the global-dataset backlog.
+
+    Safe to run many of these concurrently: pairs are claimed via
+    SELECT ... FOR UPDATE SKIP LOCKED so concurrent workers never claim the
+    same pair, and each pair's batch is independently transactional.
+    """
     total_added = 0
 
     with connection.cursor() as cursor:
@@ -151,9 +239,14 @@ def _build_global_tasks(batch_size):
 
     while True:
         with connection.cursor() as cursor:
-            cursor.execute(_NEXT_PROGRESS_PAIRS_SQL, [current_max_fm_id, PAIRS_PER_ROUND])
+            cursor.execute(_CLAIM_PROGRESS_PAIRS_SQL, {
+                "current_max_fm_id": current_max_fm_id,
+                "limit": PAIRS_PER_ROUND,
+            })
             pairs = cursor.fetchall()
+
         if not pairs:
+            _release_build_run_if_done(current_max_fm_id)
             break
 
         made_progress = False
@@ -168,22 +261,28 @@ def _build_global_tasks(batch_size):
                 },
             )
             if added is None:
+                with connection.cursor() as cursor:
+                    cursor.execute(_RELEASE_CLAIM_SQL, [resource_id, po_id])
                 continue  # this pair failed/timed out; try the rest of the page
 
             made_progress = True
             total_added += added
+            with connection.cursor() as cursor:
+                cursor.execute(_HEARTBEAT_RUN_SQL)
             logger.info(
                 "build_extract_tasks global batch: resource=%s po=%s added %d (total %d)",
                 resource_id, po_id, added, total_added,
             )
 
-            if added < batch_size:
-                with connection.cursor() as cursor:
+            with connection.cursor() as cursor:
+                if added < batch_size:
                     cursor.execute(_MARK_PAIR_CAUGHT_UP_SQL, [current_max_fm_id, resource_id, po_id])
+                else:
+                    cursor.execute(_RELEASE_CLAIM_SQL, [resource_id, po_id])
 
         if not made_progress:
             logger.warning(
-                "build_extract_tasks: no progress on any of %d fetched pairs this round; "
+                "build_extract_tasks: no progress on any of %d claimed pairs this round; "
                 "stopping, remainder picked up next run",
                 len(pairs),
             )
@@ -192,7 +291,7 @@ def _build_global_tasks(batch_size):
     return total_added
 
 
-def _build_non_global_tasks(batch_size):
+def _build_non_global_tasks(batch_size=BATCH_SIZE):
     total_added = 0
     while True:
         added = _run_batch(_INSERT_NON_GLOBAL_BATCH_SQL, [batch_size])
@@ -208,11 +307,10 @@ def _build_non_global_tasks(batch_size):
 def _build_extract_tasks(batch_size=BATCH_SIZE):
     """Create ExtractTask rows for covered dataset/feature pairs that don't have one yet.
 
-    Global-dataset tasks are generated per (resource, po) pair, tracked in
-    extract_task_build_progress so repeat runs only look at feat_map rows added
-    since a pair was last caught up. Non-global tasks (gated by coverage) stay a
-    plain batched scan since that space is small. Every batch is its own short
-    transaction with a timeout, so a stall only costs one batch, not the run.
+    Runs both branches in this one process (used by the management command
+    and as a non-parallel fallback). The parallel path used in production
+    dispatches _build_global_tasks across multiple Celery workers instead --
+    see tasks/maintenance.py.
     """
     t_start = time.perf_counter()
 

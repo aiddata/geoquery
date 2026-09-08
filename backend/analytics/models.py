@@ -118,6 +118,11 @@ class ExtractTaskBuildProgress(models.Model):
         ProcessingOption, on_delete=models.CASCADE, db_column="po_id"
     )
     completed_up_to_fm_id = models.IntegerField(blank=True, null=True)
+    # Set while a parallel worker is actively batching this pair, cleared
+    # right after (success or failure). Only matters as crash recovery: if a
+    # worker dies mid-pair, claim staleness lets another worker reclaim it
+    # instead of waiting on it forever.
+    claimed_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         db_table = "extract_task_build_progress"

@@ -21,6 +21,7 @@ class Migration(migrations.Migration):
             fields=[
                 ("id", models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("completed_up_to_fm_id", models.IntegerField(blank=True, null=True)),
+                ("claimed_at", models.DateTimeField(blank=True, null=True)),
                 (
                     "resource",
                     models.ForeignKey(
