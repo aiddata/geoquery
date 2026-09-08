@@ -98,6 +98,40 @@ class ExtractTask(models.Model):
         )
 
 
+class ExtractTaskBuildProgress(models.Model):
+    """Tracks how far build_extract_tasks has generated global-dataset tasks
+    for each (resource, processing_option) pair.
+
+    Global datasets cross every (resource, po) pair against the full feat_map
+    table, which can run into the billions of candidate rows. Without this,
+    every run re-scans the whole candidate space from scratch and has to
+    anti-join past everything already inserted, so cost grows with how much
+    work is already done rather than how much is left. completed_up_to_fm_id
+    is the highest feat_map.id confirmed generated for that pair, so a run
+    only has to look at feat_map rows added since.
+    """
+
+    resource = models.ForeignKey(
+        DatasetResource, on_delete=models.CASCADE, db_column="resource_id"
+    )
+    po = models.ForeignKey(
+        ProcessingOption, on_delete=models.CASCADE, db_column="po_id"
+    )
+    completed_up_to_fm_id = models.IntegerField(blank=True, null=True)
+
+    class Meta:
+        db_table = "extract_task_build_progress"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["resource", "po"],
+                name="extract_task_build_progress_resource_po_unique",
+            ),
+        ]
+
+    def __str__(self):
+        return f"BuildProgress: Resource {self.resource_id} - PO {self.po_id} (up to fm {self.completed_up_to_fm_id})"
+
+
 class ExtractData(models.Model):
     """Extract data table for storing extraction results."""
 
