@@ -63,9 +63,28 @@ _DROP_AND_RECREATE_PARTITIONED = """
     ) PARTITION BY LIST (dataset_id);
 """
 
+# Catch-all so a dataset_id that doesn't have its own partition yet (a
+# dataset created after this migration ran, before anything gives it its
+# own partition) still has somewhere to land instead of every insert
+# failing outright. There is currently no mechanism anywhere in the
+# codebase that creates a new per-dataset partition when a Dataset row is
+# created -- rows for any dataset added post-migration will stay in this
+# DEFAULT partition indefinitely unless/until that's built.
 _CREATE_DEFAULT_PARTITIONS = """
     CREATE TABLE extract_tasks_default PARTITION OF extract_tasks DEFAULT;
     CREATE TABLE extract_data_default PARTITION OF extract_data DEFAULT;
+"""
+
+# Django auto-creates a btree index on every ForeignKey column
+# (db_index=True is the default); the raw CREATE TABLE above only defines
+# the PK, so these need recreating by hand to restore parity with what
+# existed pre-partitioning. Declared on the partitioned parent, not
+# per-partition -- Postgres 11+ propagates a parent index automatically to
+# every current and future partition.
+_CREATE_FK_INDEXES = """
+    CREATE INDEX extract_tasks_fm_id_idx ON extract_tasks (fm_id);
+    CREATE INDEX extract_tasks_po_id_idx ON extract_tasks (po_id);
+    CREATE INDEX extract_data_extract_task_id_idx ON extract_data (extract_task_id);
 """
 
 _REVERSE = """
@@ -76,6 +95,11 @@ _REVERSE = """
 
 def _create_per_dataset_partitions(apps, schema_editor):
     Dataset = apps.get_model("datasets", "Dataset")
+    # Deliberately not filtered to active=True: an inactive dataset can
+    # still have historical extract_tasks/extract_data rows that need a
+    # home, and giving every dataset a partition up front is cheap (an
+    # empty partition costs essentially nothing) compared to the
+    # complexity of creating one lazily when a dataset is reactivated.
     with schema_editor.connection.cursor() as cursor:
         for dataset_id in Dataset.objects.values_list("id", flat=True):
             cursor.execute(
@@ -93,6 +117,19 @@ def _noop_reverse(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    """
+    Converts extract_tasks/extract_data to LIST partitions on dataset_id.
+
+    SAFE ONLY BECAUSE THESE TABLES ARE EMPTY: migration 0017 already
+    TRUNCATEs both, which is what makes a DROP TABLE + CREATE TABLE
+    ... PARTITION BY rewrite acceptable here -- there is no data to lose.
+    Postgres cannot ALTER an existing table into a partitioned one in
+    place, so this pattern is the only option for converting a live,
+    populated table into a partitioned one; anyone reusing this migration
+    as a template against a table that still has real rows needs a proper
+    backfill (create the partitioned table under a new name, copy data
+    across, swap), not a straight copy of this file.
+    """
 
     dependencies = [
         ("analytics", "0020_extracttaskbuildprogress_resource_ids"),
@@ -105,6 +142,10 @@ class Migration(migrations.Migration):
             reverse_sql=_REVERSE,
         ),
         migrations.RunPython(_create_per_dataset_partitions, _noop_reverse),
+        migrations.RunSQL(
+            sql=_CREATE_FK_INDEXES,
+            reverse_sql=migrations.RunSQL.noop,
+        ),
         migrations.RunSQL(
             sql="""
                 ALTER TABLE extract_data
@@ -121,6 +162,9 @@ class Migration(migrations.Migration):
                 -- request_map is also truncated (migration 0017), so no
                 -- backfill is needed for the NOT NULL below.
                 ALTER TABLE request_map ALTER COLUMN dataset_id SET NOT NULL;
+                -- Defensive no-op in practice: the DROP TABLE ... CASCADE on
+                -- extract_tasks earlier in this migration already cascaded
+                -- this constraint away. IF EXISTS makes it safe either way.
                 ALTER TABLE request_map DROP CONSTRAINT IF EXISTS request_map_task_id_08f7ae9f_fk_extract_tasks_id;
                 ALTER TABLE request_map
                     ADD CONSTRAINT request_map_extract_task_fk
@@ -134,9 +178,9 @@ class Migration(migrations.Migration):
             """,
             # Keep Django's model state in sync with the RequestMap.dataset_id
             # field added in models.py -- without this, `makemigrations`
-            # would detect drift and want to (harmlessly, but confusingly)
-            # generate a follow-up AddField migration for a column that
-            # already exists.
+            # would detect drift and generate a follow-up AddField migration
+            # for a column that already exists, which would fail outright
+            # (Django's AddField has no IF NOT EXISTS) if anyone ran it.
             state_operations=[
                 migrations.AddField(
                     model_name="requestmap",
