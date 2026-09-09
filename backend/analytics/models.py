@@ -112,42 +112,38 @@ class ExtractTask(models.Model):
 
 
 class ExtractTaskBuildProgress(models.Model):
-    """Tracks how far build_extract_tasks has generated global-dataset tasks
-    for each (resource, processing_option) pair.
+    """Tracks how far build_extract_tasks has generated tasks for each
+    (resource_ids, po) unit of work.
 
-    Global datasets cross every (resource, po) pair against the full feat_map
-    table, which can run into the billions of candidate rows. Without this,
-    every run re-scans the whole candidate space from scratch and has to
-    anti-join past everything already inserted, so cost grows with how much
-    work is already done rather than how much is left. completed_up_to_fm_id
-    is the highest feat_map.id confirmed generated for that pair, so a run
-    only has to look at feat_map rows added since.
+    For a standard (ungrouped) dataset, resource_ids is a 1-element array (one
+    row per individual DatasetResource x po). For a grouped dataset,
+    resource_ids holds every resource in one date_trunc(task_group_period, ...)
+    bucket. Either way, completed_up_to_fm_id is the highest feat_map.id
+    confirmed generated for that (resource_ids, po) pair -- a run only has to
+    look at feat_map rows added since. claimed_at supports concurrent workers:
+    set while a worker is actively batching this pair, cleared right after
+    (success or failure); staleness lets another worker reclaim a pair whose
+    claiming worker died mid-batch.
     """
 
-    resource = models.ForeignKey(
-        DatasetResource, on_delete=models.CASCADE, db_column="resource_id"
-    )
+    resource_ids = ArrayField(models.IntegerField())
     po = models.ForeignKey(
         ProcessingOption, on_delete=models.CASCADE, db_column="po_id"
     )
     completed_up_to_fm_id = models.IntegerField(blank=True, null=True)
-    # Set while a parallel worker is actively batching this pair, cleared
-    # right after (success or failure). Only matters as crash recovery: if a
-    # worker dies mid-pair, claim staleness lets another worker reclaim it
-    # instead of waiting on it forever.
     claimed_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         db_table = "extract_task_build_progress"
         constraints = [
             models.UniqueConstraint(
-                fields=["resource", "po"],
-                name="extract_task_build_progress_resource_po_unique",
+                fields=["resource_ids", "po"],
+                name="extract_task_build_progress_resource_ids_po_unique",
             ),
         ]
 
     def __str__(self):
-        return f"BuildProgress: Resource {self.resource_id} - PO {self.po_id} (up to fm {self.completed_up_to_fm_id})"
+        return f"BuildProgress: Resources {self.resource_ids} - PO {self.po_id} (up to fm {self.completed_up_to_fm_id})"
 
 
 class ExtractData(models.Model):

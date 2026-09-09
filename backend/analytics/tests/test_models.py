@@ -1,7 +1,7 @@
 from django.db import connection
 from django.test import TestCase
 
-from analytics.models import ExtractData, ExtractTask
+from analytics.models import ExtractData, ExtractTask, ExtractTaskBuildProgress
 
 
 class ExtractTaskResourceIdsTest(TestCase):
@@ -47,3 +47,18 @@ class ExtractDataArraysTest(TestCase):
                 self.assertIsNotNone(row, f"{col} column does not exist")
                 self.assertEqual(row[0], "ARRAY", f"{col} is not an array type")
                 self.assertEqual(row[1], udt, f"{col} has unexpected udt_name {row[1]}")
+
+
+class ExtractTaskBuildProgressArrayTest(TestCase):
+    def test_resource_ids_array(self):
+        field_names = {f.name for f in ExtractTaskBuildProgress._meta.get_fields()}
+        self.assertIn("resource_ids", field_names)
+        self.assertNotIn("resource", field_names)
+
+    def test_unique_constraint_on_resource_ids_and_po(self):
+        constraint_names = {
+            c.name for c in ExtractTaskBuildProgress._meta.constraints
+        }
+        self.assertIn(
+            "extract_task_build_progress_resource_ids_po_unique", constraint_names
+        )
