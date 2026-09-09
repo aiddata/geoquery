@@ -1,3 +1,4 @@
+import pandas as pd
 from django.contrib.gis.geos import Point
 from django.test import TestCase
 
@@ -117,6 +118,58 @@ class MergeTaskResultsTestCase(TestCase):
         # even appear.
         self.assertNotIn("null-0.mean", df.columns)
         self.assertEqual(row["null-1.mean"], 7.5)
+
+    # --- None-at-position mixed into a multi-row DataFrame becomes a
+    # genuine NaN, not a dropped column or fabricated placeholder ----------
+
+    def test_null_position_becomes_nan_when_other_row_has_a_value(self):
+        r0, r1 = [
+            DatasetResource.objects.create(
+                dataset=self.dataset, name=f"null2-{i}", path=f"m{i}.tif"
+            )
+            for i in range(2)
+        ]
+        task_a = self.make_task([r0, r1], status=-1)
+        ExtractData.objects.create(
+            extract_task=task_a, dataset_id=self.dataset.id, name="mean",
+            data_column="float", float_values=[None, 7.5],
+        )
+
+        # A second feature/task where null2-0 DOES have a value, so the
+        # column genuinely exists in the merged DataFrame -- this is what
+        # lets us confirm pandas fills task_a's missing cell with NaN
+        # rather than dropping the column or otherwise mishandling the
+        # ragged dict-to-DataFrame construction.
+        feature_b = Feature.objects.create(shape=Point(1, 1))
+        fm_b = FeatMap.objects.create(
+            fc=self.fc, geom=feature_b, name="Feature B", attr={"iso": "XYZ"}
+        )
+        task_b = ExtractTask.objects.create(
+            resource_ids=[r0.id, r1.id],
+            dataset_id=self.dataset.id,
+            fm=fm_b,
+            po=self.po,
+            status=1,
+        )
+        ExtractData.objects.create(
+            extract_task=task_b, dataset_id=self.dataset.id, name="mean",
+            data_column="float", float_values=[3.5, 9.0],
+        )
+
+        status, df = merge_task_results([task_a.id, task_b.id])
+
+        self.assertEqual(status, "Success")
+        self.assertIn("null2-0.mean", df.columns)
+
+        row_a = df[df["geom_id"] == self.feature.id].iloc[0]
+        row_b = df[df["geom_id"] == feature_b.id].iloc[0]
+
+        # task_a's skipped position becomes a genuine NaN cell...
+        self.assertTrue(pd.isna(row_a["null2-0.mean"]))
+        self.assertEqual(row_a["null2-1.mean"], 7.5)
+        # ...while task_b's real value for that same column is untouched.
+        self.assertEqual(row_b["null2-0.mean"], 3.5)
+        self.assertEqual(row_b["null2-1.mean"], 9.0)
 
     # --- "_none" outcome substitution, applied per-resource ---------------
 
