@@ -70,10 +70,22 @@ class ProcessingOption(models.Model):
 
 
 class ExtractTask(models.Model):
-    """Extract tasks table for managing data extraction jobs."""
+    """Extract tasks table for managing data extraction jobs.
+
+    resource_ids holds the DatasetResource ids this task covers: exactly one
+    for a standard (ungrouped) task, N for a grouped task (e.g. 12 for a
+    year-bucketed monthly dataset). Position i in resource_ids corresponds to
+    position i in each ExtractData row's value arrays for this task -- see
+    ExtractData below.
+    """
 
     id = models.AutoField(primary_key=True)
     resource_ids = ArrayField(models.IntegerField())
+    # Plain integer rather than ForeignKey(Dataset, ...): extract_tasks is
+    # partitioned by dataset_id (see the partitioning migration), and a task's
+    # dataset is already reachable via fm/po/resource_ids -- this column
+    # exists for the partition key and fast filtering, not as the primary way
+    # to navigate to a Dataset.
     dataset_id = models.IntegerField()
     task_group_period = models.CharField(max_length=10, null=True, blank=True)
     fm = models.ForeignKey(FeatMap, on_delete=models.CASCADE, db_column="fm_id")
