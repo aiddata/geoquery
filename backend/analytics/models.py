@@ -229,6 +229,7 @@ class RequestMap(models.Model):
 
     request = models.ForeignKey(Request, on_delete=models.CASCADE, db_column="req_id")
     task = models.ForeignKey(ExtractTask, on_delete=models.CASCADE, db_column="task_id")
+    dataset_id = models.IntegerField()
 
     class Meta:
         db_table = "request_map"
