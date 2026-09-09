@@ -43,10 +43,11 @@ class DispatchTestCase(TestCase):
     _seq = 0
 
     def make_task(self, *, status=PENDING, priority=0, age=None):
-        """Create a task. Distinct kwargs keep the (resource, fm, po, kwargs) unique index happy."""
+        """Create a task. Distinct kwargs keep the (dataset_id, fm, po, resource_ids, kwargs) unique index happy."""
         type(self)._seq += 1
         task = ExtractTask.objects.create(
-            resource=self.resource,
+            resource_ids=[self.resource.id],
+            dataset_id=self.resource.dataset_id,
             fm=self.fm,
             po=self.po,
             status=status,

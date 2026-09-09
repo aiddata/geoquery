@@ -158,7 +158,12 @@ class RequestView(APIView):
                 {"error": "featureIds is required"}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        all_task_ids: set[int] = set()
+        # {task_id: dataset_id} rather than a flat set[int] -- RequestMap now
+        # carries dataset_id per row (see migration adding it as the
+        # partition-key-adjacent column), and a dict dedupes on task_id the
+        # same way the old set did while still letting us look up which
+        # dataset each task belongs to at bulk_create time below.
+        all_task_ids: dict[int, int] = {}
         warnings: list[str] = []
         valid_datasets: list[dict] = []
 
@@ -209,8 +214,10 @@ class RequestView(APIView):
                 )
                 continue
 
-            # The functional unique index is on
-            # (resource_id, fm_id, po_id, MD5(COALESCE(kwargs::text, ''))).
+            # The functional unique indexes (migration 0022) are:
+            #   (dataset_id, fm_id, po_id, resource_ids) WHERE kwargs IS NULL
+            #   (dataset_id, fm_id, po_id, resource_ids, MD5(kwargs::text))
+            #       WHERE kwargs IS NOT NULL
             # Django JSONField maps None to JSON null for equality queries, but
             # rows with no kwargs (e.g. from build_extract_tasks) have SQL NULL.
             # Use isnull lookup for the None case so the GET matches SQL NULL rows.
@@ -225,23 +232,35 @@ class RequestView(APIView):
                     for po in pos:
                         try:
                             task = ExtractTask.objects.get(
-                                resource=resource, fm=fm, po=po, **kwargs_lookup
+                                dataset_id=dataset_obj.id,
+                                resource_ids=[resource.id],
+                                fm=fm,
+                                po=po,
+                                **kwargs_lookup,
                             )
                         except ExtractTask.DoesNotExist:
                             try:
                                 task = ExtractTask.objects.create(
-                                    resource=resource, fm=fm, po=po, kwargs=task_kwargs
+                                    dataset_id=dataset_obj.id,
+                                    resource_ids=[resource.id],
+                                    fm=fm,
+                                    po=po,
+                                    kwargs=task_kwargs,
                                 )
                             except IntegrityError:
                                 task = ExtractTask.objects.get(
-                                    resource=resource, fm=fm, po=po, **kwargs_lookup
+                                    dataset_id=dataset_obj.id,
+                                    resource_ids=[resource.id],
+                                    fm=fm,
+                                    po=po,
+                                    **kwargs_lookup,
                                 )
                         if task.priority < 1:
                             task.priority = 1
                             task.save(update_fields=["priority"])
                         task_ids.append(task.id)
 
-            all_task_ids.update(task_ids)
+            all_task_ids.update({tid: dataset_obj.id for tid in task_ids})
             valid_datasets.append(
                 {
                     "dataset_name": dataset_name,
@@ -279,7 +298,10 @@ class RequestView(APIView):
         )
 
         RequestMap.objects.bulk_create(
-            [RequestMap(request=req, task_id=task_id) for task_id in all_task_ids]
+            [
+                RequestMap(request=req, task_id=task_id, dataset_id=dataset_id)
+                for task_id, dataset_id in all_task_ids.items()
+            ]
         )
 
         response_data = {

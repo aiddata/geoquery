@@ -4,6 +4,7 @@ import uuid
 from datetime import timedelta
 
 from django.conf import settings
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.db.models.functions import Lower
 from django.utils import timezone
@@ -69,12 +70,24 @@ class ProcessingOption(models.Model):
 
 
 class ExtractTask(models.Model):
-    """Extract tasks table for managing data extraction jobs."""
+    """Extract tasks table for managing data extraction jobs.
+
+    resource_ids holds the DatasetResource ids this task covers: exactly one
+    for a standard (ungrouped) task, N for a grouped task (e.g. 12 for a
+    year-bucketed monthly dataset). Position i in resource_ids corresponds to
+    position i in each ExtractData row's value arrays for this task -- see
+    ExtractData below.
+    """
 
     id = models.AutoField(primary_key=True)
-    resource = models.ForeignKey(
-        DatasetResource, on_delete=models.CASCADE, db_column="resource_id"
-    )
+    resource_ids = ArrayField(models.IntegerField())
+    # Plain integer rather than ForeignKey(Dataset, ...): extract_tasks is
+    # partitioned by dataset_id (see the partitioning migration), and a task's
+    # dataset is already reachable via fm/po/resource_ids -- this column
+    # exists for the partition key and fast filtering, not as the primary way
+    # to navigate to a Dataset.
+    dataset_id = models.IntegerField()
+    task_group_period = models.CharField(max_length=10, null=True, blank=True)
     fm = models.ForeignKey(FeatMap, on_delete=models.CASCADE, db_column="fm_id")
     po = models.ForeignKey(
         ProcessingOption, on_delete=models.CASCADE, db_column="po_id"
@@ -94,60 +107,73 @@ class ExtractTask(models.Model):
 
     def __str__(self):
         return (
-            f"ExtractTask {self.id}: Resource {self.resource_id} - Status {self.status}"
+            f"ExtractTask {self.id}: Resources {self.resource_ids} - Status {self.status}"
         )
 
 
 class ExtractTaskBuildProgress(models.Model):
-    """Tracks how far build_extract_tasks has generated global-dataset tasks
-    for each (resource, processing_option) pair.
+    """Tracks how far build_extract_tasks has generated tasks for each
+    (resource_ids, po) unit of work.
 
-    Global datasets cross every (resource, po) pair against the full feat_map
-    table, which can run into the billions of candidate rows. Without this,
-    every run re-scans the whole candidate space from scratch and has to
-    anti-join past everything already inserted, so cost grows with how much
-    work is already done rather than how much is left. completed_up_to_fm_id
-    is the highest feat_map.id confirmed generated for that pair, so a run
-    only has to look at feat_map rows added since.
+    For a standard (ungrouped) dataset, resource_ids is a 1-element array (one
+    row per individual DatasetResource x po). For a grouped dataset,
+    resource_ids holds every resource in one date_trunc(task_group_period, ...)
+    bucket. Either way, completed_up_to_fm_id is the highest feat_map.id
+    confirmed generated for that (resource_ids, po) pair -- a run only has to
+    look at feat_map rows added since. claimed_at supports concurrent workers:
+    set while a worker is actively batching this pair, cleared right after
+    (success or failure); staleness lets another worker reclaim a pair whose
+    claiming worker died mid-batch.
     """
 
-    resource = models.ForeignKey(
-        DatasetResource, on_delete=models.CASCADE, db_column="resource_id"
-    )
+    resource_ids = ArrayField(models.IntegerField())
     po = models.ForeignKey(
         ProcessingOption, on_delete=models.CASCADE, db_column="po_id"
     )
     completed_up_to_fm_id = models.IntegerField(blank=True, null=True)
-    # Set while a parallel worker is actively batching this pair, cleared
-    # right after (success or failure). Only matters as crash recovery: if a
-    # worker dies mid-pair, claim staleness lets another worker reclaim it
-    # instead of waiting on it forever.
     claimed_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         db_table = "extract_task_build_progress"
         constraints = [
             models.UniqueConstraint(
-                fields=["resource", "po"],
-                name="extract_task_build_progress_resource_po_unique",
+                fields=["resource_ids", "po"],
+                name="extract_task_build_progress_resource_ids_po_unique",
             ),
         ]
 
     def __str__(self):
-        return f"BuildProgress: Resource {self.resource_id} - PO {self.po_id} (up to fm {self.completed_up_to_fm_id})"
+        return f"BuildProgress: Resources {self.resource_ids} - PO {self.po_id} (up to fm {self.completed_up_to_fm_id})"
 
 
 class ExtractData(models.Model):
-    """Extract data table for storing extraction results."""
+    """Extract data table for storing extraction results.
+
+    One row per (extract_task, name) -- see ExtractTask.resource_ids. Values
+    are arrays position-aligned with the owning task's resource_ids: index i
+    here is the result for resource_ids[i].
+
+    Two independent levels of NULL, not to be conflated:
+    - Column-level (float_values/int_values/str_values each nullable): only
+      ONE of the three is actually used per row, matching data_column --
+      exactly like the old scalar float_value/int_value/str_value columns
+      this replaced, where a row's value had one type and the other two
+      columns were simply irrelevant to it. The other two stay NULL, not an
+      array of NULLs.
+    - Element-level (each array's own field is null=True): within whichever
+      one column is in use, a NULL at position i means resource_ids[i] still
+      needs (re)processing -- see analytics.tasks.processing._run_extract_task.
+    """
 
     extract_task = models.ForeignKey(
         ExtractTask, on_delete=models.CASCADE, db_column="extract_task_id"
     )
+    dataset_id = models.IntegerField()
     name = models.CharField(max_length=100, blank=True, null=True)
     data_column = models.CharField(max_length=100, blank=True, null=True)
-    float_value = models.FloatField(blank=True, null=True)
-    int_value = models.BigIntegerField(blank=True, null=True)
-    str_value = models.CharField(max_length=100, blank=True, null=True)
+    float_values = ArrayField(models.FloatField(null=True), blank=True, null=True)
+    int_values = ArrayField(models.BigIntegerField(null=True), blank=True, null=True)
+    str_values = ArrayField(models.CharField(max_length=100, null=True), blank=True, null=True)
 
     class Meta:
         db_table = "extract_data"
@@ -203,6 +229,7 @@ class RequestMap(models.Model):
 
     request = models.ForeignKey(Request, on_delete=models.CASCADE, db_column="req_id")
     task = models.ForeignKey(ExtractTask, on_delete=models.CASCADE, db_column="task_id")
+    dataset_id = models.IntegerField()
 
     class Meta:
         db_table = "request_map"

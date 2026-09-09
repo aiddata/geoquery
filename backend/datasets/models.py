@@ -38,9 +38,41 @@ class Dataset(models.Model):
     type = models.CharField(max_length=100)
     processing_class = models.CharField(max_length=50, default="zonal_stats")
 
+    TASK_GROUP_PERIOD_CHOICES = [
+        ("day", "Day"),
+        ("week", "Week"),
+        ("month", "Month"),
+        ("quarter", "Quarter"),
+        ("year", "Year"),
+    ]
+    task_group_period = models.CharField(
+        max_length=10,
+        choices=TASK_GROUP_PERIOD_CHOICES,
+        null=True,
+        blank=True,
+        help_text=(
+            "If set, build_extract_tasks groups this dataset's resources into "
+            "one task per date_trunc(task_group_period, temporal) bucket per "
+            "feature/po, instead of one task per resource. Null = standard "
+            "(one task per resource)."
+        ),
+    )
+
     class Meta:
         db_table = "datasets"
         ordering = ["name"]
+        constraints = [
+            # build_extract_tasks only ever checks task_group_period on the
+            # is_global branch -- a non-global dataset with this set would
+            # match neither its own (non-global) insert path nor the grouped
+            # branch (which requires is_global), and would silently generate
+            # zero tasks forever with no error. Enforced here rather than
+            # left as an implicit assumption.
+            models.CheckConstraint(
+                check=models.Q(task_group_period__isnull=True) | models.Q(is_global=True),
+                name="dataset_task_group_period_requires_global",
+            ),
+        ]
 
     def __str__(self):
         return self.name
