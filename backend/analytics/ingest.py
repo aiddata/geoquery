@@ -83,7 +83,11 @@ def ingest_custom_boundary(
         ]
     )
 
-    all_task_ids: set[int] = set()
+    # {task_id: dataset_id} rather than a flat set[int] -- RequestMap now
+    # carries dataset_id per row, and a dict dedupes on task_id the same way
+    # the old set did while still letting us look up which dataset each task
+    # belongs to at bulk_create time below.
+    all_task_ids: dict[int, int] = {}
     valid_datasets: list[dict] = []
 
     for ds in datasets:
@@ -121,10 +125,19 @@ def ingest_custom_boundary(
             )
             continue
 
+        # ignore_conflicts relies on the migration 0022 unique indexes on
+        # (dataset_id, fm_id, po_id, resource_ids[, kwargs hash]) to make a
+        # same-request resubmission idempotent -- dataset_id/resource_ids
+        # must be populated correctly for that conflict detection to work.
         ExtractTask.objects.bulk_create(
             [
                 ExtractTask(
-                    resource=resource, fm=fm, po=po, kwargs=task_kwargs, priority=1
+                    dataset_id=dataset_obj.id,
+                    resource_ids=[resource.id],
+                    fm=fm,
+                    po=po,
+                    kwargs=task_kwargs,
+                    priority=1,
                 )
                 for fm in feat_map_objs
                 for resource in resources
@@ -136,10 +149,10 @@ def ingest_custom_boundary(
         task_ids = list(
             ExtractTask.objects.filter(
                 fm__in=feat_map_objs,
-                resource__dataset=dataset_obj,
+                dataset_id=dataset_obj.id,
             ).values_list("id", flat=True)
         )
-        all_task_ids.update(task_ids)
+        all_task_ids.update({tid: dataset_obj.id for tid in task_ids})
 
         valid_datasets.append(
             {
@@ -169,7 +182,10 @@ def ingest_custom_boundary(
     req.save(update_fields=["data", "status"])
 
     RequestMap.objects.bulk_create(
-        [RequestMap(request=req, task_id=task_id) for task_id in all_task_ids]
+        [
+            RequestMap(request=req, task_id=task_id, dataset_id=dataset_id)
+            for task_id, dataset_id in all_task_ids.items()
+        ]
     )
 
     return len(all_task_ids), warnings
