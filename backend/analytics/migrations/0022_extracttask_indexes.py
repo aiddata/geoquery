@@ -26,6 +26,18 @@ class Migration(migrations.Migration):
     dataset, so two rows that could ever collide on (fm_id, po_id,
     resource_ids[, kwargs hash]) necessarily already share the same
     dataset_id.
+
+    None of the three CREATE INDEX statements use CONCURRENTLY, unlike
+    extract_tasks_pending_idx's original build in migration 0014 ("Built
+    CONCURRENTLY so the 128 worker slots keep claiming while it builds").
+    That's not an oversight: CREATE INDEX CONCURRENTLY is flatly unsupported
+    directly on a partitioned table (Postgres requires building per-partition
+    CONCURRENTLY and ATTACHing them instead). Going with a plain, blocking
+    build here is safe only because extract_tasks is still empty from
+    migration 0017's wipe at the point this migration runs -- a future
+    migration adding an index this way against a populated partitioned table
+    would need the per-partition CONCURRENTLY-then-ATTACH dance, not a copy
+    of this file.
     """
 
     dependencies = [
