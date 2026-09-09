@@ -4,6 +4,7 @@ import uuid
 from datetime import timedelta
 
 from django.conf import settings
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.db.models.functions import Lower
 from django.utils import timezone
@@ -72,9 +73,9 @@ class ExtractTask(models.Model):
     """Extract tasks table for managing data extraction jobs."""
 
     id = models.AutoField(primary_key=True)
-    resource = models.ForeignKey(
-        DatasetResource, on_delete=models.CASCADE, db_column="resource_id"
-    )
+    resource_ids = ArrayField(models.IntegerField())
+    dataset_id = models.IntegerField()
+    task_group_period = models.CharField(max_length=10, null=True, blank=True)
     fm = models.ForeignKey(FeatMap, on_delete=models.CASCADE, db_column="fm_id")
     po = models.ForeignKey(
         ProcessingOption, on_delete=models.CASCADE, db_column="po_id"
@@ -94,7 +95,7 @@ class ExtractTask(models.Model):
 
     def __str__(self):
         return (
-            f"ExtractTask {self.id}: Resource {self.resource_id} - Status {self.status}"
+            f"ExtractTask {self.id}: Resources {self.resource_ids} - Status {self.status}"
         )
 
 
