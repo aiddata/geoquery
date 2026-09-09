@@ -55,6 +55,17 @@ class ExtractTaskBuildProgressArrayTest(TestCase):
         self.assertIn("resource_ids", field_names)
         self.assertNotIn("resource", field_names)
 
+    def test_resource_ids_is_postgres_array_at_db_level(self):
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT data_type, udt_name FROM information_schema.columns
+                WHERE table_name = 'extract_task_build_progress' AND column_name = 'resource_ids'
+            """)
+            row = cursor.fetchone()
+        self.assertIsNotNone(row, "resource_ids column does not exist")
+        self.assertEqual(row[0], "ARRAY")
+        self.assertEqual(row[1], "_int4")
+
     def test_unique_constraint_on_resource_ids_and_po(self):
         constraint_names = {
             c.name for c in ExtractTaskBuildProgress._meta.constraints
@@ -62,3 +73,13 @@ class ExtractTaskBuildProgressArrayTest(TestCase):
         self.assertIn(
             "extract_task_build_progress_resource_ids_po_unique", constraint_names
         )
+
+    def test_unique_constraint_exists_at_db_level(self):
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT contype FROM pg_constraint
+                WHERE conname = 'extract_task_build_progress_resource_ids_po_unique'
+            """)
+            row = cursor.fetchone()
+        self.assertIsNotNone(row, "constraint does not exist in the database")
+        self.assertEqual(row[0], "u")
