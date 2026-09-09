@@ -254,6 +254,72 @@ class ProcessingTestCase(TestCase):
         row.refresh_from_db()
         self.assertEqual(row.float_values, [0.0, 1.0, 2.0])
 
+    def test_rerun_results_count_is_not_inflated_by_overlapping_name(self):
+        # Rerunning a task that fills a previously-NULL position for a name
+        # that already has other positions filled from an earlier run must
+        # report `results` as the number of distinct names, not
+        # len(existing_by_name) + len(produced) -- the latter double-counts
+        # "mean" here since it appears in both dicts.
+        resources = self.make_resources(3)
+        task = self.make_task(resources, status=QUEUED)
+
+        call_log = []
+
+        def flaky(geometry, path, **kw):
+            call_log.append(path.stem)
+            if path.stem == "r1":
+                raise RuntimeError("boom")
+            idx = int(path.stem[-1])
+            return [("mean", float(idx))]
+
+        with mock.patch.object(processing, "get_func", return_value=flaky):
+            _run_extract_task(task.id)
+
+        row = self.data_row(task, "mean")
+        self.assertEqual(row.float_values, [0.0, None, 2.0])
+
+        # Simulate a retry: reset status to claimable, and this time every
+        # resource succeeds -- "mean" is still the only name, but it now
+        # exists in both existing_by_name (from the first run) and produced
+        # (this run recomputes the previously-NULL position).
+        ExtractTask.objects.filter(id=task.id).update(status=PENDING)
+        call_log.clear()
+
+        def all_succeed(geometry, path, **kw):
+            call_log.append(path.stem)
+            idx = int(path.stem[-1])
+            return [("mean", float(idx))]
+
+        with mock.patch.object(processing, "get_func", return_value=all_succeed):
+            result = _run_extract_task(task.id)
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, DONE)
+        self.assertEqual(call_log, ["r1"])
+        # One distinct name ("mean"), not existing_by_name(1) + produced(1) = 2.
+        self.assertEqual(result, {"task_id": task.id, "results": 1})
+
+    # --- empty result list is a legitimate success, not a failure -----------
+
+    def test_empty_result_list_counts_as_successful_position(self):
+        # A processor call that returns [] (no named results at all) is a
+        # legitimate, successful outcome for that position -- it must not be
+        # left retriable/NULL or treated as a failure, even though it
+        # contributes no ExtractData rows.
+        resources = self.make_resources(1)
+        task = self.make_task(resources, status=QUEUED)
+
+        with mock.patch.object(
+            processing, "get_func", return_value=lambda g, p, **kw: []
+        ):
+            result = _run_extract_task(task.id)
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, DONE)
+        self.assertIsNotNone(task.complete_time)
+        self.assertEqual(result, {"task_id": task.id, "results": 0})
+        self.assertEqual(ExtractData.objects.filter(extract_task_id=task.id).count(), 0)
+
     # --- claim filtering (dataset_id__in replaces resource__dataset__active) --
 
     def test_inactive_dataset_task_is_not_claimed(self):

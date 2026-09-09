@@ -254,7 +254,14 @@ def _run_extract_task(task_id):
                 produced.setdefault(name, {})[i] = value
 
         existing_by_name = {row.name: row for row in existing_rows}
-        for name in set(existing_by_name) | set(produced):
+        # The set of distinct result names across both prior runs and this
+        # one -- reused below for the reported `results` count so it stays
+        # the actual number of names rather than double-counting a name that
+        # exists in both existing_by_name and produced (e.g. a rerun that
+        # fills a previously-NULL position for a name already partially
+        # filled by an earlier run).
+        all_names = set(existing_by_name) | set(produced)
+        for name in all_names:
             values_by_pos = produced.get(name, {})
             row = existing_by_name.get(name)
 
@@ -275,6 +282,13 @@ def _run_extract_task(task_id):
                 # leave every position (filled or still-NULL) untouched.
                 continue
 
+            # data_column is fixed at row creation (above) and assumed to be
+            # valid for every future value stored under this name -- i.e. a
+            # given name is assumed to always produce the same value type
+            # across every position and every run. If a name ever produced a
+            # mixed type (e.g. int on one call, str on another), the value
+            # would still be coerced and stored into the array chosen by the
+            # *first* type seen, silently misfiling it rather than raising.
             array_field = f"{row.data_column}_values"
             values = list(getattr(row, array_field) or [None] * n)
             values += [None] * (n - len(values))
@@ -308,7 +322,7 @@ def _run_extract_task(task_id):
     if not incomplete_positions:
         ExtractTask.objects.filter(id=task_id).update(status=1, complete_time=now())
         logger.info("Task %s completed", task_id)
-        return {"task_id": task_id, "results": len(existing_by_name) + len(produced)}
+        return {"task_id": task_id, "results": len(all_names)}
 
     parts = [f"resource {rid}[{i}]: {exc!r}" for rid, i, exc in failures]
     if null_positions - failed_positions:
@@ -339,4 +353,4 @@ def _run_extract_task(task_id):
         # the last original exception so the real cause is still visible.
         raise RuntimeError(error) from failures[-1][2]
 
-    return {"task_id": task_id, "results": len(existing_by_name) + len(produced)}
+    return {"task_id": task_id, "results": len(all_names)}
