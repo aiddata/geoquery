@@ -52,17 +52,33 @@ def merge_task_results(task_list):
         fm_item = FeatMap.objects.filter(id=task_item.fm_id).first()
         fc_name = FeatureCollection.objects.filter(id=fm_item.fc_id).first().name
         geom_id = fm_item.geom_id
-        dr_name = DatasetResource.objects.filter(id=task_item.resource_id).first().name
+
+        # id__in does not preserve input order, so resources must be
+        # re-ordered against task_item.resource_ids by dict lookup -- same
+        # reindex pattern _run_extract_task uses (processing.py): position i
+        # here has to line up with position i in every ExtractData row's
+        # value arrays for this task (see ExtractTask/ExtractData docstrings).
+        resources_by_id = {
+            r.id: r
+            for r in DatasetResource.objects.filter(id__in=task_item.resource_ids)
+        }
+        resources = [resources_by_id[rid] for rid in task_item.resource_ids]
 
         # Feature datasets (single GPKG, no file mask) get resource name
         # "{dataset}_none". Substitute the outcome field from task kwargs so
         # the CSV column reads "acled_event_count.*" instead of "acled_none.*".
-        if (
-            dr_name.endswith("_none")
-            and task_item.kwargs
-            and "outcome" in task_item.kwargs
-        ):
-            dr_name = f"{dr_name[:-5]}_{task_item.kwargs['outcome']}"
+        # Computed independently per resource -- in a grouped task, each
+        # position may or may not end in "_none" regardless of the others.
+        dr_names = []
+        for resource in resources:
+            dr_name = resource.name
+            if (
+                dr_name.endswith("_none")
+                and task_item.kwargs
+                and "outcome" in task_item.kwargs
+            ):
+                dr_name = f"{dr_name[:-5]}_{task_item.kwargs['outcome']}"
+            dr_names.append(dr_name)
 
         key = (fc_name, geom_id)
         if key not in rows:
@@ -74,14 +90,25 @@ def merge_task_results(task_list):
 
         for td in task_data:
             if td.data_column == "int":
-                data_val = int(td.int_value)
+                values, coerce = td.int_values, int
             elif td.data_column == "float":
-                data_val = float(td.float_value)
+                values, coerce = td.float_values, float
             elif td.data_column == "str":
-                data_val = td.str_value
+                values, coerce = td.str_values, str
             else:
                 raise Exception(f"Unsupported data column type: {td.data_column}")
-            rows[key][f"{dr_name}.{td.name}"] = data_val
+
+            values = values or []
+            for i, dr_name in enumerate(dr_names):
+                # A None at position i means resource_ids[i]'s result wasn't
+                # computed for this task (failed, or not yet processed) --
+                # see ExtractData's docstring. That's expected, not an error:
+                # skip it entirely rather than writing a placeholder, so the
+                # resulting uneven row set becomes a genuine NaN (not a
+                # fabricated one) when pd.DataFrame assembles rows below.
+                if i >= len(values) or values[i] is None:
+                    continue
+                rows[key][f"{dr_name}.{td.name}"] = coerce(values[i])
 
     if not rows:
         return "Empty", None
