@@ -80,24 +80,41 @@ jobs:
         id: builds
         run: |
           # Each build workflow only runs when its own paths change, so the two
-          # images can legitimately be at different commit SHAs. We look up the
-          # most recent successful run on this branch for each workflow independently.
+          # images can legitimately be at different commit SHAs. For a
+          # workflow_run trigger, we already know -- from the triggering event
+          # itself -- the exact SHA of whichever build just completed; using
+          # that directly (instead of re-querying "most recent successful run")
+          # avoids a race against GitHub's Actions API, whose run-list endpoint
+          # can lag a few seconds behind a just-emitted workflow_run completion
+          # event and hand back the *previous* successful run instead of the
+          # one that triggered this deploy. Only the *other* build (the one
+          # that didn't just trigger this run, e.g. frontend when only backend
+          # changed) still needs the API lookup, since it isn't racing its own
+          # webhook.
           BRANCH="${{ steps.ctx.outputs.branch }}"
+          TRIGGER_WF_NAME="${{ github.event.workflow_run.name }}"
+          TRIGGER_SHA="${{ github.event.workflow_run.head_sha }}"
 
           for PAIR in "Build backend container:backend" "Build frontend container:frontend"; do
             WF_NAME="${PAIR%%:*}"
             KEY="${PAIR##*:}"
 
-            WF_ID=$(gh api "repos/${{ github.repository }}/actions/workflows" \
-              --jq ".workflows[] | select(.name == \"${WF_NAME}\") | .id")
-            if [ -z "$WF_ID" ]; then
-              echo "ERROR: workflow '${WF_NAME}' not found"
-              exit 1
-            fi
+            if [ "${{ github.event_name }}" = "workflow_run" ] && [ "$WF_NAME" = "$TRIGGER_WF_NAME" ]; then
+              RUN_SHA="$TRIGGER_SHA"
+              echo "${WF_NAME}: ${RUN_SHA:0:7} (from triggering event, no API lookup)"
+            else
+              WF_ID=$(gh api "repos/${{ github.repository }}/actions/workflows" \
+                --jq ".workflows[] | select(.name == \"${WF_NAME}\") | .id")
+              if [ -z "$WF_ID" ]; then
+                echo "ERROR: workflow '${WF_NAME}' not found"
+                exit 1
+              fi
 
-            RUN_SHA=$(gh api \
-              "repos/${{ github.repository }}/actions/workflows/${WF_ID}/runs?branch=${BRANCH}&status=success&per_page=1" \
-              --jq '.workflow_runs[0].head_sha // ""')
+              RUN_SHA=$(gh api \
+                "repos/${{ github.repository }}/actions/workflows/${WF_ID}/runs?branch=${BRANCH}&status=success&per_page=1" \
+                --jq '.workflow_runs[0].head_sha // ""')
+              echo "${WF_NAME}: ${RUN_SHA:0:7} (via API lookup)"
+            fi
 
             if [ -z "$RUN_SHA" ]; then
               echo "ERROR: no successful '${WF_NAME}' run found on branch ${BRANCH}"
@@ -106,7 +123,6 @@ jobs:
             fi
 
             SHORT="${RUN_SHA:0:7}"
-            echo "${WF_NAME}: ${SHORT}"
             echo "${KEY}_sha=${RUN_SHA}" >> $GITHUB_OUTPUT
             echo "${KEY}_sha_short=${SHORT}" >> $GITHUB_OUTPUT
           done
