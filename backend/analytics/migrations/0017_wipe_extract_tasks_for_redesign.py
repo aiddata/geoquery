@@ -15,10 +15,14 @@ class Migration(migrations.Migration):
     explicit follow-up user decision: production is still in a testing
     phase, so there's no real user-submitted request data to preserve, and
     leaving requests un-wiped would have orphaned every pre-existing
-    completed request -- RequestStatusView would report task_count=0 for
+    completed request -- RequestDetailView would report task_count=0 for
     them (their extract_tasks/request_map rows are gone) while still
     exposing download_url/documentation_url for a request whose underlying
     data no longer exists.
+
+    request_tokens is deliberately left alone -- it's keyed by email, not
+    FK'd to requests, so stale tokens just resolve to empty history rather
+    than pointing at orphaned data.
     """
 
     dependencies = [
