@@ -213,7 +213,7 @@ def _run_extract_task(task_id):
         # nothing here, so its position stays/becomes NULL in every name's
         # array below rather than blocking the other positions.
         produced = {}
-        failures = []  # (resource_id, position, repr(exc)) for each call that raised this run
+        failures = []  # (resource_id, position, exc) for each call that raised this run
 
         for i in sorted(positions):
             resource = resources[i]
@@ -247,7 +247,7 @@ def _run_extract_task(task_id):
                     "Task %s resource %s (position %d) failed: %s",
                     task_id, resource.id, i, exc,
                 )
-                failures.append((resource.id, i, repr(exc)))
+                failures.append((resource.id, i, exc))
                 continue
 
             for name, value in results:
@@ -310,7 +310,7 @@ def _run_extract_task(task_id):
         logger.info("Task %s completed", task_id)
         return {"task_id": task_id, "results": len(existing_by_name) + len(produced)}
 
-    parts = [f"resource {rid}[{i}]: {msg}" for rid, i, msg in failures]
+    parts = [f"resource {rid}[{i}]: {exc!r}" for rid, i, exc in failures]
     if null_positions - failed_positions:
         parts.append(f"positions still null: {sorted(null_positions - failed_positions)}")
     error = "; ".join(parts)[:100]
@@ -328,6 +328,15 @@ def _run_extract_task(task_id):
     # it would only blow up the Celery task without adding any information
     # the -1 status + error field don't already carry.
     if failures and not produced:
-        raise RuntimeError(error)
+        if len(failures) == 1:
+            # Exactly one resource attempted and failed -- reproduce the
+            # pre-redesign bare `raise` exactly: the original exception's
+            # type, message, and traceback all propagate unchanged, instead
+            # of being flattened into a synthesized RuntimeError.
+            raise failures[0][2]
+        # More than one position failed this run; there's no single original
+        # exception to reproduce, so synthesize a summary -- but chain it to
+        # the last original exception so the real cause is still visible.
+        raise RuntimeError(error) from failures[-1][2]
 
     return {"task_id": task_id, "results": len(existing_by_name) + len(produced)}

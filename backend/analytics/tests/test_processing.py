@@ -12,6 +12,16 @@ from features.models import FeatMap, Feature, FeatureCollection
 PENDING, DONE, LOCKED, QUEUED, FAILED = 0, 1, 2, 3, -1
 
 
+class _DistinctiveProcessorError(Exception):
+    """A processor failure type distinct from RuntimeError.
+
+    Used to prove that _run_extract_task re-raises the *original* caught
+    exception on total failure rather than always synthesizing a fresh
+    RuntimeError -- a synthesized RuntimeError would be indistinguishable
+    from a preserved one if every test injected RuntimeError as the failure.
+    """
+
+
 class ProcessingTestCase(TestCase):
     """_run_extract_task: per-resource processing and position-aligned storage.
 
@@ -131,16 +141,71 @@ class ProcessingTestCase(TestCase):
         task = self.make_task(resources, status=QUEUED)
 
         def broken(geometry, path, **kw):
-            raise RuntimeError("boom")
+            raise _DistinctiveProcessorError("boom")
 
         with mock.patch.object(processing, "get_func", return_value=broken):
-            with self.assertRaises(RuntimeError):
+            with self.assertRaises(_DistinctiveProcessorError) as cm:
                 _run_extract_task(task.id)
+
+        # The exact original exception -- type and message -- must propagate,
+        # not a synthesized RuntimeError wrapper.
+        self.assertEqual(type(cm.exception), _DistinctiveProcessorError)
+        self.assertEqual(cm.exception.args, ("boom",))
 
         task.refresh_from_db()
         self.assertEqual(task.status, FAILED)
         self.assertIn("boom", task.error)
         self.assertEqual(ExtractData.objects.filter(extract_task_id=task.id).count(), 0)
+
+    def test_grouped_task_all_resources_fail_raises_chained_runtime_error(self):
+        resources = self.make_resources(2)
+        task = self.make_task(resources, status=QUEUED)
+
+        def broken(geometry, path, **kw):
+            raise ValueError(f"boom-{path.stem}")
+
+        with mock.patch.object(processing, "get_func", return_value=broken):
+            with self.assertRaises(RuntimeError) as cm:
+                _run_extract_task(task.id)
+
+        # More than one position failed this run, so there's no single
+        # original exception to reproduce -- a summary RuntimeError is
+        # synthesized instead, but it must chain the last original exception
+        # as its cause rather than discarding it.
+        self.assertIsInstance(cm.exception.__cause__, ValueError)
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, FAILED)
+        self.assertEqual(ExtractData.objects.filter(extract_task_id=task.id).count(), 0)
+
+    def test_resource_ids_order_drives_position_alignment_not_db_order(self):
+        # resources are created in ascending DB id order (r0, r1, r2), but
+        # resource_ids below deliberately uses a different order -- this
+        # proves position alignment follows task.resource_ids, not the id__in
+        # query's (arbitrary) DB order. A regression that drops the by_id
+        # reindex and iterates the queryset directly would put r0's value at
+        # position 0 instead of r2's, failing this test.
+        r0, r1, r2 = self.make_resources(3)
+        task = self.make_task([r2, r0, r1], status=QUEUED)
+
+        call_log = []
+
+        def func(geometry, path, **kw):
+            call_log.append(path.stem)
+            idx = int(path.stem[-1])
+            return [("mean", float(idx) * 10)]
+
+        with mock.patch.object(processing, "get_func", return_value=func):
+            result = _run_extract_task(task.id)
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, DONE)
+        self.assertIsNotNone(result)
+
+        row = self.data_row(task, "mean")
+        # position 0 -> r2 (20.0), position 1 -> r0 (0.0), position 2 -> r1 (10.0)
+        self.assertEqual(row.float_values, [20.0, 0.0, 10.0])
+        self.assertEqual(call_log, ["r2", "r0", "r1"])
 
     # --- rerun only touches NULL positions ------------------------------------
 
