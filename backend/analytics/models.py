@@ -155,9 +155,18 @@ class ExtractData(models.Model):
 
     One row per (extract_task, name) -- see ExtractTask.resource_ids. Values
     are arrays position-aligned with the owning task's resource_ids: index i
-    here is the result for resource_ids[i]. A NULL at position i means that
-    resource still needs (re)processing -- see
-    analytics.tasks.processing._run_extract_task.
+    here is the result for resource_ids[i].
+
+    Two independent levels of NULL, not to be conflated:
+    - Column-level (float_values/int_values/str_values each nullable): only
+      ONE of the three is actually used per row, matching data_column --
+      exactly like the old scalar float_value/int_value/str_value columns
+      this replaced, where a row's value had one type and the other two
+      columns were simply irrelevant to it. The other two stay NULL, not an
+      array of NULLs.
+    - Element-level (each array's own field is null=True): within whichever
+      one column is in use, a NULL at position i means resource_ids[i] still
+      needs (re)processing -- see analytics.tasks.processing._run_extract_task.
     """
 
     extract_task = models.ForeignKey(
