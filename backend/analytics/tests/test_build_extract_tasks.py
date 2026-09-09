@@ -4,7 +4,7 @@ from django.contrib.gis.geos import Point
 from django.test import TransactionTestCase
 
 from analytics.management.commands.build_extract_tasks import _build_extract_tasks
-from analytics.models import ExtractTask, ProcessingOption
+from analytics.models import Coverage, ExtractTask, ProcessingOption
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
 
@@ -82,6 +82,32 @@ class BuildExtractTasksGroupingTest(TransactionTestCase):
             self.assertEqual(t.resource_ids, sorted(t.resource_ids))
             self.assertEqual(t.task_group_period, "year")
             self.assertEqual(t.dataset_id, d.id)
+
+    def test_non_global_dataset_one_task_per_resource(self):
+        d = Dataset.objects.create(
+            name="nonglobal_ds", path="/data/nonglobal_ds", active=True, is_global=False, task_group_period=None
+        )
+        po = ProcessingOption.objects.create(
+            dataset=d, short_name="mean", function="rasterstats_default_mean", active=True
+        )
+        r1 = DatasetResource.objects.create(
+            dataset=d, name="nonglobal_ds-r1", path="r1.tif", temporal=datetime(2020, 1, 1, tzinfo=timezone.utc)
+        )
+        r2 = DatasetResource.objects.create(
+            dataset=d, name="nonglobal_ds-r2", path="r2.tif", temporal=datetime(2020, 2, 1, tzinfo=timezone.utc)
+        )
+        fm = self._make_feature_and_fm(name="fc4")
+        Coverage.objects.create(geom=fm.geom, dataset=d, status=1)
+
+        _build_extract_tasks()
+
+        tasks = list(ExtractTask.objects.filter(dataset_id=d.id, po=po))
+        self.assertEqual(len(tasks), 2)
+        resource_id_sets = {tuple(t.resource_ids) for t in tasks}
+        self.assertEqual(resource_id_sets, {(r1.id,), (r2.id,)})
+        for t in tasks:
+            self.assertEqual(t.dataset_id, d.id)
+            self.assertIsNone(t.task_group_period)
 
     def test_claiming_prevents_duplicate_tasks_on_rerun(self):
         d = Dataset.objects.create(

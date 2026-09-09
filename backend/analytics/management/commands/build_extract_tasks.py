@@ -255,6 +255,32 @@ def _release_build_run_if_done(current_max_fm_id):
             cursor.execute(_RELEASE_RUN_SQL)
 
 
+def _claim_next_progress_pairs(current_max_fm_id, limit):
+    """Select the next page of claimable progress pairs and mark them claimed.
+
+    _NEXT_PROGRESS_PAIRS_SQL (SELECT ... FOR UPDATE SKIP LOCKED) and
+    _CLAIM_PROGRESS_PAIRS_SQL (the claiming UPDATE) are two separate
+    statements rather than one atomic CTE, so SKIP LOCKED is only exclusive
+    if both run inside the same transaction.atomic() block -- the assertion
+    below protects against a future call site that reuses this pair of
+    statements without remembering that wrapper.
+    """
+    assert transaction.get_connection().in_atomic_block, (
+        "must run inside transaction.atomic() -- SELECT ... FOR UPDATE SKIP LOCKED "
+        "and the claiming UPDATE must be part of the same transaction, or SKIP LOCKED "
+        "loses its exclusivity guarantee"
+    )
+    with connection.cursor() as cursor:
+        cursor.execute(_NEXT_PROGRESS_PAIRS_SQL, {
+            "current_max_fm_id": current_max_fm_id,
+            "limit": limit,
+        })
+        pairs = cursor.fetchall()
+        if pairs:
+            cursor.execute(_CLAIM_PROGRESS_PAIRS_SQL, [[p[0] for p in pairs]])
+        return pairs
+
+
 def _build_global_tasks(batch_size=BATCH_SIZE):
     """One parallel worker's share of the global-dataset backlog.
 
@@ -274,14 +300,7 @@ def _build_global_tasks(batch_size=BATCH_SIZE):
 
     while True:
         with transaction.atomic():
-            with connection.cursor() as cursor:
-                cursor.execute(_NEXT_PROGRESS_PAIRS_SQL, {
-                    "current_max_fm_id": current_max_fm_id,
-                    "limit": PAIRS_PER_ROUND,
-                })
-                pairs = cursor.fetchall()
-                if pairs:
-                    cursor.execute(_CLAIM_PROGRESS_PAIRS_SQL, [[p[0] for p in pairs]])
+            pairs = _claim_next_progress_pairs(current_max_fm_id, PAIRS_PER_ROUND)
 
         if not pairs:
             _release_build_run_if_done(current_max_fm_id)
