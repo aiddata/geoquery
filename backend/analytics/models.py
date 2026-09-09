@@ -151,16 +151,24 @@ class ExtractTaskBuildProgress(models.Model):
 
 
 class ExtractData(models.Model):
-    """Extract data table for storing extraction results."""
+    """Extract data table for storing extraction results.
+
+    One row per (extract_task, name) -- see ExtractTask.resource_ids. Values
+    are arrays position-aligned with the owning task's resource_ids: index i
+    here is the result for resource_ids[i]. A NULL at position i means that
+    resource still needs (re)processing -- see
+    analytics.tasks.processing._run_extract_task.
+    """
 
     extract_task = models.ForeignKey(
         ExtractTask, on_delete=models.CASCADE, db_column="extract_task_id"
     )
+    dataset_id = models.IntegerField()
     name = models.CharField(max_length=100, blank=True, null=True)
     data_column = models.CharField(max_length=100, blank=True, null=True)
-    float_value = models.FloatField(blank=True, null=True)
-    int_value = models.BigIntegerField(blank=True, null=True)
-    str_value = models.CharField(max_length=100, blank=True, null=True)
+    float_values = ArrayField(models.FloatField(null=True), blank=True, null=True)
+    int_values = ArrayField(models.BigIntegerField(null=True), blank=True, null=True)
+    str_values = ArrayField(models.CharField(max_length=100, null=True), blank=True, null=True)
 
     class Meta:
         db_table = "extract_data"

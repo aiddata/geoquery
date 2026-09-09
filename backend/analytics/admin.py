@@ -54,9 +54,9 @@ class ExtractDataAdmin(admin.ModelAdmin):
         "id",
         "name",
         "data_column",
-        "float_value",
-        "int_value",
-        "str_value",
+        "float_values",
+        "int_values",
+        "str_values",
     )
     list_filter = ("id", "name")
     search_fields = ("id", "name")
