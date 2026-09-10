@@ -1,7 +1,15 @@
+from django.contrib.gis.geos import Point
 from django.db import connection
 from django.test import TestCase
 
-from analytics.models import ExtractData, ExtractTask, ExtractTaskBuildProgress
+from analytics.models import (
+    ExtractData,
+    ExtractTask,
+    ExtractTaskBuildProgress,
+    ProcessingOption,
+)
+from datasets.models import Dataset, DatasetResource
+from features.models import FeatMap, Feature, FeatureCollection
 
 
 class ExtractTaskResourceIdsTest(TestCase):
@@ -22,6 +30,55 @@ class ExtractTaskResourceIdsTest(TestCase):
         self.assertIn("resource_ids", field_names)
         self.assertIn("dataset_id", field_names)
         self.assertIn("task_group_period", field_names)
+
+
+class ExtractTaskResourceIdsHashTest(TestCase):
+    def test_resource_ids_hash_column_exists_and_generated(self):
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT data_type, is_generated FROM information_schema.columns
+                WHERE table_name = 'extract_tasks' AND column_name = 'resource_ids_hash'
+            """)
+            row = cursor.fetchone()
+        self.assertIsNotNone(row, "resource_ids_hash column does not exist")
+        self.assertEqual(row[0], "integer")
+        self.assertEqual(row[1], "ALWAYS")
+
+    def test_resource_ids_hash_matches_hashtext_of_array(self):
+        dataset = Dataset.objects.create(name="hashtest", path="hashtest", active=True)
+        resource = DatasetResource.objects.create(dataset=dataset, name="r1", path="r1.tif")
+        po = ProcessingOption.objects.create(
+            dataset=dataset, short_name="mean", function="rasterstats_default_mean", active=True
+        )
+        fc = FeatureCollection.objects.create(name="fc-hash", path="/data/fc-hash", active=True)
+        feat = Feature.objects.create(shape=Point(0, 0))
+        fm = FeatMap.objects.create(fc=fc, geom=feat)
+
+        task = ExtractTask.objects.create(
+            dataset_id=dataset.id, resource_ids=[resource.id], fm=fm, po=po,
+        )
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT hashtext(%s::text)", [[resource.id]])
+            expected_hash = cursor.fetchone()[0]
+
+        task.refresh_from_db()
+        self.assertEqual(task.resource_ids_hash, expected_hash)
+
+    def test_unique_indexes_use_hash_column(self):
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT indexdef FROM pg_indexes
+                WHERE tablename = 'extract_tasks'
+                  AND indexname IN (
+                      'extract_tasks_fm_po_resources_null_kwargs_idx',
+                      'extract_tasks_fm_po_resources_kwargs_hash_idx'
+                  )
+            """)
+            defs = [row[0] for row in cursor.fetchall()]
+        self.assertEqual(len(defs), 2)
+        for indexdef in defs:
+            self.assertIn("resource_ids_hash", indexdef)
+            self.assertNotIn("resource_ids)", indexdef)
 
 
 class ExtractDataArraysTest(TestCase):

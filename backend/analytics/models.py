@@ -6,6 +6,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
+from django.db.models import F, Func
 from django.db.models.functions import Lower
 from django.utils import timezone
 
@@ -77,10 +78,39 @@ class ExtractTask(models.Model):
     year-bucketed monthly dataset). Position i in resource_ids corresponds to
     position i in each ExtractData row's value arrays for this task -- see
     ExtractData below.
+
+    resource_ids_hash is a stored generated column (hashtext(resource_ids::
+    text), computed value-for-value identical to a direct hashtext() call)
+    that both resource_ids-keyed unique indexes below key on instead of the
+    raw array: resource_ids can run up to 12 elements (~72 bytes/entry) for
+    a grouped task, vs a fixed 4-byte hash, and resource_ids was the single
+    largest index in the schema before this column existed (see migration
+    0024). Postgres maintains it automatically on every insert/update --
+    application code never writes to it directly.
+
+    The expression can't literally be hashtext(resource_ids::text): Postgres
+    marks the generic array-to-text cast (array_out) STABLE rather than
+    IMMUTABLE (it can't assume every element type's output function is
+    immutable, even though int4's always is), and a GENERATED column
+    expression must be IMMUTABLE. migration 0024 works around this by
+    defining extract_tasks_resource_ids_hash(integer[]), a tiny SQL function
+    declared IMMUTABLE -- safe here specifically because int4[]::text has no
+    locale/session-dependent behavior -- whose body is exactly
+    hashtext($1::text). Func() below calls that function directly rather
+    than reconstructing the cast+hashtext expression in Python, so this
+    declaration matches what's actually in the database.
     """
 
     id = models.AutoField(primary_key=True)
     resource_ids = ArrayField(models.IntegerField())
+    resource_ids_hash = models.GeneratedField(
+        expression=Func(
+            F("resource_ids"),
+            function="extract_tasks_resource_ids_hash",
+        ),
+        output_field=models.IntegerField(),
+        db_persist=True,
+    )
     # Plain integer rather than ForeignKey(Dataset, ...): extract_tasks is
     # partitioned by dataset_id (see the partitioning migration), and a task's
     # dataset is already reachable via fm/po/resource_ids -- this column
