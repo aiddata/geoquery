@@ -163,13 +163,23 @@ class ExtractData(models.Model):
     - Element-level (each array's own field is null=True): within whichever
       one column is in use, a NULL at position i means resource_ids[i] still
       needs (re)processing -- see analytics.tasks.processing._run_extract_task.
+
+    Primary key is the natural (dataset_id, extract_task_id, name) tuple, not
+    a surrogate id -- (extract_task, name) was always the real uniqueness
+    constraint (confirmed: 0 duplicates in production data before this
+    migration), and dataset_id must lead per Postgres's partition-key
+    requirement for any PK/unique constraint on this LIST-partitioned table.
+    Dropping the surrogate id removes its own now-redundant PK index
+    entirely, rather than keeping it alongside a second uniqueness
+    constraint that would give none of the storage benefit.
     """
 
+    pk = models.CompositePrimaryKey("dataset_id", "extract_task", "name")
     extract_task = models.ForeignKey(
         ExtractTask, on_delete=models.CASCADE, db_column="extract_task_id"
     )
     dataset_id = models.IntegerField()
-    name = models.CharField(max_length=100, blank=True, null=True)
+    name = models.CharField(max_length=100)
     data_column = models.CharField(max_length=100, blank=True, null=True)
     float_values = ArrayField(models.FloatField(null=True), blank=True, null=True)
     int_values = ArrayField(models.BigIntegerField(null=True), blank=True, null=True)

@@ -48,6 +48,38 @@ class ExtractDataArraysTest(TestCase):
                 self.assertEqual(row[0], "ARRAY", f"{col} is not an array type")
                 self.assertEqual(row[1], udt, f"{col} has unexpected udt_name {row[1]}")
 
+    def test_composite_primary_key_at_db_level(self):
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT kcu.column_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                    ON kcu.constraint_name = tc.constraint_name
+                    AND kcu.table_name = tc.table_name
+                WHERE tc.table_name = 'extract_data' AND tc.constraint_type = 'PRIMARY KEY'
+                ORDER BY kcu.ordinal_position
+            """)
+            pk_columns = [row[0] for row in cursor.fetchall()]
+        self.assertEqual(pk_columns, ["dataset_id", "extract_task_id", "name"])
+
+    def test_id_column_removed(self):
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT count(*) FROM information_schema.columns
+                WHERE table_name = 'extract_data' AND column_name = 'id'
+            """)
+            count = cursor.fetchone()[0]
+        self.assertEqual(count, 0, "id column should be removed")
+
+    def test_name_is_not_null_at_db_level(self):
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT is_nullable FROM information_schema.columns
+                WHERE table_name = 'extract_data' AND column_name = 'name'
+            """)
+            is_nullable = cursor.fetchone()[0]
+        self.assertEqual(is_nullable, "NO")
+
 
 class ExtractTaskBuildProgressArrayTest(TestCase):
     def test_resource_ids_array(self):
