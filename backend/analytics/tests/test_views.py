@@ -1,6 +1,7 @@
 from unittest import mock
 
 from django.db import IntegrityError
+from django.db.models.expressions import RawSQL
 from django.test import TestCase
 from django.urls import reverse
 
@@ -151,9 +152,13 @@ class RequestViewStandardSubmissionTest(TestCase):
             po=self.po,
             kwargs=None,
         )
+        expected_hash = RawSQL(
+            "extract_tasks_resource_ids_hash(%s)", [[self.resource.id]]
+        )
         expected_get_kwargs = {
             "dataset_id": self.dataset.id,
             "resource_ids": [self.resource.id],
+            "resource_ids_hash": expected_hash,
             "fm": self.fm,
             "po": self.po,
             "kwargs__isnull": True,
