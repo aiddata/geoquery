@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.db.models import Q
+from django.db.models.expressions import RawSQL
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -214,10 +215,23 @@ class RequestView(APIView):
                 )
                 continue
 
-            # The functional unique indexes (migration 0022) are:
-            #   (dataset_id, fm_id, po_id, resource_ids) WHERE kwargs IS NULL
-            #   (dataset_id, fm_id, po_id, resource_ids, MD5(kwargs::text))
+            # The functional unique indexes (migration 0024) are:
+            #   (dataset_id, fm_id, po_id, resource_ids_hash) WHERE kwargs IS NULL
+            #   (dataset_id, fm_id, po_id, resource_ids_hash, MD5(kwargs::text))
             #       WHERE kwargs IS NOT NULL
+            # resource_ids_hash is a stored generated column computed via the
+            # extract_tasks_resource_ids_hash(integer[]) SQL function (see
+            # migration 0024 -- plain hashtext(resource_ids::text) can't back
+            # a GENERATED column since the generic array cast is only STABLE,
+            # not IMMUTABLE). Filtering on it directly here, via the same
+            # function, lets Postgres use an exact index hit on all four
+            # columns instead of a 3-column prefix (dataset_id, fm_id, po_id)
+            # followed by a heap recheck of resource_ids. Still also filter on
+            # resource_ids itself (not just the hash) so a hash collision --
+            # vanishingly unlikely, but hashtext() is a 32-bit hash -- can
+            # never return the wrong row; the hash is purely an index-
+            # selectivity optimization, resource_ids remains the actual
+            # correctness check.
             # Django JSONField maps None to JSON null for equality queries, but
             # rows with no kwargs (e.g. from build_extract_tasks) have SQL NULL.
             # Use isnull lookup for the None case so the GET matches SQL NULL rows.
@@ -229,20 +243,32 @@ class RequestView(APIView):
             task_ids = []
             for fm in fms:
                 for resource in resource_list:
+                    # Depends only on resource, not po -- computed once per
+                    # resource rather than once per (resource, po) pair.
+                    resource_ids = [resource.id]
+                    resource_ids_hash = RawSQL(
+                        "extract_tasks_resource_ids_hash(%s)", [resource_ids]
+                    )
                     for po in pos:
                         try:
                             task = ExtractTask.objects.get(
                                 dataset_id=dataset_obj.id,
-                                resource_ids=[resource.id],
+                                resource_ids=resource_ids,
+                                resource_ids_hash=resource_ids_hash,
                                 fm=fm,
                                 po=po,
                                 **kwargs_lookup,
                             )
                         except ExtractTask.DoesNotExist:
                             try:
+                                # resource_ids_hash is NOT set here -- it's a
+                                # generated column (migration 0024), Postgres
+                                # computes it automatically from resource_ids
+                                # on INSERT; explicitly setting a generated
+                                # column's value raises an error.
                                 task = ExtractTask.objects.create(
                                     dataset_id=dataset_obj.id,
-                                    resource_ids=[resource.id],
+                                    resource_ids=resource_ids,
                                     fm=fm,
                                     po=po,
                                     kwargs=task_kwargs,
@@ -250,7 +276,8 @@ class RequestView(APIView):
                             except IntegrityError:
                                 task = ExtractTask.objects.get(
                                     dataset_id=dataset_obj.id,
-                                    resource_ids=[resource.id],
+                                    resource_ids=resource_ids,
+                                    resource_ids_hash=resource_ids_hash,
                                     fm=fm,
                                     po=po,
                                     **kwargs_lookup,

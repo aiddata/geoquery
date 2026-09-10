@@ -6,7 +6,6 @@ from .models import (
     Coverage,
     ProcessingOption,
     ExtractTask,
-    ExtractData,
     Request,
     RequestMap,
 )
@@ -48,18 +47,13 @@ class ExtractTaskAdmin(admin.ModelAdmin):
     search_fields = ("id",)
 
 
-@admin.register(ExtractData)
-class ExtractDataAdmin(admin.ModelAdmin):
-    list_display = (
-        "id",
-        "name",
-        "data_column",
-        "float_values",
-        "int_values",
-        "str_values",
-    )
-    list_filter = ("id", "name")
-    search_fields = ("id", "name")
+# ExtractData is intentionally NOT registered here: it now has a
+# CompositePrimaryKey (dataset_id, extract_task, name) rather than a
+# surrogate id, and Django 5.2's admin unconditionally refuses to register
+# any model where `model._meta.is_composite_pk` is true (AdminSite.register
+# raises ImproperlyConfigured, regardless of ModelAdmin configuration) --
+# there is currently no ModelAdmin option to work around this, so an admin
+# UI for this table is not available until Django adds support.
 
 
 @admin.register(Request)

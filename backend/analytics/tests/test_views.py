@@ -1,6 +1,7 @@
 from unittest import mock
 
 from django.db import IntegrityError
+from django.db.models.expressions import RawSQL
 from django.test import TestCase
 from django.urls import reverse
 
@@ -13,8 +14,10 @@ class RequestViewStandardSubmissionTest(TestCase):
     """RequestView.post's standard (non-custom-boundary) submission path.
 
     Covers the on-demand ExtractTask get-or-create against the migration
-    0022 unique indexes on (dataset_id, fm_id, po_id, resource_ids[, kwargs
-    hash]), and RequestMap rows carrying the matching dataset_id.
+    0022 unique indexes (rebuilt by migration 0024 to key on
+    resource_ids_hash instead of raw resource_ids) on (dataset_id, fm_id,
+    po_id, resource_ids_hash[, kwargs hash]), and RequestMap rows carrying
+    the matching dataset_id.
     """
 
     def setUp(self):
@@ -151,9 +154,13 @@ class RequestViewStandardSubmissionTest(TestCase):
             po=self.po,
             kwargs=None,
         )
+        expected_hash = RawSQL(
+            "extract_tasks_resource_ids_hash(%s)", [[self.resource.id]]
+        )
         expected_get_kwargs = {
             "dataset_id": self.dataset.id,
             "resource_ids": [self.resource.id],
+            "resource_ids_hash": expected_hash,
             "fm": self.fm,
             "po": self.po,
             "kwargs__isnull": True,
