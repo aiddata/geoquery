@@ -243,11 +243,13 @@ class RequestView(APIView):
             task_ids = []
             for fm in fms:
                 for resource in resource_list:
+                    # Depends only on resource, not po -- computed once per
+                    # resource rather than once per (resource, po) pair.
+                    resource_ids = [resource.id]
+                    resource_ids_hash = RawSQL(
+                        "extract_tasks_resource_ids_hash(%s)", [resource_ids]
+                    )
                     for po in pos:
-                        resource_ids = [resource.id]
-                        resource_ids_hash = RawSQL(
-                            "extract_tasks_resource_ids_hash(%s)", [resource_ids]
-                        )
                         try:
                             task = ExtractTask.objects.get(
                                 dataset_id=dataset_obj.id,
@@ -259,6 +261,11 @@ class RequestView(APIView):
                             )
                         except ExtractTask.DoesNotExist:
                             try:
+                                # resource_ids_hash is NOT set here -- it's a
+                                # generated column (migration 0024), Postgres
+                                # computes it automatically from resource_ids
+                                # on INSERT; explicitly setting a generated
+                                # column's value raises an error.
                                 task = ExtractTask.objects.create(
                                     dataset_id=dataset_obj.id,
                                     resource_ids=resource_ids,

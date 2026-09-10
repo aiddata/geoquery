@@ -14,8 +14,10 @@ class RequestViewStandardSubmissionTest(TestCase):
     """RequestView.post's standard (non-custom-boundary) submission path.
 
     Covers the on-demand ExtractTask get-or-create against the migration
-    0022 unique indexes on (dataset_id, fm_id, po_id, resource_ids[, kwargs
-    hash]), and RequestMap rows carrying the matching dataset_id.
+    0022 unique indexes (rebuilt by migration 0024 to key on
+    resource_ids_hash instead of raw resource_ids) on (dataset_id, fm_id,
+    po_id, resource_ids_hash[, kwargs hash]), and RequestMap rows carrying
+    the matching dataset_id.
     """
 
     def setUp(self):
