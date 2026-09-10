@@ -3,12 +3,22 @@ from django.db import migrations, models
 
 # extract_data currently has ~1.27M rows in production and growing --
 # unlike migration 0017's wipe-first approach, this ALTERs a live,
-# non-empty table. Both operations below are cheap at this row count
-# (NOT NULL validation and PK constraint validation are both single
-# sequential scans, no full rewrite), but on a much larger table in the
-# future this pattern would need CONCURRENTLY-style staging (add the
-# constraint NOT VALID, then VALIDATE CONSTRAINT separately) rather than
-# a straight ADD CONSTRAINT -- not needed yet at current volume.
+# non-empty table. All four statements run as ALTER TABLE against the
+# same table in one migration transaction (this migration is not marked
+# atomic=False), so ACCESS EXCLUSIVE is held continuously from the first
+# statement through commit -- every read and write to extract_data
+# (including live processing-worker inserts/updates) blocks for that
+# whole span, not just during the constraint work. The validation itself
+# is cheap at this row count (NOT NULL and PK-constraint validation are
+# each a single sequential scan, no full table rewrite), so the expected
+# stall is seconds, not minutes -- but "cheap" was not benchmarked against
+# a prod-sized copy before this migration was written. Time it against a
+# realistic row count before deploying, and prefer a lower-traffic window
+# regardless. On a much larger table in the future this pattern would need
+# CONCURRENTLY-style staging (add the constraint NOT VALID, then VALIDATE
+# CONSTRAINT separately, which takes a lighter SHARE UPDATE EXCLUSIVE lock
+# instead) rather than a straight ADD CONSTRAINT -- not needed yet at
+# current volume, but the next order of magnitude up, it will be.
 #
 # extract_data_pkey is currently PRIMARY KEY (dataset_id, id) (see
 # migration 0021 -- dataset_id leads because Postgres requires the
