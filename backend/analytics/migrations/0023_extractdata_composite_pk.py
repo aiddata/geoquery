@@ -67,7 +67,9 @@ class Migration(migrations.Migration):
                 migrations.AddField(
                     model_name="extractdata",
                     name="pk",
-                    field=models.CompositePrimaryKey("dataset_id", "extract_task", "name"),
+                    field=models.CompositePrimaryKey(
+                        "dataset_id", "extract_task", "name", serialize=False
+                    ),
                 ),
             ],
         ),
