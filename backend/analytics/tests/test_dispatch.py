@@ -1,8 +1,10 @@
+import threading
 from datetime import timedelta
 from unittest import mock
 
 from django.contrib.gis.geos import Point
-from django.test import TestCase
+from django.db import connection
+from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 
 from analytics.management.commands.free_stale_processing_tasks import _free_stale_tasks
@@ -211,6 +213,81 @@ class DispatchTestCase(TestCase):
             self.statuses(stale_locked, stale_queued, fresh_queued, stale_done),
             [PENDING, PENDING, QUEUED, DONE],
         )
+
+
+class ClaimLockContentionTest(TransactionTestCase):
+    """Real concurrent claimers, on real separate connections.
+
+    claim_pending_tasks now serializes on pg_advisory_xact_lock (see its
+    docstring): concurrent callers should queue on that lock and each walk
+    away with a disjoint set of ids, rather than racing FOR UPDATE SKIP
+    LOCKED against each other. This needs TransactionTestCase (real commits,
+    real separate DB connections per thread) -- TestCase's single wrapping
+    transaction can't reproduce genuine concurrency, per the note on
+    DispatchTestCase above.
+    """
+
+    def setUp(self):
+        dataset = Dataset.objects.create(name="ds", path="/data/ds", active=True)
+        self.resource = DatasetResource.objects.create(
+            dataset=dataset, name="ds-2020", path="2020.tif"
+        )
+        self.po = ProcessingOption.objects.create(
+            dataset=dataset,
+            short_name="mean",
+            function="rasterstats_default_mean",
+            active=True,
+        )
+        fc = FeatureCollection.objects.create(name="fc", path="/data/fc", active=True)
+        self.fm = FeatMap.objects.create(fc=fc, geom=Feature.objects.create(shape=Point(0, 0)))
+
+        self.tasks = []
+        tied_time = timezone.now() - timedelta(hours=1)
+        for n in range(20):
+            task = ExtractTask.objects.create(
+                resource_ids=[self.resource.id],
+                dataset_id=self.resource.dataset_id,
+                fm=self.fm,
+                po=self.po,
+                kwargs={"n": n},
+            )
+            self.tasks.append(task)
+        ExtractTask.objects.filter(id__in=[t.id for t in self.tasks]).update(
+            submit_time=tied_time, update_time=tied_time
+        )
+
+    def test_concurrent_single_claims_are_disjoint_and_complete(self):
+        results = [None] * 20
+        errors = []
+
+        def claim_one(i):
+            try:
+                results[i] = claim_pending_tasks(1)
+            except Exception as exc:  # pragma: no cover - surfaced via errors below
+                errors.append(exc)
+            finally:
+                connection.close()
+
+        threads = [threading.Thread(target=claim_one, args=(i,)) for i in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+        self.assertEqual(errors, [])
+        self.assertTrue(all(t.is_alive() is False for t in threads))
+
+        claimed_ids = [cid for r in results for cid in (r or [])]
+        self.assertEqual(len(claimed_ids), 20, "every task should be claimed exactly once")
+        self.assertEqual(len(set(claimed_ids)), 20, "no task should be claimed twice")
+        self.assertEqual(set(claimed_ids), {t.id for t in self.tasks})
+
+        statuses = set(
+            ExtractTask.objects.filter(id__in=[t.id for t in self.tasks]).values_list(
+                "status", flat=True
+            )
+        )
+        self.assertEqual(statuses, {QUEUED})
 
 
 class BeatDispatchTests(TestCase):

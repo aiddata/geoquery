@@ -52,6 +52,12 @@ def _classify_value(value):
         return "str", str(value)
 
 
+# Distinct from accounts.adopt_auth_user's ADVISORY_LOCK_ID (8419307742115) --
+# any int8 works for pg_advisory_xact_lock as long as it doesn't collide with
+# another lock use in the codebase.
+CLAIM_LOCK_ID = 8419307742201
+
+
 def claim_pending_tasks(limit=1):
     """Move up to ``limit`` pending tasks (status=0) to queued (status=3).
 
@@ -70,37 +76,52 @@ def claim_pending_tasks(limit=1):
     large tied group -- every claimer effectively circles the same ambiguous
     block instead of cleanly dividing sequential work, and skip-distance
     grows with the tied-group size rather than just the concurrency level.
-    Under enough concurrent claimers against a big enough tied group, that
-    turns into a real feedback loop (each claim gets slower -> more claimers
-    pile up concurrently -> claims get slower still), observed in production
-    collapsing throughput from ~130/s to ~2-3/s once the backlog grew large.
     `id` is already unique and monotonic, so it's a free, always-available
     tiebreaker -- see migration 0025, which adds it to
     extract_tasks_pending_idx so this ORDER BY can still be served by an
     index-only scan of the partial index rather than falling back to a sort.
+
+    The id tiebreaker alone wasn't enough at production scale: run_extract_task
+    self-chains (see its docstring below), so every worker slot calls this
+    with limit=1 the instant it finishes a task. With ~150+ slots across the
+    fleet, that's dozens of transactions concurrently racing FOR UPDATE SKIP
+    LOCKED over the same handful of leading index rows -- each one has to
+    step past every row the others have already locked, so the work to find
+    an open row grows with the number of simultaneous claimers, not the
+    backlog. Observed in production: individual claim statements taking
+    3-6 seconds under load, throughput collapsing to ~2/s regardless of
+    worker count, even with the id tiebreaker in place. pg_advisory_xact_lock
+    forces those transactions to queue up and claim one at a time instead of
+    fighting over the same rows in parallel -- each claim is a few
+    milliseconds once uncontended, so serializing them costs far less than
+    the skip-scan pileup it replaces. The lock is transaction-scoped (held
+    for exactly the duration of the claim below) and releases automatically
+    on commit, including on exception.
     """
     # RETURNING gives no ordering guarantee, so re-sort the (at most `limit`)
     # claimed rows: the beat dispatches its batch in the order returned here.
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            WITH claimed AS (
-                UPDATE extract_tasks
-                SET status = 3, update_time = NOW()
-                WHERE id IN (
-                    SELECT id FROM extract_tasks
-                    WHERE status = 0
-                    ORDER BY priority DESC, submit_time ASC, id ASC
-                    FOR UPDATE SKIP LOCKED
-                    LIMIT %s
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(%s)", [CLAIM_LOCK_ID])
+            cursor.execute(
+                """
+                WITH claimed AS (
+                    UPDATE extract_tasks
+                    SET status = 3, update_time = NOW()
+                    WHERE id IN (
+                        SELECT id FROM extract_tasks
+                        WHERE status = 0
+                        ORDER BY priority DESC, submit_time ASC, id ASC
+                        FOR UPDATE SKIP LOCKED
+                        LIMIT %s
+                    )
+                    RETURNING id, priority, submit_time
                 )
-                RETURNING id, priority, submit_time
+                SELECT id FROM claimed ORDER BY priority DESC, submit_time ASC, id ASC
+                """,
+                [limit],
             )
-            SELECT id FROM claimed ORDER BY priority DESC, submit_time ASC, id ASC
-            """,
-            [limit],
-        )
-        return [row[0] for row in cursor.fetchall()]
+            return [row[0] for row in cursor.fetchall()]
 
 
 def dispatch_pending_tasks(limit=1):
