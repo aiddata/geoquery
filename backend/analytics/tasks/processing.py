@@ -88,40 +88,62 @@ def claim_pending_tasks(limit=1):
     LOCKED over the same handful of leading index rows -- each one has to
     step past every row the others have already locked, so the work to find
     an open row grows with the number of simultaneous claimers, not the
-    backlog. Observed in production: individual claim statements taking
-    3-6 seconds under load, throughput collapsing to ~2/s regardless of
-    worker count, even with the id tiebreaker in place. pg_advisory_xact_lock
-    forces those transactions to queue up and claim one at a time instead of
-    fighting over the same rows in parallel -- each claim is a few
-    milliseconds once uncontended, so serializing them costs far less than
-    the skip-scan pileup it replaces. The lock is transaction-scoped (held
-    for exactly the duration of the claim below) and releases automatically
-    on commit, including on exception.
+    backlog. pg_advisory_xact_lock forces those transactions to queue up and
+    claim one at a time instead of fighting over the same rows in parallel.
+    The lock is transaction-scoped (held for exactly the duration of the
+    claim below) and releases automatically on commit, including on
+    exception.
+
+    Neither of those was the dominant cost, though. extract_tasks is LIST
+    partitioned on dataset_id, which the claim doesn't know ahead of time --
+    a single `UPDATE extract_tasks SET ... WHERE id IN (SELECT ... FOR
+    UPDATE SKIP LOCKED LIMIT %s)` statement can't prune partitions on `id`
+    alone, so Postgres re-runs the entire inner SELECT once per partition's
+    per-partition Update node (the SKIP LOCKED subquery has row-locking side
+    effects, so its result can't be cached and reused across those checks)
+    -- O(partitions^2) scans for a single claim. Measured on production (58
+    partitions, ~76M pending rows): 4.1 seconds for one row, matching the
+    "3-6 second claim statements" seen both before and after the advisory
+    lock above went in -- this was the actual bottleneck the whole time,
+    serialized or not. Splitting into two statements fixes it: the SELECT
+    below already returns dataset_id (the partition key) alongside id, so
+    the UPDATE can join on (dataset_id, id) and let Postgres prune straight
+    to the owning partition per row -- confirmed via EXPLAIN ANALYZE: 0.2ms
+    versus 4.1s for the same claim.
     """
-    # RETURNING gives no ordering guarantee, so re-sort the (at most `limit`)
-    # claimed rows: the beat dispatches its batch in the order returned here.
     with transaction.atomic():
         with connection.cursor() as cursor:
             cursor.execute("SELECT pg_advisory_xact_lock(%s)", [CLAIM_LOCK_ID])
             cursor.execute(
                 """
-                WITH claimed AS (
-                    UPDATE extract_tasks
-                    SET status = 3, update_time = NOW()
-                    WHERE id IN (
-                        SELECT id FROM extract_tasks
-                        WHERE status = 0
-                        ORDER BY priority DESC, submit_time ASC, id ASC
-                        FOR UPDATE SKIP LOCKED
-                        LIMIT %s
-                    )
-                    RETURNING id, priority, submit_time
-                )
-                SELECT id FROM claimed ORDER BY priority DESC, submit_time ASC, id ASC
+                SELECT id, dataset_id FROM extract_tasks
+                WHERE status = 0
+                ORDER BY priority DESC, submit_time ASC, id ASC
+                FOR UPDATE SKIP LOCKED
+                LIMIT %s
                 """,
                 [limit],
             )
-            return [row[0] for row in cursor.fetchall()]
+            rows = cursor.fetchall()
+            if not rows:
+                return []
+
+            # dataset_id (the partition key) rides along so the UPDATE below
+            # can prune to one partition per row instead of probing all of
+            # them -- see the docstring above.
+            ids = [task_id for task_id, _ in rows]
+            values_clause = ", ".join(["(%s, %s)"] * len(rows))
+            params = [param for task_id, dataset_id in rows for param in (dataset_id, task_id)]
+            cursor.execute(
+                f"""
+                UPDATE extract_tasks AS t
+                SET status = 3, update_time = NOW()
+                FROM (VALUES {values_clause}) AS v(dataset_id, id)
+                WHERE t.dataset_id = v.dataset_id AND t.id = v.id
+                """,
+                params,
+            )
+            return ids
 
 
 def dispatch_pending_tasks(limit=1):
