@@ -236,7 +236,16 @@ def _run_extract_task(task_id):
 
         task.status = 2
         task.update_time = now()
-        task.save(update_fields=["status", "update_time"])
+        # Explicit filter, not task.save() -- save() would only filter by id,
+        # and (like claim_pending_tasks before it) an UPDATE without the
+        # dataset_id partition key doesn't get the same per-partition index
+        # seek a SELECT does: it falls back to a full local-index scan on
+        # every partition. Confirmed via EXPLAIN ANALYZE against production:
+        # a bare `WHERE id = X` update took 3.2s; adding dataset_id dropped
+        # it to sub-millisecond.
+        ExtractTask.objects.filter(id=task_id, dataset_id=task.dataset_id).update(
+            status=2, update_time=task.update_time
+        )
 
     # Setup (resolving resources/func/geometry) and the merge-into-ExtractData
     # step can both raise unexpectedly; catch that the same way the old code
@@ -359,7 +368,9 @@ def _run_extract_task(task_id):
 
     except Exception as exc:
         logger.exception("Task %s failed: %s", task_id, exc)
-        ExtractTask.objects.filter(id=task_id).update(
+        # dataset_id included so this prunes to one partition instead of
+        # scanning all of them -- see the status=2 update above.
+        ExtractTask.objects.filter(id=task_id, dataset_id=task.dataset_id).update(
             status=-1, error=repr(exc)[:100]
         )
         raise
@@ -379,7 +390,11 @@ def _run_extract_task(task_id):
     incomplete_positions = failed_positions | null_positions
 
     if not incomplete_positions:
-        ExtractTask.objects.filter(id=task_id).update(status=1, complete_time=now())
+        # dataset_id included so this prunes to one partition -- see the
+        # status=2 update earlier in this function.
+        ExtractTask.objects.filter(id=task_id, dataset_id=task.dataset_id).update(
+            status=1, complete_time=now()
+        )
         logger.info("Task %s completed", task_id)
         return {"task_id": task_id, "results": len(all_names)}
 
@@ -387,7 +402,9 @@ def _run_extract_task(task_id):
     if null_positions - failed_positions:
         parts.append(f"positions still null: {sorted(null_positions - failed_positions)}")
     error = "; ".join(parts)[:100]
-    ExtractTask.objects.filter(id=task_id).update(status=-1, error=error)
+    ExtractTask.objects.filter(id=task_id, dataset_id=task.dataset_id).update(
+        status=-1, error=error
+    )
     logger.warning(
         "Task %s incomplete: positions %s still outstanding after this run",
         task_id, sorted(incomplete_positions),
