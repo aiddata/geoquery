@@ -74,6 +74,24 @@ class DispatchTestCase(TestCase):
         self.assertEqual(claim_pending_tasks(2), [urgent.id, old.id])
         self.assertEqual(self.statuses(urgent, old, new), [QUEUED, QUEUED, PENDING])
 
+    def test_claim_breaks_priority_and_submit_time_ties_by_id(self):
+        # build_extract_tasks inserts in batches sharing one NOW() per
+        # INSERT, so many real rows carry identical (priority, submit_time)
+        # -- explicitly backdate all three to the exact same timestamp here
+        # to reproduce that tie, rather than relying on auto_now_add's
+        # natural (and not guaranteed-distinct) timing.
+        tied_time = timezone.now() - timedelta(hours=1)
+        first = self.make_task()
+        second = self.make_task()
+        third = self.make_task()
+        ExtractTask.objects.filter(id__in=[first.id, second.id, third.id]).update(
+            submit_time=tied_time, update_time=tied_time
+        )
+
+        self.assertEqual(
+            claim_pending_tasks(3), [first.id, second.id, third.id]
+        )
+
     def test_successive_claims_are_disjoint(self):
         a, b, c = self.make_task(), self.make_task(), self.make_task()
 

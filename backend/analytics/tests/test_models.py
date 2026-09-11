@@ -138,6 +138,18 @@ class ExtractDataArraysTest(TestCase):
         self.assertEqual(is_nullable, "NO")
 
 
+class ExtractTaskPendingIdxTiebreakerTest(TestCase):
+    def test_pending_idx_includes_id_column(self):
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT indexdef FROM pg_indexes
+                WHERE tablename = 'extract_tasks' AND indexname = 'extract_tasks_pending_idx'
+            """)
+            row = cursor.fetchone()
+        self.assertIsNotNone(row, "extract_tasks_pending_idx does not exist")
+        self.assertIn("id", row[0].split("(")[1].split(")")[0])
+
+
 class ExtractTaskBuildProgressArrayTest(TestCase):
     def test_resource_ids_array(self):
         field_names = {f.name for f in ExtractTaskBuildProgress._meta.get_fields()}

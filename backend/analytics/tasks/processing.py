@@ -55,13 +55,29 @@ def _classify_value(value):
 def claim_pending_tasks(limit=1):
     """Move up to ``limit`` pending tasks (status=0) to queued (status=3).
 
-    Returns the claimed ids, highest priority then oldest first. Because the
-    rows are claimed in the same statement that selects them, concurrent
-    callers get disjoint sets: FOR UPDATE SKIP LOCKED steps past rows another
-    transaction is claiming rather than waiting on them or handing out the
-    same row twice. A queued row whose message never arrives (broker outage,
-    worker killed mid-publish) is returned to pending by
+    Returns the claimed ids, highest priority then oldest first (ties broken
+    by id). Because the rows are claimed in the same statement that selects
+    them, concurrent callers get disjoint sets: FOR UPDATE SKIP LOCKED steps
+    past rows another transaction is claiming rather than waiting on them or
+    handing out the same row twice. A queued row whose message never arrives
+    (broker outage, worker killed mid-publish) is returned to pending by
     free_stale_processing_tasks.
+
+    The `, id` tiebreaker matters at scale: build_extract_tasks inserts in
+    large batches sharing one NOW() per INSERT, so many rows can carry the
+    exact same (priority, submit_time). Without a deterministic tiebreaker,
+    concurrent SKIP LOCKED scans have no stable order to partition across a
+    large tied group -- every claimer effectively circles the same ambiguous
+    block instead of cleanly dividing sequential work, and skip-distance
+    grows with the tied-group size rather than just the concurrency level.
+    Under enough concurrent claimers against a big enough tied group, that
+    turns into a real feedback loop (each claim gets slower -> more claimers
+    pile up concurrently -> claims get slower still), observed in production
+    collapsing throughput from ~130/s to ~2-3/s once the backlog grew large.
+    `id` is already unique and monotonic, so it's a free, always-available
+    tiebreaker -- see migration 0025, which adds it to
+    extract_tasks_pending_idx so this ORDER BY can still be served by an
+    index-only scan of the partial index rather than falling back to a sort.
     """
     # RETURNING gives no ordering guarantee, so re-sort the (at most `limit`)
     # claimed rows: the beat dispatches its batch in the order returned here.
@@ -74,13 +90,13 @@ def claim_pending_tasks(limit=1):
                 WHERE id IN (
                     SELECT id FROM extract_tasks
                     WHERE status = 0
-                    ORDER BY priority DESC, submit_time ASC
+                    ORDER BY priority DESC, submit_time ASC, id ASC
                     FOR UPDATE SKIP LOCKED
                     LIMIT %s
                 )
                 RETURNING id, priority, submit_time
             )
-            SELECT id FROM claimed ORDER BY priority DESC, submit_time ASC
+            SELECT id FROM claimed ORDER BY priority DESC, submit_time ASC, id ASC
             """,
             [limit],
         )
