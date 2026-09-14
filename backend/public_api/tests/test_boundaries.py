@@ -15,6 +15,10 @@ EXPECTED_BOUNDARY_FIELDS = {
     "group_class",
     "group_level",
     "source_name",
+    "source_url",
+    "license",
+    "license_url",
+    "citation",
     "tags",
 }
 

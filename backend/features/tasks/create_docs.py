@@ -19,6 +19,16 @@ def _absolute_url(url: str) -> str:
     return f"https://{url}"
 
 
+def _license_row(obj) -> str:
+    """License row for a boundary detail table. See the twin in
+    ``datasets.tasks.create_docs`` -- always emitted, even when unrecorded."""
+    if not obj.license:
+        return "| License | Not recorded — see the source link |\n"
+    url = _absolute_url(obj.license_url or "")
+    value = f"[{obj.license}]({url})" if url else obj.license
+    return f"| License | {value} |\n"
+
+
 def _build_fc_page(fc, feature_count: int) -> str:
     lines = []
 
@@ -61,6 +71,7 @@ def _build_fc_page(fc, feature_count: int) -> str:
             lines.append(f"| Source | [{fc.source_name}]({url}) |\n")
         else:
             lines.append(f"| Source | {fc.source_name} |\n")
+    lines.append(_license_row(fc))
 
     if fc.citation:
         lines.append("\n## Citation\n")
@@ -75,8 +86,8 @@ def _build_fc_index(fcs, counts: dict) -> str:
         "This page lists all boundary datasets available in GeoQuery. "
         "Click a boundary name for full details.\n\n"
     )
-    lines.append("| Boundary | Group | Level | Features | Description |\n")
-    lines.append("|---|---|---|---|---|\n")
+    lines.append("| Boundary | Group | Level | Features | License | Description |\n")
+    lines.append("|---|---|---|---|---|---|\n")
 
     for fc in fcs:
         slug = _slug(fc.name)
@@ -87,7 +98,9 @@ def _build_fc_index(fcs, counts: dict) -> str:
         description = (fc.description or "").replace("|", "\\|")[:120]
         if len(fc.description or "") > 120:
             description += "…"
-        lines.append(f"| {name_link} | {group} | {level} | {count} | {description} |\n")
+        lines.append(
+            f"| {name_link} | {group} | {level} | {count} | {fc.license or '—'} | {description} |\n"
+        )
 
     return "".join(lines)
 

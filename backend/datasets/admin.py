@@ -74,6 +74,8 @@ class DatasetAdmin(GISModelAdmin):
                     "citation",
                     "source_name",
                     "source_url",
+                    "license",
+                    "license_url",
                     "ingest_src",
                 ),
             },

@@ -60,6 +60,7 @@ dependencies = [
     "django-guardian>=3.3.3",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
+    "fastmcp>=4,<5",
 ]
 
 [dependency-groups]

@@ -1,7 +1,6 @@
-from rest_framework import serializers
-
 from datasets.models import Dataset
 from features.models import FeatMap, FeatureCollection
+from rest_framework import serializers
 
 
 class PublicDatasetSerializer(serializers.ModelSerializer):
@@ -23,6 +22,9 @@ class PublicDatasetSerializer(serializers.ModelSerializer):
             "tags",
             "source_name",
             "source_url",
+            "license",
+            "license_url",
+            "citation",
             "temporal_name",
             "temporal_type",
             "temporal_start",
@@ -78,6 +80,10 @@ class PublicBoundarySerializer(serializers.ModelSerializer):
             "group_class",
             "group_level",
             "source_name",
+            "source_url",
+            "license",
+            "license_url",
+            "citation",
             "tags",
         ]
 

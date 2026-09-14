@@ -103,6 +103,37 @@
 		indexFormula += `[${col}]`;
 	}
 
+	// Styling carried in the URL, so a link can reproduce an exact view.
+	// The MCP server hands these links back with every map and table it
+	// returns, so the page must land on the same picture the assistant just
+	// described — see backend/mcp_server/tools/explore.py:viz_url.
+	function applyUrlParams(result: { columns: string[] }) {
+		const params = page.url.searchParams;
+
+		const formula = params.get('formula');
+		if (formula) {
+			// Named after the formula itself, matching the `~<formula>` column
+			// the server generates, so `col=` can refer to it.
+			indexName = formula;
+			indexFormula = formula;
+			addCustomIndex();
+		}
+
+		const col = params.get('col');
+		if (col && (result.columns.includes(col) || col.startsWith('~'))) {
+			checkedColumns = new Set([...checkedColumns, col]);
+			activeColumn = col;
+		}
+
+		const palette = params.get('palette');
+		if (palette && palette in PALETTES) currentPalette = palette;
+
+		const scheme = params.get('scheme');
+		if (scheme === 'quantile' || scheme === 'equal' || scheme === 'jenks') {
+			currentMethod = scheme;
+		}
+	}
+
 	// ── Data load ────────────────────────────────────────────────────────────
 	onMount(async () => {
 		try {
@@ -114,6 +145,7 @@
 				activeColumn = firstCol;
 			}
 			fcOrder = [...result.fc_names].reverse();
+			applyUrlParams(result);
 		} catch (err) {
 			loadError = err instanceof Error ? err.message : 'Failed to load visualization.';
 		} finally {

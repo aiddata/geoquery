@@ -22,6 +22,9 @@ class FeatureCollection(models.Model):
     citation = models.CharField(max_length=500, blank=True, null=True)
     source_name = models.CharField(max_length=100, blank=True, null=True)
     source_url = models.CharField(max_length=200, blank=True, null=True)
+    # Same contract as Dataset.license/license_url -- see datasets.models.
+    license = models.CharField(max_length=100, blank=True, null=True)
+    license_url = models.URLField(blank=True, null=True)
     other = models.JSONField(blank=True, null=True)
     temporal_start = models.DateTimeField(blank=True, null=True)
     temporal_end = models.DateTimeField(blank=True, null=True)

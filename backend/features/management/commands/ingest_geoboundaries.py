@@ -207,6 +207,14 @@ class Command(BaseIngestCommand):
                 "citation": adm_meta["citation"],
                 "source_name": adm_meta["source_name"],
                 "source_url": adm_meta["source_url"],
+                # geoBoundaries releases every Open product under CC BY 4.0.
+                # Taken from the per-boundary metadata when it carries one so a
+                # future non-Open product is not mislabelled.
+                "license": adm_meta.get("license") or "CC BY 4.0",
+                "license_url": (
+                    adm_meta.get("license_url")
+                    or "https://creativecommons.org/licenses/by/4.0/"
+                ),
                 "other": adm_meta["other"],
                 "ingest_src": adm_meta["ingest_src"],
                 "is_global": adm_meta["is_global"],

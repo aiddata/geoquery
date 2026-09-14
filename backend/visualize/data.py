@@ -142,6 +142,12 @@ _EXPLORE_EXTRACT_DATA_SQL = """
     WHERE fm.fc_id = ANY(%s) AND et.po_id = ANY(%s)
 """
 
+# Optional narrowing appended to _EXPLORE_EXTRACT_DATA_SQL when the caller
+# names specific resources (the MCP server's `years=`/`resources=` arguments).
+# It filters the unnested position, not the task: a grouped task covers many
+# resources, and only the requested positions should survive.
+_EXPLORE_RESOURCE_FILTER_SQL = "    AND u.resource_id = ANY(%s)\n"
+
 
 def _aggregate_data_rows(data_rows: list[dict], features: dict[str, dict]):
     """Shared aggregation for build_request_data/build_explore_data.
@@ -301,17 +307,29 @@ def build_request_data(request) -> dict:
     }
 
 
-def build_explore_data(fc_ids: list[int], po_ids: list[int]) -> dict:
+def build_explore_data(
+    fc_ids: list[int], po_ids: list[int], resource_ids: list[int] | None = None
+) -> dict:
     """Build the visualization payload for the explore page.
 
     Filters by FC and ProcessingOption IDs directly rather than through a
     request. Returns the same shape as build_request_data minus request-
     specific fields, so the frontend renderer works unchanged.
+
+    ``resource_ids`` is an optional extra narrowing to particular
+    DatasetResources (i.e. particular years). ``None`` means every resource,
+    which is what the explore page passes -- its behaviour is unchanged.
     """
     features, fc_names_set = _feature_rows(fc_id__in=fc_ids)
 
+    sql = _EXPLORE_EXTRACT_DATA_SQL
+    params = [fc_ids, po_ids]
+    if resource_ids is not None:
+        sql += _EXPLORE_RESOURCE_FILTER_SQL
+        params.append(resource_ids)
+
     with connection.cursor() as cursor:
-        cursor.execute(_EXPLORE_EXTRACT_DATA_SQL, [fc_ids, po_ids])
+        cursor.execute(sql, params)
         data_rows = _dictfetchall(cursor)
 
     data_cols_set, po_keys_per_col, col_dataset_titles, col_temporal, col_kwargs = (

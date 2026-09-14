@@ -196,6 +196,33 @@
 										{/if}
 									</p>
 								{/if}
+								<!-- Always shown, even when unset: GeoQuery redistributes
+								     other people's data, and "not recorded" is what tells
+								     the user they still have to check the source. -->
+								<p>
+									License:
+									{#if dataset.license}
+										{#if dataset.license_url}
+											<a
+												href={dataset.license_url}
+												target="_blank"
+												rel="noopener noreferrer"
+												class="inline-flex items-center gap-1 text-primary hover:underline"
+												onclick={(e: MouseEvent) => e.stopPropagation()}
+											>
+												{dataset.license}
+												<ExternalLink class="h-3 w-3" />
+											</a>
+										{:else}
+											{dataset.license}
+										{/if}
+									{:else}
+										<span class="italic">not recorded — check the source</span>
+									{/if}
+								</p>
+								{#if dataset.citation}
+									<p class="text-[11px] leading-snug">Cite as: {dataset.citation}</p>
+								{/if}
 							</div>
 						{/if}
 					</div>

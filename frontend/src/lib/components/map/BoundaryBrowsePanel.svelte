@@ -23,6 +23,19 @@
 
 	let groupingDimension = $state<'adm_level' | 'source' | 'tags'>('adm_level');
 
+	// Attribution for a boundary row. The list is a dense set of checkboxes
+	// with no detail view, so the tooltip is where source, licence and
+	// citation can be surfaced without burying the names. The licence line is
+	// emitted even when unset: GeoQuery redistributes other people's data, and
+	// "not recorded" is what tells the user to go and check.
+	function attributionTitle(b: BoundaryResult): string {
+		const lines = [b.title || b.name];
+		if (b.source_name) lines.push(`Source: ${b.source_name}`);
+		lines.push(`License: ${b.license ?? 'not recorded — check the source'}`);
+		if (b.citation) lines.push(`Cite as: ${b.citation}`);
+		return lines.join('\n');
+	}
+
 	// Group boundaries by selected dimension
 	let groupedBoundaries = $derived.by(() => {
 		const groups = new Map<string | number, BoundaryResult[]>();
@@ -184,7 +197,10 @@
 						</div>
 						<Collapsible.Content class="pl-5 space-y-1.5 mt-1">
 							{#each boundaries as boundary (boundary.id)}
-								<label class="flex items-center gap-2 text-xs cursor-pointer hover:text-foreground">
+								<label
+									class="flex items-center gap-2 text-xs cursor-pointer hover:text-foreground"
+									title={attributionTitle(boundary)}
+								>
 									<input
 										type="checkbox"
 										class="rounded h-3.5 w-3.5 cursor-pointer"

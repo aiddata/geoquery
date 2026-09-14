@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GeoQuery map</title>
+<!--
+  The GeoQuery map, rendered inside the chat client's iframe.
+
+  The host pushes a tool result in as `structuredContent`; everything below
+  renders from that one object. Switching column, year, palette or
+  classification is handled entirely here, because the payload carries values
+  for every column at once (see apps/map.py) -- only a change of dataset or
+  extract type calls back to the server.
+
+  quantileBreaks/equalBreaks/getColor are deliberate re-implementations of
+  frontend/src/lib/viz.ts (and of mcp_server/data/palette.py, its Python
+  port). All three have to agree: the server computes the first set of breaks,
+  this file computes the rest, and the "Open in GeoQuery" link must land on
+  the same picture.
+
+  Every external URL is pinned by version and is listed in the app's
+  ResourceCSP; the host blocks anything else.
+-->
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css">
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --brand: #003087;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); }
+  #app { display: flex; flex-direction: column; height: 100%; }
+  #map { flex: 1 1 auto; min-height: 220px; }
+  header, footer { flex: 0 0 auto; padding: .5rem .75rem; }
+  header { border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+  header h1 { font-size: .9rem; margin: 0 auto 0 0; font-weight: 600; }
+  select { font: inherit; padding: .2rem .35rem; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+  label { display: inline-flex; align-items: center; gap: .3rem; color: var(--muted); }
+  #yearbar { display: none; align-items: center; gap: .5rem; width: 100%; }
+  #yearbar input[type=range] { flex: 1 1 auto; }
+  button { font: inherit; border: 1px solid var(--line); background: #fff; border-radius: 4px; padding: .2rem .5rem; cursor: pointer; }
+  button:hover { background: #f8fafc; }
+  #legend { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; padding: .4rem .75rem; border-top: 1px solid var(--line); }
+  .swatches { display: flex; }
+  .swatches i { width: 26px; height: 12px; display: block; }
+  .scale { color: var(--muted); font-variant-numeric: tabular-nums; }
+  footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 11.5px; }
+  footer a { color: var(--brand); }
+  #notice { background: #fffbeb; border-top: 1px solid #fde68a; padding: .4rem .75rem; font-size: 12px; display: none; }
+  #error { padding: 1rem; color: #b91c1c; display: none; }
+  .maplibregl-popup-content { font: inherit; padding: .5rem .6rem; }
+  .maplibregl-popup-content b { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1 id="title">GeoQuery</h1>
+    <label>Column <select id="column"></select></label>
+    <label>Palette <select id="palette"></select></label>
+    <label>Classes <select id="classification"></select></label>
+    <div id="yearbar">
+      <button id="play" type="button" aria-label="Play through years">▶</button>
+      <input id="year" type="range" min="0" max="0" step="1" value="0">
+      <span id="yearlabel" class="scale"></span>
+    </div>
+  </header>
+  <div id="map"></div>
+  <div id="notice"></div>
+  <div id="legend">
+    <div class="swatches" id="swatches"></div>
+    <span class="scale" id="scale"></span>
+    <span class="scale" id="stats"></span>
+  </div>
+  <footer id="attribution"></footer>
+  <div id="error"></div>
+</div>
+
+<script type="module">
+import maplibregl from 'https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js';
+import { layers, namedFlavor } from 'https://unpkg.com/@protomaps/basemaps@5.1.0/dist/basemaps.js';
+import { app } from 'https://unpkg.com/@modelcontextprotocol/ext-apps@0.2.0/dist/index.js';
+
+const PALETTES = {
+  YlOrRd:  ['#ffffb2','#fecc5c','#fd8d3c','#f03b20','#bd0026'],
+  Blues:   ['#eff3ff','#bdd7e7','#6baed6','#3182bd','#08519c'],
+  Greens:  ['#edf8e9','#bae4b3','#74c476','#31a354','#006d2c'],
+  Purples: ['#f2f0f7','#cbc9e2','#9e9ac8','#756bb1','#54278f'],
+  Oranges: ['#feedde','#fdbe85','#fd8d3c','#e6550d','#a63603'],
+  YlGn:    ['#ffffcc','#c2e699','#78c679','#31a354','#006837'],
+  RdYlGn:  ['#d7191c','#fdae61','#ffffbf','#a6d96a','#1a9641'],
+  RdBu:    ['#ca0020','#f4a582','#f7f7f7','#92c5de','#0571b0'],
+  PuOr:    ['#5e3696','#b2abd2','#f7f7f7','#fdb863','#e66101'],
+  BrBG:    ['#8c510a','#d8b365','#f5f5f5','#5ab4ac','#01665e'],
+};
+
+// Ports of quantileBreaks/equalBreaks/getColor from frontend/src/lib/viz.ts.
+// Kept character-for-character equivalent so recolouring here produces the
+// same map the "Open in GeoQuery" link does.
+function quantileBreaks(values, n) {
+  const sorted = [...values].sort((a, b) => a - b);
+  if (!sorted.length) return [];
+  if (sorted[0] === sorted[sorted.length - 1]) return Array.from({length: n + 1}, () => sorted[0]);
+  const breaks = [sorted[0]];
+  for (let i = 1; i <= n; i++) breaks.push(sorted[Math.round((i / n) * (sorted.length - 1))]);
+  return breaks;
+}
+function equalBreaks(values, n) {
+  if (!values.length) return [];
+  const min = Math.min(...values), max = Math.max(...values);
+  const step = (max - min) / n;
+  return Array.from({length: n + 1}, (_, i) => min + i * step);
+}
+function getColor(value, breaks, palette, noData) {
+  if (value === null || value === undefined || isNaN(Number(value)) || !breaks.length) return noData;
+  const v = Number(value);
+  for (let i = 1; i < breaks.length; i++) if (v <= breaks[i]) return palette[Math.min(i - 1, palette.length - 1)];
+  return palette[palette.length - 1];
+}
+function fmt(n) {
+  if (n === null || n === undefined || !isFinite(n)) return '—';
+  const abs = Math.abs(n);
+  if (abs >= 10000) return n.toLocaleString(undefined, {maximumFractionDigits: 0});
+  if (abs >= 100) return n.toFixed(1);
+  if (abs >= 1) return n.toFixed(3);
+  if (n === 0) return '0';
+  return n.toPrecision(3);
+}
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
+  {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]
+));
+
+const el = (id) => document.getElementById(id);
+let state = null;
+let map = null;
+let playTimer = null;
+
+function fail(message) {
+  el('error').textContent = message;
+  el('error').style.display = 'block';
+}
+
+function activeValues() {
+  return Object.values(state.values[state.column] ?? {}).filter((v) => typeof v === 'number');
+}
+
+function computeBreaks() {
+  const values = activeValues();
+  if (!values.length) return [];
+  return state.classification === 'equal'
+    ? equalBreaks(values, state.classes)
+    : quantileBreaks(values, state.classes);
+}
+
+function paint() {
+  if (!map || !map.getSource('features')) return;
+  const breaks = computeBreaks();
+  const palette = PALETTES[state.palette.name] ?? PALETTES.YlOrRd;
+  const values = state.values[state.column] ?? {};
+  const noData = state.no_data_color;
+
+  // A `match` expression keyed on feature id, the same construction
+  // buildColorExpression uses in the web app: it recolours without touching
+  // the source data, so switching column or year is a paint-property update
+  // rather than a re-upload of every polygon.
+  const expr = ['match', ['id']];
+  let any = false;
+  for (const [id, value] of Object.entries(values)) {
+    expr.push(Number(id), getColor(value, breaks, palette, noData));
+    any = true;
+  }
+  expr.push(noData);
+  map.setPaintProperty('features-fill', 'fill-color', any ? expr : noData);
+  renderLegend(breaks, palette);
+}
+
+function renderLegend(breaks, palette) {
+  el('swatches').innerHTML = palette
+    .map((c) => `<i style="background:${esc(c)}"></i>`).join('');
+  el('scale').textContent = breaks.length
+    ? `${fmt(breaks[0])} → ${fmt(breaks[breaks.length - 1])}`
+    : 'no numeric values';
+  const values = activeValues();
+  el('stats').textContent = values.length
+    ? `n=${values.length.toLocaleString()} · mean ${fmt(values.reduce((a, b) => a + b, 0) / values.length)}`
+    : '';
+}
+
+function renderControls() {
+  const columnSelect = el('column');
+  columnSelect.innerHTML = state.columns
+    .map((c) => `<option value="${esc(c.name)}"${c.name === state.column ? ' selected' : ''}>`
+      + `${esc(c.label)}${c.temporal ? ' · ' + esc(c.temporal) : ''}${c.partial ? ' (partial)' : ''}</option>`)
+    .join('');
+
+  el('palette').innerHTML = Object.keys(PALETTES)
+    .map((p) => `<option value="${p}"${p === state.palette.name ? ' selected' : ''}>${p}</option>`)
+    .join('');
+
+  el('classification').innerHTML = ['quantile', 'equal']
+    .map((m) => `<option value="${m}"${m === state.classification ? ' selected' : ''}>${m}</option>`)
+    .join('');
+
+  // A year slider only makes sense when the columns differ by time and
+  // nothing else; with several variables in play it would jump between
+  // unrelated measures.
+  const temporal = state.columns.filter((c) => c.temporal);
+  const sameTrack = temporal.length > 1
+    && new Set(temporal.map((c) => c.name.replace(c.temporal, ''))).size <= temporal.length;
+  if (temporal.length > 1 && sameTrack) {
+    const slider = el('year');
+    slider.max = String(temporal.length - 1);
+    const index = Math.max(0, temporal.findIndex((c) => c.name === state.column));
+    slider.value = String(index);
+    el('yearlabel').textContent = temporal[index]?.temporal ?? '';
+    el('yearbar').style.display = 'flex';
+    el('yearbar').dataset.columns = JSON.stringify(temporal.map((c) => c.name));
+  } else {
+    el('yearbar').style.display = 'none';
+  }
+}
+
+function renderAttribution() {
+  const a = state.attribution ?? {};
+  const link = (text, href) => href ? `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(text)}</a>` : esc(text);
+  const part = (item) => {
+    const source = item.source_name ? link(item.source_name, item.source_url) : esc(item.title);
+    const licence = item.license
+      ? link(item.license, item.license_url)
+      : '<em>license not recorded</em>';
+    return `${esc(item.title)} — ${source}, ${licence}`;
+  };
+  const rows = [
+    ...(a.datasets ?? []).map(part),
+    ...(a.boundaries ?? []).map(part),
+  ];
+  rows.push(`via <a href="${esc(state.viz_url ?? '#')}" target="_blank" rel="noopener">GeoQuery</a>`);
+  rows.push(state.basemap.attribution);
+  el('attribution').innerHTML = rows.join(' · ');
+}
+
+function renderNotice() {
+  const notice = el('notice');
+  if (state.truncated) {
+    notice.innerHTML = `Too many features to draw here (${state.feature_count.toLocaleString()}). `
+      + `<a href="${esc(state.viz_url ?? '#')}" target="_blank" rel="noopener">Open in GeoQuery</a> `
+      + 'to see the full map.';
+    notice.style.display = 'block';
+  } else {
+    notice.style.display = 'none';
+  }
+}
+
+function initMap() {
+  if (map || !state.geojson) return;
+  map = new maplibregl.Map({
+    container: 'map',
+    style: {
+      version: 8,
+      glyphs: state.basemap.glyphs,
+      sprite: state.basemap.sprite,
+      sources: {
+        protomaps: {
+          type: 'vector',
+          tiles: [state.basemap.tiles],
+          maxzoom: 15,
+          attribution: state.basemap.attribution,
+        },
+      },
+      layers: layers('protomaps', namedFlavor('light'), {lang: 'en'}),
+    },
+    center: [0, 20],
+    zoom: 1,
+    attributionControl: false,
+  });
+
+  map.on('load', () => {
+    map.addSource('features', {type: 'geojson', data: state.geojson, promoteId: undefined});
+    map.addLayer({
+      id: 'features-fill', type: 'fill', source: 'features',
+      paint: {'fill-color': state.no_data_color, 'fill-opacity': 0.8},
+    });
+    map.addLayer({
+      id: 'features-line', type: 'line', source: 'features',
+      paint: {'line-color': '#334155', 'line-width': 0.6},
+    });
+    fitBounds();
+    paint();
+    setupHover();
+  });
+}
+
+function fitBounds() {
+  if (!state.bbox) return;
+  const [w, s, e, n] = state.bbox;
+  map.fitBounds([[w, s], [e, n]], {padding: 24, maxZoom: 9, duration: 0});
+}
+
+function setupHover() {
+  const popup = new maplibregl.Popup({closeButton: false, closeOnClick: false});
+  map.on('mousemove', 'features-fill', (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    map.getCanvas().style.cursor = 'pointer';
+    const value = (state.values[state.column] ?? {})[String(feature.id)];
+    popup.setLngLat(event.lngLat)
+      .setHTML(`<b>${esc(feature.properties?.name ?? feature.id)}</b>${fmt(value)}`)
+      .addTo(map);
+  });
+  map.on('mouseleave', 'features-fill', () => {
+    map.getCanvas().style.cursor = '';
+    popup.remove();
+  });
+}
+
+function setColumn(name) {
+  state.column = name;
+  el('column').value = name;
+  const temporal = el('yearbar').dataset.columns;
+  if (temporal) {
+    const index = JSON.parse(temporal).indexOf(name);
+    if (index >= 0) {
+      el('year').value = String(index);
+      el('yearlabel').textContent = state.columns.find((c) => c.name === name)?.temporal ?? '';
+    }
+  }
+  paint();
+}
+
+function render(payload) {
+  try {
+    state = payload;
+    el('title').textContent = state.title ?? 'GeoQuery';
+    renderControls();
+    renderNotice();
+    renderAttribution();
+    initMap();
+    paint();
+  } catch (err) {
+    fail(String(err));
+  }
+}
+
+el('column').addEventListener('change', (e) => setColumn(e.target.value));
+el('palette').addEventListener('change', (e) => {
+  state.palette = {name: e.target.value, colors: PALETTES[e.target.value]};
+  paint();
+});
+el('classification').addEventListener('change', (e) => {
+  state.classification = e.target.value;
+  paint();
+});
+el('year').addEventListener('input', (e) => {
+  const columns = JSON.parse(el('yearbar').dataset.columns ?? '[]');
+  const name = columns[Number(e.target.value)];
+  if (name) setColumn(name);
+});
+el('play').addEventListener('click', () => {
+  if (playTimer) {
+    clearInterval(playTimer);
+    playTimer = null;
+    el('play').textContent = '▶';
+    return;
+  }
+  el('play').textContent = '⏸';
+  playTimer = setInterval(() => {
+    const columns = JSON.parse(el('yearbar').dataset.columns ?? '[]');
+    if (!columns.length) return;
+    const next = (columns.indexOf(state.column) + 1) % columns.length;
+    setColumn(columns[next]);
+  }, 900);
+});
+
+app.ontoolresult = ({structuredContent}) => {
+  if (structuredContent) render(structuredContent);
+};
+</script>
+</body>
+</html>

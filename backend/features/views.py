@@ -73,6 +73,10 @@ class FeatureCollectionAutocompleteView(generics.ListAPIView):
                 "group_class": fc.group_class,
                 "group_level": fc.group_level,
                 "source_name": fc.source_name,
+                "source_url": fc.source_url,
+                "license": fc.license,
+                "license_url": fc.license_url,
+                "citation": fc.citation,
                 "tags": fc.tags or [],
                 "date_added": fc.date_added.isoformat() if fc.date_added else None,
             }

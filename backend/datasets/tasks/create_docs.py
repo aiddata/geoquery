@@ -25,6 +25,20 @@ def _optional_row(label: str, value) -> str:
     return f"| {label} | {value} |\n"
 
 
+def _license_row(obj) -> str:
+    """License row for a Dataset or FeatureCollection detail table.
+
+    Always emitted, including when nothing is recorded: GeoQuery redistributes
+    other people's data, so "not recorded -- check the source" is information
+    the reader needs, not a row to quietly drop.
+    """
+    if not obj.license:
+        return "| License | Not recorded — see the source link |\n"
+    url = _absolute_url(obj.license_url or "")
+    value = f"[{obj.license}]({url})" if url else obj.license
+    return f"| License | {value} |\n"
+
+
 def _build_dataset_page(dataset) -> str:
     resources = list(dataset.resources.order_by("temporal", "name"))
     mappings = list(dataset.mappings.order_by("map_val"))
@@ -64,6 +78,7 @@ def _build_dataset_page(dataset) -> str:
             lines.append(f"| Source | [{dataset.source_name}]({url}) |\n")
         else:
             lines.append(f"| Source | {dataset.source_name} |\n")
+    lines.append(_license_row(dataset))
 
     # Resources
     if resources:
@@ -95,8 +110,8 @@ def _build_dataset_index(datasets) -> str:
         "This page lists all datasets available in GeoQuery. "
         "Click a dataset name for full details.\n\n"
     )
-    lines.append("| Dataset | Type | Temporal Range | Description |\n")
-    lines.append("|---|---|---|---|\n")
+    lines.append("| Dataset | Type | Temporal Range | License | Description |\n")
+    lines.append("|---|---|---|---|---|\n")
 
     for ds in datasets:
         slug = _slug(ds.name)
@@ -109,7 +124,9 @@ def _build_dataset_index(datasets) -> str:
         description = (ds.description or "").replace("|", "\\|")[:120]
         if len(ds.description or "") > 120:
             description += "…"
-        lines.append(f"| {name_link} | {ds.type} | {temporal} | {description} |\n")
+        lines.append(
+            f"| {name_link} | {ds.type} | {temporal} | {ds.license or '—'} | {description} |\n"
+        )
 
     return "".join(lines)
 

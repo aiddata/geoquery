@@ -64,6 +64,12 @@ export interface BoundaryResult {
 	group_class: string | null;
 	group_level: number | null;
 	source_name: string | null;
+	source_url: string | null;
+	// GeoQuery redistributes this data under its original terms, so the
+	// licence travels with every record that describes a boundary.
+	license: string | null;
+	license_url: string | null;
+	citation: string | null;
 	tags: string[];
 	date_added: string | null;
 }
@@ -118,6 +124,10 @@ export interface DatasetSummary {
 	tags: string[];
 	source_name: string | null;
 	source_url: string | null;
+	// See BoundaryResult: licence and citation ride along with the source.
+	license: string | null;
+	license_url: string | null;
+	citation: string | null;
 	temporal_name: string | null;
 	temporal_type: string | null;
 	temporal_start: string | null;

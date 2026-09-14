@@ -15,6 +15,10 @@ services:
     build:
       context: .
       dockerfile: backend/Containerfile
+    # Shared with `mcp`, `worker-*` and `beat`: they are the same image with
+    # different entrypoints. Naming it explicitly means Compose builds and
+    # exports it once, instead of writing a ~20 GB copy per service.
+    image: geoquery-backend
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     command: uv run python manage.py runserver 0.0.0.0:8000
     ports:
@@ -50,10 +54,56 @@ services:
       - db
       - rabbitmq
 
+  mcp:
+    # Same image as `backend`, different entrypoint: the MCP server is a second
+    # front end onto the same database, not a separate application. It needs no
+    # /data mount (it never touches rasters) but does need /requests, because it
+    # serves finished export results.
+    build:
+      context: .
+      dockerfile: backend/Containerfile
+    image: geoquery-backend
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    command: uv run python manage.py run_mcp
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./backend:/app/backend
+      - ./requests:/requests
+    environment:
+      - DJANGO_DEBUG=true
+      - DB_HOST=db
+      - REQUESTS_DIR=/requests
+      - DOWNLOAD_BASE_URL=${DOWNLOAD_BASE_URL:-http://localhost:8000}
+      - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-http://localhost:5173}
+      - PROTOMAPS_API_KEY=${PROTOMAPS_API_KEY}
+      # The URL a chat client reaches this server at. With a tunnel in front
+      # (cloudflared, ngrok) set it to the public URL -- the OAuth callback and
+      # the protected-resource metadata are built from it.
+      - MCP_BASE_URL=${MCP_BASE_URL:-http://localhost:8001}
+      - MCP_GITHUB_CLIENT_ID=${MCP_GITHUB_CLIENT_ID}
+      - MCP_GITHUB_CLIENT_SECRET=${MCP_GITHUB_CLIENT_SECRET}
+      - MCP_JWT_SIGNING_KEY=${MCP_JWT_SIGNING_KEY}
+      # FastMCP's OAuth proxy persists client registrations under its home
+      # directory. /tmp is the one path any runtime UID can write, same reason
+      # the Containerfile puts the uv cache there.
+      - FASTMCP_HOME=/tmp/fastmcp
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
+      - PG_RW_DBNAME=geoquery
+      - PG_RW_USER=django_user
+      - PG_RW_PASSWORD=dev_password
+      - PG_RW_HOST=db
+      - PG_RW_PORT=5432
+      - PG_SSL_MODE=disable
+    depends_on:
+      - db
+      - rabbitmq
+
   worker-processing:
     build:
       context: .
       dockerfile: backend/Containerfile
+    image: geoquery-backend
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     command: uv run celery -A geoquery worker -Q processing --loglevel=info
     volumes:
@@ -85,6 +135,7 @@ services:
     build:
       context: .
       dockerfile: backend/Containerfile
+    image: geoquery-backend
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     command: uv run celery -A geoquery worker -Q background --loglevel=info
     volumes:
@@ -115,6 +166,7 @@ services:
     build:
       context: .
       dockerfile: backend/Containerfile
+    image: geoquery-backend
     command: uv run celery -A geoquery beat --loglevel=info
     volumes:
       - ./backend:/app/backend

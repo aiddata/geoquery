@@ -61,7 +61,39 @@ class StacCollectionDetailViewTests(TestCase):
         self.assertEqual(data["type"], "Collection")
         self.assertEqual(data["id"], "ds-one")
         self.assertEqual(data["title"], "DS One")
-        self.assertEqual(data["license"], "See source")
+        self.assertEqual(data["license"], "proprietary")
+
+    def test_license_and_cite_as_come_from_the_dataset(self):
+        make_dataset(
+            name="ds-licensed",
+            path="ds-licensed",
+            license="CC BY 4.0",
+            license_url="https://creativecommons.org/licenses/by/4.0/",
+            citation="Author, A. (2020). https://doi.org/10.5281/zenodo.12345",
+        )
+
+        response = self.client.get(
+            reverse("stac_api:collection-detail", kwargs={"name": "ds-licensed"})
+        )
+
+        data = response.json()
+        self.assertEqual(data["license"], "CC BY 4.0")
+        rels = {link["rel"]: link["href"] for link in data["links"]}
+        self.assertEqual(
+            rels["license"], "https://creativecommons.org/licenses/by/4.0/"
+        )
+        self.assertEqual(rels["cite-as"], "https://doi.org/10.5281/zenodo.12345")
+
+    def test_no_citation_means_no_cite_as_link(self):
+        make_dataset(name="ds-plain", path="ds-plain")
+
+        response = self.client.get(
+            reverse("stac_api:collection-detail", kwargs={"name": "ds-plain"})
+        )
+
+        rels = {link["rel"] for link in response.json()["links"]}
+        self.assertNotIn("cite-as", rels)
+        self.assertNotIn("license", rels)
 
     def test_missing_collection_returns_404(self):
         response = self.client.get(

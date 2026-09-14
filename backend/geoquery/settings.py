@@ -106,6 +106,7 @@ INSTALLED_APPS = [
     "visualize",
     "public_api",
     "stac_api",
+    "mcp_server",
 ]
 
 MIDDLEWARE = [
@@ -489,6 +490,47 @@ REST_FRAMEWORK = {
 # Django's default DATA_UPLOAD_MAX_MEMORY_SIZE is 2.5 MB; raise it to match the
 # 50 MB file size limit enforced on the frontend.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50 MB
+
+# ── MCP server ───────────────────────────────────────────────────────────────
+# A second front end onto this database, served by its own process
+# (`manage.py run_mcp`) so chat clients can explore and export GeoQuery data.
+
+# Public URL of the MCP server itself. The OAuth callback and the protected-
+# resource metadata are built from it, so it must be the URL the *client*
+# reaches -- through a tunnel or ingress, not the container address.
+MCP_BASE_URL = os.environ.get("MCP_BASE_URL", "http://localhost:8001")
+
+# A GitHub OAuth App *separate* from the web app's: its callback URL is
+# {MCP_BASE_URL}/auth/callback, and a GitHub OAuth App accepts exactly one.
+MCP_GITHUB_CLIENT_ID = os.environ.get("MCP_GITHUB_CLIENT_ID", "")
+MCP_GITHUB_CLIENT_SECRET = os.environ.get("MCP_GITHUB_CLIENT_SECRET", "")
+# Signs the tokens the proxy issues, and derives the encryption key for its
+# client-registration store. Must be stable across restarts or every client
+# has to re-register; must be shared if more than one replica runs.
+MCP_JWT_SIGNING_KEY = os.environ.get("MCP_JWT_SIGNING_KEY", "")
+
+# A GitHub identity with no matching account gets one created, with the
+# provider-verified email attached, and immediately claims any anonymous
+# requests submitted under that address. Turn off to require that people sign
+# up on the website first.
+MCP_AUTO_PROVISION_USERS = os.environ.get(
+    "MCP_AUTO_PROVISION_USERS", "True"
+).lower() in ("true", "1", "yes", "on")
+
+# Response-size guardrails. A chat client has to hold every byte a tool
+# returns in the model's context, so these are much tighter than the web
+# app's: the answer to "too much data" is a link to /viz, not a bigger
+# payload.
+MCP_RESULTS_MAX_ROWS = int(os.environ.get("MCP_RESULTS_MAX_ROWS", "200"))
+MCP_RESULTS_MAX_COLUMNS = int(os.environ.get("MCP_RESULTS_MAX_COLUMNS", "25"))
+MCP_MAP_MAX_FEATURES = int(os.environ.get("MCP_MAP_MAX_FEATURES", "5000"))
+MCP_MAP_MAX_BYTES = int(os.environ.get("MCP_MAP_MAX_BYTES", str(3 * 1024 * 1024)))
+MCP_RESULTS_CSV_MAX_BYTES = int(
+    os.environ.get("MCP_RESULTS_CSV_MAX_BYTES", str(5 * 1024 * 1024))
+)
+# An export this large is almost always a misunderstanding of the selection
+# rather than a real intent, and it would occupy the workers for days.
+MCP_SUBMIT_MAX_TASKS = int(os.environ.get("MCP_SUBMIT_MAX_TASKS", "250000"))
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "GeoQuery Public API",

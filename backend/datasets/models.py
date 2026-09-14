@@ -22,6 +22,12 @@ class Dataset(models.Model):
     citation = models.CharField(max_length=2000, blank=True, null=True)
     source_name = models.CharField(max_length=500, blank=True, null=True)
     source_url = models.CharField(max_length=500, blank=True, null=True)
+    # GeoQuery redistributes open-access data under the original terms, so the
+    # licence travels with the data everywhere it is surfaced (API, docs, the
+    # results zip, MCP payloads). Short human-readable name, e.g. "CC BY 4.0";
+    # license_url points at the full text.
+    license = models.CharField(max_length=100, blank=True, null=True)
+    license_url = models.URLField(blank=True, null=True)
     other = models.JSONField(blank=True, null=True)
     temporal_start = models.DateTimeField(blank=True, null=True)
     temporal_end = models.DateTimeField(blank=True, null=True)

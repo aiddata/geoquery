@@ -260,6 +260,21 @@ class Request(models.Model):
             models.Index(Lower("contact"), name="requests_contact_lower_idx"),
         ]
 
+    def feature_collections(self):
+        """The FeatureCollections this request's extract tasks actually touched.
+
+        ``data["feature_ids"]`` records what was *submitted*, which can include
+        ids that produced no task; the join through RequestMap is what the
+        results were really built from. Used wherever the request has to be
+        attributed -- the results documentation, and the MCP server's
+        ``attribution`` payloads.
+        """
+        from features.models import FeatureCollection
+
+        return FeatureCollection.objects.filter(
+            featmap__extracttask__requestmap__request=self
+        ).distinct()
+
     def __str__(self):
         return f"Request {self.id}: {self.custom_name or 'unnamed'}"
 

@@ -1,13 +1,10 @@
-import secrets
 from datetime import timedelta
 
 from django.conf import settings
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.utils import timezone
-from django.db.models import Q
-from django.db.models.expressions import RawSQL
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -17,23 +14,14 @@ from rest_framework.views import APIView
 from analytics.tasks.ingest import ingest_custom_boundary_task
 from analytics.tasks.email import GeoEmail
 from analytics.throttles import RequestSubmitThrottle, RequestTokenThrottle
-from catalog.access import (
-    visible_datasets,
-    visible_feature_collections,
-    visible_processing_options_for_dataset,
+from .models import Request, RequestToken
+from .services import (
+    STATUS_LABELS as _STATUS_LABELS,
+    NoExtractTasksError,
+    create_request,
+    request_links,
+    requests_for_user,
 )
-from .models import ExtractTask, Request, RequestMap, RequestToken
-from datasets.models import Dataset, DatasetResource
-from features.models import FeatMap
-
-_STATUS_LABELS = {
-    -2: "error",
-    -1: "queued",
-    0: "processing",
-    1: "completed",
-    2: "preparing",
-    3: "ingesting",
-}
 
 
 class RequestView(APIView):
@@ -159,190 +147,32 @@ class RequestView(APIView):
                 {"error": "featureIds is required"}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        # {task_id: dataset_id} rather than a flat set[int] -- RequestMap now
-        # carries dataset_id per row (see migration adding it as the
-        # partition-key-adjacent column), and a dict dedupes on task_id the
-        # same way the old set did while still letting us look up which
-        # dataset each task belongs to at bulk_create time below.
-        all_task_ids: dict[int, int] = {}
-        warnings: list[str] = []
-        valid_datasets: list[dict] = []
-
-        for ds in datasets:
-            dataset_name = (ds.get("datasetName") or "").strip()
-            extract_types = ds.get("extractTypes") or []
-            resources = ds.get("resources") or []
-            task_kwargs = ds.get("kwargs") or None
-
-            if not dataset_name:
-                warnings.append(f"Skipped dataset missing datasetName: {ds}")
-                continue
-
-            # Resolve the dataset through the visibility rule for BOTH branches.
-            # This previously only happened on the kwargs path, and only checked
-            # `active`, so an active-but-not-public dataset was submittable by
-            # name even though it never appeared in /api/datasets/.
-            try:
-                dataset_obj = visible_datasets(request.user).get(name=dataset_name)
-            except Dataset.DoesNotExist:
-                warnings.append(f"Dataset '{dataset_name}' not found or not available.")
-                continue
-
-            visible_pos = visible_processing_options_for_dataset(
-                request.user, dataset_obj
+        # Everything from here -- visibility resolution, task reuse, warning
+        # wording, the Request row itself -- lives in analytics.services so the
+        # MCP server creates requests exactly the way the web app does.
+        try:
+            created = create_request(
+                user=user,
+                contact=email,
+                name=name,
+                feature_ids=feature_ids,
+                datasets=datasets,
+                selection_label=(request.data.get("selectionLabel") or "").strip()
+                or None,
+                selection_detail=(request.data.get("selectionDetail") or "").strip()
+                or None,
+                source="web",
             )
-            visible_fcs = visible_feature_collections(request.user)
-
-            po_qs = visible_pos
-            if extract_types:
-                po_qs = po_qs.filter(short_name__in=extract_types)
-
-            resource_qs = DatasetResource.objects.filter(dataset=dataset_obj)
-            if resources:
-                resource_qs = resource_qs.filter(name__in=resources)
-
-            pos = list(po_qs)
-            resource_list = list(resource_qs)
-            # Feature ids reachable only through a collection the caller
-            # cannot see must not produce tasks.
-            fms = list(
-                FeatMap.objects.filter(geom_id__in=feature_ids, fc__in=visible_fcs)
-            )
-
-            if not pos or not resource_list or not fms:
-                warnings.append(
-                    f"No processing options, resources, or features found for dataset '{dataset_name}'."
-                )
-                continue
-
-            # The functional unique indexes (migration 0024) are:
-            #   (dataset_id, fm_id, po_id, resource_ids_hash) WHERE kwargs IS NULL
-            #   (dataset_id, fm_id, po_id, resource_ids_hash, MD5(kwargs::text))
-            #       WHERE kwargs IS NOT NULL
-            # resource_ids_hash is a stored generated column computed via the
-            # extract_tasks_resource_ids_hash(integer[]) SQL function (see
-            # migration 0024 -- plain hashtext(resource_ids::text) can't back
-            # a GENERATED column since the generic array cast is only STABLE,
-            # not IMMUTABLE). Filtering on it directly here, via the same
-            # function, lets Postgres use an exact index hit on all four
-            # columns instead of a 3-column prefix (dataset_id, fm_id, po_id)
-            # followed by a heap recheck of resource_ids. Still also filter on
-            # resource_ids itself (not just the hash) so a hash collision --
-            # vanishingly unlikely, but hashtext() is a 32-bit hash -- can
-            # never return the wrong row; the hash is purely an index-
-            # selectivity optimization, resource_ids remains the actual
-            # correctness check.
-            # Django JSONField maps None to JSON null for equality queries, but
-            # rows with no kwargs (e.g. from build_extract_tasks) have SQL NULL.
-            # Use isnull lookup for the None case so the GET matches SQL NULL rows.
-            if task_kwargs is None:
-                kwargs_lookup = {"kwargs__isnull": True}
-            else:
-                kwargs_lookup = {"kwargs": task_kwargs}
-
-            task_ids = []
-            for fm in fms:
-                for resource in resource_list:
-                    # Depends only on resource, not po -- computed once per
-                    # resource rather than once per (resource, po) pair.
-                    resource_ids = [resource.id]
-                    resource_ids_hash = RawSQL(
-                        "extract_tasks_resource_ids_hash(%s)", [resource_ids]
-                    )
-                    for po in pos:
-                        try:
-                            task = ExtractTask.objects.get(
-                                dataset_id=dataset_obj.id,
-                                resource_ids=resource_ids,
-                                resource_ids_hash=resource_ids_hash,
-                                fm=fm,
-                                po=po,
-                                **kwargs_lookup,
-                            )
-                        except ExtractTask.DoesNotExist:
-                            try:
-                                # resource_ids_hash is NOT set here -- it's a
-                                # generated column (migration 0024), Postgres
-                                # computes it automatically from resource_ids
-                                # on INSERT; explicitly setting a generated
-                                # column's value raises an error.
-                                task = ExtractTask.objects.create(
-                                    dataset_id=dataset_obj.id,
-                                    resource_ids=resource_ids,
-                                    fm=fm,
-                                    po=po,
-                                    kwargs=task_kwargs,
-                                )
-                            except IntegrityError:
-                                task = ExtractTask.objects.get(
-                                    dataset_id=dataset_obj.id,
-                                    resource_ids=resource_ids,
-                                    resource_ids_hash=resource_ids_hash,
-                                    fm=fm,
-                                    po=po,
-                                    **kwargs_lookup,
-                                )
-                        if task.priority < 1:
-                            task.priority = 1
-                            task.save(update_fields=["priority"])
-                        task_ids.append(task.id)
-
-            all_task_ids.update({tid: dataset_obj.id for tid in task_ids})
-            valid_datasets.append(
-                {
-                    "dataset_name": dataset_name,
-                    "dataset_type": (ds.get("datasetType") or "").strip() or None,
-                    "extract_types": extract_types,
-                    "resources": resources,
-                    "resource_labels": ds.get("resourceLabels") or [],
-                    "kwargs": task_kwargs,
-                }
-            )
-
-        if not all_task_ids:
+        except NoExtractTasksError as exc:
             return Response(
                 {
                     "error": "No extract tasks found for the submitted datasets.",
-                    "warnings": warnings,
+                    "warnings": exc.warnings,
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        req = Request.objects.create(
-            contact=email,
-            custom_name=name or None,
-            user=user,
-            source="web",
-            status=-1,
-            data={
-                "selection_label": (request.data.get("selectionLabel") or "").strip()
-                or None,
-                "selection_detail": (request.data.get("selectionDetail") or "").strip()
-                or None,
-                "feature_ids": feature_ids,
-                "datasets": valid_datasets,
-            },
-        )
-
-        RequestMap.objects.bulk_create(
-            [
-                RequestMap(request=req, task_id=task_id, dataset_id=dataset_id)
-                for task_id, dataset_id in all_task_ids.items()
-            ]
-        )
-
-        response_data = {
-            "id": str(req.id),
-            "name": req.custom_name,
-            "status": req.status,
-            "status_label": _STATUS_LABELS.get(req.status, "unknown"),
-            "submit_time": req.submit_time,
-            "task_count": len(all_task_ids),
-        }
-        if warnings:
-            response_data["warnings"] = warnings
-
-        return Response(response_data, status=status.HTTP_201_CREATED)
+        return Response(created.as_response_dict(), status=status.HTTP_201_CREATED)
 
 
 class RequestDetailView(APIView):
@@ -411,16 +241,7 @@ class RequestDetailView(APIView):
             },
         }
 
-        if req.status == 1:
-            base = getattr(settings, "DOWNLOAD_BASE_URL", "").rstrip("/")
-            if base:
-                data["download_url"] = f"{base}/requests/{req.id}/{req.id}.zip"
-                data["documentation_url"] = (
-                    f"{base}/requests/{req.id}/{req.id}_documentation.html"
-                )
-            frontend_base = getattr(settings, "FRONTEND_BASE_URL", "").rstrip("/")
-            if frontend_base:
-                data["visualization_url"] = f"{frontend_base}/viz/{req.id}"
+        data.update(request_links(req))
 
         return Response(data)
 
@@ -521,18 +342,7 @@ class MyRequestsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from allauth.account.models import EmailAddress
-
-        # Union of FK-claimed rows and live contact matches on verified
-        # emails, so the list is correct even before a claim sweep runs.
-        q = Q(user=request.user)
-        emails = EmailAddress.objects.filter(
-            user=request.user, verified=True
-        ).values_list("email", flat=True)
-        for email in emails:
-            q |= Q(contact__iexact=email)
-
-        qs = Request.objects.filter(q).order_by("-submit_time")
+        qs = requests_for_user(request.user)
         data = [
             {
                 "id": str(r.id),

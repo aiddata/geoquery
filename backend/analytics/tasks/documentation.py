@@ -196,6 +196,7 @@ class DocBuilder:
                         if db_ds.source_url:
                             src = f'<a href="{self._esc(db_ds.source_url)}">{src}</a>'
                         rows.append(self._kv("Source", src))
+                    rows.append(self._kv("License", self._license_html(db_ds)))
                     if (
                         db_ds.temporal_name
                         and db_ds.temporal_name != "Temporally Invariant"
@@ -267,13 +268,62 @@ class DocBuilder:
 
         return f"<section><h2>Datasets ({len(datasets)})</h2>{''.join(cards)}</section>"
 
+    def _license_html(self, obj) -> str:
+        """Licence cell for a dataset or boundary.
+
+        Never blank: GeoQuery redistributes other people's data, so "not
+        recorded -- check the source" is the honest answer and the one that
+        tells the reader they still have an obligation to look.
+        """
+        if not obj.license:
+            return "Not recorded — check the source before redistributing"
+        label = self._esc(obj.license)
+        if obj.license_url:
+            return f'<a href="{self._esc(obj.license_url)}">{label}</a>'
+        return label
+
+    def _boundary_cards(self) -> str:
+        """Source, licence and citation for every boundary the request used.
+
+        Boundaries carry their own licences (geoBoundaries is CC BY 4.0) and
+        were previously absent from this document entirely, leaving anyone
+        publishing from a results zip with no record of what to attribute.
+        """
+        fcs = list(self.request.feature_collections().order_by("group_level", "name"))
+        if not fcs:
+            return ""
+
+        cards = []
+        for fc in fcs:
+            rows = [self._kv("Boundary", self._esc(fc.title or fc.name))]
+            if fc.source_name:
+                src = self._esc(fc.source_name)
+                if fc.source_url:
+                    src = f'<a href="{self._esc(fc.source_url)}">{src}</a>'
+                rows.append(self._kv("Source", src))
+            rows.append(self._kv("License", self._license_html(fc)))
+            rows.append(
+                self._kv(
+                    "Citation",
+                    self._esc(fc.citation)
+                    if fc.citation
+                    else "Not recorded — cite the source above",
+                )
+            )
+            cards.append(f'<div class="dataset-card">{self._table(rows)}</div>')
+
+        return f"<h3>Boundaries ({len(fcs)})</h3>{''.join(cards)}"
+
     def _section_citation(self) -> str:
         return (
             "<section>"
             "<h2>Citation</h2>"
             "<p>When publishing results generated with GeoQuery, please cite:</p>"
             f"<blockquote>{GEOQUERY_CITATION}</blockquote>"
-            "<p>Individual dataset citations can be found in the source links above.</p>"
+            "<p>You must also cite each dataset and each boundary you used, and "
+            "honour their licenses. Dataset citations and licenses are listed "
+            "per dataset above.</p>"
+            f"{self._boundary_cards()}"
             "</section>"
         )
 

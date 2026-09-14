@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy, tick } from 'svelte';
+	import { page } from '$app/state';
 	import maplibregl from 'maplibre-gl';
 	import 'maplibre-gl/dist/maplibre-gl.css';
 	import { layers, namedFlavor } from '@protomaps/basemaps';
@@ -209,6 +210,61 @@
 		if (activeColumn === key) activeColumn = [...checkedColumns][0] ?? null;
 	}
 
+	// A whole selection carried in the URL: which boundaries, which processing
+	// options, and how to style the result. The MCP server returns one of these
+	// links with every map and table, so opening it must land on the same view
+	// the assistant described — see backend/mcp_server/tools/explore.py:viz_url.
+	function idsParam(name: string): number[] {
+		return (page.url.searchParams.get(name) ?? '')
+			.split(',')
+			.map((v) => parseInt(v, 10))
+			.filter((v) => Number.isFinite(v));
+	}
+
+	function applyStyleParams() {
+		const params = page.url.searchParams;
+
+		const formula = params.get('formula');
+		if (formula) {
+			// Named after the formula itself, matching the `~<formula>` column
+			// the server generates, so `col=` can refer to it.
+			indexName = formula;
+			indexFormula = formula;
+			addCustomIndex();
+		}
+
+		const col = params.get('col');
+		if (col && ((data?.columns ?? []).includes(col) || col.startsWith('~'))) {
+			checkedColumns = new Set([...checkedColumns, col]);
+			activeColumn = col;
+		}
+
+		const palette = params.get('palette');
+		if (palette && palette in PALETTES) currentPalette = palette;
+
+		const scheme = params.get('scheme');
+		if (scheme === 'quantile' || scheme === 'equal' || scheme === 'jenks') {
+			currentMethod = scheme;
+		}
+	}
+
+	async function applyUrlSelection() {
+		const fcIds = idsParam('fc');
+		if (fcIds.length === 0) return;
+
+		await handleSelectionChange(new Set(fcIds));
+
+		const poIds = idsParam('po');
+		if (poIds.length) {
+			// Only options that actually turned out to be available for these
+			// boundaries; a stale link should degrade, not error.
+			const valid = new Set(availableDatasets.flatMap((ds) => ds.options.map((o) => o.po_id)));
+			checkedPoIds = new Set(poIds.filter((id) => valid.has(id)));
+			if (checkedPoIds.size) await loadExploreData();
+		}
+		applyStyleParams();
+	}
+
 	// ── Map init ──────────────────────────────────────────────────────────────
 	onMount(async () => {
 		// Load all boundaries and presets in parallel
@@ -239,6 +295,10 @@
 			center: [0, 20], zoom: 2
 		});
 		map.on('load', () => { mapReady = true; });
+
+		// After the map exists: addFCToMap waits on `load`, and loadExploreData
+		// paints as soon as the layers are there.
+		await applyUrlSelection();
 	});
 
 	// The map container has no layout while it sits behind the inactive tab on

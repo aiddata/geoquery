@@ -1,10 +1,20 @@
 from django.conf import settings
 from rest_framework import serializers
 
+from geoquery.citations import doi_from_citation, doi_url
+
 from .sources import is_feature_collection, item_stac_id
 from .utils import STAC_VERSION, bbox_from_geometry, build_url, geojson_from_geometry, to_rfc3339
 
 WORLD_BBOX = [-180.0, -90.0, 180.0, 90.0]
+
+# STAC requires `license` to be an SPDX identifier, "various", or
+# "proprietary". Dataset.license / FeatureCollection.license hold a short
+# human-readable name, which for the open licences GeoQuery redistributes
+# ("CC BY 4.0", "ODbL 1.0") is close enough to pass through verbatim; when
+# nothing is recorded, "proprietary" is the value the spec reserves for "no
+# standard open licence is asserted -- follow the provider link".
+_UNKNOWN_LICENSE = "proprietary"
 
 
 def _providers(obj):
@@ -34,7 +44,7 @@ class CollectionSerializer(serializers.Serializer):
             "id": obj.name,
             "title": obj.title or obj.name,
             "description": obj.description or obj.title or obj.name,
-            "license": "See source",
+            "license": obj.license or _UNKNOWN_LICENSE,
             "keywords": obj.tags or [],
             "providers": _providers(obj),
             "extent": {
@@ -58,6 +68,15 @@ class CollectionSerializer(serializers.Serializer):
                 {"rel": "root", "href": build_url(request, "/api/stac/v1/"), "type": "application/json"},
             ],
         }
+        if obj.license_url:
+            data["links"].append(
+                {"rel": "license", "href": obj.license_url, "type": "text/html"}
+            )
+        # RFC 8574: `cite-as` points at the identifier the provider wants cited,
+        # which is the only machine-readable form of our free-text citation.
+        citation_url = doi_url(doi_from_citation(obj.citation))
+        if citation_url:
+            data["links"].append({"rel": "cite-as", "href": citation_url})
         if is_feature_collection(obj):
             summaries = {}
             if obj.group_class:
