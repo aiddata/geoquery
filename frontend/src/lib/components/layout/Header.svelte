@@ -74,7 +74,7 @@
 				<Map class="h-4 w-4 shrink-0" />
 				<span class="relative">
 					Map and Visualize Data
-					<span class="absolute -top-2.5 -right-6 rounded bg-blue-500 px-1 py-px text-[9px] font-bold uppercase leading-none tracking-wide text-white">new</span>
+					<span class="absolute -top-2.5 -right-6 rounded bg-blue-500 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-white">new</span>
 				</span>
 			</a>
 		</div>
