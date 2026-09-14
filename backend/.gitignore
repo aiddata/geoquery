@@ -1,6 +1,6 @@
 # Project-specific ignores
 boundary_data
-data/
+/data/
 db-data/
 /dev_data
 load.py
