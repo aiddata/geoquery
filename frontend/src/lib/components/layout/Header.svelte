@@ -2,7 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import UserMenu from '$lib/components/layout/UserMenu.svelte';
 	import { openSidebar, currentStep, type Step } from '$lib/stores/ui';
-	import { CircleHelp, History, MapPin, Star, ClipboardList, BookOpen, Map } from '@lucide/svelte';
+	import { CircleHelp, History, BookOpen, Map } from '@lucide/svelte';
 	import geoqueryLogo from '$lib/assets/aiddata_geoquery_wordmark.png';
 
 	interface Props {
@@ -11,10 +11,10 @@
 
 	let { showSteps = true }: Props = $props();
 
-	const steps: { id: Step; label: string; icon: typeof MapPin }[] = [
-		{ id: 'map', label: '1. Select Boundary', icon: MapPin },
-		{ id: 'search', label: '2. Customize Datasets', icon: Star },
-		{ id: 'review', label: '3. Review Request', icon: ClipboardList }
+	const steps: { id: Step; label: string }[] = [
+		{ id: 'map', label: '1. Select Boundary' },
+		{ id: 'search', label: '2. Customize Datasets' },
+		{ id: 'review', label: '3. Review Request' }
 	];
 </script>
 
@@ -56,13 +56,12 @@
 						<span class="text-muted-foreground">/</span>
 					{/if}
 					<span
-						class="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium sm:px-3
+						class="flex items-center rounded-md px-2 py-1.5 text-sm font-medium sm:px-3
 							{$currentStep === step.id
 							? 'bg-primary text-primary-foreground'
 							: 'text-muted-foreground'}"
 					>
-						<step.icon class="h-4 w-4 shrink-0" />
-						<span class="hidden sm:inline">{step.label}</span>
+						{step.label}
 					</span>
 				{/each}
 			</div>

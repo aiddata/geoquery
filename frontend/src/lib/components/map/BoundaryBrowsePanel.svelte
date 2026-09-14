@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { ChevronDown, Plus } from '@lucide/svelte';
 	import * as Collapsible from '$lib/components/ui/collapsible';
+	import { Separator } from '$lib/components/ui/separator';
 
 	interface Props {
 		allBoundaries?: BoundaryResult[];
@@ -119,13 +120,13 @@
 					variant="outline"
 					onclick={() => applyPreset(preset)}
 					title={preset.description || undefined}
-					class="text-xs"
 				>
-					<Plus class="h-3 w-3 mr-1" />
+					<Plus class="h-3 w-3" />
 					{preset.name}
 				</Button>
 			{/each}
 		</div>
+		<Separator />
 	{/if}
 
 	<!-- Grouping dimension buttons -->
@@ -134,7 +135,6 @@
 			size="xs"
 			variant={groupingDimension === 'adm_level' ? 'default' : 'outline'}
 			onclick={() => (groupingDimension = 'adm_level')}
-			class="text-xs"
 		>
 			ADM Level
 		</Button>
@@ -142,7 +142,6 @@
 			size="xs"
 			variant={groupingDimension === 'source' ? 'default' : 'outline'}
 			onclick={() => (groupingDimension = 'source')}
-			class="text-xs"
 		>
 			Source
 		</Button>
@@ -150,7 +149,6 @@
 			size="xs"
 			variant={groupingDimension === 'tags' ? 'default' : 'outline'}
 			onclick={() => (groupingDimension = 'tags')}
-			class="text-xs"
 		>
 			Tags
 		</Button>
