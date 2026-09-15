@@ -17,14 +17,6 @@ class Command(BaseCommand):
         parser.add_argument("--host", default="0.0.0.0")
         parser.add_argument("--port", type=int, default=8001)
         parser.add_argument("--path", default="/mcp", help="MCP endpoint path.")
-        parser.add_argument(
-            "--allow-anonymous",
-            action="store_true",
-            help=(
-                "Run with no authentication. Only permitted with DEBUG on and "
-                "no GitHub OAuth app configured."
-            ),
-        )
 
     def handle(self, *args, **options):
         from mcp_server.auth import make_auth_provider
@@ -32,21 +24,28 @@ class Command(BaseCommand):
 
         auth = make_auth_provider()
         if auth is None:
-            # Refusing here rather than warning: an unauthenticated MCP server
-            # serves every caller as anonymous, which silently downgrades
-            # catalog-restricted data to public and makes exports impossible.
-            # That is a reasonable local default and never a production one.
-            if not settings.DEBUG:
+            # An unauthenticated MCP server serves every caller as anonymous,
+            # which silently downgrades catalog-restricted data to public and
+            # makes exports impossible. Running that way is either an explicit
+            # operator decision (MCP_AUTH_DISABLED) or a local-development
+            # default (DEBUG on, no OAuth app). Anything else is a
+            # misconfiguration, so refuse rather than warn.
+            if settings.MCP_AUTH_DISABLED:
+                reason = "MCP_AUTH_DISABLED is set"
+            elif settings.DEBUG:
+                reason = "No GitHub OAuth app configured"
+            else:
                 raise CommandError(
                     "MCP_GITHUB_CLIENT_ID / MCP_GITHUB_CLIENT_SECRET are not "
                     "set, so the server would run unauthenticated. Configure "
-                    "the GitHub OAuth app, or run with DEBUG on for local "
-                    "development."
+                    "the GitHub OAuth app, set MCP_AUTH_DISABLED=true to run "
+                    "without authentication on purpose, or run with DEBUG on "
+                    "for local development."
                 )
             self.stdout.write(
                 self.style.WARNING(
-                    "No GitHub OAuth app configured: running UNAUTHENTICATED. "
-                    "Every caller is anonymous — public data only, no exports."
+                    f"{reason}: running UNAUTHENTICATED. Every caller is "
+                    "anonymous — public data only, no exports."
                 )
             )
 

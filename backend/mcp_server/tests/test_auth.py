@@ -256,3 +256,11 @@ class AuthProviderTests(TestCase):
     @override_settings(MCP_GITHUB_CLIENT_ID="id", MCP_GITHUB_CLIENT_SECRET="")
     def test_half_configured_credentials_are_treated_as_unconfigured(self):
         self.assertIsNone(make_auth_provider())
+
+    @override_settings(
+        MCP_AUTH_DISABLED=True,
+        MCP_GITHUB_CLIENT_ID="id",
+        MCP_GITHUB_CLIENT_SECRET="secret",
+    )
+    def test_auth_disabled_overrides_configured_credentials(self):
+        self.assertIsNone(make_auth_provider())

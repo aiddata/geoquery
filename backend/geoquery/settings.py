@@ -509,6 +509,19 @@ MCP_GITHUB_CLIENT_SECRET = os.environ.get("MCP_GITHUB_CLIENT_SECRET", "")
 # has to re-register; must be shared if more than one replica runs.
 MCP_JWT_SIGNING_KEY = os.environ.get("MCP_JWT_SIGNING_KEY", "")
 
+# Explicitly run the MCP server with no authentication, even if a GitHub OAuth
+# app is configured. Every caller is then anonymous: public data only, no
+# exports. Unlike simply leaving the GitHub credentials unset (which `run_mcp`
+# refuses outside DEBUG), this is an operator's deliberate choice and is
+# honoured in any environment -- so never set it on a deployment that serves
+# catalog-restricted data.
+MCP_AUTH_DISABLED = os.environ.get("MCP_AUTH_DISABLED", "False").lower() in (
+    "true",
+    "1",
+    "yes",
+    "on",
+)
+
 # A GitHub identity with no matching account gets one created, with the
 # provider-verified email attached, and immediately claims any anonymous
 # requests submitted under that address. Turn off to require that people sign

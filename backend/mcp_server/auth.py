@@ -55,9 +55,12 @@ class AuthenticationRequired(Exception):
 def make_auth_provider():
     """The GitHub OAuth provider, or ``None`` when not configured.
 
-    ``None`` means the server runs unauthenticated; ``run_mcp`` refuses to
-    start that way outside DEBUG.
+    ``None`` means the server runs unauthenticated. ``run_mcp`` refuses to
+    start that way outside DEBUG unless ``MCP_AUTH_DISABLED`` is set, which
+    turns authentication off explicitly regardless of the GitHub credentials.
     """
+    if settings.MCP_AUTH_DISABLED:
+        return None
     if not (settings.MCP_GITHUB_CLIENT_ID and settings.MCP_GITHUB_CLIENT_SECRET):
         return None
 

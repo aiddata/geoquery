@@ -84,6 +84,8 @@ services:
       - MCP_GITHUB_CLIENT_ID=${MCP_GITHUB_CLIENT_ID}
       - MCP_GITHUB_CLIENT_SECRET=${MCP_GITHUB_CLIENT_SECRET}
       - MCP_JWT_SIGNING_KEY=${MCP_JWT_SIGNING_KEY}
+      # Set to true to skip GitHub sign-in entirely (every caller anonymous).
+      - MCP_AUTH_DISABLED=${MCP_AUTH_DISABLED:-false}
       # FastMCP's OAuth proxy persists client registrations under its home
       # directory. /tmp is the one path any runtime UID can write, same reason
       # the Containerfile puts the uv cache there.
