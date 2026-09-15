@@ -87,11 +87,25 @@ class ServerIntegrationTests(TransactionTestCase):
         for tool in tools:
             self.assertTrue((tool.description or "").strip(), tool.name)
 
+    def test_every_tool_declares_an_output_schema(self):
+        tools = self.run_client(lambda c: c.list_tools())
+
+        for tool in tools:
+            self.assertEqual((tool.output_schema or {}).get("type"), "object", tool.name)
+
+        by_name = {tool.name: tool for tool in tools}
+        self.assertIn("format", by_name["get_data"].output_schema["properties"])
+        self.assertIn("feature_count", by_name["show_map"].output_schema["properties"])
+
     def test_show_map_advertises_the_app_resource(self):
         tools = {t.name: t for t in self.run_client(lambda c: c.list_tools())}
 
         self.assertEqual(
             (tools["show_map"].meta or {}).get("ui", {}).get("resourceUri"),
+            MAP_APP_URI,
+        )
+        self.assertEqual(
+            (tools["show_map"].meta or {}).get("openai/outputTemplate"),
             MAP_APP_URI,
         )
 
@@ -101,6 +115,14 @@ class ServerIntegrationTests(TransactionTestCase):
         by_uri = {str(r.uri): r for r in resources}
         self.assertEqual(
             by_uri[MAP_APP_URI].mime_type, "text/html;profile=mcp-app"
+        )
+
+        contents = self.run_client(lambda c: c.read_resource(MAP_APP_URI))
+        app_meta = contents[0].meta["ui"]
+        self.assertTrue(app_meta["prefersBorder"])
+        self.assertEqual(
+            app_meta["csp"]["connectDomains"],
+            ["https://api.protomaps.com", "https://protomaps.github.io"],
         )
 
     def test_resources_and_prompts_are_registered(self):
@@ -167,7 +189,21 @@ class ServerIntegrationTests(TransactionTestCase):
         self.assertIn("attribution", collection)
         self.assertEqual(collection["features"][0]["geometry"]["type"], "Polygon")
 
-    def test_show_map_returns_structured_content_for_the_iframe(self):
+    def test_get_data_text_contains_the_actual_rows_for_compatibility(self):
+        result = self.call(
+            "get_data",
+            {
+                "boundaries": [self.world.fc.name],
+                "dataset": "esa_landcover",
+                "extract_type": "mean",
+            },
+        )
+
+        self.assertIn('"rows":', result.content[0].text)
+        self.assertIn('"esa_lc_2015.mean":10.0', result.content[0].text)
+        self.assertEqual(result.structured_content["format"], "table")
+
+    def test_show_map_keeps_display_data_in_app_only_metadata(self):
         result = self.call(
             "show_map",
             {
@@ -177,9 +213,13 @@ class ServerIntegrationTests(TransactionTestCase):
             },
         )
 
-        payload = result.structured_content
+        summary = result.structured_content
+        self.assertNotIn("values", summary)
+        self.assertNotIn("basemap", summary)
+        self.assertNotIn("geojson", summary)
+        self.assertIn("breaks", summary)
+        payload = result.meta["geoquery/map"]
         self.assertIn("values", payload)
-        self.assertIn("breaks", payload)
         self.assertIn("basemap", payload)
         self.assertIsNotNone(payload["geojson"])
 

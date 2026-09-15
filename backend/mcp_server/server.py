@@ -26,9 +26,14 @@ already processed and can be read immediately. This is the right path for
 answering a question, making a chart, or drawing a map:
     search_boundaries  -> find the exact boundary names for a place
     list_available_data -> see what is already processed for those boundaries
-    get_data           -> a table, or GeoJSON you can visualise yourself
-    show_map           -> an interactive choropleth rendered in the chat
+    get_data           -> actual table/GeoJSON values for analysis or your own visualisation
+    show_map           -> an interactive choropleth rendered directly in the chat
 Use this first. It needs no waiting and no submission.
+
+Use get_data when you need to calculate, compare, quote, or inspect values.
+Its text includes a JSON copy for clients that do not expose structured
+content. Use show_map when the user wants to see spatial patterns; the client
+receives a purpose-built map app and the model receives a compact summary.
 
 EXPORT (asynchronous, permanent). Turning a selection into a downloadable,
 citable artifact -- a zip with CSV, GeoPackage, documentation and notebook

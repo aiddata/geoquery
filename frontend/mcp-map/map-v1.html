@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>GeoQuery map</title>
+	</head>
+	<body>
+		<div id="app">
+			<header>
+				<h1 id="title">GeoQuery</h1>
+				<button id="fullscreen" type="button">Expand</button>
+				<label>Column <select id="column"></select></label>
+				<label>Palette <select id="palette"></select></label>
+				<label>Method <select id="classification"></select></label>
+				<div id="yearbar">
+					<button id="play" type="button" aria-label="Play through years">▶</button>
+					<input id="year" type="range" min="0" max="0" step="1" value="0" />
+					<span id="yearlabel" class="scale"></span>
+				</div>
+			</header>
+			<div id="map"></div>
+			<div id="notice"></div>
+			<div id="legend"><div class="swatches" id="swatches"></div><span class="scale" id="scale"></span><span class="scale" id="stats"></span></div>
+			<footer id="attribution"></footer>
+			<div id="error"></div>
+		</div>
+		<script type="module" src="./main.ts"></script>
+	</body>
+</html>

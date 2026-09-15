@@ -35,18 +35,17 @@ from mcp_server.data.selection import (
     with_partial_flags,
 )
 
-MAP_APP_URI = "ui://geoquery/map.html"
+MAP_APP_URI = "ui://geoquery/map/v1.html"
 
-# Protomaps' basemap tiles and the pinned ESM/CSS bundles the iframe loads.
+# Protomaps' basemap tiles and assets. JavaScript and CSS are bundled into the
+# HTML resource, so the iframe does not execute code from a third-party CDN.
 # The chat host enforces these as a Content-Security-Policy, so anything the
 # HTML fetches has to be listed here or it is silently blocked.
 APP_RESOURCE_DOMAINS = [
-    "https://unpkg.com",
     "https://protomaps.github.io",
 ]
 APP_CONNECT_DOMAINS = [
     "https://api.protomaps.com",
-    "https://unpkg.com",
     "https://protomaps.github.io",
 ]
 

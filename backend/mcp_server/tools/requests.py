@@ -36,9 +36,9 @@ from analytics.services import (
 from catalog.access import visible_feature_collections
 from mcp_server.data.attribution import attribution_for_request
 from mcp_server.data.selection import SelectionError, get_request_or_error
-from mcp_server.schemas import DatasetSpec
+from mcp_server.schemas import DatasetSpec, GENERIC_OUTPUT_SCHEMA
 
-from .common import READ_ONLY, fmt_count, require_user, result, tool_body
+from .common import READ_ONLY, fmt_count, plain_result, require_user, result, tool_body
 
 # Key under which the confirmation question is sent and its answer read back.
 _CONFIRM = "confirm"
@@ -276,7 +276,7 @@ def _supports_elicitation(ctx: Context) -> bool:
 
 
 def register(mcp, user_dep):
-    @mcp.tool(annotations=READ_ONLY)
+    @mcp.tool(annotations=READ_ONLY, output_schema=GENERIC_OUTPUT_SCHEMA)
     @tool_body
     def preview_request(
         boundary: Annotated[
@@ -327,6 +327,7 @@ def register(mcp, user_dep):
         return result(lines, payload)
 
     @mcp.tool(
+        output_schema=GENERIC_OUTPUT_SCHEMA,
         annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False}
     )
     @tool_body
@@ -450,7 +451,7 @@ def register(mcp, user_dep):
         ]
         return result(lines, payload)
 
-    @mcp.tool(annotations=READ_ONLY)
+    @mcp.tool(annotations=READ_ONLY, output_schema=GENERIC_OUTPUT_SCHEMA)
     @tool_body
     def get_request_status(
         request_id: Annotated[str, Field(description="Export id.")],
@@ -473,7 +474,7 @@ def register(mcp, user_dep):
             lines.append(f"Documentation (citations, licenses): {payload['documentation_url']}")
         return result(lines, payload)
 
-    @mcp.tool(annotations=READ_ONLY)
+    @mcp.tool(annotations=READ_ONLY, output_schema=GENERIC_OUTPUT_SCHEMA)
     @tool_body
     def list_my_requests(
         limit: Annotated[int, Field(description="Maximum results.", ge=1, le=100)] = 20,
@@ -503,6 +504,4 @@ def register(mcp, user_dep):
             )
         # No data leaves the server here -- just the user's own export list --
         # so this is the one tool with no attribution to relay.
-        from fastmcp.tools import ToolResult
-
-        return ToolResult(content="\n".join(lines), structured_content=payload)
+        return plain_result(lines, payload)

@@ -7,9 +7,9 @@ nested, optional-heavy schema is one a model fills in wrong.
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
 
 Format = Literal["table", "geojson"]
 Classification = Literal["quantile", "equal"]
@@ -70,3 +70,47 @@ FORMULA_DESC = (
     "'[esa_lc_2020.mean] - [esa_lc_2015.mean]'. Supports + - * / and "
     "parentheses; column names go in square brackets."
 )
+
+
+class StructuredOutput(BaseModel):
+    """Base schema for the small catalog and request result objects."""
+
+    model_config = ConfigDict(extra="allow")
+
+
+class DataOutput(StructuredOutput):
+    """The fields clients can rely on in every get_data result."""
+
+    source: str
+    format: Format
+    fc_names: list[str]
+    columns: list[dict[str, Any]]
+    columns_omitted: int
+    attribution: dict[str, Any]
+    truncated: bool
+    content_truncated: bool
+    viz_url: str | None
+
+
+class MapOutput(StructuredOutput):
+    """The model-facing portion of show_map; display data lives in result _meta."""
+
+    source: str
+    title: str
+    viz_url: str | None
+    columns: list[dict[str, Any]]
+    column: str | None
+    palette: dict[str, Any]
+    classification: Classification
+    classes: int
+    breaks: list[float]
+    stats: dict[str, Any] | None
+    bbox: list[float] | tuple[float, float, float, float] | None
+    feature_count: int
+    truncated: bool
+    attribution: dict[str, Any]
+
+
+GENERIC_OUTPUT_SCHEMA = StructuredOutput.model_json_schema()
+DATA_OUTPUT_SCHEMA = DataOutput.model_json_schema()
+MAP_OUTPUT_SCHEMA = MapOutput.model_json_schema()

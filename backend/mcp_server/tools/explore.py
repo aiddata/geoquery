@@ -15,6 +15,7 @@ a million rows through a chat window.
 
 from __future__ import annotations
 
+import json
 from typing import Annotated
 from urllib.parse import quote
 
@@ -33,6 +34,7 @@ from mcp_server.data.selection import (
 )
 from mcp_server.schemas import (
     BOUNDARIES_DESC,
+    DATA_OUTPUT_SCHEMA,
     DATASET_DESC,
     EXTRACT_TYPE_DESC,
     FORMULA_DESC,
@@ -199,20 +201,98 @@ def _get_data(
     attribution = attribution_for_selection(selection)
     common = {
         "source": selection.source,
+        "format": format,
         "fc_names": payload.get("fc_names") or selection.fc_names,
         "columns_omitted": max(0, len(payload.get("columns") or []) - len(selected)),
         "attribution": attribution,
     }
 
     if format == "geojson":
-        return {
+        result_payload = {
             **common,
             **_geojson(selection, payload, features, selected, partial, attribution),
         }
-    return {**common, **_table(
-        selection, payload, features, selected, partial,
-        offset, limit, sort_by, descending, formula,
-    )}
+    else:
+        result_payload = {
+            **common,
+            **_table(
+                selection,
+                payload,
+                features,
+                selected,
+                partial,
+                offset,
+                limit,
+                sort_by,
+                descending,
+                formula,
+            ),
+        }
+    return _fit_model_payload(result_payload)
+
+
+def _json_size(payload: dict) -> int:
+    return len(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    )
+
+
+def _fit_model_payload(payload: dict) -> dict:
+    """Keep get_data within the model context cap and say exactly what was cut.
+
+    Geometry is removed before values because the values are what a model can
+    reason about. If the values alone exceed the cap, return the largest
+    leading slice that fits and expose both total and returned counts.
+    """
+    cap = settings.MCP_MODEL_CONTENT_MAX_BYTES
+    payload["content_truncated"] = False
+    if payload["format"] == "table":
+        payload["returned_rows"] = len(payload["rows"])
+    else:
+        payload["returned_features"] = len(payload["geojson"]["features"])
+    if _json_size(payload) <= cap:
+        return payload
+
+    if payload["format"] == "geojson":
+        collection = {**payload["geojson"]}
+        collection["features"] = [
+            {**feature, "geometry": None} for feature in collection["features"]
+        ]
+        payload["geojson"] = collection
+        payload["geometry_omitted"] = True
+        payload["truncated"] = True
+        payload["content_truncated"] = True
+        if _json_size(payload) <= cap:
+            return payload
+        items_key = "features"
+        items = collection[items_key]
+        count_key = "returned_features"
+    else:
+        items_key = "rows"
+        items = payload[items_key]
+        count_key = "returned_rows"
+        payload["truncated"] = True
+        payload["content_truncated"] = True
+
+    low, high = 0, len(items)
+    while low < high:
+        midpoint = (low + high + 1) // 2
+        candidate = {**payload, count_key: midpoint}
+        if payload["format"] == "geojson":
+            candidate["geojson"] = {**payload["geojson"], items_key: items[:midpoint]}
+        else:
+            candidate[items_key] = items[:midpoint]
+        if _json_size(candidate) <= cap:
+            low = midpoint
+        else:
+            high = midpoint - 1
+
+    payload[count_key] = low
+    if payload["format"] == "geojson":
+        payload["geojson"] = {**payload["geojson"], items_key: items[:low]}
+    else:
+        payload[items_key] = items[:low]
+    return payload
 
 
 def _table(
@@ -307,7 +387,7 @@ def _geojson(selection, payload, features, selected, partial, attribution) -> di
 
 
 def register(mcp, user_dep):
-    @mcp.tool(annotations=READ_ONLY)
+    @mcp.tool(annotations=READ_ONLY, output_schema=DATA_OUTPUT_SCHEMA)
     @tool_body
     def get_data(
         boundaries: Annotated[
@@ -417,5 +497,11 @@ def register(mcp, user_dep):
             lines.append(
                 f"{payload['columns_omitted']} further column(s) not shown; name "
                 "them in `columns` to see them."
+            )
+        if payload["content_truncated"]:
+            returned = payload.get("returned_rows", payload.get("returned_features", 0))
+            lines.append(
+                f"The response-size limit retained {returned:,} records. Narrow "
+                f"the selection or open {payload['viz_url']} for the full result."
             )
         return result(lines, payload)

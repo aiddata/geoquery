@@ -180,44 +180,31 @@ class MapAppResourceTests(TestCase):
 
         html = _APP_HTML.read_text(encoding="utf-8")
 
-        self.assertIn("app.ontoolresult", html)
-        self.assertIn("maplibre-gl", html)
+        self.assertIn("ontoolresult", html)
+        self.assertIn("app.connect", html)
+        self.assertIn("maplibregl-", html)
         self.assertIn("ext-apps", html)
 
-    def test_every_external_url_is_version_pinned(self):
-        """An unpinned CDN import would silently change the map -- and could
-        change what runs inside the user's chat client."""
-        import re
-
+    def test_code_and_styles_are_bundled(self):
         from mcp_server.tools.map import _APP_HTML
 
         html = _APP_HTML.read_text(encoding="utf-8")
-        unpkg = re.findall(r"https://unpkg\.com/([^\"'\s]+)", html)
-        self.assertTrue(unpkg)
-        for url in unpkg:
-            self.assertIn("@", url.split("/", 1)[-1] if url.startswith("@") else url)
+        self.assertNotIn("unpkg.com", html)
+        self.assertNotIn('<script type="module" src=', html)
+        self.assertNotIn('<link rel="stylesheet" href=', html)
 
-    def test_every_external_host_is_allowed_by_the_csp(self):
-        import re
-
+    def test_the_csp_allows_only_basemap_assets(self):
         from mcp_server.apps.map import APP_CONNECT_DOMAINS, APP_RESOURCE_DOMAINS
-        from mcp_server.tools.map import _APP_HTML
 
-        html = _APP_HTML.read_text(encoding="utf-8")
-        allowed = {
-            u.rstrip("/") for u in (*APP_RESOURCE_DOMAINS, *APP_CONNECT_DOMAINS)
-        }
-        hosts = {
-            f"https://{h}" for h in re.findall(r"https://([a-z0-9.\-]+)", html)
-        }
-        # Links the user clicks through to are not fetched by the page, so
-        # they are not CSP-relevant.
-        hosts -= {"https://www.geoquery.org", "https://openstreetmap.org", "https://doi.org"}
-        self.assertTrue(hosts)
-        self.assertEqual(hosts - allowed, set())
+        self.assertEqual(APP_RESOURCE_DOMAINS, ["https://protomaps.github.io"])
+        self.assertEqual(
+            APP_CONNECT_DOMAINS,
+            ["https://api.protomaps.com", "https://protomaps.github.io"],
+        )
 
     def test_the_tool_and_the_resource_agree_on_the_uri(self):
         from mcp_server.apps import map as map_app
 
         self.assertEqual(MAP_APP_URI, map_app.MAP_APP_URI)
         self.assertTrue(MAP_APP_URI.startswith("ui://"))
+        self.assertIn("/v1.html", MAP_APP_URI)

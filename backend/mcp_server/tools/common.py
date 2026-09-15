@@ -13,6 +13,7 @@ thousand calls.
 from __future__ import annotations
 
 import functools
+import json
 
 from fastmcp.exceptions import ToolError
 from fastmcp.tools import ToolResult
@@ -60,15 +61,32 @@ def text_with_attribution(lines: list[str], attribution: dict) -> str:
     return "\n".join(body)
 
 
-def result(lines: list[str], structured: dict) -> ToolResult:
+def result(lines: list[str], structured: dict, *, meta: dict | None = None) -> ToolResult:
     """A ToolResult whose text ends with the attribution from its own payload.
 
     Taking the attribution out of ``structured`` rather than as a separate
     argument means the text and the structured content can never disagree
     about what is being cited.
     """
+    serialized = json.dumps(structured, ensure_ascii=False, separators=(",", ":"))
+    text = text_with_attribution(
+        [*lines, f"Structured data (JSON):\n```json\n{serialized}\n```"],
+        structured["attribution"],
+    )
     return ToolResult(
-        content=text_with_attribution(lines, structured["attribution"]),
+        content=text,
+        structured_content=structured,
+        meta=meta,
+    )
+
+
+def plain_result(lines: list[str], structured: dict) -> ToolResult:
+    """Return non-attributed structured data with a text JSON fallback."""
+    serialized = json.dumps(structured, ensure_ascii=False, separators=(",", ":"))
+    return ToolResult(
+        content="\n".join(
+            [*lines, f"Structured data (JSON):\n```json\n{serialized}\n```"]
+        ),
         structured_content=structured,
     )
 

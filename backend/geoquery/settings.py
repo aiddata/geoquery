@@ -538,6 +538,9 @@ MCP_RESULTS_MAX_ROWS = int(os.environ.get("MCP_RESULTS_MAX_ROWS", "200"))
 MCP_RESULTS_MAX_COLUMNS = int(os.environ.get("MCP_RESULTS_MAX_COLUMNS", "25"))
 MCP_MAP_MAX_FEATURES = int(os.environ.get("MCP_MAP_MAX_FEATURES", "5000"))
 MCP_MAP_MAX_BYTES = int(os.environ.get("MCP_MAP_MAX_BYTES", str(3 * 1024 * 1024)))
+MCP_MODEL_CONTENT_MAX_BYTES = int(
+    os.environ.get("MCP_MODEL_CONTENT_MAX_BYTES", str(512 * 1024))
+)
 MCP_RESULTS_CSV_MAX_BYTES = int(
     os.environ.get("MCP_RESULTS_CSV_MAX_BYTES", str(5 * 1024 * 1024))
 )

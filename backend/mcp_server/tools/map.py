@@ -27,6 +27,7 @@ from mcp_server.schemas import (
     DATASET_DESC,
     EXTRACT_TYPE_DESC,
     FORMULA_DESC,
+    MAP_OUTPUT_SCHEMA,
     REQUEST_ID_DESC,
     RESOURCES_DESC,
     YEARS_DESC,
@@ -34,7 +35,7 @@ from mcp_server.schemas import (
 
 from .common import fmt_count, result, tool_body
 
-_APP_HTML = Path(__file__).resolve().parent.parent / "apps" / "static" / "map.html"
+_APP_HTML = Path(__file__).resolve().parent.parent / "apps" / "static" / "map-v1.html"
 
 
 def register(mcp, user_dep):
@@ -47,7 +48,8 @@ def register(mcp, user_dep):
             csp=ResourceCSP(
                 resourceDomains=APP_RESOURCE_DOMAINS,
                 connectDomains=APP_CONNECT_DOMAINS,
-            )
+            ),
+            prefersBorder=True,
         ),
     )
     def map_app() -> str:
@@ -58,8 +60,14 @@ def register(mcp, user_dep):
 
     @mcp.tool(
         name="show_map",
+        output_schema=MAP_OUTPUT_SCHEMA,
         annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=False),
         app=AppConfig(resourceUri=MAP_APP_URI),
+        meta={
+            "openai/outputTemplate": MAP_APP_URI,
+            "openai/toolInvocation/invoking": "Building map…",
+            "openai/toolInvocation/invoked": "Map ready",
+        },
     )
     @tool_body
     def show_map(
@@ -155,4 +163,23 @@ def register(mcp, user_dep):
             )
         if payload["viz_url"]:
             lines.append(f"Open in GeoQuery: {payload['viz_url']}")
-        return result(lines, payload)
+        model_payload = {
+            key: payload[key]
+            for key in (
+                "source",
+                "title",
+                "viz_url",
+                "columns",
+                "column",
+                "palette",
+                "classification",
+                "classes",
+                "breaks",
+                "stats",
+                "bbox",
+                "feature_count",
+                "truncated",
+                "attribution",
+            )
+        }
+        return result(lines, model_payload, meta={"geoquery/map": payload})

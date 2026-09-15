@@ -9,7 +9,7 @@ like different data.
 Only the parts the server needs live here -- palettes, the two break methods,
 and the value→colour lookup. The app's own JavaScript re-implements the same
 two functions so switching column or year inside the iframe costs no round
-trip; see ``apps/static/map.html``.
+trip; see ``frontend/mcp-map/map.ts``.
 """
 
 from __future__ import annotations

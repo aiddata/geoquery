@@ -33,7 +33,7 @@ from mcp_server.data.attribution import (
     attribution_text,
     missing_attribution,
 )
-from mcp_server.schemas import BOUNDARIES_DESC, CitationStyle
+from mcp_server.schemas import BOUNDARIES_DESC, CitationStyle, GENERIC_OUTPUT_SCHEMA
 from visualize.data import build_explore_available
 
 from .common import READ_ONLY, fmt_count, result, tool_body
@@ -387,7 +387,7 @@ def _get_citations(
 
 
 def register(mcp, user_dep):
-    @mcp.tool(annotations=READ_ONLY)
+    @mcp.tool(annotations=READ_ONLY, output_schema=GENERIC_OUTPUT_SCHEMA)
     @tool_body
     def search_boundaries(
         query: Annotated[
@@ -422,7 +422,7 @@ def register(mcp, user_dep):
             )
         return result(lines, payload)
 
-    @mcp.tool(annotations=READ_ONLY)
+    @mcp.tool(annotations=READ_ONLY, output_schema=GENERIC_OUTPUT_SCHEMA)
     @tool_body
     def get_boundary(
         name: Annotated[str, Field(description="Feature collection name.")],
@@ -442,7 +442,7 @@ def register(mcp, user_dep):
         ]
         return result(lines, payload)
 
-    @mcp.tool(annotations=READ_ONLY)
+    @mcp.tool(annotations=READ_ONLY, output_schema=GENERIC_OUTPUT_SCHEMA)
     @tool_body
     def search_datasets(
         query: Annotated[str, Field(description="Text to match.")] = "",
@@ -471,7 +471,7 @@ def register(mcp, user_dep):
             )
         return result(lines, payload)
 
-    @mcp.tool(annotations=READ_ONLY)
+    @mcp.tool(annotations=READ_ONLY, output_schema=GENERIC_OUTPUT_SCHEMA)
     @tool_body
     def get_dataset(
         name: Annotated[str, Field(description="Dataset name.")],
@@ -507,7 +507,7 @@ def register(mcp, user_dep):
         ]
         return result(lines, payload)
 
-    @mcp.tool(annotations=READ_ONLY)
+    @mcp.tool(annotations=READ_ONLY, output_schema=GENERIC_OUTPUT_SCHEMA)
     @tool_body
     def list_available_data(
         boundaries: Annotated[list[str], Field(description=BOUNDARIES_DESC)],
@@ -540,7 +540,7 @@ def register(mcp, user_dep):
             )
         return result(lines, payload)
 
-    @mcp.tool(annotations=READ_ONLY)
+    @mcp.tool(annotations=READ_ONLY, output_schema=GENERIC_OUTPUT_SCHEMA)
     @tool_body
     def get_citations(
         datasets: Annotated[

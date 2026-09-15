@@ -22,7 +22,7 @@ from mcp_server.tools.catalog import (
     _search_boundaries,
     _search_datasets,
 )
-from mcp_server.tools.explore import _get_data, viz_url
+from mcp_server.tools.explore import _fit_model_payload, _get_data, _json_size, viz_url
 from mcp_server.data.selection import resolve_selection
 
 from .factories import World, make_dataset, make_fc
@@ -401,6 +401,21 @@ class GetDataTableTests(TestCase):
         self.assertEqual(payload["total_rows"], 2)
         self.assertIn("ESA Land Cover", payload["attribution"]["text"])
 
+    @override_settings(MCP_MODEL_CONTENT_MAX_BYTES=500)
+    def test_model_response_cap_is_explicit_and_retains_a_fitting_row_slice(self):
+        payload = {
+            "format": "table",
+            "rows": [{"name": str(index), "value": "x" * 180} for index in range(8)],
+            "truncated": False,
+        }
+
+        fitted = _fit_model_payload(payload)
+
+        self.assertLessEqual(_json_size(fitted), 500)
+        self.assertTrue(fitted["content_truncated"])
+        self.assertEqual(fitted["returned_rows"], len(fitted["rows"]))
+        self.assertLess(fitted["returned_rows"], 8)
+
 
 class GetDataGeoJsonTests(TestCase):
     def setUp(self):
@@ -463,6 +478,34 @@ class GetDataGeoJsonTests(TestCase):
         for feature in payload["geojson"]["features"]:
             self.assertIsNone(feature["geometry"])
         self.assertIsNotNone(payload["viz_url"])
+
+    @override_settings(MCP_MODEL_CONTENT_MAX_BYTES=700)
+    def test_response_size_cap_drops_geometry_before_values(self):
+        features = [
+            {
+                "type": "Feature",
+                "id": index,
+                "geometry": {"type": "Polygon", "coordinates": [[[0, 0]] * 40]},
+                "properties": {"value": index},
+            }
+            for index in range(3)
+        ]
+        payload = {
+            "format": "geojson",
+            "geojson": {"type": "FeatureCollection", "features": features},
+            "geometry_omitted": False,
+            "truncated": False,
+        }
+
+        fitted = _fit_model_payload(payload)
+
+        self.assertLessEqual(_json_size(fitted), 700)
+        self.assertTrue(fitted["geometry_omitted"])
+        self.assertEqual(fitted["returned_features"], 3)
+        self.assertEqual(
+            [feature["properties"]["value"] for feature in fitted["geojson"]["features"]],
+            [0, 1, 2],
+        )
 
 
 class VizUrlTests(TestCase):
