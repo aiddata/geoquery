@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
@@ -16,6 +15,7 @@
 		type AuthSession
 	} from '$lib/allauth';
 	import { LoaderCircle, MailCheck, TriangleAlert } from '@lucide/svelte';
+	import { navigateNext, readNext } from '$lib/utils/nextDestination';
 
 	type CallbackView = 'loading' | 'provider-signup' | 'verify-email' | 'error';
 	type ErrorAction = 'none' | 'check' | 'restart';
@@ -37,7 +37,7 @@
 	let signupError = $state('');
 	let submitting = $state(false);
 
-	const nextDestination = $derived(page.url.searchParams.get('next') ?? '/account');
+	const nextDestination = $derived(readNext(page.url));
 	const normalizedEmail = $derived(signupEmail.trim());
 	const emailIsValid = $derived(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail));
 
@@ -90,7 +90,7 @@
 	async function handleSession(session: AuthSession) {
 		setAuthSession(session);
 		if (session.status === 'authenticated') {
-			await goto(nextDestination, { replaceState: true });
+			await navigateNext(nextDestination);
 			return;
 		}
 

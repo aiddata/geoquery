@@ -33,6 +33,13 @@ urlpatterns = [
     # Regular allauth URLs are still needed for the OAuth provider
     # redirect/callback round-trip; HEADLESS_ONLY prunes the HTML views.
     path("api/accounts/", include("allauth.urls")),
+    # GeoQuery's OpenID Connect provider, whose only client is the MCP server.
+    # It lives under a prefix rather than at the root because a deployment
+    # gives the root OAuth paths (/authorize, /token, /.well-known/oauth-*) to
+    # the MCP server itself; /api already routes here. Include
+    # `allauth.idp.urls`, not `allauth.idp.oidc.urls` -- the views reverse
+    # names under the `idp:oidc:` namespace, which only the former sets up.
+    path("api/idp/", include("allauth.idp.urls")),
     path("api/auth/", include("accounts.urls")),
     path("api/config/", ConfigView.as_view(), name="config"),
     path("api/features/", include("features.urls")),

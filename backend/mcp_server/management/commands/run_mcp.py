@@ -28,19 +28,19 @@ class Command(BaseCommand):
             # which silently downgrades catalog-restricted data to public and
             # makes exports impossible. Running that way is either an explicit
             # operator decision (MCP_AUTH_DISABLED) or a local-development
-            # default (DEBUG on, no OAuth app). Anything else is a
+            # default (DEBUG on, no OIDC client). Anything else is a
             # misconfiguration, so refuse rather than warn.
             if settings.MCP_AUTH_DISABLED:
                 reason = "MCP_AUTH_DISABLED is set"
             elif settings.DEBUG:
-                reason = "No GitHub OAuth app configured"
+                reason = "No OIDC client configured"
             else:
                 raise CommandError(
-                    "MCP_GITHUB_CLIENT_ID / MCP_GITHUB_CLIENT_SECRET are not "
-                    "set, so the server would run unauthenticated. Configure "
-                    "the GitHub OAuth app, set MCP_AUTH_DISABLED=true to run "
-                    "without authentication on purpose, or run with DEBUG on "
-                    "for local development."
+                    "MCP_OIDC_CLIENT_ID / MCP_OIDC_CLIENT_SECRET are not "
+                    "set, so the server would run unauthenticated. Register "
+                    "the client with `manage.py ensure_mcp_oidc_client`, set "
+                    "MCP_AUTH_DISABLED=true to run without authentication on "
+                    "purpose, or run with DEBUG on for local development."
                 )
             self.stdout.write(
                 self.style.WARNING(

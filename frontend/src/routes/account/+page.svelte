@@ -17,6 +17,13 @@
         loginWithGitHub
     } from "$lib/allauth";
     import { ArrowLeft, History, LogIn, Mail, Plus } from "@lucide/svelte";
+    import { page } from "$app/state";
+    import { DEFAULT_NEXT, navigateNext, readNext } from "$lib/utils/nextDestination";
+
+    // Usually absent. Django's OIDC provider sets it when a chat client
+    // connecting to the MCP server needs a session first: sign in, then go
+    // back to /authorize and finish the handshake.
+    const nextDestination = $derived(readNext(page.url));
 
     let emails = $state<EmailAddress[]>([]);
     let providers = $state<ProviderAccount[]>([]);
@@ -40,7 +47,14 @@
     }
 
     $effect(() => {
-        if ($auth.status === "authenticated") load();
+        if ($auth.status !== "authenticated") return;
+        // Already signed in and only passing through: don't make them look at
+        // an account page they didn't ask for.
+        if (nextDestination !== DEFAULT_NEXT) {
+            navigateNext(nextDestination);
+            return;
+        }
+        load();
     });
 
     async function run(action: () => Promise<unknown>, successMessage: string) {
@@ -84,7 +98,7 @@
         <div class="rounded-lg border bg-card p-6 shadow-sm text-center">
             <h1 class="mb-2 text-2xl font-semibold">Account</h1>
             <p class="mb-6 text-muted-foreground">Sign in to manage your account and past requests.</p>
-            <Button onclick={() => loginWithGitHub("/account")}>
+            <Button onclick={() => loginWithGitHub(nextDestination)}>
                 <LogIn class="mr-1 h-4 w-4" />
                 Sign in with GitHub
             </Button>

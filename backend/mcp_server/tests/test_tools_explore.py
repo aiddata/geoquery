@@ -22,7 +22,13 @@ from mcp_server.tools.catalog import (
     _search_boundaries,
     _search_datasets,
 )
-from mcp_server.tools.explore import _fit_model_payload, _get_data, _json_size, viz_url
+from mcp_server.tools.explore import (
+    _data_block,
+    _fit_model_payload,
+    _get_data,
+    _json_size,
+    viz_url,
+)
 from mcp_server.data.selection import resolve_selection
 
 from .factories import World, make_dataset, make_fc
@@ -271,6 +277,134 @@ class GetCitationsTests(TestCase):
             _get_citations(None)
 
         self.assertIn("request_id", str(ctx.exception))
+
+
+class GetDataLongShapeTests(TestCase):
+    """shape="long": the tidy shape a time series is actually asked in."""
+
+    def setUp(self):
+        self.world = World().fill()
+
+    def get(self, **kwargs):
+        kwargs.setdefault("boundaries", [self.world.fc.name])
+        kwargs.setdefault("dataset", "esa_landcover")
+        kwargs.setdefault("extract_type", "mean")
+        kwargs.setdefault("shape", "long")
+        return _get_data(None, **kwargs)
+
+    def test_one_row_per_feature_per_column_with_the_year_split_out(self):
+        payload = self.get()
+
+        self.assertEqual(payload["shape"], "long")
+        self.assertEqual(payload["total_features"], 2)
+        self.assertEqual(payload["total_rows"], 4)
+        north_2015 = next(
+            r
+            for r in payload["rows"]
+            if r["name"] == "Northshire" and r["year"] == 2015
+        )
+        self.assertEqual(north_2015["value"], 10.0)
+        self.assertEqual(north_2015["series"], "ESA Land Cover mean")
+        self.assertEqual(north_2015["feature_id"], self.world.features[0].id)
+
+    def test_series_change_reports_first_to_last(self):
+        (change,) = self.get()["series_change"]
+
+        self.assertEqual(change["name"], "Northshire")
+        self.assertEqual((change["first_year"], change["first_value"]), (2015, 10.0))
+        self.assertEqual((change["last_year"], change["last_value"]), (2020, 14.0))
+        self.assertEqual(change["absolute_change"], 4.0)
+        self.assertEqual(change["percent_change"], 40.0)
+
+    def test_a_feature_with_one_point_gets_no_change_row(self):
+        # Southshire has 2015 only, so its "change" would be a guess.
+        names = {c["name"] for c in self.get()["series_change"]}
+
+        self.assertEqual(names, {"Northshire"})
+
+    def test_limit_counts_features_not_rows(self):
+        payload = self.get(limit=1)
+
+        self.assertEqual(payload["page_features"], 1)
+        self.assertEqual(len(payload["rows"]), 2)
+        self.assertEqual(payload["total_features"], 2)
+        self.assertTrue(payload["truncated"])
+
+    def test_undated_columns_are_reported_and_left_out_of_change(self):
+        self.world.resources[2020].temporal = None
+        self.world.resources[2020].label = "latest"
+        self.world.resources[2020].name = "esa_lc_latest"
+        self.world.resources[2020].save()
+
+        payload = self.get()
+
+        self.assertEqual(payload["undated_columns"], ["esa_lc_latest.mean"])
+        self.assertEqual(payload["series_change"], [])
+        undated = next(r for r in payload["rows"] if r["column"] == "esa_lc_latest.mean")
+        self.assertIsNone(undated["year"])
+
+    def test_year_falls_back_to_the_resource_name_when_undated(self):
+        self.world.resources[2020].temporal = None
+        self.world.resources[2020].save()
+
+        payload = self.get()
+
+        self.assertEqual(payload["undated_columns"], [])
+        row = next(r for r in payload["rows"] if r["column"] == "esa_lc_2020.mean")
+        self.assertEqual(row["year"], 2020)
+
+    def test_geojson_ignores_shape(self):
+        payload = self.get(format="geojson")
+
+        self.assertNotIn("shape", payload)
+        self.assertIn("geojson", payload)
+
+
+class TextBlockTests(TestCase):
+    """What actually reaches the model: values, in the text content block."""
+
+    def setUp(self):
+        self.world = World().fill()
+
+    def block(self, **kwargs):
+        kwargs.setdefault("boundaries", [self.world.fc.name])
+        kwargs.setdefault("dataset", "esa_landcover")
+        kwargs.setdefault("extract_type", "mean")
+        payload = _get_data(None, **kwargs)
+        return _data_block(payload, kwargs.get("shape", "wide"))
+
+    def test_wide_table_is_csv_with_a_column_per_selected_column(self):
+        block = self.block()
+
+        self.assertIn("feature_id,name,fc,esa_lc_2015.mean,esa_lc_2020.mean", block)
+        self.assertIn("Northshire,gB_v6_TST_ADM1,10.0,14.0", block)
+        # A feature with no value gets an empty cell, not a dropped row.
+        self.assertIn("Southshire,gB_v6_TST_ADM1,20.0,\n", block)
+
+    def test_values_keep_full_precision(self):
+        self.world.extract(
+            self.world.fms[1],
+            self.world.pos["mean"],
+            self.world.resources[2020],
+            18054321.0,
+        )
+
+        self.assertIn("18054321.0", self.block())
+
+    def test_long_block_carries_the_change_table_too(self):
+        block = self.block(shape="long")
+
+        self.assertIn("feature_id,name,fc,series,year,value", block)
+        self.assertIn("ESA Land Cover mean,2015,10.0", block)
+        self.assertIn("absolute_change,percent_change", block)
+
+    def test_geojson_block_has_properties_and_no_coordinates(self):
+        self.world.simplify()
+
+        block = self.block(format="geojson")
+
+        self.assertIn("feature_id,name,fc,esa_lc_2015.mean", block)
+        self.assertNotIn("coordinates", block)
 
 
 class GetDataTableTests(TestCase):

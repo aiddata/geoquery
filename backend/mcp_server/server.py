@@ -31,9 +31,13 @@ answering a question, making a chart, or drawing a map:
 Use this first. It needs no waiting and no submission.
 
 Use get_data when you need to calculate, compare, quote, or inspect values.
-Its text includes a JSON copy for clients that do not expose structured
-content. Use show_map when the user wants to see spatial patterns; the client
-receives a purpose-built map app and the model receives a compact summary.
+The values are in its text content as CSV, as well as in structured content,
+so they reach you whatever your client forwards. For a time series -- one
+place across many years -- pass shape="long" and get tidy (feature, series,
+year, value) rows plus the first-to-last change, instead of a column per year
+to pivot yourself. Use show_map when the user wants to see spatial patterns;
+the client receives a purpose-built map app and the model receives a compact
+summary.
 
 EXPORT (asynchronous, permanent). Turning a selection into a downloadable,
 citable artifact -- a zip with CSV, GeoPackage, documentation and notebook

@@ -231,6 +231,11 @@ def _get_dataset(user, name: str, include_resources: bool = False) -> dict:
     return payload
 
 
+# Enough to name every requestable dataset in a typical catalog without
+# letting a pathological one fill the model's context.
+_REQUESTABLE_NAMES = 60
+
+
 # ── list_available_data ──────────────────────────────────────────────────────
 
 
@@ -440,6 +445,18 @@ def register(mcp, user_dep):
             f"{fmt_count(payload['feature_count'], 'feature')}.",
             payload.get("description") or "",
         ]
+        preview = payload["features_preview"]
+        if preview:
+            lines.append(
+                f"Features (first {len(preview)} by name): "
+                + ", ".join(f"{f['name']} [{f['feature_id']}]" for f in preview)
+                + ("…" if payload["feature_count"] > len(preview) else "")
+            )
+        if payload.get("source_name") or payload.get("license"):
+            lines.append(
+                f"Source: {payload.get('source_name') or 'not recorded'}; "
+                f"license: {payload.get('license') or 'not recorded'}."
+            )
         return result(lines, payload)
 
     @mcp.tool(annotations=READ_ONLY, output_schema=GENERIC_OUTPUT_SCHEMA)
@@ -537,6 +554,23 @@ def register(mcp, user_dep):
                 f"- {entry['dataset']} [{', '.join(entry['extract_types'])}]"
                 + (f" {entry['temporal_range']}" if entry["temporal_range"] else "")
                 + f" — {entry['coverage_fraction']:.0%} of features"
+            )
+        requestable = payload["requestable"]
+        if requestable:
+            # Named, not just counted: "37 more available by export" is not
+            # something a model can offer the user, and the names are the
+            # cheapest part of the payload.
+            shown = requestable[:_REQUESTABLE_NAMES]
+            lines.append(
+                "Requestable by export (not processed for these boundaries "
+                "yet): "
+                + ", ".join(ds["name"] for ds in shown)
+                + (
+                    f", and {len(requestable) - len(shown)} more — "
+                    "search_datasets lists them all."
+                    if len(requestable) > len(shown)
+                    else "."
+                )
             )
         return result(lines, payload)
 

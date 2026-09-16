@@ -199,9 +199,47 @@ class ServerIntegrationTests(TransactionTestCase):
             },
         )
 
-        self.assertIn('"rows":', result.content[0].text)
-        self.assertIn('"esa_lc_2015.mean":10.0', result.content[0].text)
+        text = result.content[0].text
+        self.assertIn("feature_id,name,fc,esa_lc_2015.mean", text)
+        self.assertIn("Northshire", text)
+        self.assertIn("10.0", text)
         self.assertEqual(result.structured_content["format"], "table")
+
+    def test_get_data_long_shape_text_carries_year_and_value_per_row(self):
+        result = self.call(
+            "get_data",
+            {
+                "boundaries": [self.world.fc.name],
+                "dataset": "esa_landcover",
+                "extract_type": "mean",
+                "shape": "long",
+            },
+        )
+
+        text = result.content[0].text
+        self.assertIn("feature_id,name,fc,series,year,value", text)
+        self.assertIn("Northshire,gB_v6_TST_ADM1,ESA Land Cover mean,2015,10.0", text)
+        self.assertIn("first_year,first_value", text)
+
+    def test_geojson_text_carries_properties_but_not_coordinates(self):
+        self.world.simplify()
+
+        result = self.call(
+            "get_data",
+            {
+                "boundaries": [self.world.fc.name],
+                "dataset": "esa_landcover",
+                "extract_type": "mean",
+                "format": "geojson",
+            },
+        )
+
+        text = result.content[0].text
+        self.assertIn("feature_id,name,fc,esa_lc_2015.mean", text)
+        self.assertNotIn("coordinates", text)
+        self.assertIsNotNone(
+            result.structured_content["geojson"]["features"][0]["geometry"]
+        )
 
     def test_show_map_keeps_display_data_in_app_only_metadata(self):
         result = self.call(

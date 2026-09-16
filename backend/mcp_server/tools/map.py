@@ -33,7 +33,7 @@ from mcp_server.schemas import (
     YEARS_DESC,
 )
 
-from .common import fmt_count, result, tool_body
+from .common import fmt_count, fmt_number, result, tool_body
 
 _APP_HTML = Path(__file__).resolve().parent.parent / "apps" / "static" / "map-v1.html"
 
@@ -153,8 +153,9 @@ def register(mcp, user_dep):
         ]
         if stats:
             lines.append(
-                f"min {stats['min']:,.4g}, mean {stats['mean']:,.4g}, "
-                f"max {stats['max']:,.4g} over {stats['n']:,} features with data."
+                f"min {fmt_number(stats['min'])}, mean {fmt_number(stats['mean'])}, "
+                f"max {fmt_number(stats['max'])} over {stats['n']:,} features "
+                "with data."
             )
         if payload["truncated"]:
             lines.append(

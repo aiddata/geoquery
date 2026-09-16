@@ -44,6 +44,13 @@ services:
       - GITHUB_OAUTH_CLIENT_ID=${GITHUB_OAUTH_CLIENT_ID}
       - GITHUB_OAUTH_CLIENT_SECRET=${GITHUB_OAUTH_CLIENT_SECRET}
       - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      # RSA key GeoQuery's OIDC provider signs MCP sign-in tokens with.
+      # Generate one with `openssl genrsa 2048`. Only needed to connect a chat
+      # client to the MCP server.
+      - OIDC_PRIVATE_KEY=${OIDC_PRIVATE_KEY}
+      - MCP_BASE_URL=${MCP_BASE_URL:-http://localhost:8001}
+      - MCP_OIDC_CLIENT_ID=${MCP_OIDC_CLIENT_ID}
+      - MCP_OIDC_CLIENT_SECRET=${MCP_OIDC_CLIENT_SECRET}
       - PG_RW_DBNAME=geoquery
       - PG_RW_USER=django_user
       - PG_RW_PASSWORD=dev_password
@@ -81,10 +88,17 @@ services:
       # (cloudflared, ngrok) set it to the public URL -- the OAuth callback and
       # the protected-resource metadata are built from it.
       - MCP_BASE_URL=${MCP_BASE_URL:-http://localhost:8001}
-      - MCP_GITHUB_CLIENT_ID=${MCP_GITHUB_CLIENT_ID}
-      - MCP_GITHUB_CLIENT_SECRET=${MCP_GITHUB_CLIENT_SECRET}
+      # This server's client on GeoQuery's own OIDC provider. Register it
+      # with `docker compose exec backend uv run python manage.py
+      # ensure_mcp_oidc_client` after setting these.
+      - MCP_OIDC_CLIENT_ID=${MCP_OIDC_CLIENT_ID}
+      - MCP_OIDC_CLIENT_SECRET=${MCP_OIDC_CLIENT_SECRET}
+      # Where this process reaches the provider's token, revocation and JWKS
+      # endpoints. The browser-facing /authorize URL comes from
+      # FRONTEND_BASE_URL instead, since the browser cannot resolve `backend`.
+      - MCP_OIDC_INTERNAL_URL=${MCP_OIDC_INTERNAL_URL:-http://backend:8000}
       - MCP_JWT_SIGNING_KEY=${MCP_JWT_SIGNING_KEY}
-      # Set to true to skip GitHub sign-in entirely (every caller anonymous).
+      # Set to true to skip sign-in entirely (every caller anonymous).
       - MCP_AUTH_DISABLED=${MCP_AUTH_DISABLED:-false}
       # FastMCP's OAuth proxy persists client registrations under its home
       # directory. /tmp is the one path any runtime UID can write, same reason

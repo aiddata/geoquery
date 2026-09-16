@@ -12,7 +12,9 @@ thousand calls.
 
 from __future__ import annotations
 
+import csv
 import functools
+import io
 import json
 
 from fastmcp.exceptions import ToolError
@@ -61,16 +63,52 @@ def text_with_attribution(lines: list[str], attribution: dict) -> str:
     return "\n".join(body)
 
 
-def result(lines: list[str], structured: dict, *, meta: dict | None = None) -> ToolResult:
+def json_block(structured: dict) -> str:
+    """The whole payload, mirrored into the text content as JSON.
+
+    Many clients never hand ``structuredContent`` to the model, so a tool that
+    puts its data only there has, from the model's side, returned nothing. The
+    spec's own advice is to mirror it, and for the small catalog payloads JSON
+    is the right shape to mirror in.
+    """
+    serialized = json.dumps(structured, ensure_ascii=False, separators=(",", ":"))
+    return f"Structured data (JSON):\n```json\n{serialized}\n```"
+
+
+def csv_block(header: list[str], rows) -> str:
+    """Tabular data as CSV, for the text content block.
+
+    ``get_data`` returns the one payload big enough for the mirroring to cost
+    real context, and a table of numbers is several times cheaper as CSV than
+    as JSON -- no repeated key per cell. ``csv`` also writes floats through
+    ``repr``, so a value reaches the model at full precision rather than the
+    four significant figures a display format would leave it with.
+    """
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(header)
+    writer.writerows(rows)
+    return "```csv\n" + buffer.getvalue().rstrip("\n") + "\n```"
+
+
+def result(
+    lines: list[str],
+    structured: dict,
+    *,
+    data_block: str | None = None,
+    meta: dict | None = None,
+) -> ToolResult:
     """A ToolResult whose text ends with the attribution from its own payload.
 
     Taking the attribution out of ``structured`` rather than as a separate
     argument means the text and the structured content can never disagree
     about what is being cited.
+
+    ``data_block`` overrides the default JSON mirror for tools that have a
+    cheaper serialization of their own -- see ``csv_block``.
     """
-    serialized = json.dumps(structured, ensure_ascii=False, separators=(",", ":"))
     text = text_with_attribution(
-        [*lines, f"Structured data (JSON):\n```json\n{serialized}\n```"],
+        [*lines, data_block if data_block is not None else json_block(structured)],
         structured["attribution"],
     )
     return ToolResult(
@@ -82,13 +120,28 @@ def result(lines: list[str], structured: dict, *, meta: dict | None = None) -> T
 
 def plain_result(lines: list[str], structured: dict) -> ToolResult:
     """Return non-attributed structured data with a text JSON fallback."""
-    serialized = json.dumps(structured, ensure_ascii=False, separators=(",", ":"))
     return ToolResult(
-        content="\n".join(
-            [*lines, f"Structured data (JSON):\n```json\n{serialized}\n```"]
-        ),
+        content="\n".join([*lines, json_block(structured)]),
         structured_content=structured,
     )
+
+
+def fmt_number(value) -> str:
+    """A number as a person would write it, never in scientific notation.
+
+    ``{:.4g}`` turns a population of 18,054,321 into ``1.805e+07``, which is
+    both unreadable and four significant figures of a number the caller may
+    well want to quote. Whole numbers stay whole and keep their thousands
+    separators; fractions keep enough digits to be worth having.
+    """
+    if value is None:
+        return "n/a"
+    number = float(value)
+    if number.is_integer() and abs(number) < 1e15:
+        return f"{int(number):,}"
+    if abs(number) >= 0.001:
+        return f"{number:,.4f}".rstrip("0").rstrip(".")
+    return f"{number:,.6g}"
 
 
 def require_user(user):
@@ -96,7 +149,7 @@ def require_user(user):
     if user is None:
         raise AuthenticationRequired(
             "This action needs a signed-in GeoQuery account. Reconnect the "
-            "server and complete the GitHub sign-in."
+            "server and complete the GeoQuery sign-in."
         )
     return user
 

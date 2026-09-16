@@ -22,7 +22,7 @@ from urllib.parse import quote
 from django.conf import settings
 from pydantic import Field
 
-from mcp_server.data import geometry
+from mcp_server.data import geometry, tidy
 from mcp_server.data.attribution import attribution_for, attribution_for_request
 from mcp_server.data.selection import (
     Selection,
@@ -41,10 +41,12 @@ from mcp_server.schemas import (
     Format,
     REQUEST_ID_DESC,
     RESOURCES_DESC,
+    Shape,
+    SHAPE_DESC,
     YEARS_DESC,
 )
 
-from .common import READ_ONLY, fmt_count, result, tool_body
+from .common import READ_ONLY, csv_block, fmt_count, result, tool_body
 
 
 def attribution_for_selection(selection: Selection) -> dict:
@@ -167,6 +169,7 @@ def _get_data(
     columns=None,
     formula=None,
     format="table",
+    shape="wide",
     offset=0,
     limit=100,
     sort_by=None,
@@ -213,9 +216,10 @@ def _get_data(
             **_geojson(selection, payload, features, selected, partial, attribution),
         }
     else:
+        build = _long_table if shape == "long" else _table
         result_payload = {
             **common,
-            **_table(
+            **build(
                 selection,
                 payload,
                 features,
@@ -311,6 +315,7 @@ def _table(
     page = ordered[offset : offset + limit]
 
     return {
+        "shape": "wide",
         "columns": _column_meta(payload, selected, partial),
         "column_stats": _column_stats(features, selected),
         "rows": [
@@ -325,6 +330,52 @@ def _table(
         "offset": offset,
         "limit": limit,
         "total_rows": len(ordered),
+        "truncated": offset + len(page) < len(ordered),
+        "viz_url": viz_url(
+            selection,
+            col=selected[0] if selected else None,
+            formula=formula,
+        ),
+    }
+
+
+def _long_table(
+    selection, payload, features, selected, partial,
+    offset, limit, sort_by, descending, formula,
+) -> dict:
+    """The same selection, one row per feature per column, with the year split out.
+
+    ``offset`` and ``limit`` count *features* here, not rows -- a single ADM0
+    feature across twenty-five years is one unit of "how much did you ask
+    for", and paging by rows would cut a country's series in half. The row
+    count both before and after that paging is reported, so a caller can tell
+    which number it is reading.
+    """
+    if sort_by and sort_by not in selected:
+        raise SelectionError(
+            f"Cannot sort by '{sort_by}': it is not one of the returned "
+            f"columns ({', '.join(selected) or 'none'})."
+        )
+
+    limit = max(1, min(limit, settings.MCP_RESULTS_MAX_ROWS))
+    ordered = _sorted_rows(features, sort_by, descending)
+    page = ordered[offset : offset + limit]
+
+    years = tidy.column_years(selection, payload, selected)
+    titles = payload.get("col_dataset_titles") or {}
+
+    return {
+        "shape": "long",
+        "columns": _column_meta(payload, selected, partial),
+        "column_stats": _column_stats(features, selected),
+        "rows": tidy.long_rows(page, selected, years, titles),
+        "series_change": tidy.series_change(page, selected, years, titles),
+        "offset": offset,
+        "limit": limit,
+        "total_features": len(ordered),
+        "page_features": len(page),
+        "total_rows": len(ordered) * len(selected),
+        "undated_columns": [col for col in selected if years.get(col) is None],
         "truncated": offset + len(page) < len(ordered),
         "viz_url": viz_url(
             selection,
@@ -386,6 +437,84 @@ def _geojson(selection, payload, features, selected, partial, attribution) -> di
     }
 
 
+def _data_block(payload: dict, shape: str) -> str:
+    """The values themselves, in the text content block.
+
+    ``structuredContent`` is not shown to the model by every client, so a
+    result whose numbers live only there reads, from the model's side, as a
+    summary with no data in it. Everything here is therefore mirrored as CSV
+    -- cheaper than JSON per cell, and losing no precision.
+
+    Geometry is the one thing deliberately left out: coordinates are for a
+    renderer, not for a model to read, and they would crowd out the values
+    they are attached to. They stay in ``structuredContent``.
+    """
+    columns = [c["name"] for c in payload["columns"]]
+
+    if payload["format"] == "geojson":
+        features = payload["geojson"]["features"]
+        rows = [
+            [
+                feature.get("id"),
+                (feature.get("properties") or {}).get("name"),
+                (feature.get("properties") or {}).get("fc"),
+                *((feature.get("properties") or {}).get(col) for col in columns),
+            ]
+            for feature in features
+        ]
+        note = (
+            "Properties below; geometry is in `structuredContent` only."
+            if not payload.get("geometry_omitted")
+            else "Properties below; no geometry was returned."
+        )
+        return note + "\n" + csv_block(["feature_id", "name", "fc", *columns], rows)
+
+    if shape == "long":
+        rows = [
+            [r["feature_id"], r["name"], r["fc"], r["series"], r["year"], r["value"]]
+            for r in payload["rows"]
+        ]
+        text = csv_block(
+            ["feature_id", "name", "fc", "series", "year", "value"], rows
+        )
+        if payload.get("series_change"):
+            change_rows = [
+                [
+                    c["feature_id"],
+                    c["name"],
+                    c["series"],
+                    c["first_year"],
+                    c["first_value"],
+                    c["last_year"],
+                    c["last_value"],
+                    c["absolute_change"],
+                    c["percent_change"],
+                ]
+                for c in payload["series_change"]
+            ]
+            text += "\nFirst-to-last change per series:\n" + csv_block(
+                [
+                    "feature_id",
+                    "name",
+                    "series",
+                    "first_year",
+                    "first_value",
+                    "last_year",
+                    "last_value",
+                    "absolute_change",
+                    "percent_change",
+                ],
+                change_rows,
+            )
+        return text
+
+    rows = [
+        [r["feature_id"], r["name"], r["fc"], *(r["values"].get(col) for col in columns)]
+        for r in payload["rows"]
+    ]
+    return csv_block(["feature_id", "name", "fc", *columns], rows)
+
+
 def register(mcp, user_dep):
     @mcp.tool(annotations=READ_ONLY, output_schema=DATA_OUTPUT_SCHEMA)
     @tool_body
@@ -421,8 +550,20 @@ def register(mcp, user_dep):
                 )
             ),
         ] = "table",
-        offset: Annotated[int, Field(description="Rows to skip.", ge=0)] = 0,
-        limit: Annotated[int, Field(description="Rows to return.", ge=1)] = 100,
+        shape: Annotated[Shape, Field(description=SHAPE_DESC)] = "wide",
+        offset: Annotated[
+            int, Field(description="Features to skip.", ge=0)
+        ] = 0,
+        limit: Annotated[
+            int,
+            Field(
+                description=(
+                    "Features to return. In 'long' shape each one becomes a "
+                    "row per selected column."
+                ),
+                ge=1,
+            ),
+        ] = 100,
         sort_by: Annotated[
             str | None, Field(description="Column to sort by. Nulls always sort last.")
         ] = None,
@@ -436,6 +577,12 @@ def register(mcp, user_dep):
 
         Two sources: `boundaries` + `dataset` reads pre-processed data live
         (fast, no waiting), or `request_id` reads a finished export.
+
+        The values themselves come back in the text content, as CSV for a
+        table and as the feature properties for GeoJSON, as well as in
+        `structuredContent`. For "how did this change over time", pass
+        `shape="long"`: tidy (feature, series, year, value) rows plus a
+        `series_change` summary, rather than a year per column to pivot.
 
         Use `format="geojson"` when you want to draw the map yourself; it
         returns boundary geometry with the values attached, and its own
@@ -457,6 +604,7 @@ def register(mcp, user_dep):
             columns=columns,
             formula=formula,
             format=format,
+            shape=shape,
             offset=offset,
             limit=limit,
             sort_by=sort_by,
@@ -475,6 +623,26 @@ def register(mcp, user_dep):
                     f"Over the {settings.MCP_MAP_MAX_FEATURES:,}-feature limit, so "
                     "geometry was omitted and only values are included. Narrow "
                     f"the selection, or open {payload['viz_url']}."
+                )
+        elif shape == "long":
+            lines = [
+                f"{fmt_count(payload['total_rows'], 'row')} long/tidy "
+                f"({fmt_count(payload['total_features'], 'feature')} × "
+                f"{fmt_count(len(payload['columns']), 'column')}); showing "
+                f"{fmt_count(payload['page_features'], 'feature')} from "
+                f"{payload['offset'] + 1}."
+            ]
+            if payload["undated_columns"]:
+                lines.append(
+                    "No year could be determined for "
+                    + ", ".join(payload["undated_columns"])
+                    + "; those rows have a null year and are left out of "
+                    "`series_change`."
+                )
+            if payload["truncated"]:
+                lines.append(
+                    "More features available — raise `offset`, or open "
+                    f"{payload['viz_url']}."
                 )
         else:
             lines = [
@@ -504,4 +672,4 @@ def register(mcp, user_dep):
                 f"The response-size limit retained {returned:,} records. Narrow "
                 f"the selection or open {payload['viz_url']} for the full result."
             )
-        return result(lines, payload)
+        return result(lines, payload, data_block=_data_block(payload, shape))

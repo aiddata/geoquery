@@ -96,6 +96,12 @@ INSTALLED_APPS = [
     "allauth.socialaccount",
     "allauth.socialaccount.providers.github",
     "allauth.headless",
+    # GeoQuery's own OpenID Connect provider, mounted at /api/idp/. Its one
+    # client is the MCP server (see mcp_server.auth), so chat clients sign in
+    # as the same accounts.User the website uses. The app label is
+    # `allauth_idp_oidc`; `allauth.idp` itself has no AppConfig and must not
+    # be listed.
+    "allauth.idp.oidc",
     "guardian",
     "geoquery",
     "accounts",
@@ -229,6 +235,19 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
+# Cache. The OIDC provider keeps authorization codes here for the 60 seconds
+# between /authorize and /token (allauth.idp.oidc), so this must be shared
+# across backend replicas -- the in-memory default would hand a code to one
+# process and look it up in another. The table is created by
+# `manage.py createcachetable`, which deployments run right after `migrate`.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "django_cache",
+    }
+}
+
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
@@ -350,6 +369,33 @@ HEADLESS_FRONTEND_URLS = {
     "account_signup": f"{FRONTEND_BASE_URL}/account",
     "socialaccount_login_error": f"{FRONTEND_BASE_URL}/account/provider/callback",
 }
+
+# Where `login_required` sends an unauthenticated browser. It matters here
+# because allauth's OIDC /authorize view is the one server-rendered page a
+# normal user can land on: a chat client connecting to the MCP server follows
+# a redirect to /api/idp/identity/o/authorize, and if there is no session yet
+# this is where they end up. Django treats LOGIN_URL as an opaque string, so
+# pointing it at the SPA (cross-origin in development) works -- the page reads
+# the `next` it is given and returns the browser there after sign-in.
+LOGIN_URL = f"{FRONTEND_BASE_URL.rstrip('/')}/account"
+
+# ── OpenID Connect provider (allauth.idp.oidc, mounted at /api/idp/) ─────────
+# GeoQuery signs its own MCP users in rather than sending them to GitHub a
+# second time: the website remains the only place an upstream provider is
+# configured, and the MCP server is just an OAuth client of this provider.
+
+# RSA private key (PEM) that signs ID tokens and JWT access tokens. Optional
+# at import time on purpose -- the deployment's migration Job runs
+# `ensure_mcp_oidc_client` without it, and Django must still start.
+IDP_OIDC_PRIVATE_KEY = os.environ.get("OIDC_PRIVATE_KEY", "")
+
+# Opaque (the default) would force the MCP server to call userinfo or
+# introspection on every request. JWT access tokens are verified offline
+# against the JWKS endpoint instead.
+IDP_OIDC_ACCESS_TOKEN_FORMAT = "jwt"
+
+# Pins `iss` to a fixed public value; see accounts.oidc for why.
+IDP_OIDC_ADAPTER = "accounts.oidc.GeoQueryOIDCAdapter"
 
 # Email (Django's framework; allauth verification mail sends through this).
 # Dev default prints emails to the backend container log.
@@ -500,18 +546,26 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50 MB
 # reaches -- through a tunnel or ingress, not the container address.
 MCP_BASE_URL = os.environ.get("MCP_BASE_URL", "http://localhost:8001")
 
-# A GitHub OAuth App *separate* from the web app's: its callback URL is
-# {MCP_BASE_URL}/auth/callback, and a GitHub OAuth App accepts exactly one.
-MCP_GITHUB_CLIENT_ID = os.environ.get("MCP_GITHUB_CLIENT_ID", "")
-MCP_GITHUB_CLIENT_SECRET = os.environ.get("MCP_GITHUB_CLIENT_SECRET", "")
+# This server's client on GeoQuery's own OIDC provider, registered by
+# `manage.py ensure_mcp_oidc_client` from these same values. Its one redirect
+# URI is {MCP_BASE_URL}/auth/callback, matched exactly.
+MCP_OIDC_CLIENT_ID = os.environ.get("MCP_OIDC_CLIENT_ID", "")
+MCP_OIDC_CLIENT_SECRET = os.environ.get("MCP_OIDC_CLIENT_SECRET", "")
+
+# Where the MCP *server* reaches the provider for the back-channel calls --
+# the token, revocation and JWKS endpoints. Separate from the browser-facing
+# URL (FRONTEND_BASE_URL) because a deployment routes the two differently: in
+# Kubernetes this is the backend Service, which the MCP pod can reach and the
+# browser cannot, while /authorize must be a URL the browser can follow.
+MCP_OIDC_INTERNAL_URL = os.environ.get("MCP_OIDC_INTERNAL_URL", "") or FRONTEND_BASE_URL
 # Signs the tokens the proxy issues, and derives the encryption key for its
 # client-registration store. Must be stable across restarts or every client
 # has to re-register; must be shared if more than one replica runs.
 MCP_JWT_SIGNING_KEY = os.environ.get("MCP_JWT_SIGNING_KEY", "")
 
-# Explicitly run the MCP server with no authentication, even if a GitHub OAuth
-# app is configured. Every caller is then anonymous: public data only, no
-# exports. Unlike simply leaving the GitHub credentials unset (which `run_mcp`
+# Explicitly run the MCP server with no authentication, even if an OIDC
+# client is configured. Every caller is then anonymous: public data only, no
+# exports. Unlike simply leaving the client credentials unset (which `run_mcp`
 # refuses outside DEBUG), this is an operator's deliberate choice and is
 # honoured in any environment -- so never set it on a deployment that serves
 # catalog-restricted data.
@@ -521,14 +575,6 @@ MCP_AUTH_DISABLED = os.environ.get("MCP_AUTH_DISABLED", "False").lower() in (
     "yes",
     "on",
 )
-
-# A GitHub identity with no matching account gets one created, with the
-# provider-verified email attached, and immediately claims any anonymous
-# requests submitted under that address. Turn off to require that people sign
-# up on the website first.
-MCP_AUTO_PROVISION_USERS = os.environ.get(
-    "MCP_AUTO_PROVISION_USERS", "True"
-).lower() in ("true", "1", "yes", "on")
 
 # Response-size guardrails. A chat client has to hold every byte a tool
 # returns in the model's context, so these are much tighter than the web

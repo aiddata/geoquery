@@ -1,47 +1,51 @@
-"""GitHub sign-in, mapped onto GeoQuery accounts.
+"""GeoQuery sign-in for the MCP server.
 
-The web app already authenticates with GitHub through allauth, and catalog
-grants, request ownership and email claims all hang off ``accounts.User``. The
-MCP server therefore does not get its own notion of identity: it authenticates
-with GitHub through FastMCP's OAuth proxy and then resolves that GitHub
-identity to the *same* ``User`` row the website would have used, so a catalog
-grant made in the admin applies in both places without anyone syncing
-anything.
+The MCP server has no notion of identity of its own. It is an OAuth client of
+GeoQuery's own OpenID Connect provider (``allauth.idp.oidc``, mounted at
+``/api/idp/``), so a chat client connecting here sends its user to the
+GeoQuery website to sign in, exactly as if they were visiting the site. They
+come back as the *same* ``accounts.User`` the website would have used, which
+is what makes a catalog grant made in the admin apply in both places without
+anyone syncing anything.
 
-Resolution order, most to least certain:
+Whichever upstream provider the website uses -- GitHub today, possibly others
+later -- is therefore none of this module's business. The token carries a
+``sub`` claim that is the GeoQuery user's primary key, so resolving a caller
+is a lookup rather than a matching heuristic: by the time a token exists, the
+account does too.
 
-1. A ``SocialAccount(provider="github", uid=<github id>)`` already exists --
-   the same lookup allauth does. This covers anyone who has signed in on the
-   website.
-2. A *verified* ``EmailAddress`` matches the GitHub account's verified email.
-   The user exists but has never connected GitHub; connect it now. This
-   mirrors ``SOCIALACCOUNT_EMAIL_AUTHENTICATION`` on the web side.
-3. Nothing matches: provision an account (when enabled), and immediately claim
-   any anonymous requests previously submitted under that address.
+Two base URLs are in play, and they are not interchangeable:
 
-This needs a **second GitHub OAuth App**, distinct from the website's: a GitHub
-OAuth App has exactly one callback URL, and this one's is
-``{MCP_BASE_URL}/auth/callback``.
+* ``FRONTEND_BASE_URL`` is where the *browser* goes, so it is the base for
+  ``/authorize``.
+* ``MCP_OIDC_INTERNAL_URL`` is where *this process* goes for the back-channel
+  token, revocation and JWKS calls. In a Kubernetes deployment it is the
+  backend Service, which the browser cannot reach and network policy requires
+  this pod to use.
+
+Discovery is deliberately not used to find those endpoints. allauth builds the
+URLs in its discovery document from the requesting Host, so fetching it over
+the internal URL would advertise an in-cluster hostname as the authorization
+endpoint and send the browser somewhere it cannot go.
 """
 
 from __future__ import annotations
 
 import logging
 
-import httpx2
 from django.conf import settings
-from django.db import IntegrityError, transaction
 
 logger = logging.getLogger(__name__)
 
-# GitHub's /user response omits `email` whenever the profile address is
-# private, which is the default for many accounts. The `user:email` scope lets
-# us read the verified list instead. GitHubProvider does not do this itself,
-# so without the fallback a large fraction of users would resolve to "no
-# email" -- unable to be matched to an existing account, unable to be
-# provisioned, and unable to have their past requests claimed.
-_GITHUB_EMAILS_URL = "https://api.github.com/user/emails"
-_GITHUB_TIMEOUT_SECONDS = 10
+# Paths of allauth's OIDC endpoints under the /api/idp/ mount. Hard-coded
+# rather than reversed, because the MCP server builds them against two
+# different bases and reverse() would only ever give a path.
+AUTHORIZE_PATH = "/api/idp/identity/o/authorize"
+TOKEN_PATH = "/api/idp/identity/o/api/token"
+REVOKE_PATH = "/api/idp/identity/o/api/revoke"
+JWKS_PATH = "/api/idp/.well-known/jwks.json"
+
+SCOPES = ["openid", "email", "profile"]
 
 
 class AuthenticationRequired(Exception):
@@ -52,216 +56,116 @@ class AuthenticationRequired(Exception):
     """
 
 
+def _issuer() -> str:
+    """The value ``accounts.oidc.GeoQueryOIDCAdapter`` puts in ``iss``."""
+    return f"{settings.FRONTEND_BASE_URL.rstrip('/')}/api/idp"
+
+
 def make_auth_provider():
-    """The GitHub OAuth provider, or ``None`` when not configured.
+    """The OAuth provider, or ``None`` when not configured.
 
     ``None`` means the server runs unauthenticated. ``run_mcp`` refuses to
     start that way outside DEBUG unless ``MCP_AUTH_DISABLED`` is set, which
-    turns authentication off explicitly regardless of the GitHub credentials.
+    turns authentication off explicitly regardless of the client credentials.
     """
     if settings.MCP_AUTH_DISABLED:
         return None
-    if not (settings.MCP_GITHUB_CLIENT_ID and settings.MCP_GITHUB_CLIENT_SECRET):
+    if not (settings.MCP_OIDC_CLIENT_ID and settings.MCP_OIDC_CLIENT_SECRET):
         return None
 
-    from fastmcp.server.auth.providers.github import GitHubProvider
+    from fastmcp.server.auth.oauth_proxy import OAuthProxy
+    from fastmcp.server.auth.providers.jwt import JWTVerifier
 
-    return GitHubProvider(
-        client_id=settings.MCP_GITHUB_CLIENT_ID,
-        client_secret=settings.MCP_GITHUB_CLIENT_SECRET,
+    public = settings.FRONTEND_BASE_URL.rstrip("/")
+    internal = settings.MCP_OIDC_INTERNAL_URL.rstrip("/")
+
+    # Access tokens are RS256 JWTs (IDP_OIDC_ACCESS_TOKEN_FORMAT), verified
+    # offline against the provider's JWKS. No audience: allauth only sets
+    # `aud` when resource indicators are in play, which they are not here.
+    verifier = JWTVerifier(
+        jwks_uri=f"{internal}{JWKS_PATH}",
+        issuer=_issuer(),
+        algorithm="RS256",
+    )
+
+    return OAuthProxy(
+        upstream_authorization_endpoint=f"{public}{AUTHORIZE_PATH}",
+        upstream_token_endpoint=f"{internal}{TOKEN_PATH}",
+        upstream_revocation_endpoint=f"{internal}{REVOKE_PATH}",
+        upstream_client_id=settings.MCP_OIDC_CLIENT_ID,
+        upstream_client_secret=settings.MCP_OIDC_CLIENT_SECRET,
+        token_verifier=verifier,
         base_url=settings.MCP_BASE_URL,
         redirect_path="/auth/callback",
-        # read:user for the profile, user:email for the verified address list
-        # -- the same pair the website's provider asks for.
-        required_scopes=["read:user", "user:email"],
+        valid_scopes=SCOPES,
+        # GeoQuery's own consent page is the only prompt the user sees. That
+        # page names this server, not the chat client that is connecting --
+        # every client shares this one upstream registration -- so the
+        # redirect allowlist below is what actually constrains who may
+        # complete a flow.
+        require_authorization_consent="external",
+        allowed_client_redirect_uris=[
+            "http://localhost:*",
+            "http://127.0.0.1:*",
+            "https://claude.ai/api/mcp/auth_callback",
+            "https://claude.com/api/mcp/auth_callback",
+        ],
         # Left to derive from the client secret when unset. Setting it
-        # explicitly matters for a deployment that rotates the GitHub secret:
-        # without it, rotation invalidates every issued token and every stored
-        # client registration at once.
+        # explicitly matters for a deployment that rotates the OIDC client
+        # secret: without it, rotation invalidates every issued token and
+        # every stored client registration at once.
         jwt_signing_key=settings.MCP_JWT_SIGNING_KEY or None,
     )
 
 
-def _verified_github_email(access_token: str) -> str | None:
-    """The account's primary verified email, via GitHub's /user/emails.
-
-    Unverified addresses are ignored: claiming a GeoQuery account, or the
-    requests submitted under an address, on the strength of an unverified
-    email would let anyone take over an account by adding someone else's
-    address to their GitHub profile.
-    """
-    try:
-        response = httpx2.get(
-            _GITHUB_EMAILS_URL,
-            headers={
-                "Authorization": f"Bearer {access_token}",
-                "Accept": "application/vnd.github+json",
-                "User-Agent": "GeoQuery-MCP",
-            },
-            timeout=_GITHUB_TIMEOUT_SECONDS,
-        )
-        if response.status_code != 200:
-            logger.warning(
-                "GitHub /user/emails returned %s", response.status_code
-            )
-            return None
-        entries = response.json()
-    except Exception:
-        logger.exception("Could not read verified emails from GitHub")
-        return None
-
-    verified = [e for e in entries if e.get("verified") and e.get("email")]
-    if not verified:
-        return None
-    primary = next((e for e in verified if e.get("primary")), verified[0])
-    return primary["email"]
-
-
 def _claims_from_token(token) -> dict:
-    """Normalize a FastMCP AccessToken into the fields we resolve on."""
+    """Normalize a FastMCP AccessToken into the fields we resolve on.
+
+    Only ``sub`` -- allauth puts name and email in the ID token and on the
+    userinfo endpoint, not in the access token, and nothing here needs them
+    anyway: the account they would describe is already in the database.
+    """
     claims = getattr(token, "claims", None) or {}
-    return {
-        "sub": str(claims.get("sub") or getattr(token, "subject", "") or ""),
-        "login": claims.get("login") or "",
-        "name": claims.get("name") or "",
-        "email": claims.get("email") or "",
-        "access_token": getattr(token, "token", None),
-    }
+    return {"sub": str(claims.get("sub") or getattr(token, "subject", "") or "")}
 
 
-def resolve_or_provision_user(claims: dict):
-    """Map GitHub claims onto an ``accounts.User``.
+def resolve_user(claims: dict):
+    """The ``accounts.User`` named by the token's ``sub`` claim.
 
-    Raises ``AuthenticationRequired`` when no account can be resolved and
-    provisioning is off or the GitHub account exposes no verified email.
+    ``sub`` is the user's primary key -- allauth's OIDC adapter stringifies it
+    -- so there is nothing to match or provision here. Anyone holding a token
+    signed in on the website, which is also where an account gets created and
+    where past requests submitted under a verified address are claimed (see
+    ``accounts.signals``).
     """
-    from allauth.account.models import EmailAddress
-    from allauth.socialaccount.models import SocialAccount
-
-    uid = claims.get("sub")
-    if not uid:
-        raise AuthenticationRequired(
-            "The access token carries no GitHub user id. Sign in again."
-        )
-
-    # 1. Already connected.
-    account = (
-        SocialAccount.objects.filter(provider="github", uid=uid)
-        .select_related("user")
-        .first()
-    )
-    if account is not None:
-        if not account.user.is_active:
-            raise AuthenticationRequired(
-                "This GeoQuery account is disabled. Contact "
-                "geo@aiddata.wm.edu if that is unexpected."
-            )
-        return account.user
-
-    # The email claim is frequently absent (private profile), so fall back to
-    # the verified list before concluding there is nothing to match on.
-    email = claims.get("email")
-    if not email and claims.get("access_token"):
-        email = _verified_github_email(claims["access_token"])
-
-    account_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/account"
-    if not email:
-        raise AuthenticationRequired(
-            "GitHub did not share a verified email address for this account, "
-            "so it cannot be matched to a GeoQuery account. Add and verify an "
-            f"email on GitHub, or sign in at {account_url} first."
-        )
-
-    # 2. A verified address on an existing account: connect GitHub to it.
-    existing = (
-        EmailAddress.objects.filter(email__iexact=email, verified=True)
-        .select_related("user")
-        .first()
-    )
-    if existing is not None:
-        if not existing.user.is_active:
-            raise AuthenticationRequired(
-                "This GeoQuery account is disabled. Contact "
-                "geo@aiddata.wm.edu if that is unexpected."
-            )
-        SocialAccount.objects.get_or_create(
-            provider="github",
-            uid=uid,
-            defaults={"user": existing.user, "extra_data": {}},
-        )
-        return existing.user
-
-    # 3. Provision.
-    if not settings.MCP_AUTO_PROVISION_USERS:
-        raise AuthenticationRequired(
-            f"No GeoQuery account for {email}. Create one at {account_url}, "
-            "then reconnect."
-        )
-    return _provision_user(uid, email, claims)
-
-
-def _provision_user(uid: str, email: str, claims: dict):
-    """Create a user, its verified email, and its GitHub link, atomically.
-
-    All three rows commit together or none do: a User without its
-    EmailAddress would be invisible to ``requests_for_user`` and could never
-    claim its own history, and one without its SocialAccount would be
-    re-provisioned (and collide on the unique email) at the next sign-in.
-    """
-    from allauth.account.adapter import get_adapter
-    from allauth.account.models import EmailAddress
-    from allauth.socialaccount.models import SocialAccount
     from django.contrib.auth import get_user_model
 
-    from accounts.claims import claim_requests_for_user
-
-    User = get_user_model()
-    try:
-        with transaction.atomic():
-            user = User.objects.create_user(
-                # Through the adapter rather than allauth.utils directly, so a
-                # project that customises username generation (accounts.adapter)
-                # governs MCP sign-ups too.
-                username=get_adapter().generate_unique_username(
-                    [claims.get("login"), email, "user"]
-                ),
-                email=email,
-            )
-            user.set_unusable_password()
-            if claims.get("name"):
-                # Best effort: GitHub gives one display name, not given/family.
-                user.first_name = claims["name"][:150]
-            user.save()
-            EmailAddress.objects.create(
-                user=user, email=email, verified=True, primary=True
-            )
-            SocialAccount.objects.create(
-                provider="github", uid=uid, user=user, extra_data={}
-            )
-    except IntegrityError:
-        # Lost a race with a concurrent first sign-in, or an existing user
-        # holds this email with no verified EmailAddress row. Re-resolve
-        # rather than surfacing a database error.
-        account = (
-            SocialAccount.objects.filter(provider="github", uid=uid)
-            .select_related("user")
-            .first()
-        )
-        if account is not None:
-            return account.user
+    sub = claims.get("sub")
+    if not sub:
         raise AuthenticationRequired(
-            f"An account already exists for {email} but is not connected to "
-            f"GitHub. Sign in at {settings.FRONTEND_BASE_URL.rstrip('/')}"
-            "/account and verify the address, then reconnect."
+            "The access token carries no GeoQuery user id. Sign in again."
+        )
+
+    try:
+        pk = int(sub)
+    except (TypeError, ValueError):
+        raise AuthenticationRequired(
+            "The access token's user id is not in the expected form. Sign in "
+            "again."
         ) from None
 
-    claimed = claim_requests_for_user(user)
-    logger.info(
-        "Provisioned MCP user %s from GitHub (%s); claimed %d prior request(s)",
-        user.pk,
-        claims.get("login") or uid,
-        claimed,
-    )
+    account_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/account"
+    user = get_user_model().objects.filter(pk=pk).first()
+    if user is None:
+        raise AuthenticationRequired(
+            "This token refers to a GeoQuery account that no longer exists. "
+            f"Sign in again at {account_url}."
+        )
+    if not user.is_active:
+        raise AuthenticationRequired(
+            "This GeoQuery account is disabled. Contact geo@aiddata.wm.edu if "
+            "that is unexpected."
+        )
     return user
 
 
@@ -279,7 +183,7 @@ def resolve_current_user():
     token = get_access_token()
     if token is None:
         raise AuthenticationRequired(
-            "Not signed in. Reconnect the GeoQuery MCP server and complete the "
-            "GitHub sign-in."
+            "Not signed in. Reconnect the GeoQuery MCP server and complete "
+            "the GeoQuery sign-in."
         )
-    return resolve_or_provision_user(_claims_from_token(token))
+    return resolve_user(_claims_from_token(token))

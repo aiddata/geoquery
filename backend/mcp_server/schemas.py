@@ -12,6 +12,7 @@ from typing import Annotated, Any, Literal, TypedDict
 from pydantic import BaseModel, ConfigDict, Field
 
 Format = Literal["table", "geojson"]
+Shape = Literal["wide", "long"]
 Classification = Literal["quantile", "equal"]
 CitationStyle = Literal["apa", "plain"]
 
@@ -64,6 +65,12 @@ RESOURCES_DESC = (
 REQUEST_ID_DESC = (
     "Read a finished export instead of live pre-processed data. Mutually "
     "exclusive with boundaries/dataset."
+)
+SHAPE_DESC = (
+    "'wide' gives one row per feature with a column per year. 'long' gives "
+    "tidy rows -- feature_id, name, series, year, value -- one per feature per "
+    "column, plus first-to-last `series_change`. Use 'long' for a time series "
+    "or a chart; it saves you pivoting the wide table. Table format only."
 )
 FORMULA_DESC = (
     "Derived column over the selected columns, e.g. "

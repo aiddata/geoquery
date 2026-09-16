@@ -1,10 +1,11 @@
-"""Mapping a GitHub identity onto a GeoQuery account.
+"""Mapping an OIDC token onto a GeoQuery account.
 
-The rule this protects: a GitHub sign-in must land on the *same*
-``accounts.User`` the website would have used, so a catalog grant made in the
-admin applies in both places, and someone's past anonymous requests become
-theirs. Getting it wrong either duplicates accounts or, worse, hands one
-person another's requests.
+The rule this protects: a token issued by GeoQuery's own provider must land on
+the *same* ``accounts.User`` the website would have used, so a catalog grant
+made in the admin applies in both places. Because ``sub`` is the user's
+primary key, the risk is no longer mismatching identities but accepting a
+``sub`` that should have been refused -- one naming a deleted or disabled
+account, or one that is not a user id at all.
 """
 
 from unittest import mock
@@ -12,255 +13,140 @@ from unittest import mock
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
-from allauth.account.models import EmailAddress
-from allauth.socialaccount.models import SocialAccount
-
-from analytics.models import Request
 from mcp_server.auth import (
     AuthenticationRequired,
     _claims_from_token,
     make_auth_provider,
-    resolve_or_provision_user,
+    resolve_user,
 )
 
 User = get_user_model()
 
-GITHUB_UID = "4242"
-
 
 def claims(**overrides):
-    base = {
-        "sub": GITHUB_UID,
-        "login": "octocat",
-        "name": "Mona Lisa",
-        "email": "mona@example.com",
-        "access_token": None,
-    }
+    base = {"sub": "1"}
     base.update(overrides)
     return base
 
 
-class ExistingSocialAccountTests(TestCase):
+class ResolveUserTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
-            username="mona", email="mona@example.com", password="x"
-        )
-        SocialAccount.objects.create(
-            provider="github", uid=GITHUB_UID, user=self.user, extra_data={}
+            username="mona", email="mona@example.com"
         )
 
-    def test_resolves_to_the_connected_account(self):
-        self.assertEqual(resolve_or_provision_user(claims()), self.user)
-
-    def test_resolves_even_when_github_shares_no_email(self):
-        """A private profile is common; an already-connected account needs no
-        email to be identified."""
-        self.assertEqual(
-            resolve_or_provision_user(claims(email=None)), self.user
-        )
-
-    def test_a_disabled_account_is_refused_with_a_reason(self):
-        User.objects.filter(pk=self.user.pk).update(is_active=False)
-
-        with self.assertRaises(AuthenticationRequired) as ctx:
-            resolve_or_provision_user(claims())
-
-        self.assertIn("disabled", str(ctx.exception))
-
-    def test_no_second_account_is_created(self):
-        resolve_or_provision_user(claims())
-
-        self.assertEqual(User.objects.count(), 1)
-
-
-class VerifiedEmailMatchTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username="mona", email="mona@example.com", password="x"
-        )
-        EmailAddress.objects.create(
-            user=self.user, email="mona@example.com", verified=True, primary=True
-        )
-
-    def test_connects_github_to_the_existing_account(self):
-        resolved = resolve_or_provision_user(claims())
-
+    def test_resolves_the_user_named_by_sub(self):
+        resolved = resolve_user(claims(sub=str(self.user.pk)))
         self.assertEqual(resolved, self.user)
-        self.assertTrue(
-            SocialAccount.objects.filter(
-                provider="github", uid=GITHUB_UID, user=self.user
-            ).exists()
-        )
 
-    def test_match_is_case_insensitive(self):
-        self.assertEqual(
-            resolve_or_provision_user(claims(email="MONA@Example.com")), self.user
-        )
+    def test_does_not_create_an_account(self):
+        before = User.objects.count()
+        resolve_user(claims(sub=str(self.user.pk)))
+        self.assertEqual(User.objects.count(), before)
 
-    def test_an_unverified_address_does_not_match(self):
-        """Matching on an unverified address would let anyone take over an
-        account by adding its email to their GitHub profile."""
-        EmailAddress.objects.update(verified=False)
+    def test_a_disabled_account_is_refused(self):
+        self.user.is_active = False
+        self.user.save(update_fields=["is_active"])
+        with self.assertRaises(AuthenticationRequired) as caught:
+            resolve_user(claims(sub=str(self.user.pk)))
+        self.assertIn("disabled", str(caught.exception))
 
-        with override_settings(MCP_AUTO_PROVISION_USERS=False):
-            with self.assertRaises(AuthenticationRequired):
-                resolve_or_provision_user(claims())
+    def test_an_unknown_sub_is_refused(self):
+        with self.assertRaises(AuthenticationRequired) as caught:
+            resolve_user(claims(sub=str(self.user.pk + 10_000)))
+        self.assertIn("no longer exists", str(caught.exception))
 
+    def test_an_empty_sub_is_refused(self):
+        with self.assertRaises(AuthenticationRequired) as caught:
+            resolve_user(claims(sub=""))
+        self.assertIn("no GeoQuery user id", str(caught.exception))
 
-class ProvisioningTests(TestCase):
-    def test_creates_a_user_with_a_verified_primary_email_and_github_link(self):
-        user = resolve_or_provision_user(claims())
+    def test_a_non_numeric_sub_is_refused(self):
+        # A token minted for some other kind of subject must not fall through
+        # to a lookup that happens to succeed.
+        with self.assertRaises(AuthenticationRequired) as caught:
+            resolve_user(claims(sub="octocat"))
+        self.assertIn("not in the expected form", str(caught.exception))
 
-        self.assertEqual(user.email, "mona@example.com")
-        self.assertTrue(
-            EmailAddress.objects.filter(
-                user=user, email="mona@example.com", verified=True, primary=True
-            ).exists()
-        )
-        self.assertTrue(
-            SocialAccount.objects.filter(provider="github", uid=GITHUB_UID).exists()
-        )
-        self.assertFalse(user.has_usable_password())
-
-    def test_claims_prior_anonymous_requests_under_the_same_address(self):
-        mine = Request.objects.create(contact="MONA@example.com")
-        someone_else = Request.objects.create(contact="other@example.com")
-
-        user = resolve_or_provision_user(claims())
-
-        mine.refresh_from_db()
-        someone_else.refresh_from_db()
-        self.assertEqual(mine.user, user)
-        self.assertIsNone(someone_else.user)
-
-    def test_a_request_already_owned_is_not_reassigned(self):
-        owner = User.objects.create_user(
-            username="owner", email="owner@example.com", password="x"
-        )
-        theirs = Request.objects.create(contact="mona@example.com", user=owner)
-
-        resolve_or_provision_user(claims())
-
-        theirs.refresh_from_db()
-        self.assertEqual(theirs.user, owner)
-
-    def test_usernames_do_not_collide(self):
-        User.objects.create_user(
-            username="octocat", email="other@example.com", password="x"
-        )
-
-        user = resolve_or_provision_user(claims())
-
-        self.assertNotEqual(user.username, "octocat")
-        self.assertEqual(user.email, "mona@example.com")
-
-    @override_settings(MCP_AUTO_PROVISION_USERS=False)
-    def test_provisioning_can_be_turned_off(self):
-        with self.assertRaises(AuthenticationRequired) as ctx:
-            resolve_or_provision_user(claims())
-
-        self.assertIn("/account", str(ctx.exception))
-        self.assertEqual(User.objects.count(), 0)
-
-    def test_nothing_is_created_when_there_is_no_verified_email(self):
-        with self.assertRaises(AuthenticationRequired) as ctx:
-            resolve_or_provision_user(claims(email=None))
-
-        self.assertIn("verified email", str(ctx.exception))
-        self.assertEqual(User.objects.count(), 0)
-
-    def test_a_token_with_no_github_id_is_refused(self):
-        with self.assertRaises(AuthenticationRequired):
-            resolve_or_provision_user(claims(sub=""))
-
-    def test_an_unconnected_account_holding_the_email_is_explained(self):
-        """An email column match with no *verified* EmailAddress row cannot be
-        trusted, and creating a second user would violate the unique email."""
-        User.objects.create_user(
-            username="mona", email="mona@example.com", password="x"
-        )
-
-        with self.assertRaises(AuthenticationRequired) as ctx:
-            resolve_or_provision_user(claims())
-
-        self.assertIn("not connected to GitHub", str(ctx.exception))
-
-
-class PrivateProfileFallbackTests(TestCase):
-    """GitHub omits `email` from /user whenever the profile address is
-    private, and GitHubProvider does not fetch /user/emails itself."""
-
-    def test_falls_back_to_the_primary_verified_address(self):
-        response = mock.Mock(
-            status_code=200,
-            json=lambda: [
-                {"email": "old@example.com", "verified": True, "primary": False},
-                {"email": "mona@example.com", "verified": True, "primary": True},
-                {"email": "spam@example.com", "verified": False, "primary": False},
-            ],
-        )
-
-        with mock.patch("mcp_server.auth.httpx2.get", return_value=response):
-            user = resolve_or_provision_user(
-                claims(email=None, access_token="gho_x")
-            )
-
-        self.assertEqual(user.email, "mona@example.com")
-
-    def test_unverified_addresses_are_never_used(self):
-        response = mock.Mock(
-            status_code=200,
-            json=lambda: [{"email": "spam@example.com", "verified": False}],
-        )
-
-        with mock.patch("mcp_server.auth.httpx2.get", return_value=response):
-            with self.assertRaises(AuthenticationRequired):
-                resolve_or_provision_user(claims(email=None, access_token="gho_x"))
-
-    def test_a_github_outage_refuses_rather_than_provisioning_blind(self):
-        with mock.patch("mcp_server.auth.httpx2.get", side_effect=OSError("boom")):
-            with self.assertRaises(AuthenticationRequired):
-                resolve_or_provision_user(claims(email=None, access_token="gho_x"))
+    @override_settings(FRONTEND_BASE_URL="https://geoquery.org/")
+    def test_refusals_point_at_the_account_page(self):
+        with self.assertRaises(AuthenticationRequired) as caught:
+            resolve_user(claims(sub=str(self.user.pk + 10_000)))
+        self.assertIn("https://geoquery.org/account", str(caught.exception))
 
 
 class ClaimsFromTokenTests(TestCase):
-    def test_reads_the_fields_GitHubProvider_sets(self):
+    def test_reads_the_sub_claim(self):
         token = mock.Mock(
-            claims={"sub": "7", "login": "octocat", "name": "Mona", "email": "m@x.test"},
-            subject="7",
-            token="gho_secret",
+            claims={"sub": "7", "scope": "openid email"}, subject="7", token="at-abc"
         )
+        self.assertEqual(_claims_from_token(token), {"sub": "7"})
 
-        self.assertEqual(
-            _claims_from_token(token),
-            {
-                "sub": "7",
-                "login": "octocat",
-                "name": "Mona",
-                "email": "m@x.test",
-                "access_token": "gho_secret",
-            },
-        )
+    def test_falls_back_to_subject_when_no_sub_claim(self):
+        token = mock.Mock(claims={}, subject="7", token="at-abc")
+        self.assertEqual(_claims_from_token(token), {"sub": "7"})
 
-    def test_falls_back_to_subject_when_the_sub_claim_is_absent(self):
-        token = mock.Mock(claims={}, subject="9", token=None)
-
-        self.assertEqual(_claims_from_token(token)["sub"], "9")
+    def test_missing_claims_become_an_empty_sub(self):
+        token = mock.Mock(claims=None, subject="", token=None)
+        self.assertEqual(_claims_from_token(token), {"sub": ""})
 
 
 class AuthProviderTests(TestCase):
-    @override_settings(MCP_GITHUB_CLIENT_ID="", MCP_GITHUB_CLIENT_SECRET="")
-    def test_no_credentials_means_no_provider(self):
-        self.assertIsNone(make_auth_provider())
+    """When the server is allowed to run without authentication.
 
-    @override_settings(MCP_GITHUB_CLIENT_ID="id", MCP_GITHUB_CLIENT_SECRET="")
-    def test_half_configured_credentials_are_treated_as_unconfigured(self):
+    ``None`` is the signal ``run_mcp`` checks before refusing to start, so
+    these cases decide whether a deployment comes up unauthenticated.
+    """
+
+    @override_settings(
+        MCP_OIDC_CLIENT_ID="", MCP_OIDC_CLIENT_SECRET="", MCP_AUTH_DISABLED=False
+    )
+    def test_no_provider_without_client_credentials(self):
         self.assertIsNone(make_auth_provider())
 
     @override_settings(
-        MCP_AUTH_DISABLED=True,
-        MCP_GITHUB_CLIENT_ID="id",
-        MCP_GITHUB_CLIENT_SECRET="secret",
+        MCP_OIDC_CLIENT_ID="geoquery-mcp",
+        MCP_OIDC_CLIENT_SECRET="",
+        MCP_AUTH_DISABLED=False,
     )
-    def test_auth_disabled_overrides_configured_credentials(self):
+    def test_no_provider_with_only_a_client_id(self):
         self.assertIsNone(make_auth_provider())
+
+    @override_settings(
+        MCP_OIDC_CLIENT_ID="geoquery-mcp",
+        MCP_OIDC_CLIENT_SECRET="s3cret",
+        MCP_AUTH_DISABLED=True,
+    )
+    def test_auth_disabled_wins_over_configured_credentials(self):
+        self.assertIsNone(make_auth_provider())
+
+
+class AuthProviderEndpointTests(TestCase):
+    """The browser-facing and back-channel URLs must not be the same base.
+
+    This is the bug the split exists to prevent: if /authorize were built from
+    the internal URL, a deployment would redirect people's browsers to a
+    hostname that only resolves inside the cluster.
+    """
+
+    @override_settings(
+        MCP_OIDC_CLIENT_ID="geoquery-mcp",
+        MCP_OIDC_CLIENT_SECRET="s3cret",
+        MCP_AUTH_DISABLED=False,
+        MCP_BASE_URL="https://mcp.geoquery.org",
+        FRONTEND_BASE_URL="https://geoquery.org",
+        MCP_OIDC_INTERNAL_URL="http://geoquery-backend.aiddata.svc.cluster.local",
+        MCP_JWT_SIGNING_KEY="signing-key",
+    )
+    def test_authorize_is_public_and_token_is_internal(self):
+        provider = make_auth_provider()
+        self.assertIsNotNone(provider)
+        self.assertEqual(
+            provider._upstream_authorization_endpoint,
+            "https://geoquery.org/api/idp/identity/o/authorize",
+        )
+        self.assertEqual(
+            provider._upstream_token_endpoint,
+            "http://geoquery-backend.aiddata.svc.cluster.local"
+            "/api/idp/identity/o/api/token",
+        )
