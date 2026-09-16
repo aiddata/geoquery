@@ -251,22 +251,63 @@ def _build_tasks(plan: RequestPlan) -> tuple[dict[int, int], list[dict]]:
     flat set[int] because RequestMap carries dataset_id per row (the
     partition-key-adjacent column): it dedupes on task_id the same way the old
     set did, while still recording which dataset each task belongs to.
+
+    Fetches existing tasks in one SELECT per resolved dataset rather than one
+    per (fm, resource, po) triple. _get_or_create_task is still called as a
+    fallback for any combinations that don't exist yet, so tasks are still
+    created on demand when build_extract_tasks hasn't run yet and concurrent
+    IntegrityErrors are still handled correctly.
     """
     all_task_ids: dict[int, int] = {}
     valid_datasets: list[dict] = []
 
     for resolved in plan.resolved:
+        task_kwargs = resolved.task_kwargs
+        fm_ids = [fm.id for fm in resolved.fms]
+        po_ids = [po.id for po in resolved.pos]
+        all_resource_ids = [r.id for r in resolved.resources]
+
+        # One query to fetch all pre-existing tasks for this dataset × the
+        # requested (fm, resource, po) space. resource_ids__overlap narrows to
+        # rows that share at least one element with the requested resources;
+        # the dict key (fm_id, tuple(resource_ids), po_id) enforces exact match.
+        qs = ExtractTask.objects.filter(
+            dataset_id=resolved.dataset.id,
+            fm_id__in=fm_ids,
+            po_id__in=po_ids,
+            resource_ids__overlap=all_resource_ids,
+        )
+        if task_kwargs is None:
+            qs = qs.filter(kwargs__isnull=True)
+        else:
+            qs = qs.filter(kwargs=task_kwargs)
+
+        existing: dict[tuple, int] = {}
+        to_bump: list[int] = []
+        for t in qs.only("id", "fm_id", "resource_ids", "po_id", "priority"):
+            key = (t.fm_id, tuple(t.resource_ids), t.po_id)
+            existing[key] = t.id
+            if t.priority < 1:
+                to_bump.append(t.id)
+
+        # Single UPDATE for all low-priority existing tasks.
+        if to_bump:
+            ExtractTask.objects.filter(id__in=to_bump).update(priority=1)
+
         task_ids = []
         for fm in resolved.fms:
             for resource in resolved.resources:
                 for po in resolved.pos:
-                    task = _get_or_create_task(resolved, fm, resource, po)
-                    # A task already queued at background priority jumps the
-                    # queue when a user asks for it directly.
-                    if task.priority < 1:
-                        task.priority = 1
-                        task.save(update_fields=["priority"])
-                    task_ids.append(task.id)
+                    key = (fm.id, (resource.id,), po.id)
+                    if key in existing:
+                        task_ids.append(existing[key])
+                    else:
+                        # Not pre-built yet — create on demand, race-safe.
+                        task = _get_or_create_task(resolved, fm, resource, po)
+                        if task.priority < 1:
+                            task.priority = 1
+                            task.save(update_fields=["priority"])
+                        task_ids.append(task.id)
 
         all_task_ids.update({tid: resolved.dataset.id for tid in task_ids})
         ds = resolved.spec
