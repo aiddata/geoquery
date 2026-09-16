@@ -1,0 +1,66 @@
+{% extends "idp/oidc/base.html" %}
+{% load i18n %}
+{% load allauth %}
+{% comment %}
+Project override of allauth's OIDC consent screen. Renders the form fields by
+hand (rather than `{{ form }}`) so the requested scopes come out as a tidy
+checklist. `openid` is what makes this an OpenID Connect sign-in at all, so it
+is shown but cannot be unticked; the hidden input keeps it in the POST.
+{% endcomment %}
+{% block head_title %}
+    {% trans "Authorize" %} {{ client.name }}
+{% endblock head_title %}
+{% block content %}
+    <h1>{% trans "Authorize" %} {{ client.name }}</h1>
+    <p>
+        {% blocktranslate with client_name=client.name %}<strong>{{ client_name }}</strong> wants to sign in with your GeoQuery account.{% endblocktranslate %}
+    </p>
+    {% url 'idp:oidc:authorization' as authorize_url %}
+    <form method="post" action="{{ authorize_url }}">
+        {% csrf_token %}
+        {{ form.request }}
+        {% if form.non_field_errors %}
+            <div class="alert">{{ form.non_field_errors }}</div>
+        {% endif %}
+        <fieldset>
+            <legend>{{ form.scopes.label }}</legend>
+            {{ form.scopes.errors }}
+            <ul class="scopes">
+                {% for choice in form.scopes %}
+                    {% if choice.data.value == "openid" %}
+                        <li>
+                            <label class="locked">
+                                <input type="checkbox" checked disabled>
+                                <span>{{ choice.choice_label }}</span>
+                            </label>
+                            <input type="hidden" name="{{ form.scopes.html_name }}" value="openid">
+                        </li>
+                    {% else %}
+                        <li>
+                            <label for="{{ choice.id_for_label }}">
+                                {{ choice.tag }}
+                                <span>{{ choice.choice_label }}</span>
+                            </label>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+        </fieldset>
+        {% if form.email %}
+            <div class="field">
+                {{ form.email.errors }}
+                <label for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+                {{ form.email }}
+            </div>
+        {% endif %}
+        <div class="actions inline">
+            <button class="btn btn-primary" type="submit" name="action" value="grant">{% translate "Authorize" %}</button>
+            <button class="btn btn-outline" type="submit" name="action" value="cancel">{% translate "Cancel" %}</button>
+        </div>
+    </form>
+{% endblock %}
+{% block footnote %}
+    <p class="footnote">
+        {% blocktranslate %}Signed in to GeoQuery as {{ user }}.{% endblocktranslate %}
+    </p>
+{% endblock footnote %}

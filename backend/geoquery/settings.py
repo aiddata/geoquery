@@ -152,13 +152,17 @@ ROOT_URLCONF = "geoquery.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        # Project-level overrides win over app templates. Used to restyle the
+        # few pages allauth renders server-side (the OIDC consent screen the
+        # MCP sign-in flow lands on); allauth's own templates are unstyled.
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "geoquery.context_processors.frontend",
             ],
         },
     },

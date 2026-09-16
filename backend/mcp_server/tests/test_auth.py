@@ -11,7 +11,7 @@ account, or one that is not a user id at all.
 from unittest import mock
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
 
 from mcp_server.auth import (
     AuthenticationRequired,
@@ -78,7 +78,7 @@ class ResolveUserTests(TestCase):
 class ClaimsFromTokenTests(TestCase):
     def test_reads_the_sub_claim(self):
         token = mock.Mock(
-            claims={"sub": "7", "scope": "openid email"}, subject="7", token="at-abc"
+            claims={"sub": "7", "scope": "openid"}, subject="7", token="at-abc"
         )
         self.assertEqual(_claims_from_token(token), {"sub": "7"})
 
@@ -150,3 +150,63 @@ class AuthProviderEndpointTests(TestCase):
             "http://geoquery-backend.aiddata.svc.cluster.local"
             "/api/idp/identity/o/api/token",
         )
+
+
+class ResolveCurrentUserTests(TransactionTestCase):
+    """``resolve_current_user`` as FastMCP actually runs it: as a ``Depends()``
+    resolved on the event loop, with the outcome reported to the model.
+
+    Regression: an earlier version did the ORM lookup synchronously on the
+    loop, so every authenticated call died with Django's
+    ``SynchronousOnlyOperation`` -- and because FastMCP wraps resolver errors,
+    all the model ever saw was "Failed to resolve dependency 'user'".
+
+    ``TransactionTestCase`` because the lookup runs in a worker thread with
+    its own connection, which cannot see rows still inside ``TestCase``'s
+    uncommitted transaction.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="mona", email="mona@example.com"
+        )
+
+    @staticmethod
+    def _resolve(token):
+        import asyncio
+
+        from fastmcp.dependencies import Depends
+        from fastmcp.server.dependencies import resolve_dependencies
+
+        from mcp_server.auth import resolve_current_user
+
+        def tool(user=Depends(resolve_current_user)):
+            return user
+
+        async def go():
+            with mock.patch(
+                "fastmcp.server.dependencies.get_access_token", return_value=token
+            ):
+                async with resolve_dependencies(tool, {}) as arguments:
+                    return arguments["user"]
+
+        return asyncio.run(go())
+
+    def test_resolves_the_user_from_the_event_loop(self):
+        token = mock.Mock(claims={"sub": str(self.user.pk)})
+        self.assertEqual(self._resolve(token), self.user)
+
+    def test_missing_token_is_reported_to_the_model(self):
+        from fastmcp.exceptions import ToolError
+
+        with self.assertRaises(ToolError) as caught:
+            self._resolve(None)
+        self.assertIn("Not signed in", str(caught.exception))
+
+    def test_a_refused_account_is_reported_to_the_model(self):
+        from fastmcp.exceptions import ToolError
+
+        token = mock.Mock(claims={"sub": str(self.user.pk + 10_000)})
+        with self.assertRaises(ToolError) as caught:
+            self._resolve(token)
+        self.assertIn("no longer exists", str(caught.exception))

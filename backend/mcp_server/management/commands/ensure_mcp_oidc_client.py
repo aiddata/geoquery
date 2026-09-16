@@ -16,10 +16,12 @@ from django.core.management.base import BaseCommand
 
 CLIENT_NAME = "GeoQuery MCP server"
 
-# openid identifies the user; email and profile fill in the claims the MCP
-# server shows back to the model. No scope grants data access -- that comes
-# from the catalog grants on the resolved account.
-SCOPES = ["openid", "email", "profile"]
+# openid is all the MCP server needs: it resolves the caller from the
+# token's `sub` claim and reads everything else (name, email) from the
+# account itself, so it never asks for the email or profile scopes. No scope
+# grants data access -- that comes from the catalog grants on the resolved
+# account. Keep in step with mcp_server.auth.SCOPES.
+SCOPES = ["openid"]
 GRANT_TYPES = ["authorization_code", "refresh_token"]
 RESPONSE_TYPES = ["code"]
 

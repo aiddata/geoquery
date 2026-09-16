@@ -38,7 +38,7 @@ class EnsureMcpOidcClientTests(TestCase):
         self.assertEqual(
             client.get_grant_types(), ["authorization_code", "refresh_token"]
         )
-        self.assertEqual(client.get_scopes(), ["openid", "email", "profile"])
+        self.assertEqual(client.get_scopes(), ["openid"])
 
     def test_the_secret_is_stored_hashed_and_verifies(self):
         self.run_command()

@@ -1,0 +1,189 @@
+{% load i18n %}
+{% comment %}
+Project override of allauth's base layout. The only server-rendered allauth
+pages GeoQuery exposes are the OpenID Connect provider's (consent, error,
+logout, device flow), so this is a single centred card styled to match the
+SvelteKit frontend (see frontend/src/routes/layout.css). The CSS is inline on
+purpose: the page must look right without depending on collectstatic or the
+frontend build.
+{% endcomment %}
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="robots" content="noindex">
+        <title>
+            {% block head_title %}{% endblock head_title %} · GeoQuery
+        </title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+        <style>
+            :root {
+                --radius: 0.625rem;
+                --font-sans: "Roboto", ui-sans-serif, system-ui, sans-serif;
+                --wm-green: #004E38;
+                --wm-green-hover: #00623f;
+                --background: oklch(0.985 0 0);
+                --foreground: oklch(0.145 0 0);
+                --card: oklch(1 0 0);
+                --primary: var(--wm-green);
+                --primary-foreground: oklch(0.985 0 0);
+                --muted: oklch(0.97 0 0);
+                --muted-foreground: oklch(0.556 0 0);
+                --destructive: oklch(0.577 0.245 27.325);
+                --border: oklch(0.922 0 0);
+                --ring: oklch(0.708 0 0);
+            }
+            @media (prefers-color-scheme: dark) {
+                :root {
+                    --background: oklch(0.145 0 0);
+                    --foreground: oklch(0.985 0 0);
+                    --card: oklch(0.205 0 0);
+                    --primary: oklch(0.922 0 0);
+                    --primary-foreground: oklch(0.205 0 0);
+                    --wm-green-hover: oklch(0.85 0 0);
+                    --muted: oklch(0.269 0 0);
+                    --muted-foreground: oklch(0.708 0 0);
+                    --destructive: oklch(0.704 0.191 22.216);
+                    --border: oklch(1 0 0 / 10%);
+                    --ring: oklch(0.556 0 0);
+                }
+            }
+            *, *::before, *::after { box-sizing: border-box; }
+            html { font-family: var(--font-sans); font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+            body {
+                margin: 0;
+                min-height: 100vh;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                padding: 1.5rem;
+                background: var(--background);
+                color: var(--foreground);
+            }
+            .brand {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                margin-bottom: 1.25rem;
+                font-weight: 700;
+                font-size: 1.25rem;
+                letter-spacing: -0.01em;
+                color: var(--foreground);
+                text-decoration: none;
+            }
+            .brand svg { width: 1.5rem; height: 1.5rem; color: var(--wm-green); }
+            @media (prefers-color-scheme: dark) { .brand svg { color: oklch(0.7 0.15 130); } }
+            .card {
+                width: 100%;
+                max-width: 26rem;
+                background: var(--card);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                padding: 1.75rem;
+                box-shadow: 0 1px 2px oklch(0 0 0 / 5%), 0 8px 24px -12px oklch(0 0 0 / 15%);
+            }
+            .card h1 { margin: 0 0 0.5rem; font-size: 1.25rem; font-weight: 600; line-height: 1.3; }
+            .card h2 { margin: 1.25rem 0 0.5rem; font-size: 1rem; font-weight: 600; }
+            .card p { margin: 0 0 1rem; color: var(--muted-foreground); font-size: 0.9375rem; }
+            .card p:last-child { margin-bottom: 0; }
+            form { margin: 0; }
+            fieldset { border: 0; padding: 0; margin: 0 0 1.25rem; }
+            legend { padding: 0; margin-bottom: 0.5rem; font-size: 0.8125rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-foreground); }
+            .scopes { display: flex; flex-direction: column; gap: 0.25rem; margin: 0; padding: 0; list-style: none; }
+            .scopes li { margin: 0; }
+            .scopes label {
+                display: flex;
+                align-items: center;
+                gap: 0.625rem;
+                padding: 0.5rem 0.625rem;
+                border-radius: calc(var(--radius) - 2px);
+                font-size: 0.9375rem;
+                cursor: pointer;
+            }
+            .scopes label:hover { background: var(--muted); }
+            .scopes input[type="checkbox"] { width: 1rem; height: 1rem; margin: 0; accent-color: var(--wm-green); flex: none; }
+            .scopes label.locked { cursor: default; }
+            .scopes label.locked:hover { background: transparent; }
+            .scopes label.locked input { opacity: 0.6; }
+            label { font-size: 0.9375rem; }
+            .field { margin-bottom: 1.25rem; }
+            .field > label { display: block; margin-bottom: 0.375rem; font-weight: 500; }
+            input[type="text"], select {
+                width: 100%;
+                font: inherit;
+                color: inherit;
+                background: transparent;
+                border: 1px solid var(--border);
+                border-radius: calc(var(--radius) - 2px);
+                padding: 0.5rem 0.75rem;
+            }
+            input[type="text"]:focus-visible, select:focus-visible, button:focus-visible {
+                outline: 2px solid var(--ring);
+                outline-offset: 2px;
+            }
+            .actions { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.25rem; }
+            .actions.inline { flex-direction: row-reverse; justify-content: flex-start; }
+            .btn, button, a.btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 100%;
+                font: inherit;
+                font-size: 0.9375rem;
+                font-weight: 500;
+                padding: 0.5625rem 1rem;
+                border-radius: calc(var(--radius) - 2px);
+                border: 1px solid transparent;
+                cursor: pointer;
+                text-decoration: none;
+                transition: background-color 120ms ease, border-color 120ms ease;
+            }
+            .actions.inline .btn { width: auto; flex: 1; }
+            .btn-primary { background: var(--primary); color: var(--primary-foreground); }
+            .btn-primary:hover { background: var(--wm-green-hover); }
+            .btn-outline, .btn-secondary { background: transparent; color: var(--foreground); border-color: var(--border); }
+            .btn-outline:hover, .btn-secondary:hover { background: var(--muted); }
+            .btn-danger { background: var(--destructive); color: white; }
+            .alert, .errorlist {
+                margin: 0 0 1rem;
+                padding: 0.625rem 0.75rem;
+                border-radius: calc(var(--radius) - 2px);
+                background: color-mix(in oklab, var(--destructive) 10%, transparent);
+                color: var(--destructive);
+                font-size: 0.875rem;
+                list-style: none;
+            }
+            .messages { margin: 0 0 1rem; padding: 0; list-style: none; }
+            .messages li { padding: 0.625rem 0.75rem; border-radius: calc(var(--radius) - 2px); background: var(--muted); font-size: 0.875rem; }
+            .footnote { margin-top: 1.25rem; font-size: 0.8125rem; color: var(--muted-foreground); text-align: center; }
+            .footnote a { color: inherit; }
+        </style>
+        {% block extra_head %}{% endblock extra_head %}
+    </head>
+    <body>
+        {% block body %}
+            <a class="brand" href="{{ frontend_base_url }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M2 12h20"/>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+                GeoQuery
+            </a>
+            <main class="card">
+                {% if messages %}
+                    <ul class="messages">
+                        {% for message in messages %}<li>{{ message }}</li>{% endfor %}
+                    </ul>
+                {% endif %}
+                {% block content %}{% endblock content %}
+            </main>
+            {% block footnote %}{% endblock footnote %}
+        {% endblock body %}
+        {% block extra_body %}{% endblock extra_body %}
+    </body>
+</html>

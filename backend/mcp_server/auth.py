@@ -45,7 +45,11 @@ TOKEN_PATH = "/api/idp/identity/o/api/token"
 REVOKE_PATH = "/api/idp/identity/o/api/revoke"
 JWKS_PATH = "/api/idp/.well-known/jwks.json"
 
-SCOPES = ["openid", "email", "profile"]
+# Only openid. The server identifies the caller by `sub` alone and reads name
+# and email from the account, so the consent page asks for nothing more than
+# "View your user ID". Must match ensure_mcp_oidc_client.SCOPES, which is what
+# the provider allows this client to request.
+SCOPES = ["openid"]
 
 
 class AuthenticationRequired(Exception):
@@ -169,21 +173,47 @@ def resolve_user(claims: dict):
     return user
 
 
-def resolve_current_user():
+async def resolve_current_user():
     """The ``accounts.User`` for the in-flight tool call.
 
-    Read through ``mcp_server.tools``' ``current_user`` dependency rather than
-    called directly. Unauthenticated calls are already rejected by FastMCP at
-    the transport when a provider is configured; the explicit check here is
-    what keeps a misconfiguration from silently serving every caller as
-    anonymous.
+    Read through the ``user`` dependency ``mcp_server.tools`` builds rather
+    than called directly. Unauthenticated calls are already rejected by
+    FastMCP at the transport when a provider is configured; the explicit check
+    here is what keeps a misconfiguration from silently serving every caller
+    as anonymous.
+
+    Two things about running as a ``Depends()`` shape this function:
+
+    * FastMCP resolves dependencies on the event loop, where the Django ORM
+      refuses to run. The account lookup therefore goes to a worker thread,
+      inside ``django_db`` so that thread releases its connection on the way
+      out (see ``mcp_server.db``).
+    * Any non-FastMCP exception raised here is wrapped by FastMCP into an
+      opaque "Failed to resolve dependency 'user'" and masked from the model.
+      ``AuthenticationRequired`` is re-raised as a ``ToolError`` so the model
+      sees the actual next step instead.
     """
+    from asgiref.sync import sync_to_async
+    from fastmcp.exceptions import ToolError
     from fastmcp.server.dependencies import get_access_token
 
+    from mcp_server.db import django_db
+
+    # Read the token here, on the event loop: it lives in a context variable
+    # bound to the request, which is where it is guaranteed to be visible.
     token = get_access_token()
     if token is None:
-        raise AuthenticationRequired(
+        raise ToolError(
             "Not signed in. Reconnect the GeoQuery MCP server and complete "
             "the GeoQuery sign-in."
         )
-    return resolve_user(_claims_from_token(token))
+    claims = _claims_from_token(token)
+
+    def lookup():
+        with django_db():
+            return resolve_user(claims)
+
+    try:
+        return await sync_to_async(lookup, thread_sensitive=False)()
+    except AuthenticationRequired as exc:
+        raise ToolError(str(exc)) from exc

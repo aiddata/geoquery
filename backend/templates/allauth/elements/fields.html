@@ -1,0 +1,7 @@
+{% for field in attrs.form %}
+    <div class="field">
+        {{ field.errors }}
+        {% if not attrs.unlabeled %}{{ field.label_tag }}{% endif %}
+        {{ field }}
+    </div>
+{% endfor %}
