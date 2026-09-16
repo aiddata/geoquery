@@ -14,6 +14,8 @@ web API's response shape and its test suite pin it.
 The custom-boundary path deliberately stayed in the view -- it does not create
 tasks at all, it hands a GeoJSON upload to a Celery ingest task, and the MCP
 server does not offer uploads.
+
+``_build_tasks`` uses one bulk SELECT per resolved dataset to avoid N+1 queries.
 """
 
 from __future__ import annotations
