@@ -292,9 +292,18 @@ def _build_tasks(plan: RequestPlan) -> tuple[dict[int, int], list[dict]]:
             if t.priority < 1:
                 to_bump.append(t.id)
 
-        # Single UPDATE for all low-priority existing tasks.
+        # Single UPDATE for all low-priority existing tasks. dataset_id
+        # included (redundant with id, which is already unique) so Postgres
+        # prunes to this one partition instead of scanning all of them --
+        # extract_tasks is LIST partitioned on dataset_id, and an UPDATE
+        # filtered by id alone doesn't get the same partition-constraint
+        # propagation a SELECT does. See claim_pending_tasks' docstring in
+        # analytics/tasks/processing.py for the fully worked-out example
+        # (0.2ms pruned vs 4.1s unpruned, measured against production).
         if to_bump:
-            ExtractTask.objects.filter(id__in=to_bump).update(priority=1)
+            ExtractTask.objects.filter(
+                id__in=to_bump, dataset_id=resolved.dataset.id
+            ).update(priority=1)
 
         task_ids = []
         for fm in resolved.fms:
@@ -307,8 +316,17 @@ def _build_tasks(plan: RequestPlan) -> tuple[dict[int, int], list[dict]]:
                         # Not pre-built yet — create on demand, race-safe.
                         task = _get_or_create_task(resolved, fm, resource, po)
                         if task.priority < 1:
+                            # Explicit filter, not task.save() -- save()
+                            # would only filter by id, hitting the same
+                            # unpruned-scan cost as the bulk update above,
+                            # except once per task instead of once per
+                            # request. This is the actual hot path: every
+                            # task that isn't pre-built yet pays this,
+                            # sequentially, inside one long transaction.
+                            ExtractTask.objects.filter(
+                                id=task.id, dataset_id=task.dataset_id
+                            ).update(priority=1)
                             task.priority = 1
-                            task.save(update_fields=["priority"])
                         task_ids.append(task.id)
 
         all_task_ids.update({tid: resolved.dataset.id for tid in task_ids})

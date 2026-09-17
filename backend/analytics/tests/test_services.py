@@ -8,7 +8,9 @@ history endpoint.
 """
 
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from allauth.account.models import EmailAddress
@@ -224,6 +226,55 @@ class CreateRequestTests(SubmissionFixture):
         self.assertEqual(
             set(ExtractTask.objects.values_list("priority", flat=True)), {5}
         )
+
+    def test_bulk_priority_bump_prunes_to_one_partition(self):
+        """extract_tasks is LIST partitioned on dataset_id. An UPDATE that
+        filters by id alone doesn't get the same partition-constraint
+        propagation a SELECT does -- Postgres falls back to scanning every
+        partition instead of pruning to the owning one (confirmed against
+        production: 4.1s unpruned vs 0.2ms pruned for an equivalent single-row
+        update). dataset_id must always ride along on this statement's WHERE
+        clause, redundant with id or not, to get the fast plan.
+        """
+        self.create()
+        ExtractTask.objects.update(priority=0)
+
+        with CaptureQueriesContext(connection) as ctx:
+            self.create()
+
+        bump_queries = [
+            q["sql"] for q in ctx.captured_queries
+            if "UPDATE" in q["sql"] and "extract_tasks" in q["sql"] and "priority" in q["sql"]
+        ]
+        self.assertTrue(bump_queries, "expected at least one priority-bump UPDATE")
+        for sql in bump_queries:
+            self.assertIn(
+                f"\"dataset_id\" = {self.dataset.id}", sql,
+                f"priority-bump UPDATE missing dataset_id, can't be partition-pruned: {sql}",
+            )
+
+    def test_fallback_priority_bump_on_first_create_prunes_to_one_partition(self):
+        """Same partition-pruning requirement as the bulk bump above, but for
+        the per-task fallback path (_build_tasks' else branch): every task
+        created on demand here defaults to priority=0, so this fires on
+        every single task of a first-time submission -- the hot path behind
+        the production incident this closes (a "fairly small" request still
+        took minutes, one unpruned ~seconds-each UPDATE per task, all inside
+        one long transaction that ended up blocking other submissions too).
+        """
+        with CaptureQueriesContext(connection) as ctx:
+            self.create()
+
+        bump_queries = [
+            q["sql"] for q in ctx.captured_queries
+            if "UPDATE" in q["sql"] and "extract_tasks" in q["sql"] and "priority" in q["sql"]
+        ]
+        self.assertTrue(bump_queries, "expected at least one priority-bump UPDATE")
+        for sql in bump_queries:
+            self.assertIn(
+                f"\"dataset_id\" = {self.dataset.id}", sql,
+                f"priority-bump UPDATE missing dataset_id, can't be partition-pruned: {sql}",
+            )
 
     def test_nothing_resolvable_raises_with_the_warnings_attached(self):
         with self.assertRaises(NoExtractTasksError) as ctx:
