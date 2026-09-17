@@ -1,0 +1,88 @@
+{
+  "planPath": "docs/superpowers/plans/2026-09-08-extract-tasks-redesign.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Add Dataset.task_group_period",
+      "status": "completed",
+      "description": "**Goal:** Add the field that controls per-dataset task grouping, with no behavior change yet.\n\n**Files:**\n- Modify: backend/datasets/models.py\n- Create: backend/datasets/migrations/0002_dataset_task_group_period.py (confirm next-available number first)\n- Test: backend/datasets/tests/test_models.py\n\n**Acceptance Criteria:**\n- [ ] Dataset.task_group_period accepts None and each of day/week/month/quarter/year\n- [ ] Default is None\n- [ ] Migration applies cleanly against current datasets app migration graph\n\n**Verify:** cd backend && /app/.venv/bin/python manage.py test datasets.tests.test_models -v 2\n\n```json:metadata\n{\"files\": [\"backend/datasets/models.py\", \"backend/datasets/migrations/0002_dataset_task_group_period.py\"], \"verifyCommand\": \"cd backend && /app/.venv/bin/python manage.py test datasets.tests.test_models -v 2\", \"acceptanceCriteria\": [\"task_group_period field exists with 5 choices\", \"default None\", \"migration applies cleanly\"], \"modelTier\": \"mechanical\"}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Wipe extract_tasks/extract_data and dependents",
+      "status": "completed",
+      "description": "**Goal:** Clear extract_tasks, extract_data, extract_task_build_progress, extract_task_build_run, request_map so later schema-breaking migrations apply to empty tables. Per standing user decision that wiping is acceptable.\n\n**Files:**\n- Create: backend/analytics/migrations/0017_wipe_extract_tasks_for_redesign.py\n\n**Acceptance Criteria:**\n- [ ] All five tables report 0 rows after migration\n- [ ] No FK errors (TRUNCATE ... CASCADE handles ordering)\n\n**Verify:** After deploy: SELECT count(*) FROM extract_tasks, extract_data, request_map; -> all zero\n\n```json:metadata\n{\"files\": [\"backend/analytics/migrations/0017_wipe_extract_tasks_for_redesign.py\"], \"verifyCommand\": \"SELECT count(*) FROM extract_tasks, extract_data, request_map;\", \"acceptanceCriteria\": [\"all target tables empty post-migration\"], \"modelTier\": \"mechanical\"}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Restructure ExtractTask - resource_ids array, composite PK prep",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Goal:** Replace ExtractTask.resource (scalar FK) with resource_ids (INTEGER[]), add dataset_id and task_group_period columns.\n\n**Files:**\n- Modify: backend/analytics/models.py\n- Create: backend/analytics/migrations/0018_extracttask_resource_ids.py\n- Test: backend/analytics/tests/test_models.py\n\n**Acceptance Criteria:**\n- [ ] resource_ids is Postgres INTEGER[], not null\n- [ ] old scalar resource FK is gone\n- [ ] dataset_id and task_group_period columns exist\n\n**Verify:** cd backend && /app/.venv/bin/python manage.py test analytics.tests.test_models.ExtractTaskResourceIdsTest -v 2\n\n```json:metadata\n{\"files\": [\"backend/analytics/models.py\", \"backend/analytics/migrations/0018_extracttask_resource_ids.py\"], \"verifyCommand\": \"cd backend && /app/.venv/bin/python manage.py test analytics.tests.test_models.ExtractTaskResourceIdsTest -v 2\", \"acceptanceCriteria\": [\"resource_ids is _int4 array column\", \"resource field removed\", \"dataset_id and task_group_period present\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Restructure ExtractData - value arrays, dataset_id",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "**Goal:** Replace ExtractData scalar float_value/int_value/str_value with position-aligned arrays; add dataset_id.\n\n**Files:**\n- Modify: backend/analytics/models.py\n- Create: backend/analytics/migrations/0019_extractdata_value_arrays.py\n- Test: backend/analytics/tests/test_models.py\n\n**Acceptance Criteria:**\n- [ ] float_values/int_values/str_values are Postgres arrays\n- [ ] old scalar columns gone\n- [ ] dataset_id exists\n\n**Verify:** cd backend && /app/.venv/bin/python manage.py test analytics.tests.test_models.ExtractDataArraysTest -v 2\n\n```json:metadata\n{\"files\": [\"backend/analytics/models.py\", \"backend/analytics/migrations/0019_extractdata_value_arrays.py\"], \"verifyCommand\": \"cd backend && /app/.venv/bin/python manage.py test analytics.tests.test_models.ExtractDataArraysTest -v 2\", \"acceptanceCriteria\": [\"value arrays exist\", \"scalar fields removed\", \"dataset_id present\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Restructure ExtractTaskBuildProgress - resource_ids-keyed claiming",
+      "status": "completed",
+      "blockedBy": [3],
+      "description": "**Goal:** Generalize progress/claiming table from (resource_id, po_id) to (resource_ids, po_id).\n\n**Files:**\n- Modify: backend/analytics/models.py\n- Create: backend/analytics/migrations/0020_extracttaskbuildprogress_resource_ids.py\n- Test: backend/analytics/tests/test_models.py\n\n**Acceptance Criteria:**\n- [ ] resource_ids array field exists, old resource FK gone\n- [ ] UNIQUE (resource_ids, po_id) constraint exists\n\n**Verify:** cd backend && /app/.venv/bin/python manage.py test analytics.tests.test_models.ExtractTaskBuildProgressArrayTest -v 2\n\n```json:metadata\n{\"files\": [\"backend/analytics/models.py\", \"backend/analytics/migrations/0020_extracttaskbuildprogress_resource_ids.py\"], \"verifyCommand\": \"cd backend && /app/.venv/bin/python manage.py test analytics.tests.test_models.ExtractTaskBuildProgressArrayTest -v 2\", \"acceptanceCriteria\": [\"resource_ids array field\", \"unique constraint renamed and present\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Partition extract_tasks and extract_data by dataset_id",
+      "status": "completed",
+      "blockedBy": [4, 0],
+      "description": "**Goal:** Convert both tables to LIST partitions on dataset_id with composite (dataset_id, id) primary keys; propagate dataset_id to request_map's FK.\n\n**Files:**\n- Modify: backend/analytics/models.py (RequestMap.dataset_id)\n- Create: backend/analytics/migrations/0021_partition_extract_tasks_and_data.py\n\n**Acceptance Criteria:**\n- [ ] extract_tasks and extract_data appear in pg_partitioned_table\n- [ ] one partition per active dataset_id plus a DEFAULT partition\n- [ ] PKs are (dataset_id, id) composite\n- [ ] request_map.dataset_id exists, FK is (dataset_id, task_id) -> extract_tasks(dataset_id, id)\n\n**Verify:** SELECT count(*) FROM pg_partitioned_table pt JOIN pg_class c ON c.oid = pt.partrelid WHERE c.relname IN ('extract_tasks','extract_data'); -> 2\n\n```json:metadata\n{\"files\": [\"backend/analytics/models.py\", \"backend/analytics/migrations/0021_partition_extract_tasks_and_data.py\"], \"verifyCommand\": \"SELECT count(*) FROM pg_partitioned_table pt JOIN pg_class c ON c.oid = pt.partrelid WHERE c.relname IN ('extract_tasks','extract_data');\", \"acceptanceCriteria\": [\"both tables partitioned\", \"per-dataset + default partitions exist\", \"composite PKs\", \"request_map FK updated\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Replace unused composite index; drop redundant single-column indexes",
+      "status": "completed",
+      "blockedBy": [5],
+      "description": "**Goal:** Add UNIQUE (fm_id, po_id, resource_ids) WHERE kwargs IS NULL (replacing the old zero-scan hash index) plus its kwargs-not-null counterpart; restore extract_tasks_pending_idx on the new partitioned table.\n\n**Files:**\n- Create: backend/analytics/migrations/0022_extracttask_indexes.py\n\n**Acceptance Criteria:**\n- [ ] UNIQUE (fm_id, po_id, resource_ids) WHERE kwargs IS NULL exists\n- [ ] UNIQUE (fm_id, po_id, resource_ids, MD5(kwargs::text)) WHERE kwargs IS NOT NULL exists\n- [ ] extract_tasks_pending_idx (status=0 partial) preserved\n\n**Verify:** SELECT indexname FROM pg_indexes WHERE tablename = 'extract_tasks';\n\n```json:metadata\n{\"files\": [\"backend/analytics/migrations/0022_extracttask_indexes.py\"], \"verifyCommand\": \"SELECT indexname FROM pg_indexes WHERE tablename = 'extract_tasks';\", \"acceptanceCriteria\": [\"two new composite indexes present\", \"pending_idx restored\"], \"modelTier\": \"mechanical\"}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Rewrite build_extract_tasks.py for grouped + standard branches",
+      "status": "completed",
+      "blockedBy": [6],
+      "description": "**Goal:** build_extract_tasks enumerates standard datasets as one task per resource, grouped datasets (task_group_period set) as one task per date_trunc bucket -- both claimed via resource_ids-keyed extract_task_build_progress.\n\n**Files:**\n- Modify: backend/analytics/management/commands/build_extract_tasks.py\n- Test: backend/analytics/tests/test_build_extract_tasks.py\n\n**Acceptance Criteria:**\n- [ ] standard dataset produces one ExtractTask per (feature, resource, po), resource_ids=[resource.id]\n- [ ] grouped dataset produces one ExtractTask per (feature, period-bucket, po), resource_ids sorted ascending containing every resource in the bucket\n- [ ] claiming prevents duplicate concurrent builds of the same pair\n- [ ] dataset_id and task_group_period populated on every inserted row\n\n**Verify:** cd backend && /app/.venv/bin/python manage.py test analytics.tests.test_build_extract_tasks -v 2\n\n```json:metadata\n{\"files\": [\"backend/analytics/management/commands/build_extract_tasks.py\", \"backend/analytics/tests/test_build_extract_tasks.py\"], \"verifyCommand\": \"cd backend && /app/.venv/bin/python manage.py test analytics.tests.test_build_extract_tasks -v 2\", \"acceptanceCriteria\": [\"standard branch unchanged behavior\", \"grouped branch buckets by date_trunc correctly\", \"canonical sorted resource_ids\", \"no duplicate concurrent claims\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Rewrite run_extract_task for resource_ids + partial retry",
+      "status": "completed",
+      "blockedBy": [7],
+      "description": "**Goal:** _run_extract_task loops over task.resource_ids, runs the processor once per resource, writes position-aligned ExtractData arrays, skips already-filled positions on rerun, leaves failed positions NULL instead of failing the whole task.\n\n**Files:**\n- Modify: backend/analytics/tasks/processing.py\n- Test: backend/analytics/tests/test_processing.py\n\n**Acceptance Criteria:**\n- [ ] standard task (1-element resource_ids) behaves identically to pre-redesign\n- [ ] grouped task reads every resource in order, writes position-aligned values\n- [ ] one resource's failure leaves NULL at that position without failing the task or other positions\n- [ ] rerun only reprocesses NULL positions\n\n**Verify:** cd backend && /app/.venv/bin/python manage.py test analytics.tests.test_processing -v 2\n\n```json:metadata\n{\"files\": [\"backend/analytics/tasks/processing.py\", \"backend/analytics/tests/test_processing.py\"], \"verifyCommand\": \"cd backend && /app/.venv/bin/python manage.py test analytics.tests.test_processing -v 2\", \"acceptanceCriteria\": [\"all-success case produces full arrays and status=1\", \"partial failure leaves NULL and non-complete status\", \"rerun only touches NULL positions\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Update ad-hoc single-task creation paths",
+      "status": "completed",
+      "blockedBy": [6, 2],
+      "description": "**Goal:** views.py and ingest.py's custom/on-demand extraction paths create ExtractTask rows using resource_ids=[resource.id] against the new schema.\n\n**Files:**\n- Modify: backend/analytics/views.py:220-240\n- Modify: backend/analytics/ingest.py:120-132\n- Test: backend/analytics/tests/test_views.py, backend/analytics/tests/test_ingest.py\n\n**Acceptance Criteria:**\n- [ ] both call sites use resource_ids=[resource.id], dataset_id=resource.dataset_id\n- [ ] get-or-create IntegrityError fallback still relies on the Task 6 unique index\n- [ ] ingest.py bulk_create(ignore_conflicts=True) still relies on the same index\n\n**Verify:** cd backend && /app/.venv/bin/python manage.py test analytics.tests.test_views analytics.tests.test_ingest -v 2\n\n```json:metadata\n{\"files\": [\"backend/analytics/views.py\", \"backend/analytics/ingest.py\"], \"verifyCommand\": \"cd backend && /app/.venv/bin/python manage.py test analytics.tests.test_views analytics.tests.test_ingest -v 2\", \"acceptanceCriteria\": [\"both paths create resource_ids arrays\", \"concurrent-race safety preserved via unique index\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Update export queries to unnest value arrays",
+      "status": "completed",
+      "blockedBy": [8],
+      "description": "**Goal:** visualize/data.py's two ExtractData queries flatten the new arrays back to one-row-per-month for the response payload, preserving the existing API response shape.\n\n**Files:**\n- Modify: backend/visualize/data.py:64-80 and :213-230\n- Test: backend/visualize/tests/test_data.py\n\n**Acceptance Criteria:**\n- [ ] both queries return one logical result per (feature, resource, name), matching pre-redesign shape\n- [ ] a grouped task's N values unnest into N separate result entries attributable to their specific DatasetResource\n\n**Verify:** cd backend && /app/.venv/bin/python manage.py test visualize.tests.test_data -v 2\n\n```json:metadata\n{\"files\": [\"backend/visualize/data.py\", \"backend/visualize/tests/test_data.py\"], \"verifyCommand\": \"cd backend && /app/.venv/bin/python manage.py test visualize.tests.test_data -v 2\", \"acceptanceCriteria\": [\"unnest WITH ORDINALITY zips resource_ids and value arrays correctly\", \"response shape unchanged for standard tasks\", \"grouped tasks expand to per-resource entries\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: Deploy",
+      "status": "pending",
+      "blockedBy": [9, 10],
+      "description": "**USER-ORDERED GATE — NON-SKIPPABLE.** This task was requested by the user in the current conversation. It MUST NOT be closed by walking around it, by declaring it \"verified inline\", or by substituting a cheaper check. Close only after every item in acceptanceCriteria has been re-validated independently, with output captured.\n\n**Goal:** Ship the full redesign through the existing CI/CD pipeline: [DEPLOY-X.Y.Z] commit marker, geoquery-db-migration Job runs all pending migrations as a pre-upgrade Helm hook.\n\n**Files:** none (deploy-only task)\n\n**Acceptance Criteria:**\n- [ ] all migrations 0017-0022 (analytics) and the datasets migration from Task 0 apply cleanly in the geoquery-db-migration Job\n- [ ] extract_tasks/extract_data show as partitioned in pg_partitioned_table post-deploy\n- [ ] a manually-triggered build_extract_tasks run succeeds end-to-end for a standard dataset without error\n\n**Verify:** kubectl logs -n geoquery-prod job/geoquery-db-migration shows success; SELECT count(*) FROM pg_partitioned_table pt JOIN pg_class c ON c.oid = pt.partrelid WHERE c.relname IN ('extract_tasks','extract_data'); -> 2\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"kubectl logs -n geoquery-prod job/geoquery-db-migration; SELECT count(*) FROM pg_partitioned_table pt JOIN pg_class c ON c.oid = pt.partrelid WHERE c.relname IN ('extract_tasks','extract_data');\", \"acceptanceCriteria\": [\"migration job succeeds\", \"both tables partitioned live\", \"build_extract_tasks runs cleanly post-deploy\"], \"modelTier\": \"standard\", \"userGate\": true, \"tags\": [\"user-gate\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-09-09T03:00:00Z"
+}
