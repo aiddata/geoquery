@@ -43,7 +43,20 @@ def merge_task_results(task_list):
     """merge processing task results for the given extract task list"""
     rows = {}
     for task_id in task_list:
-        task_item = ExtractTask.objects.filter(id=task_id).first()
+        # .get(), not .filter().first() -- .first() adds an implicit
+        # ORDER BY id LIMIT 1, which on a table list-partitioned by
+        # dataset_id (not id) defeats the fast per-partition PK lookup .get()
+        # gets: Postgres can't prune to one partition on id alone, so
+        # satisfying a global ORDER BY forces it to merge-scan every
+        # partition instead of just probing the one that holds this row.
+        # Same partition-pruning gap already fixed in processing.py's claim
+        # query and services.py's priority-bump updates -- called once per
+        # task here, so at extract-task-count scale this was hanging for
+        # hours instead of running in milliseconds.
+        try:
+            task_item = ExtractTask.objects.get(id=task_id)
+        except ExtractTask.DoesNotExist:
+            task_item = None
         task_data = ExtractData.objects.filter(extract_task_id=task_id)
 
         if task_item is None:
