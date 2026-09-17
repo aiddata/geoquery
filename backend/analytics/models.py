@@ -291,6 +291,36 @@ class Request(models.Model):
             models.Index(Lower("contact"), name="requests_contact_lower_idx"),
         ]
 
+    def featmap_ids(self):
+        """FeatMap ids this request's extract tasks actually touched.
+
+        Resolved one dataset partition at a time rather than by joining
+        straight into extract_tasks. extract_tasks is LIST partitioned on
+        dataset_id with PRIMARY KEY (dataset_id, id), so any join or filter
+        that doesn't carry dataset_id can't seek the PK index (id is its
+        second column) and scans every partition -- at request scale that
+        runs for hours, and when it happens inside the completion sweep's
+        per-request transaction it holds that request's row lock the whole
+        time, stacking every later sweep pass behind it. RequestMap already
+        carries dataset_id per row, so the grouping is free.
+        """
+        from collections import defaultdict
+
+        tasks_by_dataset = defaultdict(list)
+        for task_id, dataset_id in RequestMap.objects.filter(
+            request=self
+        ).values_list("task_id", "dataset_id"):
+            tasks_by_dataset[dataset_id].append(task_id)
+
+        fm_ids = set()
+        for dataset_id, ds_task_ids in tasks_by_dataset.items():
+            fm_ids.update(
+                ExtractTask.objects.filter(dataset_id=dataset_id, id__in=ds_task_ids)
+                .values_list("fm_id", flat=True)
+                .distinct()
+            )
+        return fm_ids
+
     def feature_collections(self):
         """The FeatureCollections this request's extract tasks actually touched.
 
@@ -303,7 +333,7 @@ class Request(models.Model):
         from features.models import FeatureCollection
 
         return FeatureCollection.objects.filter(
-            featmap__extracttask__requestmap__request=self
+            featmap__id__in=self.featmap_ids()
         ).distinct()
 
     def __str__(self):

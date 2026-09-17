@@ -259,7 +259,10 @@ def build_request_data(request) -> dict:
     key are intentionally omitted — the frontend reads those from /api/config/.
     """
     # ── 1. Features touched by the request (one row per FeatMap) ─────────────
-    features, fc_names_set = _feature_rows(extracttask__requestmap__request=request)
+    # id__in=request.featmap_ids() rather than joining through
+    # extracttask__requestmap__request: extract_tasks is LIST partitioned on
+    # dataset_id, so that join scans every partition (see Request.featmap_ids).
+    features, fc_names_set = _feature_rows(id__in=request.featmap_ids())
 
     # ── 2. Extract data values + the metadata needed for column names ────────
     with connection.cursor() as cursor:
