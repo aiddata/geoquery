@@ -163,14 +163,17 @@ today — surfacing through the existing error-recovery path
   a follow-up once this design has shipped and proven stable, not because it
   isn't worth doing -- moving it removes a redundant signal-then-explicit-call
   duplication, just not on the critical path for fixing the 504s.
-- Any frontend changes to represent `status=4` distinctly to the user. Not
-  discussed in this design and **not verified** either way: `request_progress()`
-  (which the request detail page reads) delegates to the same
-  `_check_request_tasks` the sweep uses, so a `status=4` request returns
-  `(completed=0, total=0)` from it -- accurate, but how the frontend renders a
-  0/0 ratio hasn't been checked. Worth a quick look during implementation
-  (does `0/0` render as "0%", "100%", blank, or NaN?) even though the window
-  is expected to be brief.
+- Any frontend changes to represent `status=4` distinctly to the user.
+  Verified this is not needed: `RequestDetailView` (what the web frontend
+  actually reads) does not call `request_progress()` at all -- it reports
+  `task_count` via a flat `Count("requestmap")` annotation, which is simply
+  and correctly `0` while materializing, with no completed/total ratio to
+  misrender. The MCP server's `_status_payload` does call `request_progress()`
+  and compute a ratio, but it already guards the zero-total case
+  (`round(completed / total, 3) if total else 0.0`) and includes
+  `status_label` (`"materializing"`, once added below) alongside it, so a
+  `status=4` request reports `tasks_total: 0, progress: 0.0,
+  status_label: "materializing"` -- terse, not misleading, no crash.
 - Batching `_build_tasks` itself further (e.g. `bulk_create` for the fallback
   path instead of one `_get_or_create_task` call per triple) — this design
   moves the cost off the request path entirely, which was the stated goal;
