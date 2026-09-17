@@ -259,6 +259,48 @@ class CreateRequestTests(SubmissionFixture):
         with self.assertRaises(NoExtractTasksError):
             materialize_request(created.request)
 
+    def test_materialize_request_is_idempotent_on_rerun(self):
+        # Broker redelivery, or someone manually re-triggering a stuck
+        # request, can run materialize_request twice for the same request.
+        # Without a delete-then-recreate, the second run would duplicate
+        # every RequestMap row and permanently inflate the request's total
+        # task count relative to its completed count.
+        created = create_request(
+            user=None,
+            contact="a@example.com",
+            name="My export",
+            feature_ids=self.feature_ids,
+            datasets=[self.spec()],
+        )
+
+        materialize_request(created.request)
+        created.request.refresh_from_db()
+        materialize_request(created.request)
+
+        self.assertEqual(ExtractTask.objects.count(), 8)
+        self.assertEqual(
+            RequestMap.objects.filter(request=created.request).count(), 8
+        )
+
+    def test_create_request_schedules_materialization_on_commit(self):
+        from unittest import mock
+
+        with (
+            mock.patch(
+                "analytics.tasks.requests.materialize_request_tasks.delay"
+            ) as mock_delay,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            created = create_request(
+                user=None,
+                contact="a@example.com",
+                name="My export",
+                feature_ids=self.feature_ids,
+                datasets=[self.spec()],
+            )
+
+        mock_delay.assert_called_once_with(str(created.request.id))
+
     def test_bulk_priority_bump_prunes_to_one_partition(self):
         """extract_tasks is LIST partitioned on dataset_id. An UPDATE that
         filters by id alone doesn't get the same partition-constraint

@@ -425,6 +425,17 @@ def materialize_request(request: Request) -> None:
     (materialize_request_tasks) is responsible for turning that into a
     status=-2 error on the request, the same way create_request turns it
     into an HTTP 400 when it happens synchronously at submission time.
+
+    Idempotent: deletes any RequestMap rows already attached to this request
+    before recreating them. A single background task owns materializing a
+    given request (enforced by the status=4 -> -1 gate), but Celery broker
+    redelivery -- or someone manually re-triggering a stuck request -- can
+    still run this twice for the same request_id. Without the delete, a
+    second run would duplicate every RequestMap row: there's no unique
+    constraint on (request, task), and _check_request_tasks in
+    manage_user_requests.py computes the completion total from a
+    non-deduplicated task list, so a duplicated set would permanently
+    inflate total relative to completed and the request could never finish.
     """
     plan = resolve_request_plan(
         request.user, request.data["feature_ids"], request.data["dataset_specs"]
@@ -434,6 +445,7 @@ def materialize_request(request: Request) -> None:
     if not all_task_ids:
         raise NoExtractTasksError(plan.warnings)
 
+    RequestMap.objects.filter(request=request).delete()
     RequestMap.objects.bulk_create(
         [
             RequestMap(request=request, task_id=task_id, dataset_id=dataset_id)
