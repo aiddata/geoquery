@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import shapely
 import pandas as pd
 import geopandas as gpd
@@ -7,13 +9,30 @@ from features.models import Feature, FeatMap, FeatureCollection
 from analytics.models import ExtractTask, ExtractData, ProcessingOption
 
 
-def merge_task_features(task_list):
-    """build a GeoDataFrame of unique features covered by the given extract tasks"""
-    fm_ids = (
-        ExtractTask.objects.filter(id__in=task_list)
-        .values_list("fm_id", flat=True)
-        .distinct()
-    )
+def _group_by_dataset(task_map):
+    """Invert a {task_id: dataset_id} map into {dataset_id: [task_id, ...]}.
+
+    extract_tasks and extract_data are both LIST partitioned on dataset_id
+    with PRIMARY KEY (dataset_id, id). id is the second PK column, so a
+    filter on id alone can't seek the index and scans every partition --
+    every query in this module goes one dataset at a time to stay pruned.
+    """
+    grouped = defaultdict(list)
+    for task_id, dataset_id in task_map.items():
+        grouped[dataset_id].append(task_id)
+    return grouped
+
+
+def merge_task_features(task_map):
+    """build a GeoDataFrame of unique features covered by the given
+    {task_id: dataset_id} mapping"""
+    fm_ids = set()
+    for dataset_id, ds_task_ids in _group_by_dataset(task_map).items():
+        fm_ids.update(
+            ExtractTask.objects.filter(dataset_id=dataset_id, id__in=ds_task_ids)
+            .values_list("fm_id", flat=True)
+            .distinct()
+        )
 
     dict_list = []
     for fm_id in fm_ids:
@@ -39,25 +58,27 @@ def merge_task_features(task_list):
     return "Success", merged_gdf
 
 
-def merge_task_results(task_list):
-    """merge processing task results for the given extract task list"""
+def merge_task_results(task_map):
+    """merge processing task results for the given {task_id: dataset_id} mapping"""
     rows = {}
-    for task_id in task_list:
-        # .get(), not .filter().first() -- .first() adds an implicit
-        # ORDER BY id LIMIT 1, which on a table list-partitioned by
-        # dataset_id (not id) defeats the fast per-partition PK lookup .get()
-        # gets: Postgres can't prune to one partition on id alone, so
-        # satisfying a global ORDER BY forces it to merge-scan every
-        # partition instead of just probing the one that holds this row.
-        # Same partition-pruning gap already fixed in processing.py's claim
-        # query and services.py's priority-bump updates -- called once per
-        # task here, so at extract-task-count scale this was hanging for
-        # hours instead of running in milliseconds.
+    for task_id, dataset_id in task_map.items():
+        # dataset_id is required on both lookups, not just nice to have:
+        # extract_tasks/extract_data are LIST partitioned on dataset_id with
+        # PRIMARY KEY (dataset_id, id), so filtering on id alone can't seek
+        # the PK index (id is its second column) and scans every partition.
+        # This runs once per task, so at request scale it was hanging for
+        # hours instead of running in milliseconds -- confirmed in
+        # production, where two _build_output runs sat stuck on exactly this
+        # query for 80+ minutes each, holding request row locks the whole
+        # time. Same gap already fixed in processing.py's claim query and
+        # services.py's priority-bump updates.
         try:
-            task_item = ExtractTask.objects.get(id=task_id)
+            task_item = ExtractTask.objects.get(dataset_id=dataset_id, id=task_id)
         except ExtractTask.DoesNotExist:
             task_item = None
-        task_data = ExtractData.objects.filter(extract_task_id=task_id)
+        task_data = ExtractData.objects.filter(
+            dataset_id=dataset_id, extract_task_id=task_id
+        )
 
         if task_item is None:
             raise Exception(f"ExtractTask with id {task_id} not found.")

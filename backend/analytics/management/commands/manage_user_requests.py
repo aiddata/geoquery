@@ -9,6 +9,7 @@ import shutil
 import textwrap
 import time
 import zipfile
+from collections import defaultdict
 from logging import getLogger
 from pathlib import Path
 
@@ -305,40 +306,69 @@ def _notify_user(request_id, mail_to, status, download_base, frontend_base):
 def _check_request_tasks(request, dry_run=False):
     """Check entire request for completion.
 
-    Returns count of tasks still pending and list of completed extract task IDs.
+    Returns count of tasks still pending and a {task_id: dataset_id} map of
+    completed extract tasks.
+
+    Every extract_tasks query here is grouped by dataset_id first. The table
+    is LIST partitioned on dataset_id with PRIMARY KEY (dataset_id, id), so
+    id is the *second* PK column: a filter on id alone can't seek the PK
+    index at all and degrades to scanning every partition. At request scale
+    (tens of thousands of task ids) that took hours and held this request's
+    row lock the whole time, stacking up every subsequent sweep pass behind
+    it -- confirmed in production via pg_stat_activity. RequestMap already
+    carries dataset_id per row, so the grouping is free.
     """
     logger.info("Checking status of processing tasks (dry_run=%s)...", dry_run)
 
-    task_ids = list(
-        RequestMap.objects.filter(request=request.id).values_list("task_id", flat=True)
+    task_rows = list(
+        RequestMap.objects.filter(request=request.id).values_list(
+            "task_id", "dataset_id"
+        )
     )
-    total = len(task_ids)
+    total = len(task_rows)
 
-    existing_ids = set(
-        ExtractTask.objects.filter(id__in=task_ids).values_list("id", flat=True)
-    )
-    missing_ids = set(task_ids) - existing_ids
+    tasks_by_dataset = defaultdict(list)
+    for task_id, dataset_id in task_rows:
+        tasks_by_dataset[dataset_id].append(task_id)
+
+    existing_ids = set()
+    completed_task_map = {}
+    for dataset_id, ds_task_ids in tasks_by_dataset.items():
+        existing_ids.update(
+            ExtractTask.objects.filter(
+                dataset_id=dataset_id, id__in=ds_task_ids
+            ).values_list("id", flat=True)
+        )
+        completed_task_map.update(
+            {
+                task_id: dataset_id
+                for task_id in ExtractTask.objects.filter(
+                    dataset_id=dataset_id, id__in=ds_task_ids, status=1
+                ).values_list("id", flat=True)
+            }
+        )
+
+        # Bump priority on pending tasks so workers pick them up before
+        # background tasks
+        if not dry_run:
+            ExtractTask.objects.filter(
+                dataset_id=dataset_id, id__in=ds_task_ids, priority=0
+            ).exclude(status=1).update(priority=1)
+
+    missing_ids = {task_id for task_id, _ in task_rows} - existing_ids
     if missing_ids:
         logger.error(
             "%d extract task(s) not found for request %s: %s",
             len(missing_ids), request.id, missing_ids,
         )
 
-    completed_task_list = list(
-        ExtractTask.objects.filter(id__in=task_ids, status=1).values_list("id", flat=True)
-    )
-
-    # Bump priority on pending tasks so workers pick them up before background tasks
-    if not dry_run:
-        ExtractTask.objects.filter(id__in=task_ids, priority=0).exclude(status=1).update(priority=1)
-
-    pending_task_count = total - len(completed_task_list)
+    pending_task_count = total - len(completed_task_map)
     logger.info("Processing tasks pending: %d/%d", pending_task_count, total)
 
-    return pending_task_count, completed_task_list
+    return pending_task_count, completed_task_map
 
 
-def _build_output(request, task_list, download_server, requests_dir, assets_dir):
+def _build_output(request, task_map, download_server, requests_dir, assets_dir):
     """Merge extracts, generate documentation, build zip."""
     requests_dir = Path(requests_dir)
     assets_dir = Path(assets_dir)
@@ -353,7 +383,7 @@ def _build_output(request, task_list, download_server, requests_dir, assets_dir)
     request_documentation = request_dir / f"{request_id}_documentation.html"
     request_json = request_dir / "request_details.json"
 
-    merge_status, merge_df = merge_task_results(task_list)
+    merge_status, merge_df = merge_task_results(task_map)
     if merge_status != "Success":
         raise Exception(
             f"No extracts merged for request {request_id}. Merge status: {merge_status}"
@@ -381,7 +411,7 @@ def _build_output(request, task_list, download_server, requests_dir, assets_dir)
     pdf_dst = request_dir / "GeoQuery_Goodman2019.pdf"
     shutil.copyfile(pdf_src, pdf_dst)
 
-    features_status, features_gdf = merge_task_features(task_list)
+    features_status, features_gdf = merge_task_features(task_map)
     if features_status == "Success":
         features_gdf.to_file(request_dir / "request_features.gpkg", driver="GPKG")
     elif features_status == "Empty":

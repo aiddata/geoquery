@@ -273,7 +273,14 @@ def _run_extract_task(task_id):
         geometry = shapely.from_wkb(bytes(task.fm.geom.shape.wkb))
 
         n = len(task.resource_ids)
-        existing_rows = list(ExtractData.objects.filter(extract_task_id=task_id))
+        # dataset_id included so this prunes to one partition -- extract_data
+        # is LIST partitioned on dataset_id with PRIMARY KEY (dataset_id, id),
+        # so extract_task_id alone scans every partition.
+        existing_rows = list(
+            ExtractData.objects.filter(
+                dataset_id=task.dataset_id, extract_task_id=task_id
+            )
+        )
         positions = _positions_needing_processing(n, existing_rows)
 
         # name -> {position: value}, accumulated only from calls that
@@ -382,7 +389,9 @@ def _run_extract_task(task_id):
     # that finished filling on an EARLIER run without this run touching it.
     failed_positions = {i for _, i, _ in failures}
     null_positions = set()
-    for row in ExtractData.objects.filter(extract_task_id=task_id):
+    for row in ExtractData.objects.filter(
+        dataset_id=task.dataset_id, extract_task_id=task_id
+    ):
         values = list(getattr(row, f"{row.data_column}_values") or [])
         values += [None] * (n - len(values))
         null_positions.update(i for i in range(n) if values[i] is None)

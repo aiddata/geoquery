@@ -55,7 +55,7 @@ class MergeTaskResultsTestCase(TestCase):
             data_column="float", float_values=[12.5],
         )
 
-        status, df = merge_task_results([task.id])
+        status, df = merge_task_results({task.id: self.dataset.id})
 
         self.assertEqual(status, "Success")
         row = df.iloc[0]
@@ -84,7 +84,7 @@ class MergeTaskResultsTestCase(TestCase):
             data_column="float", float_values=[20.0, 0.0, 10.0],
         )
 
-        status, df = merge_task_results([task.id])
+        status, df = merge_task_results({task.id: self.dataset.id})
 
         self.assertEqual(status, "Success")
         row = df.iloc[0]
@@ -107,7 +107,7 @@ class MergeTaskResultsTestCase(TestCase):
             data_column="float", float_values=[None, 7.5],
         )
 
-        status, df = merge_task_results([task.id])
+        status, df = merge_task_results({task.id: self.dataset.id})
 
         self.assertEqual(status, "Success")
         row = df.iloc[0]
@@ -156,7 +156,7 @@ class MergeTaskResultsTestCase(TestCase):
             data_column="float", float_values=[3.5, 9.0],
         )
 
-        status, df = merge_task_results([task_a.id, task_b.id])
+        status, df = merge_task_results({task_a.id: self.dataset.id, task_b.id: self.dataset.id})
 
         self.assertEqual(status, "Success")
         self.assertIn("null2-0.mean", df.columns)
@@ -188,7 +188,7 @@ class MergeTaskResultsTestCase(TestCase):
             data_column="float", float_values=[1.0, 2.0],
         )
 
-        status, df = merge_task_results([task.id])
+        status, df = merge_task_results({task.id: self.dataset.id})
 
         self.assertEqual(status, "Success")
         row = df.iloc[0]
@@ -212,7 +212,7 @@ class MergeTaskResultsTestCase(TestCase):
             data_column="str", str_values=["forest"],
         )
 
-        status, df = merge_task_results([task.id])
+        status, df = merge_task_results({task.id: self.dataset.id})
 
         self.assertEqual(status, "Success")
         row = df.iloc[0]
@@ -232,19 +232,19 @@ class MergeTaskResultsTestCase(TestCase):
         )
 
         with self.assertRaises(Exception) as cm:
-            merge_task_results([task.id])
+            merge_task_results({task.id: self.dataset.id})
         self.assertIn("Unsupported data column type", str(cm.exception))
 
     # --- missing task still raises ------------------------------------------
 
     def test_missing_task_raises(self):
         with self.assertRaises(Exception) as cm:
-            merge_task_results([999999])
+            merge_task_results({999999: self.dataset.id})
         self.assertIn("not found", str(cm.exception))
 
     # --- empty task list returns Empty --------------------------------------
 
     def test_empty_task_list_returns_empty(self):
-        status, df = merge_task_results([])
+        status, df = merge_task_results({})
         self.assertEqual(status, "Empty")
         self.assertIsNone(df)
