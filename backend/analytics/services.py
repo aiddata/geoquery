@@ -436,6 +436,17 @@ def materialize_request(request: Request) -> None:
     manage_user_requests.py computes the completion total from a
     non-deduplicated task list, so a duplicated set would permanently
     inflate total relative to completed and the request could never finish.
+
+    The delete, the bulk_create, and the status update run inside one
+    transaction.atomic() block. On a re-run, the request is already visible
+    to the periodic sweep (process_user_requests / _check_request_tasks) at
+    status=-1 from a prior successful pass, so it's watching this request
+    the whole time -- without atomicity, the gap between the delete and the
+    bulk_create would let the sweep observe zero RequestMap rows for an
+    already-visible request, read total=0/pending=0, and mark it complete
+    with zero results before the re-run's insert finishes. Wrapping all
+    three statements together means Postgres (READ COMMITTED) never exposes
+    that empty intermediate state to another transaction.
     """
     plan = resolve_request_plan(
         request.user, request.data["feature_ids"], request.data["dataset_specs"]
@@ -445,18 +456,19 @@ def materialize_request(request: Request) -> None:
     if not all_task_ids:
         raise NoExtractTasksError(plan.warnings)
 
-    RequestMap.objects.filter(request=request).delete()
-    RequestMap.objects.bulk_create(
-        [
-            RequestMap(request=request, task_id=task_id, dataset_id=dataset_id)
-            for task_id, dataset_id in all_task_ids.items()
-        ]
-    )
+    with transaction.atomic():
+        RequestMap.objects.filter(request=request).delete()
+        RequestMap.objects.bulk_create(
+            [
+                RequestMap(request=request, task_id=task_id, dataset_id=dataset_id)
+                for task_id, dataset_id in all_task_ids.items()
+            ]
+        )
 
-    Request.objects.filter(id=request.id).update(
-        status=-1,
-        data={**request.data, "datasets": valid_datasets},
-    )
+        Request.objects.filter(id=request.id).update(
+            status=-1,
+            data={**request.data, "datasets": valid_datasets},
+        )
 
 
 def requests_for_user(user) -> QuerySet[Request]:
