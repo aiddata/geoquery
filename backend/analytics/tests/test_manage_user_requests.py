@@ -1,3 +1,5 @@
+import tempfile
+from pathlib import Path
 from unittest import mock
 
 from django.test import TestCase
@@ -100,12 +102,24 @@ class FullSubmissionToCompletionFlowTest(TestCase):
 
         ExtractTask.objects.update(status=1)
 
-        with mock.patch(
-            "analytics.management.commands.manage_user_requests._build_output"
-        ), mock.patch(
-            "analytics.management.commands.manage_user_requests._notify_user"
-        ):
-            _manage_user_requests()
+        with tempfile.TemporaryDirectory() as tmp_requests_dir:
+            # Let _build_output run for real this time (only _notify_user is
+            # mocked) so completion actually proves a downloadable artifact
+            # was produced, not just that status flipped to 1.
+            with mock.patch(
+                "analytics.management.commands.manage_user_requests._notify_user"
+            ):
+                _manage_user_requests(requests_dir=tmp_requests_dir)
 
-        created.request.refresh_from_db()
-        self.assertEqual(created.request.status, 1)
+            created.request.refresh_from_db()
+            self.assertEqual(created.request.status, 1)
+
+            # _build_output zips request_dir's contents and then moves that
+            # zip to replace request_dir itself, so the final artifact is a
+            # request_id-named zip file sitting at request_dir/request_id.zip
+            # (manage_user_requests.py:394-396) -- the same path
+            # _notify_user's completion email and DocBuilder's download link
+            # point at.
+            request_id = str(created.request.id)
+            output_zip = Path(tmp_requests_dir) / request_id / f"{request_id}.zip"
+            self.assertTrue(output_zip.is_file())
