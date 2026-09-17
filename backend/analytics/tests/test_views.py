@@ -6,6 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from analytics.models import ExtractTask, ProcessingOption, RequestMap
+from analytics.services import materialize_request
 from datasets.models import Dataset, DatasetResource
 from features.models import Feature, FeatMap, FeatureCollection
 
@@ -48,9 +49,15 @@ class RequestViewStandardSubmissionTest(TestCase):
             "datasets": [{"datasetName": self.dataset.name}],
         }
         payload.update(overrides)
-        return self.client.post(
+        resp = self.client.post(
             self.url, data=payload, content_type="application/json"
         )
+        if resp.status_code == 201:
+            from analytics.models import Request
+
+            req = Request.objects.get(id=resp.json()["id"])
+            materialize_request(req)
+        return resp
 
     def test_creates_task_with_dataset_id_and_resource_ids(self):
         resp = self.submit()
@@ -120,12 +127,16 @@ class RequestViewStandardSubmissionTest(TestCase):
 
     def test_integrity_error_on_create_falls_back_to_get(self):
         # Simulates the race migration 0022's index exists for: two
-        # concurrent submissions both miss the initial .get() (DoesNotExist),
-        # one wins .create(), the other must hit IntegrityError and recover
-        # by re-fetching the winner's row rather than crashing. The initial
-        # .get() is forced to miss and .create() is forced to collide; a real
-        # row (created ahead of the patch, standing in for the "other
-        # request's" winning insert) is what the fallback .get() must find.
+        # concurrent materializations both miss the initial .get()
+        # (DoesNotExist), one wins .create(), the other must hit
+        # IntegrityError and recover by re-fetching the winner's row rather
+        # than crashing. The initial .get() is forced to miss and .create()
+        # is forced to collide; a real row (created ahead of the patch,
+        # standing in for the "other request's" winning insert) is what the
+        # fallback .get() must find.
+        from analytics.models import Request
+        from analytics.services import materialize_request
+
         existing = ExtractTask.objects.create(
             dataset_id=self.dataset.id,
             resource_ids=[self.resource.id],
@@ -133,6 +144,16 @@ class RequestViewStandardSubmissionTest(TestCase):
             po=self.po,
             kwargs=None,
         )
+
+        payload = {
+            "email": "a@example.com",
+            "featureIds": [self.feature.id],
+            "datasets": [{"datasetName": self.dataset.name}],
+        }
+        resp = self.client.post(
+            self.url, data=payload, content_type="application/json"
+        )
+        req = Request.objects.get(id=resp.json()["id"])
 
         with (
             mock.patch.object(
@@ -144,9 +165,8 @@ class RequestViewStandardSubmissionTest(TestCase):
                 ExtractTask.objects, "create", side_effect=IntegrityError
             ) as mock_create,
         ):
-            resp = self.submit()
+            materialize_request(req)
 
-        self.assertEqual(resp.status_code, 201)
         mock_create.assert_called_once_with(
             dataset_id=self.dataset.id,
             resource_ids=[self.resource.id],
@@ -169,7 +189,6 @@ class RequestViewStandardSubmissionTest(TestCase):
         for call in mock_get.call_args_list:
             self.assertEqual(call.kwargs, expected_get_kwargs)
 
-        req_id = resp.json()["id"]
-        rm = RequestMap.objects.get(request_id=req_id)
+        rm = RequestMap.objects.get(request_id=req.id)
         self.assertEqual(rm.task_id, existing.id)
         self.assertEqual(rm.dataset_id, self.dataset.id)

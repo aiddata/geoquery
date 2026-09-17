@@ -46,6 +46,7 @@ STATUS_LABELS = {
     1: "completed",
     2: "preparing",
     3: "ingesting",
+    4: "materializing",
 }
 
 
@@ -345,7 +346,6 @@ def _build_tasks(plan: RequestPlan) -> tuple[dict[int, int], list[dict]]:
     return all_task_ids, valid_datasets
 
 
-@transaction.atomic
 def create_request(
     *,
     user,
@@ -357,17 +357,31 @@ def create_request(
     selection_detail: str | None = None,
     source: str = "web",
 ) -> CreatedRequest:
-    """Create a Request and its ExtractTasks, or raise ``NoExtractTasksError``.
+    """Create a Request at status=4 (materializing) and defer ExtractTask/
+    RequestMap creation to a background task.
 
-    Saving the Request fires the post_save receiver in ``analytics.signals``,
-    which kicks the Celery chain -- so this is the moment a submission starts
-    processing, not a later sweep. ``source`` is what distinguishes a web
-    submission from an MCP export in the stats and in support questions.
+    Validates the submission synchronously -- resolve_request_plan is
+    read-only and already exposes task_count, so a bad dataset name or an
+    empty selection still fails the request immediately, exactly as before.
+    Only the expensive per-task materialization work (_build_tasks, one DB
+    round-trip per (feature, resource, option) triple that isn't already
+    pre-built) moves to the background -- a submission spanning enough
+    time-series datasets can touch tens of thousands of triples, which was
+    taking long enough to 504 even after the per-triple DB operations
+    themselves were fixed to be fast (see analytics/tasks/processing.py and
+    the resource_ids_hash partition-pruning fixes).
+
+    Saving the Request fires the post_save receiver in analytics.signals,
+    which is harmless at status=4: the completion sweep only ever looks at
+    status=-1/0 (manage_user_requests.py), so it simply finds nothing to do
+    for this request yet. The real "go process this" trigger is
+    materialize_request_tasks firing the same dispatch chain once
+    materialization finishes and the request becomes visible to the sweep
+    for the first time.
     """
     plan = resolve_request_plan(user, feature_ids, datasets)
-    all_task_ids, valid_datasets = _build_tasks(plan)
 
-    if not all_task_ids:
+    if not plan.resolved:
         raise NoExtractTasksError(plan.warnings)
 
     req = Request.objects.create(
@@ -375,24 +389,61 @@ def create_request(
         custom_name=name or None,
         user=user,
         source=source,
-        status=-1,
+        status=4,
         data={
             "selection_label": selection_label,
             "selection_detail": selection_detail,
             "feature_ids": feature_ids,
-            "datasets": valid_datasets,
+            "datasets": [],
+            "dataset_specs": datasets,
         },
     )
 
+    # Deferred import: analytics.tasks.requests imports materialize_request
+    # from this module, so a top-level import here would be circular. Same
+    # pattern analytics.signals already uses for analytics.tasks.maintenance.
+    from analytics.tasks.requests import materialize_request_tasks
+
+    transaction.on_commit(lambda: materialize_request_tasks.delay(str(req.id)))
+
+    return CreatedRequest(
+        request=req, task_count=plan.task_count, warnings=plan.warnings
+    )
+
+
+def materialize_request(request: Request) -> None:
+    """The deferred half of create_request: build ExtractTasks, create
+    RequestMap rows, and move the request from status=4 (materializing) to
+    status=-1 (queued) -- the transition that makes it visible to the
+    completion sweep for the first time.
+
+    Re-resolves the plan against current state (feature_ids and
+    dataset_specs, both stored on the request at submission time) rather
+    than trusting a stale snapshot: dataset/feature visibility could
+    theoretically change in the gap between submission and this running.
+    Raises NoExtractTasksError if nothing resolves anymore -- the caller
+    (materialize_request_tasks) is responsible for turning that into a
+    status=-2 error on the request, the same way create_request turns it
+    into an HTTP 400 when it happens synchronously at submission time.
+    """
+    plan = resolve_request_plan(
+        request.user, request.data["feature_ids"], request.data["dataset_specs"]
+    )
+    all_task_ids, valid_datasets = _build_tasks(plan)
+
+    if not all_task_ids:
+        raise NoExtractTasksError(plan.warnings)
+
     RequestMap.objects.bulk_create(
         [
-            RequestMap(request=req, task_id=task_id, dataset_id=dataset_id)
+            RequestMap(request=request, task_id=task_id, dataset_id=dataset_id)
             for task_id, dataset_id in all_task_ids.items()
         ]
     )
 
-    return CreatedRequest(
-        request=req, task_count=len(all_task_ids), warnings=plan.warnings
+    Request.objects.filter(id=request.id).update(
+        status=-1,
+        data={**request.data, "datasets": valid_datasets},
     )
 
 

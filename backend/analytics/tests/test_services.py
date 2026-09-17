@@ -19,6 +19,7 @@ from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
 from analytics.services import (
     NoExtractTasksError,
     create_request,
+    materialize_request,
     request_links,
     request_progress,
     requests_for_user,
@@ -172,7 +173,10 @@ class CreateRequestTests(SubmissionFixture):
             datasets=[self.spec()],
         )
         kwargs.update(overrides)
-        return create_request(**kwargs)
+        created = create_request(**kwargs)
+        materialize_request(created.request)
+        created.request.refresh_from_db()
+        return created
 
     def test_creates_one_task_per_triple_and_one_request_map_row_each(self):
         created = self.create()
@@ -226,6 +230,34 @@ class CreateRequestTests(SubmissionFixture):
         self.assertEqual(
             set(ExtractTask.objects.values_list("priority", flat=True)), {5}
         )
+
+    def test_submission_defers_task_materialization(self):
+        created = create_request(
+            user=None,
+            contact="a@example.com",
+            name="My export",
+            feature_ids=self.feature_ids,
+            datasets=[self.spec()],
+        )
+
+        self.assertEqual(created.request.status, 4)
+        self.assertEqual(created.request.data["dataset_specs"], [self.spec()])
+        self.assertEqual(created.request.data["datasets"], [])
+        self.assertEqual(ExtractTask.objects.count(), 0)
+        self.assertEqual(RequestMap.objects.count(), 0)
+        # task_count is still reported immediately -- it comes from the
+        # resolved plan (features x resources x options), not from counting
+        # rows that don't exist yet.
+        self.assertEqual(created.task_count, 8)
+
+    def test_materialize_request_raises_when_nothing_resolves(self):
+        created = self.create()
+        # Simulate the dataset becoming unavailable between submission and
+        # materialization running.
+        Dataset.objects.filter(pk=self.dataset.pk).update(public=False)
+
+        with self.assertRaises(NoExtractTasksError):
+            materialize_request(created.request)
 
     def test_bulk_priority_bump_prunes_to_one_partition(self):
         """extract_tasks is LIST partitioned on dataset_id. An UPDATE that
@@ -313,6 +345,8 @@ class RequestProgressAndLinksTests(SubmissionFixture):
             feature_ids=self.feature_ids,
             datasets=[self.spec(extractTypes=["mean"], resources=["ds_2020"])],
         )
+        materialize_request(self.created.request)
+        self.created.request.refresh_from_db()
 
     def test_progress_counts_completed_over_total(self):
         self.assertEqual(request_progress(self.created.request), (0, 2))
