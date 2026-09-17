@@ -138,6 +138,21 @@ _CLAIM_PROGRESS_PAIRS_SQL = """
 
 _RELEASE_CLAIM_SQL = "UPDATE extract_task_build_progress SET claimed_at = NULL WHERE id = %s"
 
+# Refreshed right before a pair's own batch starts (see the loop in
+# _build_global_tasks), not just once when the whole page was claimed. A
+# page holds up to PAIRS_PER_ROUND pairs, each batch can legitimately take
+# up to BATCH_STATEMENT_TIMEOUT_MS; a worker slowly working through its own
+# page can take far longer than CLAIM_STALE_MINUTES to *reach* a pair near
+# the end of that page, even though it's still alive and hasn't abandoned
+# it. Without this per-pair touch, claimed_at only reflects "when the page
+# was claimed," so a late pair looks stale to other workers long before its
+# own worker actually gets to it -- a second worker "rescues" it as if the
+# first had died, and both race to insert overlapping rows. Observed in
+# production: two different pods both processing the same (resources, po)
+# pair, one committing its batch ~12s before the other's failed with a
+# duplicate-key IntegrityError on the exact same row.
+_TOUCH_CLAIM_SQL = "UPDATE extract_task_build_progress SET claimed_at = NOW() WHERE id = %s"
+
 _INSERT_GLOBAL_BATCH_SQL = """
     INSERT INTO extract_tasks
         (dataset_id, resource_ids, task_group_period, fm_id, po_id, status, priority, attempts, submit_time)
@@ -308,6 +323,8 @@ def _build_global_tasks(batch_size=BATCH_SIZE):
 
         made_progress = False
         for progress_id, resource_ids, po_id, completed_up_to_fm_id, dataset_id, task_group_period in pairs:
+            with connection.cursor() as cursor:
+                cursor.execute(_TOUCH_CLAIM_SQL, [progress_id])
             added = _run_batch(
                 _INSERT_GLOBAL_BATCH_SQL,
                 {
