@@ -1,6 +1,6 @@
 import logging
 
-from celery import chain, shared_task
+from celery import shared_task
 
 from analytics.models import Request
 from analytics.services import NoExtractTasksError, materialize_request
@@ -13,12 +13,10 @@ def materialize_request_tasks(request_id):
     """Build ExtractTasks and RequestMap rows for a Request submitted at
     status=4 (materializing), then move it to status=-1 (queued).
 
-    On success, explicitly fires the same dispatch chain
-    analytics.signals.on_request_submitted fires on Request creation. That
-    signal already ran when the Request was created, but harmlessly, since
-    the completion sweep only looks at status=-1/0 and found nothing to do
-    at status=4 -- this is the real "go process this" trigger, run once
-    materialization has actually finished.
+    materialize_request's status update is a request.save(...) call, which
+    fires analytics.signals.on_request_submitted -- that's what actually
+    schedules the processing-dispatch chain once materialization finishes;
+    this task doesn't need to do it explicitly.
 
     On failure sets status=-2 (error) and records the error message in
     request.data, the same shape analytics.tasks.ingest.
@@ -51,10 +49,3 @@ def materialize_request_tasks(request_id):
             status=-2, data={**req.data, "error": str(exc)}
         )
         raise
-
-    from analytics.tasks.maintenance import (
-        dispatch_processing_tasks,
-        process_user_requests,
-    )
-
-    chain(process_user_requests.si(), dispatch_processing_tasks.si()).delay()

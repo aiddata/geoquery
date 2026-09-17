@@ -58,7 +58,10 @@ class MaterializeRequestTasksTest(TestCase):
     def test_success_fires_the_dispatch_chain(self):
         created = self.submit()
 
-        with mock.patch("analytics.tasks.requests.chain") as mock_chain:
+        with (
+            mock.patch("analytics.signals.chain") as mock_chain,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
             materialize_request_tasks(str(created.request.id))
 
         mock_chain.assert_called_once()

@@ -372,12 +372,10 @@ def create_request(
     the resource_ids_hash partition-pruning fixes).
 
     Saving the Request fires the post_save receiver in analytics.signals,
-    which is harmless at status=4: the completion sweep only ever looks at
-    status=-1/0 (manage_user_requests.py), so it simply finds nothing to do
-    for this request yet. The real "go process this" trigger is
-    materialize_request_tasks firing the same dispatch chain once
-    materialization finishes and the request becomes visible to the sweep
-    for the first time.
+    which schedules materialize_request_tasks for this status=4 request
+    (see analytics.signals.on_request_submitted) -- creating the Request is
+    the only thing this function needs to do; the signal handles getting
+    the background task scheduled once the transaction commits.
     """
     plan = resolve_request_plan(user, feature_ids, datasets)
 
@@ -398,13 +396,6 @@ def create_request(
             "dataset_specs": datasets,
         },
     )
-
-    # Deferred import: analytics.tasks.requests imports materialize_request
-    # from this module, so a top-level import here would be circular. Same
-    # pattern analytics.signals already uses for analytics.tasks.maintenance.
-    from analytics.tasks.requests import materialize_request_tasks
-
-    transaction.on_commit(lambda: materialize_request_tasks.delay(str(req.id)))
 
     return CreatedRequest(
         request=req, task_count=plan.task_count, warnings=plan.warnings
@@ -465,10 +456,9 @@ def materialize_request(request: Request) -> None:
             ]
         )
 
-        Request.objects.filter(id=request.id).update(
-            status=-1,
-            data={**request.data, "datasets": valid_datasets},
-        )
+        request.status = -1
+        request.data = {**request.data, "datasets": valid_datasets}
+        request.save(update_fields=["status", "data"])
 
 
 def requests_for_user(user) -> QuerySet[Request]:
