@@ -181,16 +181,20 @@ class SweepClaimTests(TestCase):
         self.assertEqual(req.status, 2)
         mock_build.assert_not_called()
 
-    def test_claim_commits_before_build_runs(self):
-        # The whole point: status=2 must already be committed and visible by
-        # the time _build_output starts, so a concurrent sweep would skip it.
+    def test_claim_is_written_before_build_runs(self):
+        # Ordering only: status=2 must be written before _build_output starts.
+        # This deliberately does NOT prove the claim is *committed* by then --
+        # TestCase runs the whole test in one transaction on one connection,
+        # so a read here sees uncommitted writes identically to committed
+        # ones. Cross-connection commit visibility is covered separately by
+        # ClaimContentionTest (TransactionTestCase).
         req = self.submit()
         ExtractTask.objects.update(status=1)
         observed = {}
 
         def capture(*args, **kwargs):
-            # Read through a fresh connection-level query rather than the ORM
-            # cache to see what is actually committed at this moment.
+            # Re-query rather than reuse the ORM cache, so this reflects the
+            # row as the database has it at this point in the sweep.
             observed["status"] = Request.objects.get(id=req.id).status
 
         with mock.patch(
