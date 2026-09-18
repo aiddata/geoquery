@@ -3,15 +3,21 @@ Manage processing of user requests
 Includes: updating status, handling errors, queue management and task submissions, doc/request building, emails, etc.)
 """
 
+import contextlib
+import errno
 import json
 import os
 import shutil
 import textwrap
+import threading
 import time
 import zipfile
 from collections import defaultdict
+from datetime import datetime
 from logging import getLogger
 from pathlib import Path
+from typing import NamedTuple
+from uuid import uuid4
 
 from datasets.models import Dataset, DatasetResource
 from django.core.management.base import BaseCommand
@@ -25,6 +31,138 @@ from analytics.tasks.email import GeoEmail
 from analytics.tasks.merge import merge_task_features, merge_task_results
 
 logger = getLogger(__name__)
+
+# Retries _swap_output_into_place allows for *contention* -- a concurrent
+# build repopulating request_dir after we displace it. A rebuild over existing
+# output always spends one pass discovering that request_dir is occupied and
+# displacing it, and that expected first pass is not charged against this
+# budget: charging it meant a rebuild under sustained contention could raise
+# even though its output was complete, and the caller would then record
+# status=-2 for a request whose directory holds a valid build.
+_OUTPUT_SWAP_CONTENTION_RETRIES = 3
+
+# Swap failures that displacing the destination and retrying actually fixes:
+# ENOTEMPTY/EEXIST when it is a non-empty directory (what a concurrent build
+# causes), and ENOTDIR when it is a file or symlink rather than a directory
+# (nothing in this module creates that, but a stray file in the requests
+# directory would).
+_SWAP_RETRY_ERRNOS = frozenset({errno.ENOTEMPTY, errno.EEXIST, errno.ENOTDIR})
+
+
+# How often a running build refreshes its claim. Must stay far below
+# STALE_TASK_MINUTES so a single missed beat -- a transient DB blip -- cannot
+# make a live build look abandoned.
+_HEARTBEAT_INTERVAL_SECONDS = 60
+
+# Extra time __exit__ allows a beat already in flight to finish before the
+# claim is forfeited. Generous, because forfeiting costs a full rebuild.
+_HEARTBEAT_JOIN_GRACE_SECONDS = 30
+
+
+class _ClaimHeartbeat:
+    """Keep a claim fresh while a long build runs.
+
+    The reaper treats a claim as abandoned once process_time falls behind
+    STALE_TASK_MINUTES. Without a heartbeat that threshold is a *build
+    duration* limit rather than a liveness check: a build slower than the
+    threshold gets reaped mid-flight, fails its finalize fence, and is rebuilt
+    from scratch -- forever, because every retry is exactly as slow. Since the
+    reaper returns the request to status=0 rather than -2, that loop is also
+    silent. Refreshing process_time makes "stale" mean "not making progress",
+    which is what the reaper is actually trying to detect.
+
+    Each refresh is fenced on the claim it extends, so it doubles as a
+    liveness check in the other direction: if the fence fails, another sweep
+    owns the request now and this build's output will be discarded. ``lost``
+    lets the caller stop early instead of spending hours on it.
+    """
+
+    def __init__(self, request_id, claim, interval=None, join_grace=None):
+        self.request_id = request_id
+        self.claim = claim
+        self.join_grace = (
+            _HEARTBEAT_JOIN_GRACE_SECONDS if join_grace is None else join_grace
+        )
+        # Resolved here rather than as a default argument so the interval is
+        # read at call time, not at import time.
+        self.interval = (
+            _HEARTBEAT_INTERVAL_SECONDS if interval is None else interval
+        )
+        self.lost = False
+        self._stop = threading.Event()
+        self._thread = None
+
+    def __enter__(self):
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc_info):
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=self.interval + self.join_grace)
+            if self._thread.is_alive():
+                # Blocked mid-beat -- a stalled connection, a lock on
+                # requests, a saturated pooler. It may still land its UPDATE
+                # after we return, which would advance process_time and
+                # invalidate whatever token we read here. Since the token is
+                # no longer knowable, treat the claim as lost rather than
+                # finalizing against a value a late beat may overwrite: every
+                # fence would fail anyway, and this way the request is left
+                # for the reaper instead of being silently skipped.
+                logger.warning(
+                    "Claim heartbeat for request (id: %s) did not stop within "
+                    "%ss -- treating the claim as lost",
+                    self.request_id,
+                    self.interval + self.join_grace,
+                )
+                self.lost = True
+        return False
+
+    def _run(self):
+        try:
+            # wait() returns True when stopped, so this exits promptly at the
+            # end of the build rather than sleeping out the last interval.
+            while not self._stop.wait(self.interval):
+                if not self._beat():
+                    return
+        finally:
+            # This thread has its own connection; leaving it open leaks one
+            # per build.
+            connection.close()
+
+    def _beat(self):
+        """Extend the claim. Returns False when the claim is gone for good."""
+        now = timezone.now()
+        try:
+            with transaction.atomic():
+                updated = Request.objects.filter(
+                    id=self.request_id,
+                    status=2,
+                    process_time=self.claim.claim_time,
+                ).update(process_time=now)
+        except Exception as e:
+            # A transient database error must not abandon a build that is
+            # otherwise fine. The next beat retries, and the reaper's
+            # threshold is many beats wide.
+            logger.warning(
+                "Claim heartbeat failed for request (id: %s): %s",
+                self.request_id,
+                e,
+            )
+            return True
+
+        if not updated:
+            logger.warning(
+                "Lost claim on request (id: %s) during build (reaped or taken "
+                "over by another sweep)",
+                self.request_id,
+            )
+            self.lost = True
+            return False
+
+        self.claim = self.claim._replace(claim_time=now)
+        return True
 
 
 class Command(BaseCommand):
@@ -117,65 +255,168 @@ def _manage_user_requests(
         request_id = str(request_obj.id)
         logger.info("Request (id: %s)\n%s", request_id, request_obj)
 
-        send_received_email = False
         completed_request_obj = None
+        # The claim the error handler fences its status write on, or None when
+        # this iteration never got one (dry_run, or a failure before the
+        # claim). Reset every iteration and kept separate from `claim` below:
+        # `claim` survives into the next iteration, so reusing it here would
+        # let a *previous* request's claim_time fence this request's error
+        # write and silently swallow it. The error handler must never raise
+        # NameError either -- it runs while already handling a failure.
+        error_claim = None
+        # `claim` is function-scope, not iteration-scope, so it must be reset
+        # here too: left over from the previous iteration it would silently
+        # fence this request's writes on *another* request's claim_time. Both
+        # names are reset for the same reason. None (rather than unbound) is
+        # safe because every read is `claim.claim_time`, which raises
+        # AttributeError -- loudly -- if a future edit reaches a fence without
+        # a claim. What must never happen is a None claim_time reaching the
+        # filter, where it renders as "process_time IS NULL" and quietly
+        # matches a never-claimed row.
+        claim = None
 
         try:
-            with transaction.atomic():
-                if not request_obj.data:
-                    _request_error(request_id, "Invalid request (missing items field)")
-                    continue
-                if not request_obj.data["feature_ids"]:
-                    _request_error(request_id, "Invalid request (missing features)")
-                    continue
-                if not request_obj.data["datasets"]:
-                    _request_error(
-                        request_id, "Invalid request (missing dataset details)"
+            # One guard for all three validation failures rather than three:
+            # they are the only _request_error calls that fire before a claim
+            # exists, and each one was previously able to move a request to -2
+            # during a --dry-run.
+            invalid_reason = _validation_error(request_obj)
+            if invalid_reason:
+                if dry_run:
+                    logger.warning(
+                        "Dry run: request (id: %s) would be marked failed: %s",
+                        request_id,
+                        invalid_reason,
                     )
-                    continue
-
-                logger.info(
-                    "Features: %s (%s)",
-                    request_obj.data["selection_label"],
-                    request_obj.data["selection_label"],
-                )
-
-                original_status = Request.objects.get(id=request_id).status
-
-                if original_status == -1:
-                    Request.objects.filter(id=request_id).update(
-                        prepare_time=timezone.now()
-                    )
-                    send_received_email = True
-
-                Request.objects.filter(id=request_id).update(
-                    status=2, process_time=timezone.now()
-                )
-
-                missing_items, merge_list = _check_request_tasks(
-                    request_obj, dry_run=dry_run
-                )
-
-                if missing_items > 0:
-                    Request.objects.filter(id=request_id).update(status=0)
-                    logger.warning(f"Request not ready (id: {request_id}) - missing {missing_items} items")
                 else:
-                    updated_request_obj = Request.objects.get(id=request_id)
+                    _request_error(request_id, invalid_reason)
+                continue
+
+            logger.info(
+                "Features: %s (%s)",
+                request_obj.data["selection_label"],
+                request_obj.data["selection_label"],
+            )
+
+            # Phase 1 -- claim. dry_run takes no locks and writes no status;
+            # it just reports on what it finds.
+            if not dry_run:
+                claim = _claim_request(request_id)
+                if not claim.claimed:
+                    logger.info(
+                        "Request (id: %s) claimed by another sweep or no longer "
+                        "queued -- skipping",
+                        request_id,
+                    )
+                    continue
+                error_claim = claim
+
+                # Send the "received" acknowledgement as soon as the claim
+                # commits, not at the end of the iteration: a crash mid-build
+                # would otherwise lose it for good, because the reaper resets
+                # the request to status=0 and the retry would see it as
+                # already acknowledged. It is also the right semantics --
+                # "we received your request" should arrive before a
+                # multi-hour build, not after it. Gated on first_claim (see
+                # _claim_request) so a re-claim never re-sends it.
+                if claim.first_claim:
+                    try:
+                        _notify_user(
+                            request_id, request_obj.contact, 0, download_base, frontend_base
+                        )
+                    except Exception as e:
+                        logger.error(
+                            "Failed to send received notification for request (id: %s): %s",
+                            request_id,
+                            e,
+                        )
+
+            # Phase 2 -- the expensive part, deliberately outside any
+            # transaction. _build_output writes files (CSV, HTML, JSON, PDF,
+            # GeoPackage, zip); holding a requests row lock across that is
+            # what let one slow request stack every other sweep behind it.
+            missing_items, merge_map = _check_request_tasks(
+                request_obj, dry_run=dry_run
+            )
+
+            if missing_items > 0:
+                if not dry_run:
+                    with transaction.atomic():
+                        updated = Request.objects.filter(
+                            id=request_id, status=2, process_time=claim.claim_time
+                        ).update(status=0)
+                    if not updated:
+                        logger.warning(
+                            "Lost claim on request (id: %s) before requeueing "
+                            "it as not-ready (reaped or taken over by another "
+                            "sweep) -- leaving it to the current owner",
+                            request_id,
+                        )
+                        continue
+                logger.warning(
+                    f"Request not ready (id: {request_id}) - missing {missing_items} items"
+                )
+            else:
+                updated_request_obj = Request.objects.get(id=request_id)
+                if dry_run:
+                    # No claim to keep alive, and no status writes at all.
                     _build_output(
                         updated_request_obj,
-                        merge_list,
+                        merge_map,
                         download_base,
                         requests_dir,
                         assets_dir,
                     )
-                    Request.objects.filter(id=request_id).update(
-                        status=1, complete_time=timezone.now()
-                    )
-                    completed_request_obj = updated_request_obj
-                    logger.info("Request completed (id: %s)", request_id)
+                else:
+                    heartbeat = _ClaimHeartbeat(request_id, claim)
+                    try:
+                        with heartbeat:
+                            _build_output(
+                                updated_request_obj,
+                                merge_map,
+                                download_base,
+                                requests_dir,
+                                assets_dir,
+                            )
+                    finally:
+                        # The heartbeat moves process_time, so every later
+                        # fence -- including the error handler's, which runs
+                        # on the exception path through this finally -- has
+                        # to use the claim it left behind, not the original.
+                        claim = heartbeat.claim
+                        error_claim = claim
 
-                if dry_run:
-                    Request.objects.filter(id=request_id).update(status=original_status)
+                    if heartbeat.lost:
+                        # Another sweep owns the request and is rebuilding it.
+                        # Every remaining write here would fail its fence.
+                        logger.warning(
+                            "Discarding build for request (id: %s) -- the "
+                            "claim was lost while it ran",
+                            request_id,
+                        )
+                        continue
+                # Phase 3 -- finalize. Both terminal writes are fenced on
+                # still holding the claim (status=2 with our process_time):
+                # the reaper can reset a long-running build's request to 0 and
+                # let another sweep re-claim it, and _build_output opens by
+                # rmtree-ing the request dir. Without the fence this sweep
+                # would mark a request complete and email a download link
+                # while another sweep is still writing that same zip.
+                if not dry_run:
+                    with transaction.atomic():
+                        updated = Request.objects.filter(
+                            id=request_id, status=2, process_time=claim.claim_time
+                        ).update(status=1, complete_time=timezone.now())
+                    if not updated:
+                        logger.warning(
+                            "Lost claim on request (id: %s) before finalize "
+                            "(reaped or taken over by another sweep) -- not "
+                            "sending completion email",
+                            request_id,
+                        )
+                        continue
+                    completed_request_obj = updated_request_obj
+                logger.info("Request completed (id: %s)", request_id)
 
         except Exception as e:
             # include full traceback in the log for debugging purposes
@@ -185,7 +426,12 @@ def _manage_user_requests(
                 e,
             )
             try:
-                _request_error(request_id, f"Unhandled exception: {e}")
+                # dry_run reports on what it finds and writes no status at
+                # all -- including this one.
+                if not dry_run:
+                    _request_error(
+                        request_id, f"Unhandled exception: {e}", claim=error_claim
+                    )
             except Exception as err:
                 logger.error(
                     "Failed to set error status for request (id: %s): %s",
@@ -195,18 +441,9 @@ def _manage_user_requests(
             logger.error("Skipping request (id: %s) due to error", request_id)
             continue
 
-        # Send notifications after the transaction commits so a notification
-        # failure cannot roll back committed request state or mask a success.
-        if send_received_email and not dry_run:
-            try:
-                _notify_user(request_id, request_obj.contact, 0, download_base, frontend_base)
-            except Exception as e:
-                logger.error(
-                    "Failed to send received notification for request (id: %s): %s",
-                    request_id,
-                    e,
-                )
-
+        # Send the completion notification after the transaction commits so a
+        # notification failure cannot roll back committed request state or
+        # mask a success.
         if completed_request_obj is not None and not dry_run:
             try:
                 _notify_user(
@@ -220,6 +457,11 @@ def _manage_user_requests(
                     e,
                 )
                 try:
+                    # Deliberately unfenced: this is only reachable once the
+                    # finalize fence above passed, which means this sweep held
+                    # the claim and just moved the row to status=1. Fencing on
+                    # status=2 would match nothing and silently drop the error
+                    # that makes an undelivered-but-built request visible.
                     _request_error(
                         request_id,
                         f"Completion notification failed (data is ready): {e}",
@@ -236,9 +478,50 @@ def _manage_user_requests(
     )
 
 
-def _request_error(request_id, message):
+def _validation_error(request_obj):
+    """Why this request cannot be processed at all, or None if it is fine.
+
+    Deliberately raises rather than returns for a malformed `data` payload
+    (a missing key, say): that is an unexpected shape, and the caller's
+    handler records it with the traceback.
+    """
+    if not request_obj.data:
+        return "Invalid request (missing items field)"
+    if not request_obj.data["feature_ids"]:
+        return "Invalid request (missing features)"
+    if not request_obj.data["datasets"]:
+        return "Invalid request (missing dataset details)"
+    return None
+
+
+def _request_error(request_id, message, claim=None):
+    """Mark a request failed.
+
+    With a claim, the write is fenced on still owning it, exactly like the
+    terminal writes in _manage_user_requests. Once the reaper can reset a
+    running build, a sweep that lost its claim and then hits any exception
+    would otherwise clobber the new owner's in-progress status=2 -- or a
+    status=1 the winner already completed and emailed a download link for.
+
+    Without a claim (the validation failures, which happen before any claim
+    exists) the write is unconditional, as it has always been.
+    """
     logger.error("Error with request (id: %s): %s", request_id, message)
-    Request.objects.filter(id=request_id).update(status=-2)
+
+    if claim is None:
+        Request.objects.filter(id=request_id).update(status=-2)
+        return
+
+    updated = Request.objects.filter(
+        id=request_id, status=2, process_time=claim.claim_time
+    ).update(status=-2)
+    if not updated:
+        logger.warning(
+            "Lost claim on request (id: %s) (reaped or taken over by another "
+            "sweep) -- not marking it failed; the current owner's status "
+            "stands",
+            request_id,
+        )
 
 
 def _notify_user(request_id, mail_to, status, download_base, frontend_base):
@@ -301,6 +584,75 @@ def _notify_user(request_id, mail_to, status, download_base, frontend_base):
     mail_status = GeoEmail().send_email(mail_to, mail_subject, mail_message)
     if not mail_status[0]:
         raise Exception(f"Email send failed: {mail_status[1]}: {mail_status[2]}")
+
+
+class RequestClaim(NamedTuple):
+    """The outcome of one attempt to claim a request for processing."""
+
+    claimed: bool
+    original_status: int | None = None
+    claim_time: datetime | None = None
+    first_claim: bool = False
+
+
+def _claim_request(request_id):
+    """Claim a request for processing, in its own short committed transaction.
+
+    Returns a :class:`RequestClaim`. ``RequestClaim(False)`` means the claim
+    failed -- because another sweep already holds the row, or because the
+    request's status moved out of -1/0 between selection and now.
+
+    ``claim_time`` is the process_time written here, and doubles as a claim
+    fence: the terminal status writes filter on it, so a sweep whose claim was
+    taken over mid-build (the reaper resets a stale status=2 to 0, and another
+    sweep re-claims) cannot finalize a request it no longer owns.
+
+    ``first_claim`` reports whether prepare_time was NULL before this claim,
+    i.e. whether the user has ever been sent the "we received your request"
+    acknowledgement. It gates that email. Status is the wrong gate: the
+    separate reset_errored_requests command blanket-resets status -2 -> -1
+    with raw SQL and never touches prepare_time, so gating on status would
+    re-send the acknowledgement once per error/reset cycle, unbounded.
+
+    NOTE: this atomic() must be the outermost transaction for the claim to
+    commit. If a future caller ever wraps _manage_user_requests in its own
+    transaction.atomic(), this degrades silently to a savepoint -- the claim
+    never commits, the row lock is held across the whole build, and the
+    original pileup bug returns with nothing to signal it.
+
+    status=2 has always meant "a sweep is working on this" -- the selection
+    query in _manage_user_requests deliberately matches only -1 and 0. It
+    could never actually work, because it used to be written inside the same
+    transaction that did all the work, so it stayed invisible to every other
+    sweep until that work was already finished. Committing it here is what
+    makes the claim real.
+
+    skip_locked=True is what removes the pileup: a request another sweep is
+    mid-claim on is skipped outright rather than queued behind its row lock.
+    The status re-check inside the lock matters because request_objects is
+    built as a list up front, so a row's status can change between selection
+    and this call.
+    """
+    with transaction.atomic():
+        row = (
+            Request.objects.select_for_update(skip_locked=True)
+            .filter(id=request_id, status__in=(-1, 0))
+            .values("id", "status", "prepare_time")
+            .first()
+        )
+        if row is None:
+            return RequestClaim(False)
+
+        original_status = row["status"]
+        # prepare_time marks first acknowledgement, so it is written once and
+        # never overwritten on a later re-claim (reaped, or error-and-reset).
+        first_claim = row["prepare_time"] is None
+        claim_time = timezone.now()
+        updates = {"status": 2, "process_time": claim_time}
+        if first_claim:
+            updates["prepare_time"] = claim_time
+        Request.objects.filter(id=request_id).update(**updates)
+        return RequestClaim(True, original_status, claim_time, first_claim)
 
 
 def _check_request_tasks(request, dry_run=False):
@@ -376,61 +728,222 @@ def _build_output(request, task_map, download_server, requests_dir, assets_dir):
     request_id = str(request.id)
     request_dir = requests_dir / request_id
 
-    shutil.rmtree(request_dir, ignore_errors=True)
-    request_dir.mkdir(parents=True, exist_ok=True)
+    # Build into a unique directory and only swap it into place at the very
+    # end. Two sweeps can be inside _build_output for the same request at once
+    # (a reaper resets a claim while the original build is still running), and
+    # the old rmtree-then-write-in-place approach let one build delete or
+    # interleave with the other's files -- producing a zip that is a mix of
+    # both builds, which the download email then advertises as finished
+    # output.
+    #
+    # The build directory has to be a *sibling* of request_dir so the final
+    # swap is a same-filesystem rename: os.replace raises OSError across
+    # devices, and tempfile.mkdtemp() may well land on a different one.
+    build_dir = requests_dir / f".{request_id}.building.{uuid4().hex}"
+    build_dir.mkdir(parents=True)
 
-    request_csv = request_dir / f"{request_id}_results.csv"
-    request_documentation = request_dir / f"{request_id}_documentation.html"
-    request_json = request_dir / "request_details.json"
+    # make_zipfile writes to base_name + ".zip"; with the build directory as
+    # base_name that is a uniquely-named sibling, so concurrent builds do not
+    # fight over one intermediate zip path either. The archive's internal
+    # paths depend only on base_dir, so they are unchanged.
+    build_zip = Path(str(build_dir) + ".zip")
 
-    merge_status, merge_df = merge_task_results(task_map)
-    if merge_status != "Success":
-        raise Exception(
-            f"No extracts merged for request {request_id}. Merge status: {merge_status}"
-        )
-    logger.info("Merge completed for request %s", request_id)
-    merge_df.to_csv(request_csv, index=False)
+    try:
+        request_csv = build_dir / f"{request_id}_results.csv"
+        request_documentation = build_dir / f"{request_id}_documentation.html"
+        request_json = build_dir / "request_details.json"
 
-    doc = DocBuilder(request, request_documentation, download_server)
-    bd_status = doc.build_doc()
-    if bd_status != "Success":
-        raise Exception(
-            f"Error building documentation for request {request_id}. Status: {bd_status}"
-        )
-    logger.info("Documentation generated for request %s", request_id)
+        merge_status, merge_df = merge_task_results(task_map)
+        if merge_status != "Success":
+            raise Exception(
+                f"No extracts merged for request {request_id}. Merge status: {merge_status}"
+            )
+        logger.info("Merge completed for request %s", request_id)
+        merge_df.to_csv(request_csv, index=False)
 
-    with open(request_json, "w") as rdoc_file:
-        json.dump(
-            {k: v for k, v in request.__dict__.items() if not k.startswith("_")},
-            rdoc_file,
-            indent=4,
-            default=str,
-        )
+        doc = DocBuilder(request, request_documentation, download_server)
+        bd_status = doc.build_doc()
+        if bd_status != "Success":
+            raise Exception(
+                f"Error building documentation for request {request_id}. Status: {bd_status}"
+            )
+        logger.info("Documentation generated for request %s", request_id)
 
-    pdf_src = assets_dir / "other/GeoQuery_Goodman2019.pdf"
-    pdf_dst = request_dir / "GeoQuery_Goodman2019.pdf"
-    shutil.copyfile(pdf_src, pdf_dst)
+        with open(request_json, "w") as rdoc_file:
+            json.dump(
+                {k: v for k, v in request.__dict__.items() if not k.startswith("_")},
+                rdoc_file,
+                indent=4,
+                default=str,
+            )
 
-    features_status, features_gdf = merge_task_features(task_map)
-    if features_status == "Success":
-        features_gdf.to_file(request_dir / "request_features.gpkg", driver="GPKG")
-    elif features_status == "Empty":
-        logger.info("No features to merge for request %s", request_id)
+        pdf_src = assets_dir / "other/GeoQuery_Goodman2019.pdf"
+        pdf_dst = build_dir / "GeoQuery_Goodman2019.pdf"
+        shutil.copyfile(pdf_src, pdf_dst)
+
+        features_status, features_gdf = merge_task_features(task_map)
+        if features_status == "Success":
+            features_gdf.to_file(build_dir / "request_features.gpkg", driver="GPKG")
+        elif features_status == "Empty":
+            logger.info("No features to merge for request %s", request_id)
+        else:
+            raise Exception(
+                f"Error merging features for request {request_id}. Status: {features_status}"
+            )
+
+        make_zipfile(build_dir, build_dir)
+        # The zip's *name* comes from base_name, which is now the temp
+        # directory, so name the destination explicitly -- the download URL
+        # points at <request_id>/<request_id>.zip.
+        shutil.move(str(build_zip), str(build_dir / f"{request_id}.zip"))
+        os.remove(pdf_dst)
+
+        os.chmod(build_dir, 0o775)
+        for ro, di, fi in os.walk(build_dir):
+            for d in di:
+                os.chmod(os.path.join(ro, d), 0o775)
+            for f in fi:
+                os.chmod(os.path.join(ro, f), 0o664)
+
+        # Everything above wrote only into build_dir; this is the one step
+        # that touches the path readers and download links point at.
+        _swap_output_into_place(build_dir, request_dir)
+    except Exception:
+        shutil.rmtree(build_dir, ignore_errors=True)
+        # Cleanup must never replace the exception that brought us here with
+        # one of its own -- the caller logs and records whatever propagates.
+        with contextlib.suppress(OSError):
+            build_zip.unlink(missing_ok=True)
+        raise
+
+
+def _swap_output_into_place(build_dir, request_dir):
+    """Move a finished build directory onto request_dir.
+
+    os.replace onto a *non-empty* directory raises ENOTEMPTY, so existing
+    output has to be got out of the way first. It is moved aside rather than
+    deleted because a rename keeps the old copy intact: if the swap then
+    fails, that copy is put back and the user keeps output they could
+    previously download. Deleting would leave nothing to put back.
+
+    Either way there is a window between clearing request_dir and landing the
+    new build where nothing exists at that path. It is sub-millisecond, down
+    from the minutes the whole build used to take, and the retry below is what
+    makes it harmless: a concurrent build that lands its own output inside our
+    window just gets displaced in turn. Without the retry the loser raises,
+    and a sweep that still holds its claim turns that into _request_error's
+    status=-2 for a request whose output is in fact complete. Closing the
+    window outright would mean making request_dir a symlink and flipping it,
+    which is not worth the complexity here.
+    """
+    displaced = []
+
+    try:
+        # One pass to discover request_dir is occupied and displace it, plus
+        # the contention budget. See _OUTPUT_SWAP_CONTENTION_RETRIES.
+        for attempt in range(_OUTPUT_SWAP_CONTENTION_RETRIES + 1):
+            try:
+                os.replace(build_dir, request_dir)
+            except OSError as exc:
+                # Only "the destination is a non-empty directory" is worth
+                # retrying. Anything else (EACCES, EBUSY, EXDEV...) is a real
+                # failure, and retrying would displace the old output again
+                # for nothing.
+                if exc.errno not in _SWAP_RETRY_ERRNOS:
+                    raise
+                if attempt == _OUTPUT_SWAP_CONTENTION_RETRIES:
+                    raise
+            else:
+                break
+
+            # Output is in the way: ours from an earlier run, or a concurrent
+            # build's, which is as valid as ours. Move it aside and retry
+            # rather than failing the request.
+            #
+            # NOTE for whatever collects orphans: a ".replaced." directory can
+            # be the ONLY copy of a completed request's output. A hard kill
+            # between this rename and the replace above leaves request_dir
+            # absent with the whole output sitting here, and that request's
+            # download link 404s until someone puts it back. Such a directory
+            # must be restored to request_dir when request_dir is missing, and
+            # only deleted when it is not -- never globbed and deleted.
+            aside = request_dir.with_name(
+                f".{request_dir.name}.replaced.{uuid4().hex}"
+            )
+            try:
+                os.replace(request_dir, aside)
+            except FileNotFoundError:
+                # A concurrent build displaced it first; just retry.
+                pass
+            else:
+                displaced.append(aside)
+    except Exception:
+        _restore_displaced_output(displaced, request_dir)
+        raise
+
+    for aside in displaced:
+        _remove_output_path(aside)
+
+
+def _restore_displaced_output(displaced, request_dir):
+    """Put previously displaced output back after a failed swap.
+
+    The swap moves old output aside precisely so it survives a failure.
+    Deleting it here would leave request_dir with nothing at all -- worse than
+    a failed rebuild, because the user loses output they could previously
+    download. Only copies that something valid now supersedes are removed.
+    """
+    if not displaced:
+        return
+
+    if request_dir.exists():
+        # Output is already in place -- a concurrent build's -- and it
+        # supersedes every copy we moved aside.
+        #
+        # exists() follows symlinks, and that is the behaviour we want: a
+        # *dangling* symlink here means there is nothing to download, so it
+        # has to fall through to the restore below rather than count as
+        # output already in place. Do not add an is_symlink() arm -- it would
+        # send the only surviving copy to _remove_output_path.
+        superseded = displaced
     else:
-        raise Exception(
-            f"Error merging features for request {request_id}. Status: {features_status}"
+        newest = displaced[-1]
+        try:
+            os.replace(newest, request_dir)
+        except OSError as exc:
+            logger.error(
+                "Could not restore displaced output to %s -- it is left at "
+                "%s for recovery: %s",
+                request_dir,
+                newest,
+                exc,
+            )
+            # Keep every copy rather than risk deleting the only one.
+            return
+        logger.warning(
+            "Swap failed for %s -- restored the previous output", request_dir
         )
+        superseded = displaced[:-1]
 
-    make_zipfile(request_dir, request_dir)
-    shutil.move(str(request_dir) + ".zip", str(request_dir))
-    os.remove(pdf_dst)
+    for aside in superseded:
+        _remove_output_path(aside)
 
-    os.chmod(request_dir, 0o775)
-    for ro, di, fi in os.walk(request_dir):
-        for d in di:
-            os.chmod(os.path.join(ro, d), 0o775)
-        for f in fi:
-            os.chmod(os.path.join(ro, f), 0o664)
+
+def _remove_output_path(path):
+    """Delete a displaced output path, whatever kind of thing it is.
+
+    shutil.rmtree(ignore_errors=True) silently does nothing for a file or a
+    symlink, and ENOTDIR -- which is exactly what a request_dir that exists as
+    a file produces -- is one of the errnos the swap retries on, so that case
+    is reachable rather than theoretical.
+    """
+    try:
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            path.unlink(missing_ok=True)
+    except OSError as exc:
+        logger.warning("Could not remove displaced output %s: %s", path, exc)
 
 
 def make_zipfile(base_name, base_dir):

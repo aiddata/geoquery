@@ -30,6 +30,34 @@ def free_stale_processing_tasks():
 
 
 @shared_task
+def reset_stale_requests():
+    """Reset requests stranded in claimed state (status=2) back to processing.
+
+    Also collects the output paths a hard-killed sweep left in the requests
+    directory -- including restoring output that a kill mid-swap left sitting
+    in a ".replaced." aside with nothing at the path its download link points
+    at. See _clean_orphan_output_dirs for why the two orphan kinds are not
+    interchangeable.
+    """
+    from analytics.management.commands.reset_stale_requests import (
+        _clean_orphan_output_dirs,
+        _reset_stale_requests,
+    )
+
+    stale_minutes = getattr(settings, "STALE_TASK_MINUTES", 30)
+    result = _reset_stale_requests(stale_minutes)
+    orphans = _clean_orphan_output_dirs(str(settings.REQUESTS_DIR), stale_minutes)
+    logger.info(
+        "Reset %d stale claimed requests; removed %d abandoned output paths, "
+        "restored %d displaced outputs",
+        result["reset"],
+        orphans["removed"],
+        orphans["restored"],
+    )
+    return {**result, **orphans}
+
+
+@shared_task
 def dispatch_processing_tasks():
     """Bootstrap or top up extract task chains to fill idle worker slots.
 

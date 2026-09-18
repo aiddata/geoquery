@@ -453,6 +453,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "analytics.tasks.maintenance.manage_processing_task_errors",
         "schedule": 3600,
     },
+    "reset-stale-requests": {
+        "task": "analytics.tasks.maintenance.reset_stale_requests",
+        "schedule": 3600,
+    },
     "build-dataset-docs": {
         "task": "datasets.tasks.build_dataset_docs_task",
         "schedule": crontab(hour=2, minute=0),
