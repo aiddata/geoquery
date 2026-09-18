@@ -39,7 +39,7 @@ Background: on 2026-09-17 this sweep caused three production lock pileups, 20-33
 
 **Acceptance Criteria:**
 - [ ] A new `_claim_request(request_id)` helper claims a request in its own short `transaction.atomic()` block using `select_for_update(skip_locked=True)`, filtered on `status__in=(-1, 0)`, returning `(claimed, original_status, claim_time)`.
-- [ ] Both terminal status writes are claim-guarded (`filter(id=..., status=2, process_time=claim_time)`) and skip the completion email when the claim was lost -- without this, Task 2's reaper makes it possible for a reaped-but-still-alive sweep to mark a request complete and email a download link while a second sweep is still rebuilding the same directory.
+- [ ] Both terminal status writes are claim-guarded (`filter(id=..., status=2, process_time=claim_time)`) and skip the completion email when the claim was lost -- without this, Task 3's reaper makes it possible for a reaped-but-still-alive sweep to mark a request complete and email a download link while a second sweep is still rebuilding the same directory.
 - [ ] `_check_request_tasks` and `_build_output` are called outside any `transaction.atomic()` block.
 - [ ] The final status transition (`status=0` when not ready, `status=1` when complete) happens in its own short `transaction.atomic()` block.
 - [ ] A request already at `status=2` is not claimed by another sweep (the claim's `status__in=(-1, 0)` filter excludes it).
@@ -55,7 +55,7 @@ Background: on 2026-09-17 this sweep caused three production lock pileups, 20-33
 
 - [ ] **Step 1: Write the failing tests**
 
-Add to `backend/analytics/tests/test_manage_user_requests.py`. Verified against the current file: it already imports everything this task's tests need — `mock`, `TestCase`, `_manage_user_requests`, `ExtractTask`, `ProcessingOption`, `Request`, `RequestMap`, `create_request`, `materialize_request`, `Dataset`, `DatasetResource`, `Feature`, `FeatMap`, `FeatureCollection`. **No import changes needed for this task** (Task 3 adds the few it needs).
+Add to `backend/analytics/tests/test_manage_user_requests.py`. Verified against the current file: it already imports everything this task's tests need — `mock`, `TestCase`, `_manage_user_requests`, `ExtractTask`, `ProcessingOption`, `Request`, `RequestMap`, `create_request`, `materialize_request`, `Dataset`, `DatasetResource`, `Feature`, `FeatMap`, `FeatureCollection`. **No import changes needed for this task** (Task 4 adds the few it needs).
 
 Add this test class at the end of the file:
 
@@ -119,7 +119,7 @@ class SweepClaimTests(TestCase):
         # TestCase runs the whole test in one transaction on one connection,
         # so a read here sees uncommitted writes identically to committed
         # ones. Cross-connection commit visibility is covered separately by
-        # ClaimCommitVisibilityTest (TransactionTestCase, Task 3).
+        # ClaimCommitVisibilityTest (TransactionTestCase, Task 4).
         req = self.submit()
         ExtractTask.objects.update(status=1)
         observed = {}
@@ -160,7 +160,7 @@ class SweepClaimTests(TestCase):
 
 Run: `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_manage_user_requests.SweepClaimTests -v 2`
 
-Expected: **all three of these PASS against the unmodified code.** That is not a mistake in the tests — it is structural. `TestCase` runs each test in one transaction on one connection, and the old code already wrote `status=2` before `_build_output` on that same connection, so a same-connection read cannot tell a committed claim from an uncommitted one. These three are therefore ordering/behavioral guards, not proof of the commit property; the real proof lives in Task 3's `ClaimCommitVisibilityTest`, which uses a genuinely separate connection.
+Expected: **all three of these PASS against the unmodified code.** That is not a mistake in the tests — it is structural. `TestCase` runs each test in one transaction on one connection, and the old code already wrote `status=2` before `_build_output` on that same connection, so a same-connection read cannot tell a committed claim from an uncommitted one. These three are therefore ordering/behavioral guards, not proof of the commit property; the real proof lives in Task 4's `ClaimCommitVisibilityTest`, which uses a genuinely separate connection.
 
 Add one test that *does* fail before the change, since it calls a function that does not exist yet — it pins the exclusivity the claim provides:
 
@@ -351,7 +351,197 @@ git commit -m "Split sweep's per-request transaction into claim/work/finalize"
 
 ---
 
-### Task 2: Add the stale-claim reaper
+### Task 2: Make `_build_output` atomic (build in a temp dir, then rename)
+
+**Goal:** Two sweeps building the same request can never corrupt each other's output, regardless of reaper timing.
+
+**Why this must land before Task 3 (the reaper):** Task 1's claim fence stops a
+stale sweep *marking a request complete*, but it is not mutual exclusion over
+the output directory. Once the reaper can reset a still-running build, sweep A
+and sweep B can both be inside `_build_output` for the same request — and
+`_build_output` opens with `shutil.rmtree(request_dir)`, so B deletes the files
+A is mid-write on, or A's later writes land inside B's tree. B's fence then
+passes legitimately and emails a download link to a zip that may be a mix of
+both builds. The reaper is what makes this reachable, so this task gates it.
+
+**Files:**
+- Modify: `backend/analytics/management/commands/manage_user_requests.py` (`_build_output`)
+- Modify: `backend/analytics/tests/test_manage_user_requests.py`
+
+**Acceptance Criteria:**
+- [ ] `_build_output` writes everything into a unique temporary directory, then moves it into place as the final step.
+- [ ] The temp directory is a sibling of the final `request_dir` (same filesystem), so the move is a real rename and not a cross-device copy.
+- [ ] The final output path is unchanged: `<requests_dir>/<request_id>/<request_id>.zip`, with the zip's internal paths structured exactly as before.
+- [ ] Two concurrent `_build_output` calls for the same request both complete without raising, and the surviving directory is internally consistent (one build's output, not a mix).
+- [ ] A crashed build leaves no partial `request_dir` behind — only an abandoned temp directory.
+- [ ] The existing full-flow test (`FullSubmissionToCompletionFlowTest`) still passes unmodified, proving the output contract didn't change.
+
+**Verify:** `sudo docker compose exec backend uv run python manage.py test analytics visualize -v 1` → all pass except the one known pre-existing unrelated failure.
+
+**Steps:**
+
+- [ ] **Step 1: Understand the existing zip naming, which constrains the design**
+
+`make_zipfile(base_name, base_dir)` (same file) names the archive `base_name + ".zip"` and writes internal paths relative to `base_dir` (it strips `len(str(base_dir))` from each walked path). So internal structure depends only on `base_dir`, while the *filename* depends only on `base_name`.
+
+Today `_build_output` calls `make_zipfile(request_dir, request_dir)` — producing `<requests_dir>/<request_id>.zip` — then `shutil.move`s it into `request_dir`, landing at `<request_id>/<request_id>.zip`.
+
+Building in a temp dir therefore requires passing `base_name` explicitly, or the archive inherits the temp directory's name and the download URL breaks. That is the one non-obvious trap in this task.
+
+- [ ] **Step 2: Write the failing tests**
+
+Add to `backend/analytics/tests/test_manage_user_requests.py`:
+
+```python
+class BuildOutputAtomicityTests(TestCase):
+    """_build_output must not let two concurrent builds corrupt each other.
+
+    Task 1's claim fence prevents a stale sweep from *finalizing* a request,
+    but not from running _build_output concurrently with its replacement once
+    the reaper (Task 3) can reset a still-running build. rmtree-in-place made
+    that data-destructive.
+    """
+
+    def setUp(self):
+        self.dataset = Dataset.objects.create(
+            name="ds", path="/data/ds", active=True, public=True
+        )
+        self.resource = DatasetResource.objects.create(
+            dataset=self.dataset, name="ds-r1", path="r1.tif"
+        )
+        self.po = ProcessingOption.objects.create(
+            dataset=self.dataset,
+            short_name="mean",
+            function="rasterstats_default_mean",
+            active=True,
+            public=True,
+        )
+        self.fc = FeatureCollection.objects.create(
+            name="fc", path="/data/fc", active=True, public=True
+        )
+        self.feature = Feature.objects.create(shape="POINT(0 0)")
+        self.fm = FeatMap.objects.create(fc=self.fc, geom=self.feature)
+
+    def build(self, requests_dir):
+        created = create_request(
+            user=None,
+            contact="a@example.com",
+            name=None,
+            feature_ids=[self.feature.id],
+            datasets=[{"datasetName": self.dataset.name}],
+        )
+        materialize_request(created.request)
+        created.request.refresh_from_db()
+        ExtractTask.objects.update(status=1)
+        task_map = {
+            t.id: t.dataset_id for t in ExtractTask.objects.all()
+        }
+        _build_output(created.request, task_map, "", requests_dir, "../assets")
+        return str(created.request.id)
+
+    def test_output_lands_at_the_expected_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            request_id = self.build(tmp)
+            self.assertTrue(
+                (Path(tmp) / request_id / f"{request_id}.zip").is_file()
+            )
+
+    def test_no_temp_directory_is_left_behind_on_success(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            request_id = self.build(tmp)
+            leftovers = [
+                p.name for p in Path(tmp).iterdir() if p.name != request_id
+            ]
+            self.assertEqual(leftovers, [])
+
+    def test_failed_build_leaves_no_partial_request_dir(self):
+        # A build that dies partway must not leave a half-written
+        # request_dir that a later reader would mistake for real output.
+        with tempfile.TemporaryDirectory() as tmp:
+            created = create_request(
+                user=None,
+                contact="a@example.com",
+                name=None,
+                feature_ids=[self.feature.id],
+                datasets=[{"datasetName": self.dataset.name}],
+            )
+            materialize_request(created.request)
+            created.request.refresh_from_db()
+            ExtractTask.objects.update(status=1)
+            task_map = {t.id: t.dataset_id for t in ExtractTask.objects.all()}
+
+            with mock.patch(
+                "analytics.management.commands.manage_user_requests.DocBuilder",
+                side_effect=RuntimeError("boom"),
+            ):
+                with self.assertRaises(RuntimeError):
+                    _build_output(
+                        created.request, task_map, "", tmp, "../assets"
+                    )
+
+            self.assertFalse((Path(tmp) / str(created.request.id)).exists())
+```
+
+`_build_output` and `tempfile`/`Path` need importing if not already present — check the file's existing imports first (`tempfile` and `Path` are already there from `FullSubmissionToCompletionFlowTest`).
+
+- [ ] **Step 3: Run to verify they fail**
+
+Run: `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_manage_user_requests.BuildOutputAtomicityTests -v 2`
+
+Expected: `test_output_lands_at_the_expected_path` PASSES already (the path contract is unchanged — it is a regression guard). `test_no_temp_directory_is_left_behind_on_success` should also pass trivially today (no temp dir is used yet). `test_failed_build_leaves_no_partial_request_dir` MUST FAIL today — the current code `mkdir`s `request_dir` up front, so a mid-build exception leaves it behind.
+
+- [ ] **Step 4: Rewrite `_build_output` to build in a temp directory**
+
+Restructure `_build_output` so that:
+
+1. A unique build directory is created as a **sibling** of the final path, e.g. `Path(requests_dir) / f".{request_id}.building.{uuid4().hex}"`. Sibling placement matters — `os.replace` across filesystems raises `OSError`, and `tempfile.mkdtemp()` may land on a different device.
+2. Every existing write (CSV, documentation HTML, `request_details.json`, the copied PDF, the GeoPackage) goes into that build directory instead of `request_dir`. Keep the filenames exactly as they are — they are derived from `request_id`, not from the directory name.
+3. The zip is created with an explicit `base_name` so it keeps the right filename despite the directory being renamed: `make_zipfile(build_dir.parent / request_id, build_dir)`, then moved into `build_dir` as today. Verify the internal paths are unchanged (they are relative to `base_dir`, which is now `build_dir`).
+4. The `os.remove(pdf_dst)` and the `chmod` walk run against the build directory, before the move.
+5. Finally, replace the old output atomically:
+
+```python
+    if request_dir.exists():
+        shutil.rmtree(request_dir, ignore_errors=True)
+    os.replace(build_dir, request_dir)
+```
+
+6. Wrap the whole body in `try/except` (or `try/finally`) so a failure removes the build directory rather than leaving it behind, and re-raises:
+
+```python
+    try:
+        ...  # all build steps
+    except Exception:
+        shutil.rmtree(build_dir, ignore_errors=True)
+        raise
+```
+
+Document the one remaining non-atomic window in a comment: between the `rmtree` of the old `request_dir` and the `os.replace`, there is a sub-millisecond gap where no output exists. That is a reduction from minutes to milliseconds, and the alternative (swapping a symlink) is not worth the complexity here.
+
+- [ ] **Step 5: Run the tests**
+
+Run: `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_manage_user_requests -v 2`
+Expected: all PASS, including `FullSubmissionToCompletionFlowTest`, which asserts the real zip lands at `<requests_dir>/<request_id>/<request_id>.zip` — that is the proof the output contract is unchanged.
+
+- [ ] **Step 6: Mutation-check the atomicity test**
+
+Temporarily restore the old in-place behavior (`mkdir` the real `request_dir` up front and build into it). `test_failed_build_leaves_no_partial_request_dir` MUST fail. Revert and confirm `git diff` is clean.
+
+- [ ] **Step 7: Run the full suite**
+
+Run: `sudo docker compose exec backend uv run python manage.py test analytics visualize -v 1`
+Expected: all pass except the one known pre-existing unrelated failure.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add backend/analytics/management/commands/manage_user_requests.py backend/analytics/tests/test_manage_user_requests.py
+git commit -m "Build request output in a temp dir and rename into place"
+```
+
+---
+
+### Task 3: Add the stale-claim reaper
 
 **Goal:** A request stranded at `status=2` by a crashed sweep is returned to `status=0` and retried, instead of being invisible forever.
 
@@ -635,7 +825,7 @@ git commit -m "Add reaper for requests stranded at status=2 by a crashed sweep"
 
 ---
 
-### Task 3: Concurrency regression test
+### Task 4: Concurrency regression test
 
 **Goal:** Prove with real concurrent connections that a second sweep skips a claimed request instead of blocking on it — the actual property this whole plan exists to guarantee.
 
@@ -868,8 +1058,8 @@ git commit -m "Add concurrency regression tests for sweep claim commit and skip-
 
 ## Self-Review Notes
 
-**Spec coverage:** every section of the design doc maps to a task — the claim/work/finalize split (Task 1 Steps 3-4), `dry_run` skipping the claim (Task 1 Step 4), the reaper with its `status=0` target and `STALE_TASK_MINUTES` reuse (Task 2), and the design's Testing section (Task 1 Step 1, Task 2 Step 1, Task 3). The notification placement is explicitly unchanged, so it needs no task — Task 1 Step 4 calls that out.
+**Spec coverage:** every section of the design doc maps to a task — the claim/work/finalize split (Task 1 Steps 3-4), `dry_run` skipping the claim (Task 1 Step 4), the reaper with its `status=0` target and `STALE_TASK_MINUTES` reuse (Task 3), and the design's Testing section (Task 1 Step 1, Task 3 Step 1, Task 4). The notification placement is explicitly unchanged, so it needs no task — Task 1 Step 4 calls that out.
 
 **Deliberately not fixed here:** `dry_run` still writes output files (pre-existing, documented in the design doc's `dry_run` section and Out of scope). `test_integrity_error_on_create_falls_back_to_get` still fails for an unrelated pre-existing reason.
 
-**Naming consistency:** `_claim_request` returns `(claimed, original_status, claim_time)` -- the third element was added during Task 1's code-quality review, to fence the terminal status writes against a reaped-but-still-alive sweep stomping the next owner's claim. Task 3's tests call it accordingly. `_reset_stale_requests(minutes, dry_run=False)` returns `{"reset": n}` normally and `{"count": n}` under `dry_run`, matching `_reset_errored_requests`'s existing convention and used consistently in Task 2 Steps 1, 3 and 5. `merge_map` matches the `{task_id: dataset_id}` dict `_check_request_tasks` has returned since `0.43.3`.
+**Naming consistency:** `_claim_request` returns `(claimed, original_status, claim_time)` -- the third element was added during Task 1's code-quality review, to fence the terminal status writes against a reaped-but-still-alive sweep stomping the next owner's claim. Task 4's tests call it accordingly. `_reset_stale_requests(minutes, dry_run=False)` returns `{"reset": n}` normally and `{"count": n}` under `dry_run`, matching `_reset_errored_requests`'s existing convention and used consistently in Task 3 Steps 1, 3 and 5. `merge_map` matches the `{task_id: dataset_id}` dict `_check_request_tasks` has returned since `0.43.3`.
