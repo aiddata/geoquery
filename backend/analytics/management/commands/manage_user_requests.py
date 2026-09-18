@@ -3,6 +3,8 @@ Manage processing of user requests
 Includes: updating status, handling errors, queue management and task submissions, doc/request building, emails, etc.)
 """
 
+import contextlib
+import errno
 import json
 import os
 import shutil
@@ -29,10 +31,14 @@ from analytics.tasks.merge import merge_task_features, merge_task_results
 
 logger = getLogger(__name__)
 
-# How many times _build_output retries swapping its finished output into
+# How many times _swap_output_into_place retries moving a finished build into
 # place. Each retry costs two renames, and only a concurrent build landing
 # inside a sub-millisecond window forces one, so a small bound is plenty.
 _OUTPUT_SWAP_ATTEMPTS = 3
+
+# What os.replace reports when the destination is a non-empty directory --
+# the one swap failure that another build can cause and that retrying fixes.
+_SWAP_RETRY_ERRNOS = frozenset({errno.ENOTEMPTY, errno.EEXIST, errno.ENOTDIR})
 
 
 class Command(BaseCommand):
@@ -256,9 +262,12 @@ def _manage_user_requests(
                 e,
             )
             try:
-                _request_error(
-                    request_id, f"Unhandled exception: {e}", claim=error_claim
-                )
+                # dry_run reports on what it finds and writes no status at
+                # all -- including this one.
+                if not dry_run:
+                    _request_error(
+                        request_id, f"Unhandled exception: {e}", claim=error_claim
+                    )
             except Exception as err:
                 logger.error(
                     "Failed to set error status for request (id: %s): %s",
@@ -616,51 +625,111 @@ def _build_output(request, task_map, download_server, requests_dir, assets_dir):
             for f in fi:
                 os.chmod(os.path.join(ro, f), 0o664)
 
-        # os.replace onto a *non-empty* directory raises ENOTEMPTY, so the old
-        # output is moved aside atomically rather than deleted in place.
-        # Deleting it first leaves a gap in which a concurrent build can land
-        # its own result at request_dir, and our replace would then raise --
-        # which the caller turns into _request_error's unfenced
-        # update(status=-2) for a request whose output is in fact complete.
-        # Moving aside and retrying makes a losing swap a no-op instead: the
-        # last successful replace wins, each build's output is whole, and both
-        # builds return normally.
-        #
-        # The remaining window is between the move-aside and the replace,
-        # where nothing exists at request_dir -- sub-millisecond, down from
-        # the minutes the whole build used to take. Closing it entirely would
-        # mean making request_dir a symlink and flipping it, which is not
-        # worth the complexity here.
-        displaced = []
-        try:
-            for attempt in range(_OUTPUT_SWAP_ATTEMPTS):
-                aside = requests_dir / f".{request_id}.replaced.{uuid4().hex}"
-                try:
-                    os.replace(request_dir, aside)
-                except FileNotFoundError:
-                    # Nothing to displace, or a concurrent build moved the old
-                    # output aside itself and has not landed its own yet.
-                    pass
-                else:
-                    displaced.append(aside)
-
-                try:
-                    os.replace(build_dir, request_dir)
-                except OSError:
-                    # A concurrent build repopulated request_dir in the gap
-                    # above. Its output is as valid as ours, so displace it
-                    # and try again rather than failing the request.
-                    if attempt == _OUTPUT_SWAP_ATTEMPTS - 1:
-                        raise
-                    continue
-                break
-        finally:
-            for aside in displaced:
-                shutil.rmtree(aside, ignore_errors=True)
+        # Everything above wrote only into build_dir; this is the one step
+        # that touches the path readers and download links point at.
+        _swap_output_into_place(build_dir, request_dir)
     except Exception:
         shutil.rmtree(build_dir, ignore_errors=True)
-        build_zip.unlink(missing_ok=True)
+        # Cleanup must never replace the exception that brought us here with
+        # one of its own -- the caller logs and records whatever propagates.
+        with contextlib.suppress(OSError):
+            build_zip.unlink(missing_ok=True)
         raise
+
+
+def _swap_output_into_place(build_dir, request_dir):
+    """Move a finished build directory onto request_dir.
+
+    os.replace onto a *non-empty* directory raises ENOTEMPTY, so existing
+    output is moved aside atomically rather than deleted in place. Deleting it
+    first would leave a window in which a concurrent build can land its own
+    result at request_dir; our replace would then raise, and a sweep that
+    still holds its claim turns that into _request_error's status=-2 for a
+    request whose output is in fact complete. Displacing and retrying makes a
+    losing swap a no-op instead: the last successful replace wins, each
+    build's output is whole, and both builds return normally.
+
+    The only window left is between the move-aside and the replace, where
+    nothing exists at request_dir -- sub-millisecond, down from the minutes
+    the whole build used to take. Closing it entirely would mean making
+    request_dir a symlink and flipping it, which is not worth the complexity
+    here.
+    """
+    displaced = []
+
+    try:
+        for attempt in range(_OUTPUT_SWAP_ATTEMPTS):
+            try:
+                os.replace(build_dir, request_dir)
+            except OSError as exc:
+                # Only "the destination is a non-empty directory" is worth
+                # retrying. Anything else (EACCES, EBUSY, EXDEV...) is a real
+                # failure, and retrying would displace the old output again
+                # for nothing.
+                if exc.errno not in _SWAP_RETRY_ERRNOS:
+                    raise
+                if attempt == _OUTPUT_SWAP_ATTEMPTS - 1:
+                    raise
+            else:
+                break
+
+            # Output is in the way: ours from an earlier run, or a concurrent
+            # build's, which is as valid as ours. Move it aside and retry
+            # rather than failing the request.
+            aside = request_dir.with_name(
+                f".{request_dir.name}.replaced.{uuid4().hex}"
+            )
+            try:
+                os.replace(request_dir, aside)
+            except FileNotFoundError:
+                # A concurrent build displaced it first; just retry.
+                pass
+            else:
+                displaced.append(aside)
+    except Exception:
+        _restore_displaced_output(displaced, request_dir)
+        raise
+
+    for aside in displaced:
+        shutil.rmtree(aside, ignore_errors=True)
+
+
+def _restore_displaced_output(displaced, request_dir):
+    """Put previously displaced output back after a failed swap.
+
+    The swap moves old output aside precisely so it survives a failure.
+    Deleting it here would leave request_dir with nothing at all -- worse than
+    a failed rebuild, because the user loses output they could previously
+    download. Only copies that something valid now supersedes are removed.
+    """
+    if not displaced:
+        return
+
+    if request_dir.exists():
+        # A concurrent build's output is already in place and supersedes
+        # every copy we moved aside.
+        superseded = displaced
+    else:
+        newest = displaced[-1]
+        try:
+            os.replace(newest, request_dir)
+        except OSError as exc:
+            logger.error(
+                "Could not restore displaced output to %s -- it is left at "
+                "%s for recovery: %s",
+                request_dir,
+                newest,
+                exc,
+            )
+            # Keep every copy rather than risk deleting the only one.
+            return
+        logger.warning(
+            "Swap failed for %s -- restored the previous output", request_dir
+        )
+        superseded = displaced[:-1]
+
+    for aside in superseded:
+        shutil.rmtree(aside, ignore_errors=True)
 
 
 def make_zipfile(base_name, base_dir):

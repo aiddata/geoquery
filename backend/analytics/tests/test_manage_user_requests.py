@@ -1,3 +1,4 @@
+import errno
 import os
 import tempfile
 import zipfile
@@ -222,6 +223,24 @@ class BuildOutputAtomicityTests(TestCase):
 
             self.assertFalse((Path(tmp) / str(created.request.id)).exists())
 
+    def make_previous_output(self, tmp, request_id):
+        """Stand in for a request that was already built once and downloaded."""
+        request_dir = Path(tmp) / request_id
+        request_dir.mkdir(parents=True)
+        (request_dir / f"{request_id}.zip").write_bytes(b"previous output")
+        return request_dir
+
+    def assert_previous_output_survived(self, tmp, request_id):
+        request_dir = Path(tmp) / request_id
+        self.assertTrue(request_dir.is_dir())
+        self.assertEqual(
+            (request_dir / f"{request_id}.zip").read_bytes(), b"previous output"
+        )
+        # Restored in place, not left lying around under a temp name.
+        self.assertEqual(
+            [p.name for p in Path(tmp).iterdir()], [request_id]
+        )
+
     def prepare(self):
         """A materialized request with finished tasks, ready to build."""
         created = create_request(
@@ -256,6 +275,78 @@ class BuildOutputAtomicityTests(TestCase):
             zipped - {"GeoQuery_Goodman2019.pdf"},
             on_disk - {f"{request_id}.zip"},
         )
+
+    def test_failed_build_keeps_the_previous_output(self):
+        # A rebuild that dies partway must leave the previously built output
+        # downloadable. The test above only proves no *partial* directory is
+        # created; this one proves an existing one is not destroyed, which is
+        # what building in place got wrong.
+        with tempfile.TemporaryDirectory() as tmp:
+            request, task_map = self.prepare()
+            request_id = str(request.id)
+            self.make_previous_output(tmp, request_id)
+
+            with mock.patch.object(
+                mur, "DocBuilder", side_effect=RuntimeError("boom")
+            ):
+                with self.assertRaises(RuntimeError):
+                    _build_output(request, task_map, "", tmp, "../assets")
+
+            self.assert_previous_output_survived(tmp, request_id)
+
+    def test_failed_swap_keeps_the_previous_output(self):
+        # The swap displaces the old output before landing the new one, so a
+        # swap that then fails is the one path where the displaced copy is
+        # the *only* copy. It has to be put back: deleting it would leave
+        # request_dir absent entirely, losing output the user could download
+        # a moment ago -- worse than the failed rebuild itself.
+        #
+        # Persistent ENOTEMPTY (an NFS silly-rename file, say) stands in for
+        # any swap that cannot complete; move-aside and restore still work.
+        with tempfile.TemporaryDirectory() as tmp:
+            request, task_map = self.prepare()
+            request_id = str(request.id)
+            self.make_previous_output(tmp, request_id)
+
+            real_replace = os.replace
+
+            def build_never_lands(src, dst, *args, **kwargs):
+                if ".building." in str(src):
+                    raise OSError(errno.ENOTEMPTY, "Directory not empty")
+                return real_replace(src, dst, *args, **kwargs)
+
+            with mock.patch("os.replace", build_never_lands):
+                with self.assertRaises(OSError) as raised:
+                    _build_output(request, task_map, "", tmp, "../assets")
+
+            self.assertEqual(raised.exception.errno, errno.ENOTEMPTY)
+            self.assert_previous_output_survived(tmp, request_id)
+
+    def test_unretryable_swap_failure_is_not_retried(self):
+        # Only "destination is a non-empty directory" is worth retrying --
+        # that is the failure another build causes and a retry fixes. A
+        # permissions failure will not fix itself, and every retry displaces
+        # the old output again, so it must propagate on the first attempt.
+        with tempfile.TemporaryDirectory() as tmp:
+            request, task_map = self.prepare()
+            request_id = str(request.id)
+            self.make_previous_output(tmp, request_id)
+
+            real_replace = os.replace
+            attempts = []
+
+            def build_never_lands(src, dst, *args, **kwargs):
+                if ".building." in str(src):
+                    attempts.append(str(dst))
+                    raise OSError(errno.EACCES, "Permission denied")
+                return real_replace(src, dst, *args, **kwargs)
+
+            with mock.patch("os.replace", build_never_lands):
+                with self.assertRaises(PermissionError):
+                    _build_output(request, task_map, "", tmp, "../assets")
+
+            self.assertEqual(len(attempts), 1)
+            self.assert_previous_output_survived(tmp, request_id)
 
     def test_interleaved_builds_do_not_corrupt_each_other(self):
         # Once a reaper can reset a claim out from under a running build, two
@@ -294,10 +385,10 @@ class BuildOutputAtomicityTests(TestCase):
         # the window where the loser's replace finds a repopulated
         # request_dir.
         #
-        # It must not raise. _build_output's caller turns an exception into
-        # _request_error's unfenced update(status=-2), which would mark a
-        # request failed even though the winner just wrote valid output and
-        # may already have set status=1.
+        # It must not raise. A sweep that still holds its claim and raises
+        # here passes _request_error's fence and marks the request failed --
+        # even though its build produced complete, valid output and only lost
+        # a race to write it into place.
         with tempfile.TemporaryDirectory() as tmp:
             request, task_map = self.prepare()
             request_id = str(request.id)
@@ -598,6 +689,11 @@ class SweepClaimTests(TestCase):
         # leave the request sitting in the queue forever.
         first = self.submit()
         second = self.submit()
+        # The sweep orders by -priority then submit_time; distinct priorities
+        # pin "first is processed first" rather than leaning on two
+        # timestamps that could tie.
+        Request.objects.filter(id=first.id).update(priority=1)
+        Request.objects.filter(id=second.id).update(priority=0)
         ExtractTask.objects.update(status=1)
         data = dict(second.data)
         del data["feature_ids"]
@@ -651,6 +747,23 @@ class SweepClaimTests(TestCase):
 
         with mock.patch(
             "analytics.management.commands.manage_user_requests._build_output"
+        ), mock.patch(
+            "analytics.management.commands.manage_user_requests._notify_user"
+        ):
+            _manage_user_requests(dry_run=True)
+
+        req.refresh_from_db()
+        self.assertEqual(req.status, -1)
+
+    def test_dry_run_writes_no_status_when_the_build_fails(self):
+        # "No status writes at all" has to hold on the error path too: a dry
+        # run that hits an exception must not park a real request at -2.
+        req = self.submit()
+        ExtractTask.objects.update(status=1)
+
+        with mock.patch(
+            "analytics.management.commands.manage_user_requests._build_output",
+            side_effect=RuntimeError("boom"),
         ), mock.patch(
             "analytics.management.commands.manage_user_requests._notify_user"
         ):
