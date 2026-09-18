@@ -1,12 +1,15 @@
 import tempfile
+import zipfile
 from pathlib import Path
 from unittest import mock
 
 from django.test import TestCase
 from django.utils import timezone
 
+from analytics.management.commands import manage_user_requests as mur
 from analytics.management.commands.manage_user_requests import (
     RequestClaim,
+    _build_output,
     _claim_request,
     _manage_user_requests,
 )
@@ -128,6 +131,155 @@ class FullSubmissionToCompletionFlowTest(TestCase):
             request_id = str(created.request.id)
             output_zip = Path(tmp_requests_dir) / request_id / f"{request_id}.zip"
             self.assertTrue(output_zip.is_file())
+
+
+class BuildOutputAtomicityTests(TestCase):
+    """_build_output must not let two concurrent builds corrupt each other.
+
+    Task 1's claim fence prevents a stale sweep from *finalizing* a request,
+    but not from running _build_output concurrently with its replacement once
+    the reaper can reset a still-running build. rmtree-in-place made that
+    data-destructive.
+    """
+
+    def setUp(self):
+        self.dataset = Dataset.objects.create(
+            name="ds", path="/data/ds", active=True, public=True
+        )
+        self.resource = DatasetResource.objects.create(
+            dataset=self.dataset, name="ds-r1", path="r1.tif"
+        )
+        self.po = ProcessingOption.objects.create(
+            dataset=self.dataset,
+            short_name="mean",
+            function="rasterstats_default_mean",
+            active=True,
+            public=True,
+        )
+        self.fc = FeatureCollection.objects.create(
+            name="fc", path="/data/fc", active=True, public=True
+        )
+        self.feature = Feature.objects.create(shape="POINT(0 0)")
+        self.fm = FeatMap.objects.create(fc=self.fc, geom=self.feature)
+
+    def build(self, requests_dir):
+        created = create_request(
+            user=None,
+            contact="a@example.com",
+            name=None,
+            feature_ids=[self.feature.id],
+            datasets=[{"datasetName": self.dataset.name}],
+        )
+        materialize_request(created.request)
+        created.request.refresh_from_db()
+        ExtractTask.objects.update(status=1)
+        task_map = {
+            t.id: t.dataset_id for t in ExtractTask.objects.all()
+        }
+        _build_output(created.request, task_map, "", requests_dir, "../assets")
+        return str(created.request.id)
+
+    def test_output_lands_at_the_expected_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            request_id = self.build(tmp)
+            self.assertTrue(
+                (Path(tmp) / request_id / f"{request_id}.zip").is_file()
+            )
+
+    def test_no_temp_directory_is_left_behind_on_success(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            request_id = self.build(tmp)
+            leftovers = [
+                p.name for p in Path(tmp).iterdir() if p.name != request_id
+            ]
+            self.assertEqual(leftovers, [])
+
+    def test_failed_build_leaves_no_partial_request_dir(self):
+        # A build that dies partway must not leave a half-written
+        # request_dir that a later reader would mistake for real output.
+        with tempfile.TemporaryDirectory() as tmp:
+            created = create_request(
+                user=None,
+                contact="a@example.com",
+                name=None,
+                feature_ids=[self.feature.id],
+                datasets=[{"datasetName": self.dataset.name}],
+            )
+            materialize_request(created.request)
+            created.request.refresh_from_db()
+            ExtractTask.objects.update(status=1)
+            task_map = {t.id: t.dataset_id for t in ExtractTask.objects.all()}
+
+            with mock.patch(
+                "analytics.management.commands.manage_user_requests.DocBuilder",
+                side_effect=RuntimeError("boom"),
+            ):
+                with self.assertRaises(RuntimeError):
+                    _build_output(
+                        created.request, task_map, "", tmp, "../assets"
+                    )
+
+            self.assertFalse((Path(tmp) / str(created.request.id)).exists())
+
+    def test_interleaved_builds_do_not_corrupt_each_other(self):
+        # Once a reaper can reset a claim out from under a running build, two
+        # sweeps can be inside _build_output for the same request at the same
+        # time. Rather than threads, run a second build to completion from
+        # inside the first one's DocBuilder step -- the same interleaving,
+        # deterministically. Both must finish, and the surviving directory
+        # must be one build's output rather than a mix.
+        with tempfile.TemporaryDirectory() as tmp:
+            created = create_request(
+                user=None,
+                contact="a@example.com",
+                name=None,
+                feature_ids=[self.feature.id],
+                datasets=[{"datasetName": self.dataset.name}],
+            )
+            materialize_request(created.request)
+            created.request.refresh_from_db()
+            ExtractTask.objects.update(status=1)
+            task_map = {t.id: t.dataset_id for t in ExtractTask.objects.all()}
+            request_id = str(created.request.id)
+
+            real_doc_builder = mur.DocBuilder
+            state = {"nested_done": False}
+
+            def build_concurrently(*args, **kwargs):
+                if not state["nested_done"]:
+                    state["nested_done"] = True
+                    _build_output(
+                        created.request, task_map, "", tmp, "../assets"
+                    )
+                return real_doc_builder(*args, **kwargs)
+
+            with mock.patch.object(
+                mur, "DocBuilder", side_effect=build_concurrently
+            ):
+                _build_output(created.request, task_map, "", tmp, "../assets")
+
+            self.assertTrue(state["nested_done"])
+
+            request_dir = Path(tmp) / request_id
+            output_zip = request_dir / f"{request_id}.zip"
+            self.assertTrue(output_zip.is_file())
+            self.assertEqual(
+                [p.name for p in Path(tmp).iterdir() if p.name != request_id],
+                [],
+            )
+
+            # Consistency: the zip is readable, holds exactly one build's
+            # files (no zip nested inside it from the other build), and its
+            # contents match what sits alongside it on disk.
+            with zipfile.ZipFile(output_zip) as zf:
+                self.assertIsNone(zf.testzip())
+                zipped = set(zf.namelist())
+            self.assertNotIn(f"{request_id}.zip", zipped)
+            on_disk = {p.name for p in request_dir.iterdir()}
+            self.assertEqual(
+                zipped - {"GeoQuery_Goodman2019.pdf"},
+                on_disk - {f"{request_id}.zip"},
+            )
 
 
 class SweepClaimTests(TestCase):

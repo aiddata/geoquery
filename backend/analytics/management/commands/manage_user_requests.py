@@ -14,6 +14,7 @@ from datetime import datetime
 from logging import getLogger
 from pathlib import Path
 from typing import NamedTuple
+from uuid import uuid4
 
 from datasets.models import Dataset, DatasetResource
 from django.core.management.base import BaseCommand
@@ -492,61 +493,96 @@ def _build_output(request, task_map, download_server, requests_dir, assets_dir):
     request_id = str(request.id)
     request_dir = requests_dir / request_id
 
-    shutil.rmtree(request_dir, ignore_errors=True)
-    request_dir.mkdir(parents=True, exist_ok=True)
+    # Build into a unique directory and only swap it into place at the very
+    # end. Two sweeps can be inside _build_output for the same request at once
+    # (a reaper resets a claim while the original build is still running), and
+    # the old rmtree-then-write-in-place approach let one build delete or
+    # interleave with the other's files -- producing a zip that is a mix of
+    # both builds, which the download email then advertises as finished
+    # output.
+    #
+    # The build directory has to be a *sibling* of request_dir so the final
+    # swap is a same-filesystem rename: os.replace raises OSError across
+    # devices, and tempfile.mkdtemp() may well land on a different one.
+    build_dir = requests_dir / f".{request_id}.building.{uuid4().hex}"
+    build_dir.mkdir(parents=True, exist_ok=True)
 
-    request_csv = request_dir / f"{request_id}_results.csv"
-    request_documentation = request_dir / f"{request_id}_documentation.html"
-    request_json = request_dir / "request_details.json"
+    # make_zipfile writes to base_name + ".zip"; with the build directory as
+    # base_name that is a uniquely-named sibling, so concurrent builds do not
+    # fight over one intermediate zip path either. The archive's internal
+    # paths depend only on base_dir, so they are unchanged.
+    build_zip = Path(str(build_dir) + ".zip")
 
-    merge_status, merge_df = merge_task_results(task_map)
-    if merge_status != "Success":
-        raise Exception(
-            f"No extracts merged for request {request_id}. Merge status: {merge_status}"
-        )
-    logger.info("Merge completed for request %s", request_id)
-    merge_df.to_csv(request_csv, index=False)
+    try:
+        request_csv = build_dir / f"{request_id}_results.csv"
+        request_documentation = build_dir / f"{request_id}_documentation.html"
+        request_json = build_dir / "request_details.json"
 
-    doc = DocBuilder(request, request_documentation, download_server)
-    bd_status = doc.build_doc()
-    if bd_status != "Success":
-        raise Exception(
-            f"Error building documentation for request {request_id}. Status: {bd_status}"
-        )
-    logger.info("Documentation generated for request %s", request_id)
+        merge_status, merge_df = merge_task_results(task_map)
+        if merge_status != "Success":
+            raise Exception(
+                f"No extracts merged for request {request_id}. Merge status: {merge_status}"
+            )
+        logger.info("Merge completed for request %s", request_id)
+        merge_df.to_csv(request_csv, index=False)
 
-    with open(request_json, "w") as rdoc_file:
-        json.dump(
-            {k: v for k, v in request.__dict__.items() if not k.startswith("_")},
-            rdoc_file,
-            indent=4,
-            default=str,
-        )
+        doc = DocBuilder(request, request_documentation, download_server)
+        bd_status = doc.build_doc()
+        if bd_status != "Success":
+            raise Exception(
+                f"Error building documentation for request {request_id}. Status: {bd_status}"
+            )
+        logger.info("Documentation generated for request %s", request_id)
 
-    pdf_src = assets_dir / "other/GeoQuery_Goodman2019.pdf"
-    pdf_dst = request_dir / "GeoQuery_Goodman2019.pdf"
-    shutil.copyfile(pdf_src, pdf_dst)
+        with open(request_json, "w") as rdoc_file:
+            json.dump(
+                {k: v for k, v in request.__dict__.items() if not k.startswith("_")},
+                rdoc_file,
+                indent=4,
+                default=str,
+            )
 
-    features_status, features_gdf = merge_task_features(task_map)
-    if features_status == "Success":
-        features_gdf.to_file(request_dir / "request_features.gpkg", driver="GPKG")
-    elif features_status == "Empty":
-        logger.info("No features to merge for request %s", request_id)
-    else:
-        raise Exception(
-            f"Error merging features for request {request_id}. Status: {features_status}"
-        )
+        pdf_src = assets_dir / "other/GeoQuery_Goodman2019.pdf"
+        pdf_dst = build_dir / "GeoQuery_Goodman2019.pdf"
+        shutil.copyfile(pdf_src, pdf_dst)
 
-    make_zipfile(request_dir, request_dir)
-    shutil.move(str(request_dir) + ".zip", str(request_dir))
-    os.remove(pdf_dst)
+        features_status, features_gdf = merge_task_features(task_map)
+        if features_status == "Success":
+            features_gdf.to_file(build_dir / "request_features.gpkg", driver="GPKG")
+        elif features_status == "Empty":
+            logger.info("No features to merge for request %s", request_id)
+        else:
+            raise Exception(
+                f"Error merging features for request {request_id}. Status: {features_status}"
+            )
 
-    os.chmod(request_dir, 0o775)
-    for ro, di, fi in os.walk(request_dir):
-        for d in di:
-            os.chmod(os.path.join(ro, d), 0o775)
-        for f in fi:
-            os.chmod(os.path.join(ro, f), 0o664)
+        make_zipfile(build_dir, build_dir)
+        # The zip's *name* comes from base_name, which is now the temp
+        # directory, so name the destination explicitly -- the download URL
+        # points at <request_id>/<request_id>.zip.
+        shutil.move(str(build_zip), str(build_dir / f"{request_id}.zip"))
+        os.remove(pdf_dst)
+
+        os.chmod(build_dir, 0o775)
+        for ro, di, fi in os.walk(build_dir):
+            for d in di:
+                os.chmod(os.path.join(ro, d), 0o775)
+            for f in fi:
+                os.chmod(os.path.join(ro, f), 0o664)
+
+        # os.replace cannot atomically swap a directory over an existing
+        # directory, so the old output has to go first. That leaves a
+        # sub-millisecond window where no output exists at request_dir --
+        # down from the minutes the whole build used to take. Closing it
+        # entirely would mean making request_dir a symlink and flipping it,
+        # which is not worth the complexity here.
+        if request_dir.exists():
+            shutil.rmtree(request_dir, ignore_errors=True)
+        os.replace(build_dir, request_dir)
+    except Exception:
+        shutil.rmtree(build_dir, ignore_errors=True)
+        build_zip.unlink(missing_ok=True)
+        raise
 
 
 def make_zipfile(base_name, base_dir):
