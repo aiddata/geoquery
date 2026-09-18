@@ -10,7 +10,7 @@
     {
       "id": 3,
       "subject": "Task 2: Make _build_output atomic (build in a temp dir, then rename)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         0
       ],
@@ -19,7 +19,7 @@
     {
       "id": 1,
       "subject": "Task 3: Add the stale-claim reaper",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         0,
         3
@@ -29,12 +29,12 @@
     {
       "id": 2,
       "subject": "Task 4: Concurrency regression test",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         0
       ],
       "description": "**Goal:** Prove with real concurrent connections that a second sweep skips a claimed request instead of blocking on it -- the actual property this plan exists to guarantee.\n\n**Files:**\n- Modify: backend/analytics/tests/test_manage_user_requests.py\n\n**Acceptance Criteria:**\n- [ ] A TransactionTestCase test holds a real row lock on a request from one connection and asserts a concurrent _claim_request returns claimed=False promptly rather than blocking.\n- [ ] The test completes well within its timeout, proving skip_locked is in effect (without it the second claim would block until the first transaction ends).\n\n**Verify:** `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_manage_user_requests.ClaimContentionTest -v 2` -> passes.\n\n**Steps:** See plan document Task 3, Steps 1-4 for full code (ClaimContentionTest, threading/connection/transaction imports).\n\n```json:metadata\n{\"files\": [\"backend/analytics/tests/test_manage_user_requests.py\"], \"verifyCommand\": \"sudo docker compose exec backend uv run python manage.py test analytics.tests.test_manage_user_requests.ClaimContentionTest -v 2\", \"acceptanceCriteria\": [\"TransactionTestCase with two real connections proves skip_locked skips rather than blocks\", \"test completes promptly, not after the holding transaction ends\"], \"modelTier\": \"standard\"}\n```"
     }
   ],
-  "lastUpdated": "2026-09-18T12:00:00Z"
+  "lastUpdated": "2026-09-18T19:45:00Z"
 }
