@@ -574,8 +574,9 @@ class SweepClaimTests(TestCase):
         # This deliberately does NOT prove the claim is *committed* by then --
         # TestCase runs the whole test in one transaction on one connection,
         # so a read here sees uncommitted writes identically to committed
-        # ones. Cross-connection commit visibility is covered separately by
-        # ClaimContentionTest (TransactionTestCase).
+        # ones. Cross-connection commit visibility is not covered anywhere
+        # yet -- it needs a TransactionTestCase, which a later task in this
+        # plan is expected to add.
         req = self.submit()
         ExtractTask.objects.update(status=1)
         observed = {}

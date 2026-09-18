@@ -40,8 +40,11 @@ logger = getLogger(__name__)
 # status=-2 for a request whose directory holds a valid build.
 _OUTPUT_SWAP_CONTENTION_RETRIES = 3
 
-# What os.replace reports when the destination is a non-empty directory --
-# the one swap failure that another build can cause and that retrying fixes.
+# Swap failures that displacing the destination and retrying actually fixes:
+# ENOTEMPTY/EEXIST when it is a non-empty directory (what a concurrent build
+# causes), and ENOTDIR when it is a file or symlink rather than a directory
+# (nothing in this module creates that, but a stray file in the requests
+# directory would).
 _SWAP_RETRY_ERRNOS = frozenset({errno.ENOTEMPTY, errno.EEXIST, errno.ENOTDIR})
 
 
@@ -746,9 +749,15 @@ def _restore_displaced_output(displaced, request_dir):
     if not displaced:
         return
 
-    if request_dir.exists() or request_dir.is_symlink():
-        # A concurrent build's output is already in place and supersedes
-        # every copy we moved aside.
+    if request_dir.exists():
+        # Output is already in place -- a concurrent build's -- and it
+        # supersedes every copy we moved aside.
+        #
+        # exists() follows symlinks, and that is the behaviour we want: a
+        # *dangling* symlink here means there is nothing to download, so it
+        # has to fall through to the restore below rather than count as
+        # output already in place. Do not add an is_symlink() arm -- it would
+        # send the only surviving copy to _remove_output_path.
         superseded = displaced
     else:
         newest = displaced[-1]
