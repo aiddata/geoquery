@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest import mock
 
 from django.test import TestCase
+from django.utils import timezone
 
 from analytics.management.commands.manage_user_requests import (
     _claim_request,
@@ -166,9 +167,14 @@ class SweepClaimTests(TestCase):
 
     def test_claimed_request_is_not_picked_up_again(self):
         # A request already claimed by another sweep (status=2) must be
-        # invisible to this one -- no status change, no output built.
-        req = self.submit()
-        Request.objects.filter(id=req.id).update(status=2)
+        # invisible to this one. Two requests, not one: with a single claimed
+        # request the queue is empty, the sweep returns before the loop body,
+        # and "no output built" would hold for the wrong reason. The second
+        # request proves the sweep really ran and built only the unclaimed one.
+        claimed_req = self.submit()
+        other_req = self.submit()
+        Request.objects.filter(id=claimed_req.id).update(status=2)
+        ExtractTask.objects.update(status=1)
 
         with mock.patch(
             "analytics.management.commands.manage_user_requests._build_output"
@@ -177,9 +183,13 @@ class SweepClaimTests(TestCase):
         ):
             _manage_user_requests()
 
-        req.refresh_from_db()
-        self.assertEqual(req.status, 2)
-        mock_build.assert_not_called()
+        claimed_req.refresh_from_db()
+        other_req.refresh_from_db()
+        self.assertEqual(claimed_req.status, 2)
+        self.assertEqual(other_req.status, 1)
+
+        built_ids = [str(call.args[0].id) for call in mock_build.call_args_list]
+        self.assertEqual(built_ids, [str(other_req.id)])
 
     def test_claim_is_written_before_build_runs(self):
         # Ordering only: status=2 must be written before _build_output starts.
@@ -216,16 +226,79 @@ class SweepClaimTests(TestCase):
         # claim on work already in flight.
         req = self.submit()
 
-        claimed, original_status = _claim_request(str(req.id))
+        claimed, original_status, claim_time = _claim_request(str(req.id))
         self.assertTrue(claimed)
         self.assertEqual(original_status, -1)
 
         req.refresh_from_db()
         self.assertEqual(req.status, 2)
         self.assertIsNotNone(req.prepare_time)
-        self.assertIsNotNone(req.process_time)
+        self.assertEqual(req.process_time, claim_time)
 
-        self.assertEqual(_claim_request(str(req.id)), (False, None))
+        self.assertEqual(_claim_request(str(req.id)), (False, None, None))
+
+    def test_lost_claim_is_not_finalized(self):
+        # The reaper (Task 2) resets a stale status=2 back to 0 after 30
+        # minutes, so a slow build can have its request re-claimed by another
+        # sweep while it is still running. The stale owner must not then mark
+        # the request complete or email a download link, because the new owner
+        # is mid-build on the same directory (_build_output opens with an
+        # rmtree). The process_time fence is what detects the takeover.
+        req = self.submit()
+        ExtractTask.objects.update(status=1)
+
+        def takeover(*args, **kwargs):
+            # Another sweep re-claims mid-build: same row, new claim fence.
+            Request.objects.filter(id=req.id).update(
+                status=2, process_time=timezone.now()
+            )
+
+        with mock.patch(
+            "analytics.management.commands.manage_user_requests._build_output",
+            side_effect=takeover,
+        ), mock.patch(
+            "analytics.management.commands.manage_user_requests._notify_user"
+        ) as mock_notify:
+            _manage_user_requests()
+
+        req.refresh_from_db()
+        # Still the new owner's claim -- the stale owner did not finalize.
+        self.assertEqual(req.status, 2)
+        self.assertIsNone(req.complete_time)
+
+        # The received email (status arg 0) is fine; a completion email
+        # (status arg 1) would have pointed at a zip still being written.
+        completion_calls = [
+            call for call in mock_notify.call_args_list if call.args[2] == 1
+        ]
+        self.assertEqual(completion_calls, [])
+
+    def test_received_email_is_sent_before_build(self):
+        # Sent at claim time, not at the end of the iteration: a crash
+        # mid-build otherwise loses it permanently, since the reaper resets
+        # the request to 0 and the retry sees original_status == 0.
+        req = self.submit()
+        ExtractTask.objects.update(status=1)
+        sent_before_build = []
+
+        with mock.patch(
+            "analytics.management.commands.manage_user_requests._notify_user"
+        ) as mock_notify:
+            mock_build_target = (
+                "analytics.management.commands.manage_user_requests._build_output"
+            )
+            with mock.patch(
+                mock_build_target,
+                side_effect=lambda *a, **k: sent_before_build.append(
+                    [call.args[2] for call in mock_notify.call_args_list]
+                ),
+            ):
+                _manage_user_requests()
+
+        # The received email had already been sent when _build_output started.
+        self.assertEqual(sent_before_build, [[0]])
+        req.refresh_from_db()
+        self.assertEqual(req.status, 1)
 
     def test_dry_run_writes_no_status(self):
         req = self.submit()

@@ -117,8 +117,8 @@ def _manage_user_requests(
         request_id = str(request_obj.id)
         logger.info("Request (id: %s)\n%s", request_id, request_obj)
 
-        send_received_email = False
         completed_request_obj = None
+        claim_time = None
 
         try:
             if not request_obj.data:
@@ -141,10 +141,8 @@ def _manage_user_requests(
 
             # Phase 1 -- claim. dry_run takes no locks and writes no status;
             # it just reports on what it finds.
-            if dry_run:
-                original_status = Request.objects.get(id=request_id).status
-            else:
-                claimed, original_status = _claim_request(request_id)
+            if not dry_run:
+                claimed, original_status, claim_time = _claim_request(request_id)
                 if not claimed:
                     logger.info(
                         "Request (id: %s) claimed by another sweep or no longer "
@@ -152,7 +150,25 @@ def _manage_user_requests(
                         request_id,
                     )
                     continue
-                send_received_email = original_status == -1
+
+                # Send the "received" acknowledgement as soon as the claim
+                # commits, not at the end of the iteration: a crash mid-build
+                # would otherwise lose it for good, because the reaper resets
+                # the request to status=0 and the retry then sees
+                # original_status == 0 and never sends it. It is also the
+                # right semantics -- "we received your request" should arrive
+                # before a multi-hour build, not after it.
+                if original_status == -1:
+                    try:
+                        _notify_user(
+                            request_id, request_obj.contact, 0, download_base, frontend_base
+                        )
+                    except Exception as e:
+                        logger.error(
+                            "Failed to send received notification for request (id: %s): %s",
+                            request_id,
+                            e,
+                        )
 
             # Phase 2 -- the expensive part, deliberately outside any
             # transaction. _build_output writes files (CSV, HTML, JSON, PDF,
@@ -165,7 +181,16 @@ def _manage_user_requests(
             if missing_items > 0:
                 if not dry_run:
                     with transaction.atomic():
-                        Request.objects.filter(id=request_id).update(status=0)
+                        updated = Request.objects.filter(
+                            id=request_id, status=2, process_time=claim_time
+                        ).update(status=0)
+                    if not updated:
+                        logger.warning(
+                            "Lost claim on request (id: %s) before finalize -- "
+                            "another sweep took it over; skipping",
+                            request_id,
+                        )
+                        continue
                 logger.warning(
                     f"Request not ready (id: {request_id}) - missing {missing_items} items"
                 )
@@ -178,12 +203,26 @@ def _manage_user_requests(
                     requests_dir,
                     assets_dir,
                 )
-                # Phase 3 -- finalize.
+                # Phase 3 -- finalize. Both terminal writes are fenced on
+                # still holding the claim (status=2 with our process_time):
+                # the reaper can reset a long-running build's request to 0 and
+                # let another sweep re-claim it, and _build_output opens by
+                # rmtree-ing the request dir. Without the fence this sweep
+                # would mark a request complete and email a download link
+                # while another sweep is still writing that same zip.
                 if not dry_run:
                     with transaction.atomic():
-                        Request.objects.filter(id=request_id).update(
-                            status=1, complete_time=timezone.now()
+                        updated = Request.objects.filter(
+                            id=request_id, status=2, process_time=claim_time
+                        ).update(status=1, complete_time=timezone.now())
+                    if not updated:
+                        logger.warning(
+                            "Lost claim on request (id: %s) before finalize -- "
+                            "another sweep took it over; not sending completion "
+                            "email",
+                            request_id,
                         )
+                        continue
                     completed_request_obj = updated_request_obj
                 logger.info("Request completed (id: %s)", request_id)
 
@@ -205,18 +244,9 @@ def _manage_user_requests(
             logger.error("Skipping request (id: %s) due to error", request_id)
             continue
 
-        # Send notifications after the transaction commits so a notification
-        # failure cannot roll back committed request state or mask a success.
-        if send_received_email and not dry_run:
-            try:
-                _notify_user(request_id, request_obj.contact, 0, download_base, frontend_base)
-            except Exception as e:
-                logger.error(
-                    "Failed to send received notification for request (id: %s): %s",
-                    request_id,
-                    e,
-                )
-
+        # Send the completion notification after the transaction commits so a
+        # notification failure cannot roll back committed request state or
+        # mask a success.
         if completed_request_obj is not None and not dry_run:
             try:
                 _notify_user(
@@ -316,9 +346,21 @@ def _notify_user(request_id, mail_to, status, download_base, frontend_base):
 def _claim_request(request_id):
     """Claim a request for processing, in its own short committed transaction.
 
-    Returns ``(claimed, original_status)``. ``claimed`` is False when another
-    sweep already holds the row, or when the request's status moved out of
-    -1/0 between selection and now.
+    Returns ``(claimed, original_status, claim_time)``, or
+    ``(False, None, None)`` when the claim fails -- because another sweep
+    already holds the row, or because the request's status moved out of -1/0
+    between selection and now.
+
+    ``claim_time`` is the process_time written here, and doubles as a claim
+    fence: the terminal status writes filter on it, so a sweep whose claim was
+    taken over mid-build (the reaper resets a stale status=2 to 0, and another
+    sweep re-claims) cannot finalize a request it no longer owns.
+
+    NOTE: this atomic() must be the outermost transaction for the claim to
+    commit. If a future caller ever wraps _manage_user_requests in its own
+    transaction.atomic(), this degrades silently to a savepoint -- the claim
+    never commits, the row lock is held across the whole build, and the
+    original pileup bug returns with nothing to signal it.
 
     status=2 has always meant "a sweep is working on this" -- the selection
     query in _manage_user_requests deliberately matches only -1 and 0. It
@@ -341,14 +383,15 @@ def _claim_request(request_id):
             .first()
         )
         if row is None:
-            return False, None
+            return False, None, None
 
         original_status = row["status"]
-        updates = {"status": 2, "process_time": timezone.now()}
+        claim_time = timezone.now()
+        updates = {"status": 2, "process_time": claim_time}
         if original_status == -1:
-            updates["prepare_time"] = timezone.now()
+            updates["prepare_time"] = claim_time
         Request.objects.filter(id=request_id).update(**updates)
-        return True, original_status
+        return True, original_status, claim_time
 
 
 def _check_request_tasks(request, dry_run=False):
