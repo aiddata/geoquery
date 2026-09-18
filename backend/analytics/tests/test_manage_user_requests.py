@@ -1,3 +1,4 @@
+import os
 import tempfile
 import zipfile
 from pathlib import Path
@@ -221,6 +222,41 @@ class BuildOutputAtomicityTests(TestCase):
 
             self.assertFalse((Path(tmp) / str(created.request.id)).exists())
 
+    def prepare(self):
+        """A materialized request with finished tasks, ready to build."""
+        created = create_request(
+            user=None,
+            contact="a@example.com",
+            name=None,
+            feature_ids=[self.feature.id],
+            datasets=[{"datasetName": self.dataset.name}],
+        )
+        materialize_request(created.request)
+        created.request.refresh_from_db()
+        ExtractTask.objects.update(status=1)
+        task_map = {t.id: t.dataset_id for t in ExtractTask.objects.all()}
+        return created.request, task_map
+
+    def assert_surviving_output_is_one_whole_build(self, tmp, request_id):
+        request_dir = Path(tmp) / request_id
+        output_zip = request_dir / f"{request_id}.zip"
+        self.assertTrue(output_zip.is_file())
+        # No build directory, displaced directory or stray zip left over.
+        self.assertEqual(
+            [p.name for p in Path(tmp).iterdir() if p.name != request_id], []
+        )
+        # The zip is readable, holds exactly one build's files (no zip nested
+        # inside it from the other build), and matches what sits beside it.
+        with zipfile.ZipFile(output_zip) as zf:
+            self.assertIsNone(zf.testzip())
+            zipped = set(zf.namelist())
+        self.assertNotIn(f"{request_id}.zip", zipped)
+        on_disk = {p.name for p in request_dir.iterdir()}
+        self.assertEqual(
+            zipped - {"GeoQuery_Goodman2019.pdf"},
+            on_disk - {f"{request_id}.zip"},
+        )
+
     def test_interleaved_builds_do_not_corrupt_each_other(self):
         # Once a reaper can reset a claim out from under a running build, two
         # sweeps can be inside _build_output for the same request at the same
@@ -229,18 +265,8 @@ class BuildOutputAtomicityTests(TestCase):
         # deterministically. Both must finish, and the surviving directory
         # must be one build's output rather than a mix.
         with tempfile.TemporaryDirectory() as tmp:
-            created = create_request(
-                user=None,
-                contact="a@example.com",
-                name=None,
-                feature_ids=[self.feature.id],
-                datasets=[{"datasetName": self.dataset.name}],
-            )
-            materialize_request(created.request)
-            created.request.refresh_from_db()
-            ExtractTask.objects.update(status=1)
-            task_map = {t.id: t.dataset_id for t in ExtractTask.objects.all()}
-            request_id = str(created.request.id)
+            request, task_map = self.prepare()
+            request_id = str(request.id)
 
             real_doc_builder = mur.DocBuilder
             state = {"nested_done": False}
@@ -248,38 +274,54 @@ class BuildOutputAtomicityTests(TestCase):
             def build_concurrently(*args, **kwargs):
                 if not state["nested_done"]:
                     state["nested_done"] = True
-                    _build_output(
-                        created.request, task_map, "", tmp, "../assets"
-                    )
+                    _build_output(request, task_map, "", tmp, "../assets")
                 return real_doc_builder(*args, **kwargs)
 
             with mock.patch.object(
                 mur, "DocBuilder", side_effect=build_concurrently
             ):
-                _build_output(created.request, task_map, "", tmp, "../assets")
+                _build_output(request, task_map, "", tmp, "../assets")
 
             self.assertTrue(state["nested_done"])
+            self.assert_surviving_output_is_one_whole_build(tmp, request_id)
 
+    def test_build_losing_the_swap_returns_instead_of_raising(self):
+        # The test above serializes the two builds -- the inner one finishes
+        # its swap before the outer resumes -- so it never overlaps the swap
+        # itself. Do that here: suspend one build inside its swap, at the
+        # os.replace that targets request_dir, and let a second build run all
+        # the way through that same region before the first resumes. That is
+        # the window where the loser's replace finds a repopulated
+        # request_dir.
+        #
+        # It must not raise. _build_output's caller turns an exception into
+        # _request_error's unfenced update(status=-2), which would mark a
+        # request failed even though the winner just wrote valid output and
+        # may already have set status=1.
+        with tempfile.TemporaryDirectory() as tmp:
+            request, task_map = self.prepare()
+            request_id = str(request.id)
             request_dir = Path(tmp) / request_id
-            output_zip = request_dir / f"{request_id}.zip"
-            self.assertTrue(output_zip.is_file())
-            self.assertEqual(
-                [p.name for p in Path(tmp).iterdir() if p.name != request_id],
-                [],
-            )
 
-            # Consistency: the zip is readable, holds exactly one build's
-            # files (no zip nested inside it from the other build), and its
-            # contents match what sits alongside it on disk.
-            with zipfile.ZipFile(output_zip) as zf:
-                self.assertIsNone(zf.testzip())
-                zipped = set(zf.namelist())
-            self.assertNotIn(f"{request_id}.zip", zipped)
-            on_disk = {p.name for p in request_dir.iterdir()}
-            self.assertEqual(
-                zipped - {"GeoQuery_Goodman2019.pdf"},
-                on_disk - {f"{request_id}.zip"},
-            )
+            real_replace = os.replace
+            state = {"nested_done": False}
+
+            def replace_after_concurrent_build(src, dst, *args, **kwargs):
+                if not state["nested_done"] and str(dst) == str(request_dir):
+                    state["nested_done"] = True
+                    # A second sweep lands its own finished output at
+                    # request_dir in exactly the window this build is
+                    # standing in.
+                    _build_output(request, task_map, "", tmp, "../assets")
+                return real_replace(src, dst, *args, **kwargs)
+
+            with mock.patch("os.replace", replace_after_concurrent_build):
+                _build_output(request, task_map, "", tmp, "../assets")
+
+            # Guards against the test going vacuous if the swap is reworked
+            # and never renames onto request_dir again.
+            self.assertTrue(state["nested_done"])
+            self.assert_surviving_output_is_one_whole_build(tmp, request_id)
 
 
 class SweepClaimTests(TestCase):

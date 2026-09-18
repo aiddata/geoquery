@@ -29,6 +29,11 @@ from analytics.tasks.merge import merge_task_features, merge_task_results
 
 logger = getLogger(__name__)
 
+# How many times _build_output retries swapping its finished output into
+# place. Each retry costs two renames, and only a concurrent build landing
+# inside a sub-millisecond window forces one, so a small bound is plenty.
+_OUTPUT_SWAP_ATTEMPTS = 3
+
 
 class Command(BaseCommand):
     help = "Handles the generation of extract tasks."
@@ -570,15 +575,47 @@ def _build_output(request, task_map, download_server, requests_dir, assets_dir):
             for f in fi:
                 os.chmod(os.path.join(ro, f), 0o664)
 
-        # os.replace cannot atomically swap a directory over an existing
-        # directory, so the old output has to go first. That leaves a
-        # sub-millisecond window where no output exists at request_dir --
-        # down from the minutes the whole build used to take. Closing it
-        # entirely would mean making request_dir a symlink and flipping it,
-        # which is not worth the complexity here.
-        if request_dir.exists():
-            shutil.rmtree(request_dir, ignore_errors=True)
-        os.replace(build_dir, request_dir)
+        # os.replace onto a *non-empty* directory raises ENOTEMPTY, so the old
+        # output is moved aside atomically rather than deleted in place.
+        # Deleting it first leaves a gap in which a concurrent build can land
+        # its own result at request_dir, and our replace would then raise --
+        # which the caller turns into _request_error's unfenced
+        # update(status=-2) for a request whose output is in fact complete.
+        # Moving aside and retrying makes a losing swap a no-op instead: the
+        # last successful replace wins, each build's output is whole, and both
+        # builds return normally.
+        #
+        # The remaining window is between the move-aside and the replace,
+        # where nothing exists at request_dir -- sub-millisecond, down from
+        # the minutes the whole build used to take. Closing it entirely would
+        # mean making request_dir a symlink and flipping it, which is not
+        # worth the complexity here.
+        displaced = []
+        try:
+            for attempt in range(_OUTPUT_SWAP_ATTEMPTS):
+                aside = requests_dir / f".{request_id}.replaced.{uuid4().hex}"
+                try:
+                    os.replace(request_dir, aside)
+                except FileNotFoundError:
+                    # Nothing to displace, or a concurrent build moved the old
+                    # output aside itself and has not landed its own yet.
+                    pass
+                else:
+                    displaced.append(aside)
+
+                try:
+                    os.replace(build_dir, request_dir)
+                except OSError:
+                    # A concurrent build repopulated request_dir in the gap
+                    # above. Its output is as valid as ours, so displace it
+                    # and try again rather than failing the request.
+                    if attempt == _OUTPUT_SWAP_ATTEMPTS - 1:
+                        raise
+                    continue
+                break
+        finally:
+            for aside in displaced:
+                shutil.rmtree(aside, ignore_errors=True)
     except Exception:
         shutil.rmtree(build_dir, ignore_errors=True)
         build_zip.unlink(missing_ok=True)
