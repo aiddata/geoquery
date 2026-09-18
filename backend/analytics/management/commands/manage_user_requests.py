@@ -126,6 +126,14 @@ def _manage_user_requests(
         logger.info("Request (id: %s)\n%s", request_id, request_obj)
 
         completed_request_obj = None
+        # The claim the error handler fences its status write on, or None when
+        # this iteration never got one (dry_run, or a failure before the
+        # claim). Reset every iteration and kept separate from `claim` below:
+        # `claim` survives into the next iteration, so reusing it here would
+        # let a *previous* request's claim_time fence this request's error
+        # write and silently swallow it. The error handler must never raise
+        # NameError either -- it runs while already handling a failure.
+        error_claim = None
         # `claim` is deliberately left unbound here: it exists only on the
         # non-dry-run path, and the fences below read claim.claim_time. If a
         # future edit ever reaches them without a claim, NameError is the
@@ -162,6 +170,7 @@ def _manage_user_requests(
                         request_id,
                     )
                     continue
+                error_claim = claim
 
                 # Send the "received" acknowledgement as soon as the claim
                 # commits, not at the end of the iteration: a crash mid-build
@@ -247,7 +256,9 @@ def _manage_user_requests(
                 e,
             )
             try:
-                _request_error(request_id, f"Unhandled exception: {e}")
+                _request_error(
+                    request_id, f"Unhandled exception: {e}", claim=error_claim
+                )
             except Exception as err:
                 logger.error(
                     "Failed to set error status for request (id: %s): %s",
@@ -273,6 +284,11 @@ def _manage_user_requests(
                     e,
                 )
                 try:
+                    # Deliberately unfenced: this is only reachable once the
+                    # finalize fence above passed, which means this sweep held
+                    # the claim and just moved the row to status=1. Fencing on
+                    # status=2 would match nothing and silently drop the error
+                    # that makes an undelivered-but-built request visible.
                     _request_error(
                         request_id,
                         f"Completion notification failed (data is ready): {e}",
@@ -289,9 +305,34 @@ def _manage_user_requests(
     )
 
 
-def _request_error(request_id, message):
+def _request_error(request_id, message, claim=None):
+    """Mark a request failed.
+
+    With a claim, the write is fenced on still owning it, exactly like the
+    terminal writes in _manage_user_requests. Once the reaper can reset a
+    running build, a sweep that lost its claim and then hits any exception
+    would otherwise clobber the new owner's in-progress status=2 -- or a
+    status=1 the winner already completed and emailed a download link for.
+
+    Without a claim (the validation failures, which happen before any claim
+    exists) the write is unconditional, as it has always been.
+    """
     logger.error("Error with request (id: %s): %s", request_id, message)
-    Request.objects.filter(id=request_id).update(status=-2)
+
+    if claim is None:
+        Request.objects.filter(id=request_id).update(status=-2)
+        return
+
+    updated = Request.objects.filter(
+        id=request_id, status=2, process_time=claim.claim_time
+    ).update(status=-2)
+    if not updated:
+        logger.warning(
+            "Lost claim on request (id: %s) (reaped or taken over by another "
+            "sweep) -- not marking it failed; the current owner's status "
+            "stands",
+            request_id,
+        )
 
 
 def _notify_user(request_id, mail_to, status, download_base, frontend_base):

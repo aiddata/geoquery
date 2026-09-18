@@ -525,6 +525,99 @@ class SweepClaimTests(TestCase):
         ]
         self.assertEqual(completion_calls, [])
 
+    def test_lost_claim_does_not_mark_the_request_failed(self):
+        # Same takeover as above, but the stale sweep then *raises*. Its error
+        # handler must not flip the request to -2: the new owner is mid-build
+        # (status=2), and in the worst case has already completed the request
+        # and emailed a download link. The claim fence is what tells a real
+        # failure apart from a stale sweep's.
+        req = self.submit()
+        ExtractTask.objects.update(status=1)
+
+        def takeover_then_fail(*args, **kwargs):
+            Request.objects.filter(id=req.id).update(
+                status=2, process_time=timezone.now()
+            )
+            raise RuntimeError("boom")
+
+        with mock.patch(
+            "analytics.management.commands.manage_user_requests._build_output",
+            side_effect=takeover_then_fail,
+        ), mock.patch(
+            "analytics.management.commands.manage_user_requests._notify_user"
+        ):
+            _manage_user_requests()
+
+        req.refresh_from_db()
+        # The new owner's claim stands; the stale sweep's error was dropped.
+        self.assertEqual(req.status, 2)
+
+    def test_held_claim_still_marks_the_request_failed(self):
+        # The fence must not swallow real failures: a sweep that still owns
+        # its claim and raises records the error exactly as it always has.
+        req = self.submit()
+        ExtractTask.objects.update(status=1)
+
+        with mock.patch(
+            "analytics.management.commands.manage_user_requests._build_output",
+            side_effect=RuntimeError("boom"),
+        ), mock.patch(
+            "analytics.management.commands.manage_user_requests._notify_user"
+        ):
+            _manage_user_requests()
+
+        req.refresh_from_db()
+        self.assertEqual(req.status, -2)
+
+    def test_validation_failures_still_mark_the_request_failed(self):
+        # The validation failures fire before any claim exists, so
+        # _request_error has nothing to fence on and must behave as before.
+        # Guards against the optional fence being made mandatory.
+        for field in ("feature_ids", "datasets"):
+            with self.subTest(missing=field):
+                req = self.submit()
+                data = dict(req.data)
+                data[field] = []
+                Request.objects.filter(id=req.id).update(data=data)
+
+                with mock.patch(
+                    "analytics.management.commands.manage_user_requests._notify_user"
+                ):
+                    _manage_user_requests()
+
+                req.refresh_from_db()
+                self.assertEqual(req.status, -2)
+                # Never claimed -- the error was written with no claim.
+                self.assertIsNone(req.process_time)
+
+    def test_error_before_a_claim_ignores_the_previous_requests_claim(self):
+        # The claim the error fence uses is per-iteration. `claim` itself is a
+        # loop local that survives into the next iteration, so a request that
+        # fails *before* claiming must not have its error write fenced on the
+        # previous request's claim_time -- that would silently drop it and
+        # leave the request sitting in the queue forever.
+        first = self.submit()
+        second = self.submit()
+        ExtractTask.objects.update(status=1)
+        data = dict(second.data)
+        del data["feature_ids"]
+        Request.objects.filter(id=second.id).update(data=data)
+
+        with mock.patch(
+            "analytics.management.commands.manage_user_requests._build_output"
+        ), mock.patch(
+            "analytics.management.commands.manage_user_requests._notify_user"
+        ):
+            _manage_user_requests()
+
+        first.refresh_from_db()
+        second.refresh_from_db()
+        # The first request claimed and completed, so a stale claim exists.
+        self.assertEqual(first.status, 1)
+        # The second failed before claiming and must still be marked failed.
+        self.assertEqual(second.status, -2)
+        self.assertIsNone(second.process_time)
+
     def test_received_email_is_sent_before_build(self):
         # Sent at claim time, not at the end of the iteration: a crash
         # mid-build otherwise loses it permanently, since the reaper resets
