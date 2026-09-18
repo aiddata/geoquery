@@ -38,13 +38,14 @@ Background: on 2026-09-17 this sweep caused three production lock pileups, 20-33
 - Modify: `backend/analytics/tests/test_manage_user_requests.py`
 
 **Acceptance Criteria:**
-- [ ] A new `_claim_request(request_id)` helper claims a request in its own short `transaction.atomic()` block using `select_for_update(skip_locked=True)`, filtered on `status__in=(-1, 0)`, and returns whether the claim succeeded plus the original status.
+- [ ] A new `_claim_request(request_id)` helper claims a request in its own short `transaction.atomic()` block using `select_for_update(skip_locked=True)`, filtered on `status__in=(-1, 0)`, returning `(claimed, original_status, claim_time)`.
+- [ ] Both terminal status writes are claim-guarded (`filter(id=..., status=2, process_time=claim_time)`) and skip the completion email when the claim was lost -- without this, Task 2's reaper makes it possible for a reaped-but-still-alive sweep to mark a request complete and email a download link while a second sweep is still rebuilding the same directory.
 - [ ] `_check_request_tasks` and `_build_output` are called outside any `transaction.atomic()` block.
 - [ ] The final status transition (`status=0` when not ready, `status=1` when complete) happens in its own short `transaction.atomic()` block.
 - [ ] A request already at `status=2` is not claimed by another sweep (the claim's `status__in=(-1, 0)` filter excludes it).
 - [ ] A request whose row is locked by another sweep's in-flight claim is skipped, not waited on (`skip_locked=True`).
 - [ ] `dry_run` performs no status writes at all (no `status=2`, no revert).
-- [ ] `send_received_email` still fires only when the claimed request's original status was `-1`, and both `_notify_user` calls still happen outside any transaction.
+- [ ] The "received" notification is sent immediately after the claim commits (not at the end of the iteration), so a crash mid-build cannot lose it entirely once the reaper resets the request to `0`. Both `_notify_user` calls still happen outside any transaction.
 - [ ] The existing validation errors (missing `data`, `feature_ids`, `datasets`) still set `status=-2` via `_request_error` and skip the request.
 - [ ] Existing tests in `test_manage_user_requests.py` pass unmodified in intent.
 
@@ -645,6 +646,7 @@ git commit -m "Add reaper for requests stranded at status=2 by a crashed sweep"
 - [ ] A `TransactionTestCase` test holds a real row lock on a request from one connection and asserts a concurrent `_claim_request` returns `claimed=False` promptly rather than blocking.
 - [ ] The test completes well within its timeout, proving `skip_locked` is in effect (without it, the second claim would block until the first transaction ends).
 - [ ] A second `TransactionTestCase` test proves the claim is **committed** (not merely written) before the build phase, by reading the request's status from a *different* connection while a mocked `_build_output` runs.
+- [ ] Both tests are mutation-verified: re-wrapping the per-request cycle in one `transaction.atomic()` makes `ClaimCommitVisibilityTest` fail, and removing `skip_locked=True` makes `ClaimContentionTest` fail (Step 3).
 
 **Why the second test is necessary (discovered during Task 1):** Task 1's
 `test_claim_is_written_before_build_runs` can only prove ordering, never
@@ -826,16 +828,40 @@ Expected: both PASS.
 
 If it fails with `claim blocked instead of skipping`, `skip_locked=True` is missing from `_claim_request`'s queryset — that is the bug this test exists to catch, so fix `_claim_request` rather than the test.
 
-- [ ] **Step 3: Run the full suite**
+- [ ] **Step 3: Mutation-check that these tests actually catch the bug**
+
+A green suite is not evidence a test guards anything. Task 1's code-quality
+review demonstrated this concretely: with all four of Task 1's new tests
+passing, the reviewer reintroduced the *entire original production bug* —
+re-wrapping the whole per-request cycle back in one `transaction.atomic()` —
+and the suite stayed green. Removing `select_for_update(skip_locked=True)`
+outright also went undetected.
+
+So verify these two tests by breaking the code on purpose, one mutation at a
+time, reverting after each:
+
+1. **Re-wrap the cycle in one transaction.** Wrap the body of the `try:` in
+   `_manage_user_requests`'s per-request loop in `with transaction.atomic():`
+   (the pre-fix structure). `ClaimCommitVisibilityTest` MUST fail — the inner
+   claim `atomic()` degrades to a savepoint, so the claim never commits and
+   the other connection cannot see `status=2`.
+2. **Remove `skip_locked=True`** from `_claim_request`'s queryset.
+   `ClaimContentionTest` MUST fail with `claim blocked instead of skipping`.
+
+If either mutation leaves the suite green, the corresponding test is not
+guarding what it claims — fix the test before moving on. Revert both
+mutations and confirm `git diff` is clean before committing.
+
+- [ ] **Step 4: Run the full suite**
 
 Run: `sudo docker compose exec backend uv run python manage.py test analytics visualize -v 1`
 Expected: all pass except the one known pre-existing unrelated failure.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add backend/analytics/tests/test_manage_user_requests.py
-git commit -m "Add concurrency regression test for sweep claim skip-locked behavior"
+git commit -m "Add concurrency regression tests for sweep claim commit and skip-locked"
 ```
 
 ---
@@ -846,4 +872,4 @@ git commit -m "Add concurrency regression test for sweep claim skip-locked behav
 
 **Deliberately not fixed here:** `dry_run` still writes output files (pre-existing, documented in the design doc's `dry_run` section and Out of scope). `test_integrity_error_on_create_falls_back_to_get` still fails for an unrelated pre-existing reason.
 
-**Naming consistency:** `_claim_request` returns `(claimed, original_status)` and is called that way in both Task 1 Step 4 and Task 3 Step 1. `_reset_stale_requests(minutes, dry_run=False)` returns `{"reset": n}` normally and `{"count": n}` under `dry_run`, matching `_reset_errored_requests`'s existing convention and used consistently in Task 2 Steps 1, 3 and 5. `merge_map` matches the `{task_id: dataset_id}` dict `_check_request_tasks` has returned since `0.43.3`.
+**Naming consistency:** `_claim_request` returns `(claimed, original_status, claim_time)` -- the third element was added during Task 1's code-quality review, to fence the terminal status writes against a reaped-but-still-alive sweep stomping the next owner's claim. Task 3's tests call it accordingly. `_reset_stale_requests(minutes, dry_run=False)` returns `{"reset": n}` normally and `{"count": n}` under `dry_run`, matching `_reset_errored_requests`'s existing convention and used consistently in Task 2 Steps 1, 3 and 5. `merge_map` matches the `{task_id: dataset_id}` dict `_check_request_tasks` has returned since `0.43.3`.
