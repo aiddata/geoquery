@@ -112,9 +112,13 @@ class SweepClaimTests(TestCase):
         self.assertEqual(req.status, 2)
         mock_build.assert_not_called()
 
-    def test_claim_commits_before_build_runs(self):
-        # The whole point: status=2 must already be committed and visible by
-        # the time _build_output starts, so a concurrent sweep would skip it.
+    def test_claim_is_written_before_build_runs(self):
+        # Ordering only: status=2 must be written before _build_output starts.
+        # This deliberately does NOT prove the claim is *committed* by then --
+        # TestCase runs the whole test in one transaction on one connection,
+        # so a read here sees uncommitted writes identically to committed
+        # ones. Cross-connection commit visibility is covered separately by
+        # ClaimCommitVisibilityTest (TransactionTestCase, Task 3).
         req = self.submit()
         ExtractTask.objects.update(status=1)
         observed = {}
@@ -155,7 +159,30 @@ class SweepClaimTests(TestCase):
 
 Run: `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_manage_user_requests.SweepClaimTests -v 2`
 
-Expected: `test_claim_commits_before_build_runs` FAILS — `observed["status"]` is `-1` (or the pre-transaction value), not `2`, because today's `status=2` write is uncommitted while `_build_output` runs. `test_claimed_request_is_not_picked_up_again` should already PASS (the selection query already excludes `status=2`); keep it as a regression guard. `test_dry_run_writes_no_status` may pass today by accident (dry_run reverts at the end) — it pins the new behavior that no write happens at all.
+Expected: **all three of these PASS against the unmodified code.** That is not a mistake in the tests — it is structural. `TestCase` runs each test in one transaction on one connection, and the old code already wrote `status=2` before `_build_output` on that same connection, so a same-connection read cannot tell a committed claim from an uncommitted one. These three are therefore ordering/behavioral guards, not proof of the commit property; the real proof lives in Task 3's `ClaimCommitVisibilityTest`, which uses a genuinely separate connection.
+
+Add one test that *does* fail before the change, since it calls a function that does not exist yet — it pins the exclusivity the claim provides:
+
+```python
+    def test_claim_is_not_reclaimable_once_taken(self):
+        from analytics.management.commands.manage_user_requests import (
+            _claim_request,
+        )
+
+        req = self.submit()
+
+        claimed, original_status = _claim_request(str(req.id))
+        self.assertTrue(claimed)
+        self.assertEqual(original_status, -1)
+
+        req.refresh_from_db()
+        self.assertEqual(req.status, 2)
+        self.assertIsNotNone(req.prepare_time)
+        self.assertIsNotNone(req.process_time)
+
+        # A second sweep must not be able to take the same request.
+        self.assertEqual(_claim_request(str(req.id)), (False, None))
+```
 
 - [ ] **Step 3: Add the `_claim_request` helper**
 
@@ -617,8 +644,18 @@ git commit -m "Add reaper for requests stranded at status=2 by a crashed sweep"
 **Acceptance Criteria:**
 - [ ] A `TransactionTestCase` test holds a real row lock on a request from one connection and asserts a concurrent `_claim_request` returns `claimed=False` promptly rather than blocking.
 - [ ] The test completes well within its timeout, proving `skip_locked` is in effect (without it, the second claim would block until the first transaction ends).
+- [ ] A second `TransactionTestCase` test proves the claim is **committed** (not merely written) before the build phase, by reading the request's status from a *different* connection while a mocked `_build_output` runs.
 
-**Verify:** `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_manage_user_requests.ClaimContentionTest -v 2` → passes.
+**Why the second test is necessary (discovered during Task 1):** Task 1's
+`test_claim_is_written_before_build_runs` can only prove ordering, never
+commit visibility. `TestCase` runs each test in a single transaction on a
+single connection, so a read inside the mocked `_build_output` sees
+uncommitted writes identically to committed ones — and the *old* code also
+wrote `status=2` before `_build_output` on that same connection. That test
+therefore passes against both old and new code. Only a genuinely separate
+connection can tell them apart, which is why the real proof belongs here.
+
+**Verify:** `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_manage_user_requests.ClaimContentionTest analytics.tests.test_manage_user_requests.ClaimCommitVisibilityTest -v 2` → passes.
 
 **Steps:**
 
@@ -696,6 +733,84 @@ class ClaimContentionTest(TransactionTestCase):
         self.assertEqual(self.request.status, -1)
 ```
 
+Then add the commit-visibility test, which closes the gap Task 1's
+`test_claim_is_written_before_build_runs` structurally cannot:
+
+```python
+class ClaimCommitVisibilityTest(TransactionTestCase):
+    """The claim must be COMMITTED, not merely written, before the build runs.
+
+    This is the property the whole design turns on: another sweep can only
+    skip a claimed request if it can *see* status=2, which requires a commit.
+    It needs TransactionTestCase and a genuinely separate connection --
+    TestCase's single wrapping transaction makes a committed and an
+    uncommitted status=2 indistinguishable from inside the same connection,
+    which is exactly why Task 1's ordering test cannot prove this.
+    """
+
+    def setUp(self):
+        self.dataset = Dataset.objects.create(
+            name="ds", path="/data/ds", active=True, public=True
+        )
+        self.resource = DatasetResource.objects.create(
+            dataset=self.dataset, name="ds-r1", path="r1.tif"
+        )
+        self.po = ProcessingOption.objects.create(
+            dataset=self.dataset,
+            short_name="mean",
+            function="rasterstats_default_mean",
+            active=True,
+            public=True,
+        )
+        self.fc = FeatureCollection.objects.create(
+            name="fc", path="/data/fc", active=True, public=True
+        )
+        self.feature = Feature.objects.create(shape="POINT(0 0)")
+        self.fm = FeatMap.objects.create(fc=self.fc, geom=self.feature)
+
+    def test_claim_is_visible_to_another_connection_during_build(self):
+        created = create_request(
+            user=None,
+            contact="a@example.com",
+            name=None,
+            feature_ids=[self.feature.id],
+            datasets=[{"datasetName": self.dataset.name}],
+        )
+        materialize_request(created.request)
+        request_id = str(created.request.id)
+        ExtractTask.objects.update(status=1)
+
+        observed = {}
+
+        def read_from_another_connection(*args, **kwargs):
+            # A separate thread gets its own DB connection, so this read can
+            # only see status=2 if the claim actually committed.
+            def reader():
+                try:
+                    observed["status"] = Request.objects.get(id=request_id).status
+                finally:
+                    connection.close()
+
+            t = threading.Thread(target=reader)
+            t.start()
+            t.join(timeout=10)
+
+        with mock.patch(
+            "analytics.management.commands.manage_user_requests._build_output",
+            side_effect=read_from_another_connection,
+        ), mock.patch(
+            "analytics.management.commands.manage_user_requests._notify_user"
+        ):
+            _manage_user_requests()
+
+        self.assertEqual(
+            observed.get("status"),
+            2,
+            "claim was not committed before _build_output ran -- another "
+            "sweep would block on this request's row lock instead of skipping",
+        )
+```
+
 Add `threading` and `transaction` to the file's imports:
 
 ```python
@@ -706,8 +821,8 @@ from django.db import connection, transaction
 
 - [ ] **Step 2: Run it**
 
-Run: `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_manage_user_requests.ClaimContentionTest -v 2`
-Expected: PASS.
+Run: `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_manage_user_requests.ClaimContentionTest analytics.tests.test_manage_user_requests.ClaimCommitVisibilityTest -v 2`
+Expected: both PASS.
 
 If it fails with `claim blocked instead of skipping`, `skip_locked=True` is missing from `_claim_request`'s queryset — that is the bug this test exists to catch, so fix `_claim_request` rather than the test.
 
