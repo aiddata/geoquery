@@ -54,6 +54,10 @@ _SWAP_RETRY_ERRNOS = frozenset({errno.ENOTEMPTY, errno.EEXIST, errno.ENOTDIR})
 # make a live build look abandoned.
 _HEARTBEAT_INTERVAL_SECONDS = 60
 
+# Extra time __exit__ allows a beat already in flight to finish before the
+# claim is forfeited. Generous, because forfeiting costs a full rebuild.
+_HEARTBEAT_JOIN_GRACE_SECONDS = 30
+
 
 class _ClaimHeartbeat:
     """Keep a claim fresh while a long build runs.
@@ -73,9 +77,12 @@ class _ClaimHeartbeat:
     lets the caller stop early instead of spending hours on it.
     """
 
-    def __init__(self, request_id, claim, interval=None):
+    def __init__(self, request_id, claim, interval=None, join_grace=None):
         self.request_id = request_id
         self.claim = claim
+        self.join_grace = (
+            _HEARTBEAT_JOIN_GRACE_SECONDS if join_grace is None else join_grace
+        )
         # Resolved here rather than as a default argument so the interval is
         # read at call time, not at import time.
         self.interval = (
@@ -93,7 +100,23 @@ class _ClaimHeartbeat:
     def __exit__(self, *exc_info):
         self._stop.set()
         if self._thread is not None:
-            self._thread.join(timeout=self.interval + 30)
+            self._thread.join(timeout=self.interval + self.join_grace)
+            if self._thread.is_alive():
+                # Blocked mid-beat -- a stalled connection, a lock on
+                # requests, a saturated pooler. It may still land its UPDATE
+                # after we return, which would advance process_time and
+                # invalidate whatever token we read here. Since the token is
+                # no longer knowable, treat the claim as lost rather than
+                # finalizing against a value a late beat may overwrite: every
+                # fence would fail anyway, and this way the request is left
+                # for the reaper instead of being silently skipped.
+                logger.warning(
+                    "Claim heartbeat for request (id: %s) did not stop within "
+                    "%ss -- treating the claim as lost",
+                    self.request_id,
+                    self.interval + self.join_grace,
+                )
+                self.lost = True
         return False
 
     def _run(self):

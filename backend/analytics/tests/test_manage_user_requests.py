@@ -1152,6 +1152,68 @@ class ClaimHeartbeatTest(TransactionTestCase):
         self.assertIsNotNone(req.complete_time)
         self.assertIn(1, [c.args[2] for c in mock_notify.call_args_list])
 
+    def test_failure_after_a_beat_still_records_the_error(self):
+        # The heartbeat moves the claim token, so the error handler has to
+        # fence on the token the beats left behind. Raising only after several
+        # beats have landed is what makes this path reachable: a build that
+        # fails immediately never advances the token, so the existing error
+        # tests pass whether or not the sync happens.
+        req = self.submit()
+
+        def slow_failing_build(*args, **kwargs):
+            time.sleep(0.3)
+            raise RuntimeError("boom")
+
+        with mock.patch(
+            "analytics.management.commands.manage_user_requests."
+            "_HEARTBEAT_INTERVAL_SECONDS",
+            0.05,
+        ), mock.patch(
+            "analytics.management.commands.manage_user_requests._build_output",
+            side_effect=slow_failing_build,
+        ), mock.patch(
+            "analytics.management.commands.manage_user_requests._notify_user"
+        ):
+            _manage_user_requests()
+
+        req.refresh_from_db()
+        self.assertEqual(
+            req.status,
+            -2,
+            "a build that failed after a heartbeat did not record its error "
+            "-- the error fence is using a stale claim token",
+        )
+
+    def test_a_heartbeat_that_will_not_stop_forfeits_the_claim(self):
+        # If the beat thread is still blocked when the join times out, it may
+        # land an UPDATE after we return, so the token we hold is no longer
+        # knowable. Finalizing against it would be a guess.
+        from analytics.management.commands.manage_user_requests import (
+            _ClaimHeartbeat,
+        )
+
+        req = Request.objects.create(
+            contact="a@example.com", status=2, data={}
+        )
+        claim = RequestClaim(True, 0, timezone.now(), False)
+        wedged = threading.Event()
+        self.addCleanup(wedged.set)
+
+        heartbeat = _ClaimHeartbeat(
+            str(req.id), claim, interval=0.01, join_grace=0.2
+        )
+        with mock.patch.object(
+            heartbeat, "_beat", side_effect=lambda: wedged.wait(timeout=30)
+        ):
+            with heartbeat:
+                time.sleep(0.1)
+
+        self.assertTrue(
+            heartbeat.lost,
+            "a heartbeat thread that outlived its join was not treated as a "
+            "lost claim",
+        )
+
     def test_losing_the_claim_mid_build_stops_the_sweep(self):
         req = self.submit()
 
