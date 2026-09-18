@@ -1,11 +1,13 @@
 import errno
 import os
 import tempfile
+import threading
 import zipfile
 from pathlib import Path
 from unittest import mock
 
-from django.test import TestCase
+from django.db import connection, transaction
+from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 
 from analytics.management.commands import manage_user_requests as mur
@@ -884,3 +886,151 @@ class SweepClaimTests(TestCase):
 
         req.refresh_from_db()
         self.assertEqual(req.status, -1)
+
+
+class ClaimContentionTest(TransactionTestCase):
+    """A second sweep must SKIP a claimed request, not queue behind it.
+
+    Needs TransactionTestCase and a second real connection: TestCase wraps
+    each test in a single transaction that never commits, so it cannot
+    express two transactions contending for the same row.
+    """
+
+    def setUp(self):
+        self.request = Request.objects.create(
+            contact="a@example.com",
+            status=-1,
+            data={
+                "feature_ids": [1],
+                "datasets": [{"dataset_name": "ds"}],
+                "selection_label": "x",
+                "selection_detail": None,
+            },
+        )
+
+    def test_claim_skips_a_row_locked_by_another_transaction(self):
+        results = {}
+        lock_taken = threading.Event()
+        release = threading.Event()
+
+        def hold_the_lock():
+            try:
+                with transaction.atomic():
+                    list(
+                        Request.objects.select_for_update().filter(
+                            id=self.request.id
+                        )
+                    )
+                    lock_taken.set()
+                    release.wait(timeout=30)
+            finally:
+                connection.close()
+
+        holder = threading.Thread(target=hold_the_lock)
+        holder.start()
+        try:
+            self.assertTrue(lock_taken.wait(timeout=10), "lock was never taken")
+
+            def try_claim():
+                try:
+                    results["claim"] = _claim_request(str(self.request.id))
+                except Exception as exc:  # surfaced by the assertions below
+                    results["error"] = exc
+                finally:
+                    connection.close()
+
+            claimer = threading.Thread(target=try_claim)
+            claimer.start()
+            # skip_locked makes this return immediately. Without it, it would
+            # block until the holder's transaction ends -- up to 30s.
+            claimer.join(timeout=10)
+            self.assertFalse(
+                claimer.is_alive(), "claim blocked instead of skipping"
+            )
+        finally:
+            # Release the holder even if an assertion above fails, so a
+            # failing run cannot leave a locked row and a live thread behind.
+            release.set()
+            holder.join(timeout=10)
+
+        self.assertIsNone(results.get("error"))
+        self.assertFalse(results["claim"].claimed)
+        self.request.refresh_from_db()
+        self.assertEqual(self.request.status, -1)
+
+
+class ClaimCommitVisibilityTest(TransactionTestCase):
+    """The claim must be COMMITTED, not merely written, before the build runs.
+
+    This is the property the whole design turns on: another sweep can only
+    skip a claimed request if it can *see* status=2, which requires a commit.
+    TestCase's single wrapping transaction makes a committed and an
+    uncommitted status=2 indistinguishable from inside the same connection,
+    which is exactly why the ordering test elsewhere in this file cannot
+    prove it and this one can.
+    """
+
+    def setUp(self):
+        self.dataset = Dataset.objects.create(
+            name="ds", path="/data/ds", active=True, public=True
+        )
+        self.resource = DatasetResource.objects.create(
+            dataset=self.dataset, name="ds-r1", path="r1.tif"
+        )
+        self.po = ProcessingOption.objects.create(
+            dataset=self.dataset,
+            short_name="mean",
+            function="rasterstats_default_mean",
+            active=True,
+            public=True,
+        )
+        self.fc = FeatureCollection.objects.create(
+            name="fc", path="/data/fc", active=True, public=True
+        )
+        self.feature = Feature.objects.create(shape="POINT(0 0)")
+        self.fm = FeatMap.objects.create(fc=self.fc, geom=self.feature)
+
+    def test_claim_is_visible_to_another_connection_during_build(self):
+        created = create_request(
+            user=None,
+            contact="a@example.com",
+            name=None,
+            feature_ids=[self.feature.id],
+            datasets=[{"datasetName": self.dataset.name}],
+        )
+        materialize_request(created.request)
+        request_id = str(created.request.id)
+        ExtractTask.objects.update(status=1)
+
+        observed = {}
+
+        def read_from_another_connection(*args, **kwargs):
+            # A separate thread gets its own DB connection, so this read can
+            # only see status=2 if the claim actually committed.
+            def reader():
+                try:
+                    observed["status"] = Request.objects.get(id=request_id).status
+                except Exception as exc:
+                    observed["error"] = exc
+                finally:
+                    connection.close()
+
+            t = threading.Thread(target=reader)
+            t.start()
+            t.join(timeout=10)
+
+        with mock.patch(
+            "analytics.management.commands.manage_user_requests._build_output",
+            side_effect=read_from_another_connection,
+        ), mock.patch(
+            "analytics.management.commands.manage_user_requests._notify_user"
+        ):
+            _manage_user_requests()
+
+        self.assertIsNone(observed.get("error"))
+        self.assertEqual(
+            observed.get("status"),
+            2,
+            "claim was not committed before _build_output ran -- another "
+            "sweep would block on this request's row lock instead of skipping",
+        )
