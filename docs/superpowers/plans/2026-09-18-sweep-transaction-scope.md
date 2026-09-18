@@ -561,6 +561,12 @@ git commit -m "Build request output in a temp dir and rename into place"
 - [ ] A `reset_stale_requests` `@shared_task` in `maintenance.py` reads `STALE_TASK_MINUTES` (default 30) and logs how many were reset.
 - [ ] An hourly `CELERY_BEAT_SCHEDULE` entry runs it.
 - [ ] Abandoned `.{request_id}.building.*` directories older than the stale threshold are removed. Task 2 cleans these up on a raised failure, but a hard kill (SIGKILL/OOM) leaves them behind with nothing to collect them, so they accumulate in `requests_dir` indefinitely.
+- [ ] Abandoned `.{request_id}.replaced.*` directories are handled by **restore-if-missing, never by blanket delete**. This is a *second* orphan class created by Task 2's swap, and it is not interchangeable with `.building.*`:
+  - Task 2's swap moves existing output aside to `.{request_id}.replaced.{hex}` before landing the new build. A hard kill in the window between the move-aside and the `os.replace` leaves `request_dir` **absent** with the complete previous output sitting at `.{request_id}.replaced.{hex}`.
+  - If that request was already at `status=1`, the sweep never re-selects it, so the emailed "this link will always be available" download 404s permanently and nothing else recovers it.
+  - Required behavior: if `requests_dir/{request_id}` does **not** exist and a `.{request_id}.replaced.*` directory does, move the newest one back to `requests_dir/{request_id}`. Delete `.replaced.*` directories only when `requests_dir/{request_id}` already exists — something valid supersedes them.
+  - **Do not write a reaper that globs `.{request_id}.*` and deletes.** That destroys the last surviving copy of a completed request's output. The two prefixes need opposite treatment: `.building.*` is always disposable, `.replaced.*` may be the only copy.
+- [ ] Two tests cover the split: `request_dir` missing + `.replaced.*` present → output is restored to `request_dir`; `request_dir` present + `.replaced.*` present → the aside is removed.
 
 **Verify:** `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_reset_stale_requests -v 2` → all tests pass.
 
