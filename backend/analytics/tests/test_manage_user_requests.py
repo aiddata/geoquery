@@ -1,8 +1,10 @@
 import errno
 import os
+import time
 import tempfile
 import threading
 import zipfile
+from datetime import timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -1034,3 +1036,147 @@ class ClaimCommitVisibilityTest(TransactionTestCase):
             "claim was not committed before _build_output ran -- another "
             "sweep would block on this request's row lock instead of skipping",
         )
+
+
+class ClaimHeartbeatTest(TransactionTestCase):
+    """A build slower than the reaper threshold must still complete.
+
+    Without a heartbeat the threshold is a build-duration limit, not a
+    liveness check: the reaper resets the claim mid-build, the finalize fence
+    fails, no email is sent, and the request goes back to status=0 to be
+    rebuilt -- by a retry that is exactly as slow, forever, and silently
+    because status=0 is not an error state.
+    """
+
+    def setUp(self):
+        self.dataset = Dataset.objects.create(
+            name="ds", path="/data/ds", active=True, public=True
+        )
+        self.resource = DatasetResource.objects.create(
+            dataset=self.dataset, name="ds-r1", path="r1.tif"
+        )
+        self.po = ProcessingOption.objects.create(
+            dataset=self.dataset,
+            short_name="mean",
+            function="rasterstats_default_mean",
+            active=True,
+            public=True,
+        )
+        self.fc = FeatureCollection.objects.create(
+            name="fc", path="/data/fc", active=True, public=True
+        )
+        self.feature = Feature.objects.create(shape="POINT(0 0)")
+        self.fm = FeatMap.objects.create(fc=self.fc, geom=self.feature)
+
+    def submit(self):
+        created = create_request(
+            user=None,
+            contact="a@example.com",
+            name=None,
+            feature_ids=[self.feature.id],
+            datasets=[{"datasetName": self.dataset.name}],
+        )
+        materialize_request(created.request)
+        ExtractTask.objects.update(status=1)
+        return created.request
+
+    def test_heartbeat_keeps_an_old_claim_out_of_the_reaper(self):
+        # A claim that started hours ago but is still being refreshed must
+        # survive a reaper run at the real threshold. Driving _ClaimHeartbeat
+        # directly is what makes this precise: the reaper's granularity is
+        # whole minutes, so a wall-clock build cannot express "older than the
+        # threshold" inside a test.
+        from analytics.management.commands.manage_user_requests import (
+            _ClaimHeartbeat,
+        )
+        from analytics.management.commands.reset_stale_requests import (
+            _reset_stale_requests,
+        )
+
+        stale_time = timezone.now() - timedelta(hours=2)
+        req = Request.objects.create(
+            contact="a@example.com", status=2, data={}
+        )
+        Request.objects.filter(id=req.id).update(process_time=stale_time)
+        claim = RequestClaim(True, 0, stale_time, False)
+
+        req.refresh_from_db()
+        self.assertEqual(_reset_stale_requests(30, dry_run=True)["count"], 1)
+
+        heartbeat = _ClaimHeartbeat(str(req.id), claim, interval=0.05)
+        with heartbeat:
+            time.sleep(0.4)
+
+        self.assertFalse(heartbeat.lost)
+        self.assertGreater(heartbeat.claim.claim_time, stale_time)
+
+        req.refresh_from_db()
+        self.assertGreater(req.process_time, stale_time)
+        self.assertEqual(
+            _reset_stale_requests(30)["reset"],
+            0,
+            "a claim being actively refreshed was still reaped -- the "
+            "heartbeat is not keeping it alive",
+        )
+        req.refresh_from_db()
+        self.assertEqual(req.status, 2)
+
+    def test_sweep_completes_with_the_heartbeat_running(self):
+        req = self.submit()
+        seen = {}
+
+        def slow_build(*args, **kwargs):
+            seen["before"] = Request.objects.get(id=req.id).process_time
+            time.sleep(0.4)
+            seen["after"] = Request.objects.get(id=req.id).process_time
+
+        with mock.patch(
+            "analytics.management.commands.manage_user_requests."
+            "_HEARTBEAT_INTERVAL_SECONDS",
+            0.05,
+        ), mock.patch(
+            "analytics.management.commands.manage_user_requests._build_output",
+            side_effect=slow_build,
+        ), mock.patch(
+            "analytics.management.commands.manage_user_requests._notify_user"
+        ) as mock_notify:
+            _manage_user_requests()
+
+        self.assertGreater(
+            seen["after"],
+            seen["before"],
+            "process_time did not advance during the build",
+        )
+        req.refresh_from_db()
+        self.assertEqual(req.status, 1)
+        self.assertIsNotNone(req.complete_time)
+        self.assertIn(1, [c.args[2] for c in mock_notify.call_args_list])
+
+    def test_losing_the_claim_mid_build_stops_the_sweep(self):
+        req = self.submit()
+
+        def steal_the_claim(*args, **kwargs):
+            # Another sweep takes over: status stays 2 but process_time moves,
+            # so our claim token no longer matches.
+            Request.objects.filter(id=req.id).update(
+                process_time=timezone.now() + timedelta(seconds=5)
+            )
+            time.sleep(0.3)
+
+        with mock.patch(
+            "analytics.management.commands.manage_user_requests."
+            "_HEARTBEAT_INTERVAL_SECONDS",
+            0.05,
+        ), mock.patch(
+            "analytics.management.commands.manage_user_requests._build_output",
+            side_effect=steal_the_claim,
+        ), mock.patch(
+            "analytics.management.commands.manage_user_requests._notify_user"
+        ) as mock_notify:
+            _manage_user_requests()
+
+        req.refresh_from_db()
+        self.assertEqual(req.status, 2, "the thief's claim was overwritten")
+        self.assertIsNone(req.complete_time)
+        sent = [c.args[2] for c in mock_notify.call_args_list]
+        self.assertNotIn(1, sent, "completion email sent for a lost claim")

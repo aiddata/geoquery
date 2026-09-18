@@ -9,6 +9,7 @@ import json
 import os
 import shutil
 import textwrap
+import threading
 import time
 import zipfile
 from collections import defaultdict
@@ -46,6 +47,99 @@ _OUTPUT_SWAP_CONTENTION_RETRIES = 3
 # (nothing in this module creates that, but a stray file in the requests
 # directory would).
 _SWAP_RETRY_ERRNOS = frozenset({errno.ENOTEMPTY, errno.EEXIST, errno.ENOTDIR})
+
+
+# How often a running build refreshes its claim. Must stay far below
+# STALE_TASK_MINUTES so a single missed beat -- a transient DB blip -- cannot
+# make a live build look abandoned.
+_HEARTBEAT_INTERVAL_SECONDS = 60
+
+
+class _ClaimHeartbeat:
+    """Keep a claim fresh while a long build runs.
+
+    The reaper treats a claim as abandoned once process_time falls behind
+    STALE_TASK_MINUTES. Without a heartbeat that threshold is a *build
+    duration* limit rather than a liveness check: a build slower than the
+    threshold gets reaped mid-flight, fails its finalize fence, and is rebuilt
+    from scratch -- forever, because every retry is exactly as slow. Since the
+    reaper returns the request to status=0 rather than -2, that loop is also
+    silent. Refreshing process_time makes "stale" mean "not making progress",
+    which is what the reaper is actually trying to detect.
+
+    Each refresh is fenced on the claim it extends, so it doubles as a
+    liveness check in the other direction: if the fence fails, another sweep
+    owns the request now and this build's output will be discarded. ``lost``
+    lets the caller stop early instead of spending hours on it.
+    """
+
+    def __init__(self, request_id, claim, interval=None):
+        self.request_id = request_id
+        self.claim = claim
+        # Resolved here rather than as a default argument so the interval is
+        # read at call time, not at import time.
+        self.interval = (
+            _HEARTBEAT_INTERVAL_SECONDS if interval is None else interval
+        )
+        self.lost = False
+        self._stop = threading.Event()
+        self._thread = None
+
+    def __enter__(self):
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc_info):
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=self.interval + 30)
+        return False
+
+    def _run(self):
+        try:
+            # wait() returns True when stopped, so this exits promptly at the
+            # end of the build rather than sleeping out the last interval.
+            while not self._stop.wait(self.interval):
+                if not self._beat():
+                    return
+        finally:
+            # This thread has its own connection; leaving it open leaks one
+            # per build.
+            connection.close()
+
+    def _beat(self):
+        """Extend the claim. Returns False when the claim is gone for good."""
+        now = timezone.now()
+        try:
+            with transaction.atomic():
+                updated = Request.objects.filter(
+                    id=self.request_id,
+                    status=2,
+                    process_time=self.claim.claim_time,
+                ).update(process_time=now)
+        except Exception as e:
+            # A transient database error must not abandon a build that is
+            # otherwise fine. The next beat retries, and the reaper's
+            # threshold is many beats wide.
+            logger.warning(
+                "Claim heartbeat failed for request (id: %s): %s",
+                self.request_id,
+                e,
+            )
+            return True
+
+        if not updated:
+            logger.warning(
+                "Lost claim on request (id: %s) during build (reaped or taken "
+                "over by another sweep)",
+                self.request_id,
+            )
+            self.lost = True
+            return False
+
+        self.claim = self.claim._replace(claim_time=now)
+        return True
 
 
 class Command(BaseCommand):
@@ -241,13 +335,43 @@ def _manage_user_requests(
                 )
             else:
                 updated_request_obj = Request.objects.get(id=request_id)
-                _build_output(
-                    updated_request_obj,
-                    merge_map,
-                    download_base,
-                    requests_dir,
-                    assets_dir,
-                )
+                if dry_run:
+                    # No claim to keep alive, and no status writes at all.
+                    _build_output(
+                        updated_request_obj,
+                        merge_map,
+                        download_base,
+                        requests_dir,
+                        assets_dir,
+                    )
+                else:
+                    heartbeat = _ClaimHeartbeat(request_id, claim)
+                    try:
+                        with heartbeat:
+                            _build_output(
+                                updated_request_obj,
+                                merge_map,
+                                download_base,
+                                requests_dir,
+                                assets_dir,
+                            )
+                    finally:
+                        # The heartbeat moves process_time, so every later
+                        # fence -- including the error handler's, which runs
+                        # on the exception path through this finally -- has
+                        # to use the claim it left behind, not the original.
+                        claim = heartbeat.claim
+                        error_claim = claim
+
+                    if heartbeat.lost:
+                        # Another sweep owns the request and is rebuilding it.
+                        # Every remaining write here would fail its fence.
+                        logger.warning(
+                            "Discarding build for request (id: %s) -- the "
+                            "claim was lost while it ran",
+                            request_id,
+                        )
+                        continue
                 # Phase 3 -- finalize. Both terminal writes are fenced on
                 # still holding the claim (status=2 with our process_time):
                 # the reaper can reset a long-running build's request to 0 and

@@ -9,6 +9,8 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import connection
 
+from analytics.models import Request
+
 # _build_output creates both orphan classes this command collects, and its
 # removal helper already handles the "not actually a directory" cases that a
 # plain rmtree silently ignores. Reusing it keeps the two sides of the same
@@ -166,9 +168,23 @@ def _clean_orphan_output_dirs(requests_dir, minutes: int, dry_run: bool = False)
     ``.<request_id>.*`` that deletes: that glob destroys exactly the copy
     this function exists to rescue.
 
-    Orphans are aged out by mtime against the same stale threshold, so a
-    build still being written to, and the sub-millisecond window a live swap
-    opens, are both left alone.
+    Liveness is decided by the *database*, not the filesystem. Any request
+    still at status=2 may have a sweep inside _build_output right now, so its
+    orphans are left alone entirely. That check composes with the reset above,
+    which runs first: a genuinely dead sweep's request has already been moved
+    off status=2 by the time we get here, so its leftovers are collectible in
+    the same pass, while a live build -- which keeps its claim fresh via
+    _ClaimHeartbeat -- stays protected for as long as it runs.
+
+    Filesystem age is a coarse backstop, deliberately NOT the liveness
+    signal, because no timestamp is a sound one here. A directory's mtime
+    only moves when an entry is created or removed in it, so a build sitting
+    in a long merge -- or writing its zip, which lands as a *sibling* -- has
+    a frozen mtime and looks abandoned. os.replace does not touch mtime at
+    all, so a ".replaced." aside inherits the mtime of the output it
+    displaced and can be months old the instant it is created. ctime is no
+    better: it moves on any metadata change, so it makes everything look
+    fresh forever. Hence the claim check above.
     """
     requests_dir = Path(requests_dir)
     removed = 0
@@ -182,9 +198,22 @@ def _clean_orphan_output_dirs(requests_dir, minutes: int, dry_run: bool = False)
     building = []
     replaced = defaultdict(list)
 
+    # Requests a sweep may be building right now. Str-keyed because that is
+    # what the directory names carry.
+    live_request_ids = {
+        str(request_id)
+        for request_id in Request.objects.filter(status=2).values_list(
+            "id", flat=True
+        )
+    }
+
     for entry in requests_dir.iterdir():
         match = _ORPHAN_RE.match(entry.name)
         if match is None:
+            continue
+        if match["request_id"] in live_request_ids:
+            # A sweep still holds this request's claim, so this path may be
+            # the build it is writing into, or output it is mid-swap on.
             continue
         try:
             # lstat, not stat: a symlink orphan is judged on itself, and a
@@ -194,7 +223,8 @@ def _clean_orphan_output_dirs(requests_dir, minutes: int, dry_run: bool = False)
             logger.warning("Could not stat %s: %s", entry, exc)
             continue
         if stat.st_mtime > cutoff:
-            # Still fresh -- a build in progress, or a swap mid-flight.
+            # A coarse backstop only -- see the docstring. Liveness is the
+            # status=2 check above, not this.
             continue
         if match["kind"] == "building":
             building.append(entry)

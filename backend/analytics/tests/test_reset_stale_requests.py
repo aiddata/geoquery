@@ -5,7 +5,7 @@ from datetime import timedelta
 from pathlib import Path
 from uuid import uuid4
 
-from django.test import SimpleTestCase, TestCase
+from django.test import TestCase
 from django.utils import timezone
 
 from analytics.management.commands.reset_stale_requests import (
@@ -100,7 +100,7 @@ def _age(path, minutes):
     os.utime(path, (ts, ts), follow_symlinks=not path.is_symlink())
 
 
-class OrphanOutputCleanupTests(SimpleTestCase):
+class OrphanOutputCleanupTests(TestCase):
     """The two orphan classes _build_output's swap can leave behind.
 
     They need opposite treatment and must never be handled by one glob:
@@ -247,3 +247,71 @@ class OrphanOutputCleanupTests(SimpleTestCase):
         self.assertFalse((self.root / self.request_id).exists())
         self.assertEqual(result["removed"], 1)
         self.assertEqual(result["restored"], 1)
+
+
+class OrphanCollectorLivenessTests(TestCase):
+    """A live build's directories must survive the collector.
+
+    Filesystem age cannot express liveness here: a build dir's mtime only
+    moves when an entry is created or removed in it, so a long merge (or the
+    zip, which is written as a sibling) leaves it frozen; and os.replace does
+    not touch mtime at all, so a ".replaced." aside inherits the mtime of the
+    output it displaced and is often born already older than the threshold.
+    The claim in the database is the signal that actually tracks liveness.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    def make_request(self, status):
+        return Request.objects.create(
+            contact="a@example.com", status=status, data={}
+        )
+
+    def age(self, path, minutes=120):
+        old = time.time() - minutes * 60
+        os.utime(path, (old, old))
+
+    def test_claimed_requests_build_dir_is_not_collected(self):
+        req = self.make_request(status=2)
+        build = self.root / f".{req.id}.building.{uuid4().hex}"
+        build.mkdir()
+        (build / "partial.csv").write_text("half a build")
+        self.age(build)
+
+        result = _clean_orphan_output_dirs(self.root, 30)
+
+        self.assertEqual(result["removed"], 0)
+        self.assertTrue(
+            build.is_dir(),
+            "the collector deleted a build directory out from under a sweep "
+            "that still holds the claim",
+        )
+
+    def test_claimed_requests_aside_is_not_collected(self):
+        req = self.make_request(status=2)
+        aside = self.root / f".{req.id}.replaced.{uuid4().hex}"
+        aside.mkdir()
+        (aside / "results.csv").write_text("the only copy")
+        self.age(aside)
+
+        result = _clean_orphan_output_dirs(self.root, 30)
+
+        self.assertEqual(result, {"removed": 0, "restored": 0})
+        self.assertTrue(aside.is_dir())
+        self.assertFalse((self.root / str(req.id)).exists())
+
+    def test_unclaimed_requests_orphans_are_still_collected(self):
+        # The reset runs before the collector in the same pass, so a dead
+        # sweep's request has already left status=2 by now.
+        req = self.make_request(status=0)
+        build = self.root / f".{req.id}.building.{uuid4().hex}"
+        build.mkdir()
+        self.age(build)
+
+        result = _clean_orphan_output_dirs(self.root, 30)
+
+        self.assertEqual(result["removed"], 1)
+        self.assertFalse(build.exists())
