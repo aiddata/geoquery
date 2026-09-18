@@ -121,61 +121,71 @@ def _manage_user_requests(
         completed_request_obj = None
 
         try:
-            with transaction.atomic():
-                if not request_obj.data:
-                    _request_error(request_id, "Invalid request (missing items field)")
-                    continue
-                if not request_obj.data["feature_ids"]:
-                    _request_error(request_id, "Invalid request (missing features)")
-                    continue
-                if not request_obj.data["datasets"]:
-                    _request_error(
-                        request_id, "Invalid request (missing dataset details)"
-                    )
-                    continue
-
-                logger.info(
-                    "Features: %s (%s)",
-                    request_obj.data["selection_label"],
-                    request_obj.data["selection_label"],
+            if not request_obj.data:
+                _request_error(request_id, "Invalid request (missing items field)")
+                continue
+            if not request_obj.data["feature_ids"]:
+                _request_error(request_id, "Invalid request (missing features)")
+                continue
+            if not request_obj.data["datasets"]:
+                _request_error(
+                    request_id, "Invalid request (missing dataset details)"
                 )
+                continue
 
+            logger.info(
+                "Features: %s (%s)",
+                request_obj.data["selection_label"],
+                request_obj.data["selection_label"],
+            )
+
+            # Phase 1 -- claim. dry_run takes no locks and writes no status;
+            # it just reports on what it finds.
+            if dry_run:
                 original_status = Request.objects.get(id=request_id).status
-
-                if original_status == -1:
-                    Request.objects.filter(id=request_id).update(
-                        prepare_time=timezone.now()
+            else:
+                claimed, original_status = _claim_request(request_id)
+                if not claimed:
+                    logger.info(
+                        "Request (id: %s) claimed by another sweep or no longer "
+                        "queued -- skipping",
+                        request_id,
                     )
-                    send_received_email = True
+                    continue
+                send_received_email = original_status == -1
 
-                Request.objects.filter(id=request_id).update(
-                    status=2, process_time=timezone.now()
+            # Phase 2 -- the expensive part, deliberately outside any
+            # transaction. _build_output writes files (CSV, HTML, JSON, PDF,
+            # GeoPackage, zip); holding a requests row lock across that is
+            # what let one slow request stack every other sweep behind it.
+            missing_items, merge_map = _check_request_tasks(
+                request_obj, dry_run=dry_run
+            )
+
+            if missing_items > 0:
+                if not dry_run:
+                    with transaction.atomic():
+                        Request.objects.filter(id=request_id).update(status=0)
+                logger.warning(
+                    f"Request not ready (id: {request_id}) - missing {missing_items} items"
                 )
-
-                missing_items, merge_list = _check_request_tasks(
-                    request_obj, dry_run=dry_run
+            else:
+                updated_request_obj = Request.objects.get(id=request_id)
+                _build_output(
+                    updated_request_obj,
+                    merge_map,
+                    download_base,
+                    requests_dir,
+                    assets_dir,
                 )
-
-                if missing_items > 0:
-                    Request.objects.filter(id=request_id).update(status=0)
-                    logger.warning(f"Request not ready (id: {request_id}) - missing {missing_items} items")
-                else:
-                    updated_request_obj = Request.objects.get(id=request_id)
-                    _build_output(
-                        updated_request_obj,
-                        merge_list,
-                        download_base,
-                        requests_dir,
-                        assets_dir,
-                    )
-                    Request.objects.filter(id=request_id).update(
-                        status=1, complete_time=timezone.now()
-                    )
+                # Phase 3 -- finalize.
+                if not dry_run:
+                    with transaction.atomic():
+                        Request.objects.filter(id=request_id).update(
+                            status=1, complete_time=timezone.now()
+                        )
                     completed_request_obj = updated_request_obj
-                    logger.info("Request completed (id: %s)", request_id)
-
-                if dry_run:
-                    Request.objects.filter(id=request_id).update(status=original_status)
+                logger.info("Request completed (id: %s)", request_id)
 
         except Exception as e:
             # include full traceback in the log for debugging purposes
@@ -301,6 +311,44 @@ def _notify_user(request_id, mail_to, status, download_base, frontend_base):
     mail_status = GeoEmail().send_email(mail_to, mail_subject, mail_message)
     if not mail_status[0]:
         raise Exception(f"Email send failed: {mail_status[1]}: {mail_status[2]}")
+
+
+def _claim_request(request_id):
+    """Claim a request for processing, in its own short committed transaction.
+
+    Returns ``(claimed, original_status)``. ``claimed`` is False when another
+    sweep already holds the row, or when the request's status moved out of
+    -1/0 between selection and now.
+
+    status=2 has always meant "a sweep is working on this" -- the selection
+    query in _manage_user_requests deliberately matches only -1 and 0. It
+    could never actually work, because it used to be written inside the same
+    transaction that did all the work, so it stayed invisible to every other
+    sweep until that work was already finished. Committing it here is what
+    makes the claim real.
+
+    skip_locked=True is what removes the pileup: a request another sweep is
+    mid-claim on is skipped outright rather than queued behind its row lock.
+    The status re-check inside the lock matters because request_objects is
+    built as a list up front, so a row's status can change between selection
+    and this call.
+    """
+    with transaction.atomic():
+        row = (
+            Request.objects.select_for_update(skip_locked=True)
+            .filter(id=request_id, status__in=(-1, 0))
+            .values("id", "status")
+            .first()
+        )
+        if row is None:
+            return False, None
+
+        original_status = row["status"]
+        updates = {"status": 2, "process_time": timezone.now()}
+        if original_status == -1:
+            updates["prepare_time"] = timezone.now()
+        Request.objects.filter(id=request_id).update(**updates)
+        return True, original_status
 
 
 def _check_request_tasks(request, dry_run=False):
