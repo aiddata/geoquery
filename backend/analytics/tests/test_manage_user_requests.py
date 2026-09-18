@@ -124,12 +124,12 @@ class FullSubmissionToCompletionFlowTest(TestCase):
             created.request.refresh_from_db()
             self.assertEqual(created.request.status, 1)
 
-            # _build_output zips request_dir's contents and then moves that
-            # zip to replace request_dir itself, so the final artifact is a
-            # request_id-named zip file sitting at request_dir/request_id.zip
-            # (manage_user_requests.py:394-396) -- the same path
-            # _notify_user's completion email and DocBuilder's download link
-            # point at.
+            # _build_output assembles everything in a temporary directory,
+            # zips it, moves the zip in under the request-id name, and only
+            # then renames the whole directory onto request_dir. However it is
+            # built, the artifact has to end up at
+            # request_dir/request_id.zip -- the path _notify_user's completion
+            # email and DocBuilder's download link point at.
             request_id = str(created.request.id)
             output_zip = Path(tmp_requests_dir) / request_id / f"{request_id}.zip"
             self.assertTrue(output_zip.is_file())
@@ -256,7 +256,19 @@ class BuildOutputAtomicityTests(TestCase):
         task_map = {t.id: t.dataset_id for t in ExtractTask.objects.all()}
         return created.request, task_map
 
-    def assert_surviving_output_is_one_whole_build(self, tmp, request_id):
+    def assert_surviving_output_is_one_whole_build(
+        self, tmp, request_id, markers=()
+    ):
+        """Assert request_dir holds one whole build rather than a mix of two.
+
+        Names alone cannot show that, since every build emits the same
+        filenames: a directory holding one build's CSV beside another's HTML
+        passes any name-based check. So every zip entry is also compared
+        byte-for-byte with the file sitting beside it, and when `markers` are
+        given (each build's download_server, which DocBuilder writes into the
+        documentation HTML) exactly one of them may appear anywhere in the
+        surviving output.
+        """
         request_dir = Path(tmp) / request_id
         output_zip = request_dir / f"{request_id}.zip"
         self.assertTrue(output_zip.is_file())
@@ -264,17 +276,42 @@ class BuildOutputAtomicityTests(TestCase):
         self.assertEqual(
             [p.name for p in Path(tmp).iterdir() if p.name != request_id], []
         )
-        # The zip is readable, holds exactly one build's files (no zip nested
-        # inside it from the other build), and matches what sits beside it.
+
         with zipfile.ZipFile(output_zip) as zf:
             self.assertIsNone(zf.testzip())
-            zipped = set(zf.namelist())
+            zipped = {name: zf.read(name) for name in zf.namelist()}
+
+        # No zip nested inside the zip from the other build.
         self.assertNotIn(f"{request_id}.zip", zipped)
         on_disk = {p.name for p in request_dir.iterdir()}
         self.assertEqual(
-            zipped - {"GeoQuery_Goodman2019.pdf"},
+            set(zipped) - {"GeoQuery_Goodman2019.pdf"},
             on_disk - {f"{request_id}.zip"},
         )
+
+        for name, zipped_bytes in zipped.items():
+            if name == "GeoQuery_Goodman2019.pdf":
+                continue  # deleted from the directory after zipping
+            self.assertEqual(
+                zipped_bytes,
+                (request_dir / name).read_bytes(),
+                f"{name} in the zip differs from the one beside it",
+            )
+
+        if markers:
+            blobs = list(zipped.values()) + [
+                p.read_bytes() for p in request_dir.iterdir()
+            ]
+            found = {
+                marker
+                for marker in markers
+                if any(marker.encode() in blob for blob in blobs)
+            }
+            self.assertEqual(
+                len(found),
+                1,
+                f"expected output from exactly one build, found {found}",
+            )
 
     def test_failed_build_keeps_the_previous_output(self):
         # A rebuild that dies partway must leave the previously built output
@@ -359,22 +396,27 @@ class BuildOutputAtomicityTests(TestCase):
             request, task_map = self.prepare()
             request_id = str(request.id)
 
+            # Each build stamps its own download_server into the generated
+            # HTML, so a directory mixing the two is detectable by content.
+            outer, inner = "http://outer-build", "http://inner-build"
             real_doc_builder = mur.DocBuilder
             state = {"nested_done": False}
 
             def build_concurrently(*args, **kwargs):
                 if not state["nested_done"]:
                     state["nested_done"] = True
-                    _build_output(request, task_map, "", tmp, "../assets")
+                    _build_output(request, task_map, inner, tmp, "../assets")
                 return real_doc_builder(*args, **kwargs)
 
             with mock.patch.object(
                 mur, "DocBuilder", side_effect=build_concurrently
             ):
-                _build_output(request, task_map, "", tmp, "../assets")
+                _build_output(request, task_map, outer, tmp, "../assets")
 
             self.assertTrue(state["nested_done"])
-            self.assert_surviving_output_is_one_whole_build(tmp, request_id)
+            self.assert_surviving_output_is_one_whole_build(
+                tmp, request_id, markers=(outer, inner)
+            )
 
     def test_build_losing_the_swap_returns_instead_of_raising(self):
         # The test above serializes the two builds -- the inner one finishes
@@ -394,6 +436,7 @@ class BuildOutputAtomicityTests(TestCase):
             request_id = str(request.id)
             request_dir = Path(tmp) / request_id
 
+            outer, inner = "http://outer-build", "http://inner-build"
             real_replace = os.replace
             state = {"nested_done": False}
 
@@ -403,15 +446,64 @@ class BuildOutputAtomicityTests(TestCase):
                     # A second sweep lands its own finished output at
                     # request_dir in exactly the window this build is
                     # standing in.
-                    _build_output(request, task_map, "", tmp, "../assets")
+                    _build_output(request, task_map, inner, tmp, "../assets")
                 return real_replace(src, dst, *args, **kwargs)
 
             with mock.patch("os.replace", replace_after_concurrent_build):
-                _build_output(request, task_map, "", tmp, "../assets")
+                _build_output(request, task_map, outer, tmp, "../assets")
 
             # Guards against the test going vacuous if the swap is reworked
             # and never renames onto request_dir again.
             self.assertTrue(state["nested_done"])
+            self.assert_surviving_output_is_one_whole_build(
+                tmp, request_id, markers=(outer, inner)
+            )
+
+    def test_output_replaces_a_request_dir_that_is_a_file(self):
+        # ENOTDIR is one of the retryable errnos precisely because
+        # request_dir can exist as a file or symlink. Displacing it then
+        # leaves a *file* named .{id}.replaced.{hex}, which rmtree silently
+        # ignores -- so the swap has to clean up by the right mechanism or it
+        # litters the requests directory on every rebuild.
+        with tempfile.TemporaryDirectory() as tmp:
+            request, task_map = self.prepare()
+            request_id = str(request.id)
+            (Path(tmp) / request_id).write_text("not a directory")
+
+            _build_output(request, task_map, "", tmp, "../assets")
+
+            self.assert_surviving_output_is_one_whole_build(tmp, request_id)
+
+    def test_rebuild_survives_sustained_contention(self):
+        # A rebuild over existing output always spends one pass discovering
+        # request_dir is occupied and displacing it. That expected pass must
+        # not eat into the budget for *contention*, or a build whose output is
+        # complete raises under a concurrent rebuild and its caller records
+        # status=-2 for a request whose directory holds a valid build.
+        #
+        # Pin the budget: existing output, then a concurrent build
+        # repopulating request_dir on every attempt until the budget is spent.
+        with tempfile.TemporaryDirectory() as tmp:
+            request, task_map = self.prepare()
+            request_id = str(request.id)
+            request_dir = self.make_previous_output(tmp, request_id)
+
+            real_replace = os.replace
+            contention = [None] * mur._OUTPUT_SWAP_CONTENTION_RETRIES
+
+            def repopulate_then_replace(src, dst, *args, **kwargs):
+                if ".building." in str(src) and contention:
+                    # Another build lands its output just before ours does.
+                    contention.pop()
+                    request_dir.mkdir(parents=True, exist_ok=True)
+                    (request_dir / "other_build.txt").write_text("other")
+                return real_replace(src, dst, *args, **kwargs)
+
+            with mock.patch("os.replace", repopulate_then_replace):
+                _build_output(request, task_map, "", tmp, "../assets")
+
+            # The budget was actually exercised, and the build still landed.
+            self.assertEqual(contention, [])
             self.assert_surviving_output_is_one_whole_build(tmp, request_id)
 
 
@@ -660,16 +752,20 @@ class SweepClaimTests(TestCase):
         req.refresh_from_db()
         self.assertEqual(req.status, -2)
 
+    def submit_invalid(self, invalid):
+        """A queued request that fails one of the three validation checks."""
+        req = self.submit()
+        data = {} if invalid == "data" else dict(req.data, **{invalid: []})
+        Request.objects.filter(id=req.id).update(data=data)
+        return req
+
     def test_validation_failures_still_mark_the_request_failed(self):
         # The validation failures fire before any claim exists, so
         # _request_error has nothing to fence on and must behave as before.
         # Guards against the optional fence being made mandatory.
-        for field in ("feature_ids", "datasets"):
-            with self.subTest(missing=field):
-                req = self.submit()
-                data = dict(req.data)
-                data[field] = []
-                Request.objects.filter(id=req.id).update(data=data)
+        for invalid in ("data", "feature_ids", "datasets"):
+            with self.subTest(invalid=invalid):
+                req = self.submit_invalid(invalid)
 
                 with mock.patch(
                     "analytics.management.commands.manage_user_requests._notify_user"
@@ -680,6 +776,22 @@ class SweepClaimTests(TestCase):
                 self.assertEqual(req.status, -2)
                 # Never claimed -- the error was written with no claim.
                 self.assertIsNone(req.process_time)
+
+    def test_dry_run_writes_no_status_for_validation_failures(self):
+        # --dry-run advertises "without making any changes to the database",
+        # and these three sites are the ones that fire before a claim exists.
+        # Each could permanently move a real queued request from -1 to -2.
+        for invalid in ("data", "feature_ids", "datasets"):
+            with self.subTest(invalid=invalid):
+                req = self.submit_invalid(invalid)
+
+                with mock.patch(
+                    "analytics.management.commands.manage_user_requests._notify_user"
+                ):
+                    _manage_user_requests(dry_run=True)
+
+                req.refresh_from_db()
+                self.assertEqual(req.status, -1)
 
     def test_error_before_a_claim_ignores_the_previous_requests_claim(self):
         # The claim the error fence uses is per-iteration. `claim` itself is a

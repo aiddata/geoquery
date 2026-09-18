@@ -31,10 +31,14 @@ from analytics.tasks.merge import merge_task_features, merge_task_results
 
 logger = getLogger(__name__)
 
-# How many times _swap_output_into_place retries moving a finished build into
-# place. Each retry costs two renames, and only a concurrent build landing
-# inside a sub-millisecond window forces one, so a small bound is plenty.
-_OUTPUT_SWAP_ATTEMPTS = 3
+# Retries _swap_output_into_place allows for *contention* -- a concurrent
+# build repopulating request_dir after we displace it. A rebuild over existing
+# output always spends one pass discovering that request_dir is occupied and
+# displacing it, and that expected first pass is not charged against this
+# budget: charging it meant a rebuild under sustained contention could raise
+# even though its output was complete, and the caller would then record
+# status=-2 for a request whose directory holds a valid build.
+_OUTPUT_SWAP_CONTENTION_RETRIES = 3
 
 # What os.replace reports when the destination is a non-empty directory --
 # the one swap failure that another build can cause and that retrying fixes.
@@ -140,23 +144,32 @@ def _manage_user_requests(
         # write and silently swallow it. The error handler must never raise
         # NameError either -- it runs while already handling a failure.
         error_claim = None
-        # `claim` is deliberately left unbound here: it exists only on the
-        # non-dry-run path, and the fences below read claim.claim_time. If a
-        # future edit ever reaches them without a claim, NameError is the
-        # right outcome -- a None claim_time would render as
-        # "process_time IS NULL" and quietly match a never-claimed row.
+        # `claim` is function-scope, not iteration-scope, so it must be reset
+        # here too: left over from the previous iteration it would silently
+        # fence this request's writes on *another* request's claim_time. Both
+        # names are reset for the same reason. None (rather than unbound) is
+        # safe because every read is `claim.claim_time`, which raises
+        # AttributeError -- loudly -- if a future edit reaches a fence without
+        # a claim. What must never happen is a None claim_time reaching the
+        # filter, where it renders as "process_time IS NULL" and quietly
+        # matches a never-claimed row.
+        claim = None
 
         try:
-            if not request_obj.data:
-                _request_error(request_id, "Invalid request (missing items field)")
-                continue
-            if not request_obj.data["feature_ids"]:
-                _request_error(request_id, "Invalid request (missing features)")
-                continue
-            if not request_obj.data["datasets"]:
-                _request_error(
-                    request_id, "Invalid request (missing dataset details)"
-                )
+            # One guard for all three validation failures rather than three:
+            # they are the only _request_error calls that fire before a claim
+            # exists, and each one was previously able to move a request to -2
+            # during a --dry-run.
+            invalid_reason = _validation_error(request_obj)
+            if invalid_reason:
+                if dry_run:
+                    logger.warning(
+                        "Dry run: request (id: %s) would be marked failed: %s",
+                        request_id,
+                        invalid_reason,
+                    )
+                else:
+                    _request_error(request_id, invalid_reason)
                 continue
 
             logger.info(
@@ -214,8 +227,9 @@ def _manage_user_requests(
                         ).update(status=0)
                     if not updated:
                         logger.warning(
-                            "Lost claim on request (id: %s) before finalize "
-                            "(reaped or taken over by another sweep) -- skipping",
+                            "Lost claim on request (id: %s) before requeueing "
+                            "it as not-ready (reaped or taken over by another "
+                            "sweep) -- leaving it to the current owner",
                             request_id,
                         )
                         continue
@@ -312,6 +326,22 @@ def _manage_user_requests(
     logger.info(
         "Finished User Request Management Script %s", time.strftime("%Y-%m-%d %H:%M:%S")
     )
+
+
+def _validation_error(request_obj):
+    """Why this request cannot be processed at all, or None if it is fine.
+
+    Deliberately raises rather than returns for a malformed `data` payload
+    (a missing key, say): that is an unexpected shape, and the caller's
+    handler records it with the traceback.
+    """
+    if not request_obj.data:
+        return "Invalid request (missing items field)"
+    if not request_obj.data["feature_ids"]:
+        return "Invalid request (missing features)"
+    if not request_obj.data["datasets"]:
+        return "Invalid request (missing dataset details)"
+    return None
 
 
 def _request_error(request_id, message, claim=None):
@@ -560,7 +590,7 @@ def _build_output(request, task_map, download_server, requests_dir, assets_dir):
     # swap is a same-filesystem rename: os.replace raises OSError across
     # devices, and tempfile.mkdtemp() may well land on a different one.
     build_dir = requests_dir / f".{request_id}.building.{uuid4().hex}"
-    build_dir.mkdir(parents=True, exist_ok=True)
+    build_dir.mkdir(parents=True)
 
     # make_zipfile writes to base_name + ".zip"; with the build directory as
     # base_name that is a uniquely-named sibling, so concurrent builds do not
@@ -641,24 +671,27 @@ def _swap_output_into_place(build_dir, request_dir):
     """Move a finished build directory onto request_dir.
 
     os.replace onto a *non-empty* directory raises ENOTEMPTY, so existing
-    output is moved aside atomically rather than deleted in place. Deleting it
-    first would leave a window in which a concurrent build can land its own
-    result at request_dir; our replace would then raise, and a sweep that
-    still holds its claim turns that into _request_error's status=-2 for a
-    request whose output is in fact complete. Displacing and retrying makes a
-    losing swap a no-op instead: the last successful replace wins, each
-    build's output is whole, and both builds return normally.
+    output has to be got out of the way first. It is moved aside rather than
+    deleted because a rename keeps the old copy intact: if the swap then
+    fails, that copy is put back and the user keeps output they could
+    previously download. Deleting would leave nothing to put back.
 
-    The only window left is between the move-aside and the replace, where
-    nothing exists at request_dir -- sub-millisecond, down from the minutes
-    the whole build used to take. Closing it entirely would mean making
-    request_dir a symlink and flipping it, which is not worth the complexity
-    here.
+    Either way there is a window between clearing request_dir and landing the
+    new build where nothing exists at that path. It is sub-millisecond, down
+    from the minutes the whole build used to take, and the retry below is what
+    makes it harmless: a concurrent build that lands its own output inside our
+    window just gets displaced in turn. Without the retry the loser raises,
+    and a sweep that still holds its claim turns that into _request_error's
+    status=-2 for a request whose output is in fact complete. Closing the
+    window outright would mean making request_dir a symlink and flipping it,
+    which is not worth the complexity here.
     """
     displaced = []
 
     try:
-        for attempt in range(_OUTPUT_SWAP_ATTEMPTS):
+        # One pass to discover request_dir is occupied and displace it, plus
+        # the contention budget. See _OUTPUT_SWAP_CONTENTION_RETRIES.
+        for attempt in range(_OUTPUT_SWAP_CONTENTION_RETRIES + 1):
             try:
                 os.replace(build_dir, request_dir)
             except OSError as exc:
@@ -668,7 +701,7 @@ def _swap_output_into_place(build_dir, request_dir):
                 # for nothing.
                 if exc.errno not in _SWAP_RETRY_ERRNOS:
                     raise
-                if attempt == _OUTPUT_SWAP_ATTEMPTS - 1:
+                if attempt == _OUTPUT_SWAP_CONTENTION_RETRIES:
                     raise
             else:
                 break
@@ -676,6 +709,14 @@ def _swap_output_into_place(build_dir, request_dir):
             # Output is in the way: ours from an earlier run, or a concurrent
             # build's, which is as valid as ours. Move it aside and retry
             # rather than failing the request.
+            #
+            # NOTE for whatever collects orphans: a ".replaced." directory can
+            # be the ONLY copy of a completed request's output. A hard kill
+            # between this rename and the replace above leaves request_dir
+            # absent with the whole output sitting here, and that request's
+            # download link 404s until someone puts it back. Such a directory
+            # must be restored to request_dir when request_dir is missing, and
+            # only deleted when it is not -- never globbed and deleted.
             aside = request_dir.with_name(
                 f".{request_dir.name}.replaced.{uuid4().hex}"
             )
@@ -691,7 +732,7 @@ def _swap_output_into_place(build_dir, request_dir):
         raise
 
     for aside in displaced:
-        shutil.rmtree(aside, ignore_errors=True)
+        _remove_output_path(aside)
 
 
 def _restore_displaced_output(displaced, request_dir):
@@ -705,7 +746,7 @@ def _restore_displaced_output(displaced, request_dir):
     if not displaced:
         return
 
-    if request_dir.exists():
+    if request_dir.exists() or request_dir.is_symlink():
         # A concurrent build's output is already in place and supersedes
         # every copy we moved aside.
         superseded = displaced
@@ -729,7 +770,24 @@ def _restore_displaced_output(displaced, request_dir):
         superseded = displaced[:-1]
 
     for aside in superseded:
-        shutil.rmtree(aside, ignore_errors=True)
+        _remove_output_path(aside)
+
+
+def _remove_output_path(path):
+    """Delete a displaced output path, whatever kind of thing it is.
+
+    shutil.rmtree(ignore_errors=True) silently does nothing for a file or a
+    symlink, and ENOTDIR -- which is exactly what a request_dir that exists as
+    a file produces -- is one of the errnos the swap retries on, so that case
+    is reachable rather than theoretical.
+    """
+    try:
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            path.unlink(missing_ok=True)
+    except OSError as exc:
+        logger.warning("Could not remove displaced output %s: %s", path, exc)
 
 
 def make_zipfile(base_name, base_dir):
