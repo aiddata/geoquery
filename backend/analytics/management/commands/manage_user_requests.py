@@ -10,8 +10,10 @@ import textwrap
 import time
 import zipfile
 from collections import defaultdict
+from datetime import datetime
 from logging import getLogger
 from pathlib import Path
+from typing import NamedTuple
 
 from datasets.models import Dataset, DatasetResource
 from django.core.management.base import BaseCommand
@@ -118,7 +120,11 @@ def _manage_user_requests(
         logger.info("Request (id: %s)\n%s", request_id, request_obj)
 
         completed_request_obj = None
-        claim_time = None
+        # `claim` is deliberately left unbound here: it exists only on the
+        # non-dry-run path, and the fences below read claim.claim_time. If a
+        # future edit ever reaches them without a claim, NameError is the
+        # right outcome -- a None claim_time would render as
+        # "process_time IS NULL" and quietly match a never-claimed row.
 
         try:
             if not request_obj.data:
@@ -142,8 +148,8 @@ def _manage_user_requests(
             # Phase 1 -- claim. dry_run takes no locks and writes no status;
             # it just reports on what it finds.
             if not dry_run:
-                claimed, original_status, claim_time = _claim_request(request_id)
-                if not claimed:
+                claim = _claim_request(request_id)
+                if not claim.claimed:
                     logger.info(
                         "Request (id: %s) claimed by another sweep or no longer "
                         "queued -- skipping",
@@ -154,11 +160,12 @@ def _manage_user_requests(
                 # Send the "received" acknowledgement as soon as the claim
                 # commits, not at the end of the iteration: a crash mid-build
                 # would otherwise lose it for good, because the reaper resets
-                # the request to status=0 and the retry then sees
-                # original_status == 0 and never sends it. It is also the
-                # right semantics -- "we received your request" should arrive
-                # before a multi-hour build, not after it.
-                if original_status == -1:
+                # the request to status=0 and the retry would see it as
+                # already acknowledged. It is also the right semantics --
+                # "we received your request" should arrive before a
+                # multi-hour build, not after it. Gated on first_claim (see
+                # _claim_request) so a re-claim never re-sends it.
+                if claim.first_claim:
                     try:
                         _notify_user(
                             request_id, request_obj.contact, 0, download_base, frontend_base
@@ -182,12 +189,12 @@ def _manage_user_requests(
                 if not dry_run:
                     with transaction.atomic():
                         updated = Request.objects.filter(
-                            id=request_id, status=2, process_time=claim_time
+                            id=request_id, status=2, process_time=claim.claim_time
                         ).update(status=0)
                     if not updated:
                         logger.warning(
-                            "Lost claim on request (id: %s) before finalize -- "
-                            "another sweep took it over; skipping",
+                            "Lost claim on request (id: %s) before finalize "
+                            "(reaped or taken over by another sweep) -- skipping",
                             request_id,
                         )
                         continue
@@ -213,13 +220,13 @@ def _manage_user_requests(
                 if not dry_run:
                     with transaction.atomic():
                         updated = Request.objects.filter(
-                            id=request_id, status=2, process_time=claim_time
+                            id=request_id, status=2, process_time=claim.claim_time
                         ).update(status=1, complete_time=timezone.now())
                     if not updated:
                         logger.warning(
-                            "Lost claim on request (id: %s) before finalize -- "
-                            "another sweep took it over; not sending completion "
-                            "email",
+                            "Lost claim on request (id: %s) before finalize "
+                            "(reaped or taken over by another sweep) -- not "
+                            "sending completion email",
                             request_id,
                         )
                         continue
@@ -343,18 +350,33 @@ def _notify_user(request_id, mail_to, status, download_base, frontend_base):
         raise Exception(f"Email send failed: {mail_status[1]}: {mail_status[2]}")
 
 
+class RequestClaim(NamedTuple):
+    """The outcome of one attempt to claim a request for processing."""
+
+    claimed: bool
+    original_status: int | None = None
+    claim_time: datetime | None = None
+    first_claim: bool = False
+
+
 def _claim_request(request_id):
     """Claim a request for processing, in its own short committed transaction.
 
-    Returns ``(claimed, original_status, claim_time)``, or
-    ``(False, None, None)`` when the claim fails -- because another sweep
-    already holds the row, or because the request's status moved out of -1/0
-    between selection and now.
+    Returns a :class:`RequestClaim`. ``RequestClaim(False)`` means the claim
+    failed -- because another sweep already holds the row, or because the
+    request's status moved out of -1/0 between selection and now.
 
     ``claim_time`` is the process_time written here, and doubles as a claim
     fence: the terminal status writes filter on it, so a sweep whose claim was
     taken over mid-build (the reaper resets a stale status=2 to 0, and another
     sweep re-claims) cannot finalize a request it no longer owns.
+
+    ``first_claim`` reports whether prepare_time was NULL before this claim,
+    i.e. whether the user has ever been sent the "we received your request"
+    acknowledgement. It gates that email. Status is the wrong gate: the
+    separate reset_errored_requests command blanket-resets status -2 -> -1
+    with raw SQL and never touches prepare_time, so gating on status would
+    re-send the acknowledgement once per error/reset cycle, unbounded.
 
     NOTE: this atomic() must be the outermost transaction for the claim to
     commit. If a future caller ever wraps _manage_user_requests in its own
@@ -379,19 +401,22 @@ def _claim_request(request_id):
         row = (
             Request.objects.select_for_update(skip_locked=True)
             .filter(id=request_id, status__in=(-1, 0))
-            .values("id", "status")
+            .values("id", "status", "prepare_time")
             .first()
         )
         if row is None:
-            return False, None, None
+            return RequestClaim(False)
 
         original_status = row["status"]
+        # prepare_time marks first acknowledgement, so it is written once and
+        # never overwritten on a later re-claim (reaped, or error-and-reset).
+        first_claim = row["prepare_time"] is None
         claim_time = timezone.now()
         updates = {"status": 2, "process_time": claim_time}
-        if original_status == -1:
+        if first_claim:
             updates["prepare_time"] = claim_time
         Request.objects.filter(id=request_id).update(**updates)
-        return True, original_status, claim_time
+        return RequestClaim(True, original_status, claim_time, first_claim)
 
 
 def _check_request_tasks(request, dry_run=False):

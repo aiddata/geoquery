@@ -6,6 +6,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from analytics.management.commands.manage_user_requests import (
+    RequestClaim,
     _claim_request,
     _manage_user_requests,
 )
@@ -222,20 +223,77 @@ class SweepClaimTests(TestCase):
     def test_claim_is_not_reclaimable_once_taken(self):
         # _claim_request's status__in=(-1, 0) filter is what makes the claim
         # exclusive: once it has moved the row to 2, a second sweep arriving
-        # with the same request_id gets (False, None) rather than a second
-        # claim on work already in flight.
+        # with the same request_id gets RequestClaim(False) rather than a
+        # second claim on work already in flight.
         req = self.submit()
 
-        claimed, original_status, claim_time = _claim_request(str(req.id))
-        self.assertTrue(claimed)
-        self.assertEqual(original_status, -1)
+        claim = _claim_request(str(req.id))
+        self.assertTrue(claim.claimed)
+        self.assertEqual(claim.original_status, -1)
+        self.assertTrue(claim.first_claim)
 
         req.refresh_from_db()
         self.assertEqual(req.status, 2)
         self.assertIsNotNone(req.prepare_time)
-        self.assertEqual(req.process_time, claim_time)
+        self.assertEqual(req.process_time, claim.claim_time)
 
-        self.assertEqual(_claim_request(str(req.id)), (False, None, None))
+        self.assertEqual(_claim_request(str(req.id)), RequestClaim(False))
+
+    def test_lost_claim_is_not_reverted_to_queued(self):
+        # Sibling of test_lost_claim_is_not_finalized for the not-ready path.
+        # Tasks are still pending, so the sweep takes the missing_items branch;
+        # the claim is taken over while it checks them. The stale owner must
+        # not write status=0 over the new owner's claim, which would make the
+        # request claimable by a third sweep while the new owner still builds.
+        req = self.submit()  # ExtractTasks left pending -> missing_items > 0
+
+        def takeover(*args, **kwargs):
+            Request.objects.filter(id=req.id).update(
+                status=2, process_time=timezone.now()
+            )
+            return 1, {}  # pending count, merge map
+
+        with mock.patch(
+            "analytics.management.commands.manage_user_requests._check_request_tasks",
+            side_effect=takeover,
+        ), mock.patch(
+            "analytics.management.commands.manage_user_requests._notify_user"
+        ):
+            _manage_user_requests()
+
+        req.refresh_from_db()
+        self.assertEqual(req.status, 2)
+
+    def test_received_email_is_not_resent_after_error_reset(self):
+        # reset_errored_requests blanket-resets status -2 -> -1 in raw SQL and
+        # never touches prepare_time. Gating the acknowledgement on status
+        # would therefore re-send it once per error/reset cycle, unbounded;
+        # gating on prepare_time (first_claim) sends it exactly once.
+        req = self.submit()
+        ExtractTask.objects.update(status=1)
+
+        with mock.patch(
+            "analytics.management.commands.manage_user_requests._build_output"
+        ), mock.patch(
+            "analytics.management.commands.manage_user_requests._notify_user"
+        ) as first_notify:
+            _manage_user_requests()
+
+        received = [c for c in first_notify.call_args_list if c.args[2] == 0]
+        self.assertEqual(len(received), 1)
+
+        # The error-and-reset cycle: status goes back to -1, prepare_time stays.
+        Request.objects.filter(id=req.id).update(status=-1)
+
+        with mock.patch(
+            "analytics.management.commands.manage_user_requests._build_output"
+        ), mock.patch(
+            "analytics.management.commands.manage_user_requests._notify_user"
+        ) as second_notify:
+            _manage_user_requests()
+
+        resent = [c for c in second_notify.call_args_list if c.args[2] == 0]
+        self.assertEqual(resent, [])
 
     def test_lost_claim_is_not_finalized(self):
         # The reaper (Task 2) resets a stale status=2 back to 0 after 30
