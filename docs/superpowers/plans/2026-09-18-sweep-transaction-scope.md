@@ -560,6 +560,7 @@ git commit -m "Build request output in a temp dir and rename into place"
 - [ ] A `reset_stale_requests` management command wraps it, with `--dry-run` and `--minutes` arguments, matching `free_stale_processing_tasks`'s interface.
 - [ ] A `reset_stale_requests` `@shared_task` in `maintenance.py` reads `STALE_TASK_MINUTES` (default 30) and logs how many were reset.
 - [ ] An hourly `CELERY_BEAT_SCHEDULE` entry runs it.
+- [ ] Abandoned `.{request_id}.building.*` directories older than the stale threshold are removed. Task 2 cleans these up on a raised failure, but a hard kill (SIGKILL/OOM) leaves them behind with nothing to collect them, so they accumulate in `requests_dir` indefinitely.
 
 **Verify:** `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_reset_stale_requests -v 2` → all tests pass.
 
@@ -722,9 +723,10 @@ def _reset_stale_requests(minutes: int, dry_run: bool = False) -> dict:
 
     Reset to 0 rather than -1 deliberately: -1 would make the retry treat it
     as newly queued and re-send the "request received" notification.
-    Retrying is safe because _build_output starts by removing the request
-    directory, so a partial build from the crashed attempt is discarded
-    rather than merged into.
+    Retrying is safe because _build_output (as of Task 2) builds into a
+    fresh unique temp directory and only swaps it into place at the end, so
+    a crashed attempt's partial output is never what a retry merges into or
+    what a user downloads.
 
     The NULL check is not defensive padding: `process_time IS NULL` is
     possible on rows that reached status=2 by some path other than
