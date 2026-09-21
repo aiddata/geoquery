@@ -1,3 +1,5 @@
+from unittest import mock
+
 import pandas as pd
 from django.contrib.gis.geos import Point
 from django.test import TestCase
@@ -248,3 +250,165 @@ class MergeTaskResultsTestCase(TestCase):
         status, df = merge_task_results({})
         self.assertEqual(status, "Empty")
         self.assertIsNone(df)
+
+
+class MergeQueryCountTestCase(TestCase):
+    """The merge must not issue queries proportional to the task count.
+
+    It used to run five per task -- ExtractTask, ExtractData, FeatMap,
+    FeatureCollection, DatasetResource. Each is ~0.1ms, so the cost was never
+    the queries themselves but the round trips: measured in production, a
+    1040-task request spent 3h38m in this function, ~2.5s per round trip,
+    because every one of them had to wait for a pooler server slot that the
+    extract-task claim storm was holding.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.dataset = Dataset.objects.create(name="ds1", path="/data/ds1", active=True)
+        cls.other = Dataset.objects.create(name="ds2", path="/data/ds2", active=True)
+        cls.po = ProcessingOption.objects.create(
+            dataset=cls.dataset, short_name="mean",
+            function="rasterstats_default_mean", active=True,
+        )
+        cls.fc = FeatureCollection.objects.create(
+            name="fc1", path="/data/fc1", active=True
+        )
+
+    def build(self, dataset, n, *, start=0):
+        """n tasks on `dataset`, each its own feature, one ExtractData row each."""
+        resource = DatasetResource.objects.create(
+            dataset=dataset, name=f"res_{dataset.id}_{start}", path=f"r_{dataset.id}_{start}.tif"
+        )
+        task_map = {}
+        for i in range(n):
+            feature = Feature.objects.create(shape=Point(start + i, 0))
+            fm = FeatMap.objects.create(
+                fc=self.fc, geom=feature, name=f"F{start + i}"
+            )
+            task = ExtractTask.objects.create(
+                resource_ids=[resource.id], dataset_id=dataset.id,
+                fm=fm, po=self.po, status=1, kwargs={"n": start + i},
+            )
+            ExtractData.objects.create(
+                extract_task=task, dataset_id=dataset.id, name="mean",
+                data_column="float", float_values=[float(start + i)],
+            )
+            task_map[task.id] = dataset.id
+        return task_map
+
+    def test_query_count_does_not_grow_with_task_count(self):
+        small = self.build(self.dataset, 2)
+        with self.assertNumQueries(5) as ctx:
+            status, df = merge_task_results(small)
+        self.assertEqual(status, "Success")
+        self.assertEqual(len(df), 2)
+        baseline = len(ctx.captured_queries)
+
+        big = self.build(self.dataset, 20, start=100)
+        with self.assertNumQueries(baseline):
+            status, df = merge_task_results(big)
+        self.assertEqual(status, "Success")
+        self.assertEqual(len(df), 20)
+
+    def test_each_dataset_stays_pruned(self):
+        task_map = {**self.build(self.dataset, 3), **self.build(self.other, 3, start=50)}
+
+        with self.assertNumQueries(7) as ctx:
+            status, df = merge_task_results(task_map)
+
+        self.assertEqual(status, "Success")
+        self.assertEqual(len(df), 6)
+        # Every extract_tasks/extract_data query must carry dataset_id, or it
+        # scans all 57 partitions instead of seeking one.
+        partitioned = [
+            q["sql"] for q in ctx.captured_queries
+            if "extract_task" in q["sql"] or "extract_data" in q["sql"]
+        ]
+        self.assertTrue(partitioned)
+        for sql in partitioned:
+            self.assertIn("dataset_id", sql, f"unpruned query: {sql[:200]}")
+
+
+    def test_chunking_reuses_cached_collections_and_resources(self):
+        # Chunking is what bounds memory for the 61k-task requests that exist
+        # in production. Feature collections and dataset resources are cached
+        # for the whole merge, so a second chunk must not re-fetch them: only
+        # the per-task queries repeat.
+        from analytics.tasks import merge as merge_module
+
+        task_map = self.build(self.dataset, 6, start=500)
+
+        with mock.patch.object(merge_module, "MERGE_CHUNK_SIZE", 2):
+            # 3 chunks x (tasks + data + featmaps), plus collections and
+            # resources fetched exactly once for the whole merge.
+            with self.assertNumQueries(3 * 3 + 1 + 1) as ctx:
+                status, df = merge_task_results(task_map)
+
+        self.assertEqual(status, "Success")
+        self.assertEqual(len(df), 6)
+
+        sql = [q["sql"] for q in ctx.captured_queries]
+        self.assertEqual(
+            sum(1 for q in sql if "feature_collections" in q), 1,
+            "feature collections were re-fetched per chunk",
+        )
+        self.assertEqual(
+            sum(1 for q in sql if "dataset_resources" in q), 1,
+            "dataset resources were re-fetched per chunk",
+        )
+
+
+class MergeTaskFeaturesQueryCountTestCase(TestCase):
+    """merge_task_features ran three queries per feature (FeatMap,
+    FeatureCollection, Feature) on top of merge_task_results' five per task."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.dataset = Dataset.objects.create(name="ds1", path="/data/ds1", active=True)
+        cls.po = ProcessingOption.objects.create(
+            dataset=cls.dataset, short_name="mean",
+            function="rasterstats_default_mean", active=True,
+        )
+        cls.fc = FeatureCollection.objects.create(
+            name="fc1", path="/data/fc1", active=True
+        )
+        cls.resource = DatasetResource.objects.create(
+            dataset=cls.dataset, name="res", path="r.tif"
+        )
+
+    def build(self, n, *, start=0):
+        task_map = {}
+        for i in range(n):
+            fm = FeatMap.objects.create(
+                fc=self.fc,
+                geom=Feature.objects.create(shape=Point(start + i, 0)),
+                name=f"F{start + i}",
+            )
+            task = ExtractTask.objects.create(
+                resource_ids=[self.resource.id], dataset_id=self.dataset.id,
+                fm=fm, po=self.po, status=1, kwargs={"n": start + i},
+            )
+            task_map[task.id] = self.dataset.id
+        return task_map
+
+    def test_query_count_does_not_grow_with_feature_count(self):
+        from analytics.tasks.merge import merge_task_features
+
+        small = self.build(2)
+        with self.assertNumQueries(4) as ctx:
+            status, gdf = merge_task_features(small)
+        self.assertEqual(status, "Success")
+        self.assertEqual(len(gdf), 2)
+        baseline = len(ctx.captured_queries)
+
+        big = self.build(20, start=100)
+        with self.assertNumQueries(baseline):
+            status, gdf = merge_task_features(big)
+        self.assertEqual(status, "Success")
+        self.assertEqual(len(gdf), 20)
+
+    def test_still_returns_empty_when_nothing_matches(self):
+        from analytics.tasks.merge import merge_task_features
+
+        self.assertEqual(merge_task_features({}), ("Empty", None))
