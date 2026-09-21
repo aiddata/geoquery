@@ -58,6 +58,23 @@ def _classify_value(value):
 CLAIM_LOCK_ID = 8419307742201
 
 
+def _claim_batch_size():
+    """How many tasks one claim grabs, and so how many ride in one message.
+
+    Every claim serializes on CLAIM_LOCK_ID, and a claimer waiting for that
+    lock holds a pgBouncer server connection while it waits. run_extract_task
+    self-chains, so with N worker slots the fleet issues one claim per task
+    completed -- measured in production as 32 of 39 active connections parked
+    on this lock doing nothing, which starved every other workload sharing
+    the pooler (request builds, MCP) of connections. Claiming B tasks per
+    message divides both the lock acquisitions and those parked connections
+    by B.
+    """
+    from django.conf import settings
+
+    return max(1, getattr(settings, "EXTRACT_TASK_CLAIM_BATCH", 4))
+
+
 def claim_pending_tasks(limit=1):
     """Move up to ``limit`` pending tasks (status=0) to queued (status=3).
 
@@ -146,31 +163,65 @@ def claim_pending_tasks(limit=1):
             return ids
 
 
-def dispatch_pending_tasks(limit=1):
-    """Claim up to ``limit`` pending tasks and send each to the processing queue."""
+def dispatch_pending_tasks(limit=None, batch_size=None):
+    """Claim up to ``limit`` pending tasks and send them to the processing queue.
+
+    ``limit`` counts tasks; they are published in messages of ``batch_size``
+    tasks each, so this issues one claim (one advisory lock acquisition) for
+    what used to take ``limit`` of them. Returns the claimed task ids.
+    """
+    if batch_size is None:
+        batch_size = _claim_batch_size()
+    if limit is None:
+        limit = batch_size
+
     task_ids = claim_pending_tasks(limit)
-    for task_id in task_ids:
-        run_extract_task.delay(task_id)
+    for start in range(0, len(task_ids), batch_size):
+        run_extract_task.delay(task_ids[start : start + batch_size])
     return task_ids
 
 
 @shared_task
-def run_extract_task(task_id):
-    """Run a single extract task by ID, then dispatch the next pending one.
+def run_extract_task(task_ids):
+    """Run a batch of extract tasks by ID, then dispatch a replacement batch.
 
-    Every exit path -- success, failure, or a no-op because the row was
-    already taken -- chains into the next task, so the worker slot stays busy
-    without waiting for the dispatch_processing_tasks beat.
+    Every exit path -- success, failure, or a no-op because a row was already
+    taken -- chains into the next batch, so the worker slot stays busy without
+    waiting for the dispatch_processing_tasks beat. Exactly one message is
+    dispatched per message consumed, which is what keeps the fleet at steady
+    state: the beat tops up to one in-flight message per slot, and a chain
+    that fanned out would grow without bound.
     """
+    # A bare id arrives from any pod still running a build that published one
+    # task per message. Harmless to keep permanently, and it is what makes a
+    # rolling deploy safe in both directions.
+    if not isinstance(task_ids, (list, tuple)):
+        task_ids = [task_ids]
+
+    results = []
+    failures = []
     try:
-        return _run_extract_task(task_id)
+        for task_id in task_ids:
+            try:
+                results.append(_run_extract_task(task_id))
+            except Exception as exc:
+                # The rest of this batch is already claimed (status=3), so
+                # letting the first failure abort the message would strand
+                # them until free_stale_processing_tasks reaps them half an
+                # hour later. Run them all, then surface the first failure so
+                # the message is still recorded as failed.
+                logger.exception("Extract task %s failed", task_id)
+                failures.append(exc)
+        if failures:
+            raise failures[0]
+        return results
     finally:
         try:
-            dispatch_pending_tasks(1)
+            dispatch_pending_tasks()
         except Exception:
-            # Don't let a broker hiccup replace this task's own outcome. The
+            # Don't let a broker hiccup replace this batch's own outcome. The
             # beat bootstraps a replacement chain on its next tick.
-            logger.exception("Task %s could not dispatch a successor", task_id)
+            logger.exception("Tasks %s could not dispatch a successor", task_ids)
 
 
 def _positions_needing_processing(n, existing_rows):
