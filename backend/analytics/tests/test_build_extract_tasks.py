@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from unittest import mock
 
 from django.contrib.gis.geos import Point
 from django.db import connection
@@ -184,3 +185,82 @@ class BuildExtractTasksGroupingTest(TransactionTestCase):
         self.assertIsNotNone(insert_idx, "expected the batch INSERT for this pair to run")
         self.assertLess(claim_idx, touch_idx, "per-pair touch must come after the page-claim")
         self.assertLess(touch_idx, insert_idx, "per-pair touch must come before that pair's own batch runs")
+
+
+class BuildRunDispatchGuardTest(TransactionTestCase):
+    """The run-lock is what makes an hourly build beat safe.
+
+    The beat fires hourly so a wave killed mid-flight (rolling deploy,
+    eviction, OOM) resumes within the hour instead of waiting for the next
+    daily tick -- the run-lock and per-pair claims expire on their own, so
+    the work is claimable again, but nothing re-dispatched workers to claim
+    it. Firing that often is only safe because try_acquire_build_run refuses
+    to launch a second fan-out on top of a live one.
+    """
+
+    def set_run(self, *, in_progress, minutes_ago):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO extract_task_build_run (id, in_progress, last_progress_at)
+                VALUES (1, %s, NOW() - (%s || ' minutes')::interval)
+                ON CONFLICT (id) DO UPDATE
+                SET in_progress = EXCLUDED.in_progress,
+                    last_progress_at = EXCLUDED.last_progress_at
+                """,
+                [in_progress, str(minutes_ago)],
+            )
+
+    def test_a_live_wave_is_not_duplicated(self):
+        from analytics.tasks import maintenance
+
+        self.set_run(in_progress=True, minutes_ago=1)
+
+        with mock.patch.object(
+            maintenance.build_extract_tasks_worker, "delay"
+        ) as delay:
+            maintenance.build_extract_tasks()
+
+        delay.assert_not_called()
+
+    def test_a_dead_wave_is_restarted(self):
+        # RUN_STALE_MINUTES is 30; this is the case the hourly beat exists
+        # for -- workers gone, lock still flagged in_progress, nothing
+        # re-dispatching them.
+        from analytics.management.commands.build_extract_tasks import (
+            RUN_STALE_MINUTES,
+        )
+        from analytics.tasks import maintenance
+
+        self.set_run(in_progress=True, minutes_ago=RUN_STALE_MINUTES + 5)
+
+        with mock.patch.object(
+            maintenance.build_extract_tasks_worker, "delay"
+        ) as delay:
+            maintenance.build_extract_tasks()
+
+        self.assertEqual(delay.call_count, maintenance.N_EXTRACT_TASK_BUILDERS)
+
+    def test_an_idle_run_lock_dispatches(self):
+        from analytics.tasks import maintenance
+
+        self.set_run(in_progress=False, minutes_ago=1)
+
+        with mock.patch.object(
+            maintenance.build_extract_tasks_worker, "delay"
+        ) as delay:
+            maintenance.build_extract_tasks()
+
+        self.assertEqual(delay.call_count, maintenance.N_EXTRACT_TASK_BUILDERS)
+
+
+class BuildBeatScheduleTest(TransactionTestCase):
+    def test_build_extract_tasks_runs_hourly(self):
+        from django.conf import settings
+
+        entry = settings.CELERY_BEAT_SCHEDULE["build-extract-tasks"]
+        self.assertEqual(
+            entry["task"], "analytics.tasks.maintenance.build_extract_tasks"
+        )
+        # crontab with only `minute` set fires every hour at that minute.
+        self.assertEqual(set(entry["schedule"].hour), set(range(24)))

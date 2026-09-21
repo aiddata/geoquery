@@ -506,7 +506,24 @@ CELERY_BEAT_SCHEDULE = {
     },
     "build-extract-tasks": {
         "task": "analytics.tasks.maintenance.build_extract_tasks",
-        "schedule": crontab(hour=3, minute=30),
+        # Hourly rather than daily so an interrupted wave resumes within the
+        # hour. A wave is a fan-out of long-running workers, and anything that
+        # kills them mid-flight -- a rolling deploy, an eviction, an OOM --
+        # used to cost up to a full day of task generation: the run-lock and
+        # the per-pair claims both expire on their own (RUN_STALE_MINUTES /
+        # CLAIM_STALE_MINUTES), so the work is immediately *claimable* again,
+        # but nothing re-dispatched workers to claim it until the next daily
+        # tick. Observed in production: a deploy killed a wave at 15:44 with
+        # 2,503 of 2,752 pairs unbuilt, and nothing would have touched them
+        # for another ~12 hours.
+        #
+        # Safe to fire this often because build_extract_tasks is guarded by
+        # try_acquire_build_run: while a wave's heartbeat is fresh the call
+        # logs and returns instead of launching a second fan-out. That guard
+        # is what makes this a top-up rather than a stampede -- the same shape
+        # as dispatch_processing_tasks, which already fills gaps left by dead
+        # chains.
+        "schedule": crontab(minute=30),
     },
     "run-user-outreach": {
         "task": "analytics.tasks.maintenance.run_user_outreach",
