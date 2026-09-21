@@ -166,7 +166,26 @@ def build_stats_report():
     return {"status": status}
 
 
-N_EXTRACT_TASK_BUILDERS = 6
+def _n_extract_task_builders():
+    """How many build workers one wave fans out to.
+
+    Each one holds a pooler connection for the length of its INSERT batch --
+    measured in production at 11-20s a transaction, against milliseconds for
+    everything processing does. Six of them running concurrently roughly
+    halved extract task throughput (~43k/min with the builder idle, ~22k/min
+    with it running), and that penalty lands on user-requested tasks too:
+    a request's tasks are priority-bumped ahead of the backlog, but they
+    still run at whatever rate the fleet is managing.
+
+    Build-out is not urgent -- it is already outpacing processing roughly
+    3:1 -- so trading builder parallelism for processing throughput favours
+    the work someone is actually waiting on. Raise it when the queue is
+    drained and building is the thing gating progress.
+    """
+    from django.conf import settings
+
+    return max(1, getattr(settings, "N_EXTRACT_TASK_BUILDERS", 2))
+
 
 
 @shared_task
@@ -187,7 +206,7 @@ def build_extract_tasks():
     )
 
     if try_acquire_build_run():
-        for _ in range(N_EXTRACT_TASK_BUILDERS):
+        for _ in range(_n_extract_task_builders()):
             build_extract_tasks_worker.delay()
     else:
         logger.info("build_extract_tasks: a wave is already in progress, not dispatching another")

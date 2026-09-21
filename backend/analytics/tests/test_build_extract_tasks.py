@@ -239,7 +239,7 @@ class BuildRunDispatchGuardTest(TransactionTestCase):
         ) as delay:
             maintenance.build_extract_tasks()
 
-        self.assertEqual(delay.call_count, maintenance.N_EXTRACT_TASK_BUILDERS)
+        self.assertEqual(delay.call_count, maintenance._n_extract_task_builders())
 
     def test_an_idle_run_lock_dispatches(self):
         from analytics.tasks import maintenance
@@ -251,7 +251,37 @@ class BuildRunDispatchGuardTest(TransactionTestCase):
         ) as delay:
             maintenance.build_extract_tasks()
 
-        self.assertEqual(delay.call_count, maintenance.N_EXTRACT_TASK_BUILDERS)
+        self.assertEqual(delay.call_count, maintenance._n_extract_task_builders())
+
+    def test_builder_parallelism_is_configurable(self):
+        # Each worker holds a pooler connection for an 11-20s INSERT batch,
+        # so this is the knob that trades build-out speed for extract
+        # throughput. Tunable by env var, no deploy needed.
+        from analytics.tasks import maintenance
+
+        self.set_run(in_progress=False, minutes_ago=1)
+
+        with (
+            mock.patch.object(maintenance.build_extract_tasks_worker, "delay") as delay,
+            self.settings(N_EXTRACT_TASK_BUILDERS=5),
+        ):
+            maintenance.build_extract_tasks()
+
+        self.assertEqual(delay.call_count, 5)
+
+    def test_builder_parallelism_never_drops_below_one(self):
+        # A 0 would silently stop building altogether rather than slow it.
+        from analytics.tasks import maintenance
+
+        self.set_run(in_progress=False, minutes_ago=1)
+
+        with (
+            mock.patch.object(maintenance.build_extract_tasks_worker, "delay") as delay,
+            self.settings(N_EXTRACT_TASK_BUILDERS=0),
+        ):
+            maintenance.build_extract_tasks()
+
+        self.assertEqual(delay.call_count, 1)
 
 
 class BuildBeatScheduleTest(TransactionTestCase):

@@ -467,6 +467,11 @@ STALE_TASK_MINUTES = int(os.environ.get("STALE_TASK_MINUTES", "30"))
 # multiplies this by idle slots when topping up, which _MAX_CLAIM_ROWS in
 # processing.py bounds -- see the bind-parameter ceiling noted there.
 EXTRACT_TASK_CLAIM_BATCH = int(os.environ.get("EXTRACT_TASK_CLAIM_BATCH", "64"))
+
+# Parallel workers one extract-task build wave fans out to. Each holds a
+# pooler connection for an 11-20s INSERT batch, so this trades build-out
+# speed against extract throughput -- see _n_extract_task_builders.
+N_EXTRACT_TASK_BUILDERS = int(os.environ.get("N_EXTRACT_TASK_BUILDERS", "2"))
 CELERY_BEAT_SCHEDULE = {
     "free-stale-processing-tasks": {
         "task": "analytics.tasks.maintenance.free_stale_processing_tasks",
