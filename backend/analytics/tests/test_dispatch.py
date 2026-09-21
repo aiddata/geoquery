@@ -4,7 +4,7 @@ from unittest import mock
 
 from django.contrib.gis.geos import Point
 from django.db import connection
-from django.test import TestCase, TransactionTestCase
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 
 from analytics.management.commands.free_stale_processing_tasks import _free_stale_tasks
@@ -314,6 +314,7 @@ class BeatDispatchTests(TestCase):
             result = maintenance.dispatch_processing_tasks()
         return result, inspect, run
 
+    @override_settings(EXTRACT_TASK_CLAIM_BATCH=4)
     def test_counts_slots_and_in_flight_from_processing_workers_only(self):
         # Replies from the background worker are present in every payload and
         # must not contribute to either side of the slot arithmetic.
@@ -388,7 +389,10 @@ class ClaimBatchingTests(TestCase):
     def test_one_message_carries_a_whole_batch(self):
         tasks = [self.make_task() for _ in range(4)]
 
-        with mock.patch.object(run_extract_task, "delay") as delay:
+        with (
+            mock.patch.object(run_extract_task, "delay") as delay,
+            self.settings(EXTRACT_TASK_CLAIM_BATCH=4),
+        ):
             claimed = processing.dispatch_pending_tasks()
 
         self.assertEqual(len(claimed), 4)
@@ -403,10 +407,11 @@ class ClaimBatchingTests(TestCase):
             mock.patch.object(
                 processing, "claim_pending_tasks", wraps=processing.claim_pending_tasks
             ) as claim,
+            self.settings(EXTRACT_TASK_CLAIM_BATCH=4),
         ):
             processing.dispatch_pending_tasks()
 
-        # The whole point: 4 tasks, 1 advisory lock acquisition.
+        # The whole point: one advisory lock acquisition for the batch.
         claim.assert_called_once_with(4)
 
     def test_finishing_a_batch_dispatches_exactly_one_batch(self):
@@ -420,6 +425,7 @@ class ClaimBatchingTests(TestCase):
         with (
             mock.patch.object(processing, "get_func", return_value=lambda g, p, **kw: []),
             mock.patch.object(run_extract_task, "delay") as delay,
+            self.settings(EXTRACT_TASK_CLAIM_BATCH=4),
         ):
             run_extract_task([t.id for t in running])
 
@@ -487,7 +493,10 @@ class ClaimBatchingTests(TestCase):
         for _ in range(5):
             self.make_task()
 
-        with mock.patch.object(run_extract_task, "delay") as delay:
+        with (
+            mock.patch.object(run_extract_task, "delay") as delay,
+            self.settings(EXTRACT_TASK_CLAIM_BATCH=4),
+        ):
             claimed = processing.dispatch_pending_tasks(limit=5)
 
         self.assertEqual(len(claimed), 5)

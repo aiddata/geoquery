@@ -445,12 +445,25 @@ CELERY_TASK_ROUTES = {
 
 STALE_TASK_MINUTES = int(os.environ.get("STALE_TASK_MINUTES", "30"))
 
-# Extract tasks claimed (and published) per processing message. Every claim
-# serializes on one advisory lock while holding a pooler connection, so this
-# divides both the lock acquisitions and the connections parked waiting on it.
-# Raise it if the claim is still the bottleneck; lower it if a worker dying
-# mid-batch leaves too much work for free_stale_processing_tasks to recover.
-EXTRACT_TASK_CLAIM_BATCH = int(os.environ.get("EXTRACT_TASK_CLAIM_BATCH", "4"))
+# Extract tasks claimed (and published) per processing message.
+#
+# The claim asks for the globally highest-priority pending task, and
+# extract_tasks is LIST partitioned on dataset_id, so the query cannot name a
+# partition: Postgres merge-sorts all 56 partition indexes to return 4 rows.
+# Measured on production: ~125ms and ~33k buffer hits per claim. Every one
+# runs under pg_advisory_xact_lock, so they are strictly serialized and the
+# whole fleet shares a ceiling of roughly 8-15 claims/sec however many
+# workers are running.
+#
+# That makes throughput ~= claims/sec x this number. Going 1 -> 4 took
+# production from ~975 to ~3,600 tasks/min, and the claim was still ~79% of
+# each message's cost afterwards: actual extraction is ~0.15s/task, so with
+# 384 slots there is room for ~2,560 tasks/sec before real work binds.
+#
+# Raise it while the claim is still the bottleneck. The cost of raising it is
+# blast radius: a worker dying mid-batch strands up to this many tasks until
+# free_stale_processing_tasks reaps them (STALE_TASK_MINUTES).
+EXTRACT_TASK_CLAIM_BATCH = int(os.environ.get("EXTRACT_TASK_CLAIM_BATCH", "16"))
 CELERY_BEAT_SCHEDULE = {
     "free-stale-processing-tasks": {
         "task": "analytics.tasks.maintenance.free_stale_processing_tasks",
