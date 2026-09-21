@@ -3,6 +3,7 @@ import tempfile
 import time
 from datetime import timedelta
 from pathlib import Path
+from unittest import mock
 from uuid import uuid4
 
 from django.test import TestCase
@@ -10,6 +11,7 @@ from django.utils import timezone
 
 from analytics.management.commands.reset_stale_requests import (
     _clean_orphan_output_dirs,
+    _redispatch_unmaterialized_requests,
     _reset_stale_requests,
 )
 from analytics.models import Request
@@ -315,3 +317,101 @@ class OrphanCollectorLivenessTests(TestCase):
 
         self.assertEqual(result["removed"], 1)
         self.assertFalse(build.exists())
+
+
+class RedispatchUnmaterializedRequestsTests(TestCase):
+    """Recovery for requests stranded at status=4 (materializing).
+
+    materialize_request_tasks turns its own failures into status=-2, so a
+    request only sits at 4 when that task never ran at all: the post_save
+    signal never fired, or the message was lost (broker outage, or the
+    0.43.1 incident where the task wasn't registered and every worker
+    dropped it with a KeyError). Nothing else looks at status=4 -- the
+    completion sweep selects only -1 and 0 -- so those requests were
+    stranded permanently and silently, with the submitter having had a
+    confirmation and nothing since.
+
+    Re-dispatching is safe because materialize_request is idempotent by
+    design: it deletes any RequestMap rows already attached before
+    recreating them, precisely so a re-trigger of a stuck request cannot
+    duplicate them.
+    """
+
+    def make(self, *, status=4, age_minutes=None):
+        req = Request.objects.create(
+            contact="a@example.com", status=status, data={}
+        )
+        if age_minutes is not None:
+            Request.objects.filter(id=req.id).update(
+                submit_time=timezone.now() - timedelta(minutes=age_minutes)
+            )
+        return req
+
+    def test_stuck_request_is_redispatched(self):
+        req = self.make(age_minutes=90)
+
+        with mock.patch(
+            "analytics.tasks.requests.materialize_request_tasks.delay"
+        ) as delay:
+            result = _redispatch_unmaterialized_requests(30)
+
+        delay.assert_called_once_with(str(req.id))
+        self.assertEqual(result["redispatched"], 1)
+        req.refresh_from_db()
+        self.assertEqual(req.status, 4, "the sweep must not change status itself")
+
+    def test_recent_request_is_left_alone(self):
+        # Materialization normally finishes in seconds; a request submitted
+        # moments ago is in-flight, not stuck.
+        self.make(age_minutes=2)
+
+        with mock.patch(
+            "analytics.tasks.requests.materialize_request_tasks.delay"
+        ) as delay:
+            result = _redispatch_unmaterialized_requests(30)
+
+        delay.assert_not_called()
+        self.assertEqual(result["redispatched"], 0)
+
+    def test_other_statuses_are_never_touched(self):
+        for status in (-2, -1, 0, 1, 2, 3):
+            self.make(status=status, age_minutes=90)
+
+        with mock.patch(
+            "analytics.tasks.requests.materialize_request_tasks.delay"
+        ) as delay:
+            result = _redispatch_unmaterialized_requests(30)
+
+        delay.assert_not_called()
+        self.assertEqual(result["redispatched"], 0)
+
+    def test_dry_run_reports_without_dispatching(self):
+        self.make(age_minutes=90)
+
+        with mock.patch(
+            "analytics.tasks.requests.materialize_request_tasks.delay"
+        ) as delay:
+            result = _redispatch_unmaterialized_requests(30, dry_run=True)
+
+        delay.assert_not_called()
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(result["redispatched"], 0)
+
+    def test_a_broker_failure_does_not_abort_the_sweep(self):
+        # One unreachable broker must not strand every other stuck request;
+        # the next hourly pass retries whatever failed.
+        first = self.make(age_minutes=90)
+        second = self.make(age_minutes=91)
+
+        with mock.patch(
+            "analytics.tasks.requests.materialize_request_tasks.delay",
+            side_effect=[OSError("broker down"), None],
+        ) as delay:
+            result = _redispatch_unmaterialized_requests(30)
+
+        self.assertEqual(delay.call_count, 2)
+        self.assertEqual(result["redispatched"], 1)
+        self.assertEqual(result["failed"], 1)
+        for req in (first, second):
+            req.refresh_from_db()
+            self.assertEqual(req.status, 4)
