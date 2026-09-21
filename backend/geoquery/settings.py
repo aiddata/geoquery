@@ -460,10 +460,13 @@ STALE_TASK_MINUTES = int(os.environ.get("STALE_TASK_MINUTES", "30"))
 # each message's cost afterwards: actual extraction is ~0.15s/task, so with
 # 384 slots there is room for ~2,560 tasks/sec before real work binds.
 #
-# Raise it while the claim is still the bottleneck. The cost of raising it is
+# 4 -> 16 scaled again, to ~14,900 tasks/min, so the claim was still the
+# limit there too. Raise it while that holds. The cost of raising it is
 # blast radius: a worker dying mid-batch strands up to this many tasks until
-# free_stale_processing_tasks reaps them (STALE_TASK_MINUTES).
-EXTRACT_TASK_CLAIM_BATCH = int(os.environ.get("EXTRACT_TASK_CLAIM_BATCH", "16"))
+# free_stale_processing_tasks reaps them (STALE_TASK_MINUTES). Note the beat
+# multiplies this by idle slots when topping up, which _MAX_CLAIM_ROWS in
+# processing.py bounds -- see the bind-parameter ceiling noted there.
+EXTRACT_TASK_CLAIM_BATCH = int(os.environ.get("EXTRACT_TASK_CLAIM_BATCH", "64"))
 CELERY_BEAT_SCHEDULE = {
     "free-stale-processing-tasks": {
         "task": "analytics.tasks.maintenance.free_stale_processing_tasks",

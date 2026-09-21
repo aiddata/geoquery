@@ -163,19 +163,46 @@ def claim_pending_tasks(limit=1):
             return ids
 
 
+# Most tasks one claim statement may take, however large a limit the caller
+# asks for. Two reasons, both reachable only from the beat's cold-start
+# top-up (idle slots x batch size), never from the steady-state self-chain:
+#
+# The UPDATE builds one VALUES row per task, two bind parameters each, and
+# PostgreSQL's limit is 65535 -- so a single claim of 32768+ tasks fails
+# outright. At 384 slots and batch 64 the beat would already ask for 24576.
+#
+# And the claim runs under CLAIM_LOCK_ID, so the whole fleet waits on it. The
+# SELECT merge-appends 56 partition indexes; asking for tens of thousands of
+# rows in priority order turns a ~125ms hold into a multi-second one during
+# exactly the cold start that rolling deploys create.
+#
+# Splitting costs an extra lock acquisition per chunk, which is only paid
+# when filling a large number of idle slots at once.
+_MAX_CLAIM_ROWS = 1024
+
+
 def dispatch_pending_tasks(limit=None, batch_size=None):
     """Claim up to ``limit`` pending tasks and send them to the processing queue.
 
     ``limit`` counts tasks; they are published in messages of ``batch_size``
     tasks each, so this issues one claim (one advisory lock acquisition) for
-    what used to take ``limit`` of them. Returns the claimed task ids.
+    what used to take ``limit`` of them. Large limits are claimed in chunks of
+    at most _MAX_CLAIM_ROWS. Returns the claimed task ids.
     """
     if batch_size is None:
         batch_size = _claim_batch_size()
     if limit is None:
         limit = batch_size
 
-    task_ids = claim_pending_tasks(limit)
+    task_ids = []
+    remaining = limit
+    while remaining > 0:
+        chunk = claim_pending_tasks(min(remaining, _MAX_CLAIM_ROWS))
+        if not chunk:
+            break
+        task_ids.extend(chunk)
+        remaining -= len(chunk)
+
     for start in range(0, len(task_ids), batch_size):
         run_extract_task.delay(task_ids[start : start + batch_size])
     return task_ids

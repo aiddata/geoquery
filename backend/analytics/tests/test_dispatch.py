@@ -501,3 +501,49 @@ class ClaimBatchingTests(TestCase):
 
         self.assertEqual(len(claimed), 5)
         self.assertEqual([len(c.args[0]) for c in delay.call_args_list], [4, 1])
+
+    def test_a_large_limit_is_claimed_in_bounded_chunks(self):
+        # The beat's cold-start top-up asks for idle_slots x batch_size, which
+        # at 384 slots and batch 64 is 24576 tasks. One claim that size builds
+        # 49152 bind parameters (PostgreSQL's ceiling is 65535) and holds
+        # CLAIM_LOCK_ID -- which the whole fleet queues on -- while merge
+        # appending 56 partition indexes.
+        for _ in range(9):
+            self.make_task()
+
+        with (
+            mock.patch.object(run_extract_task, "delay"),
+            mock.patch.object(processing, "_MAX_CLAIM_ROWS", 4),
+            mock.patch.object(
+                processing, "claim_pending_tasks", wraps=processing.claim_pending_tasks
+            ) as claim,
+            self.settings(EXTRACT_TASK_CLAIM_BATCH=2),
+        ):
+            claimed = processing.dispatch_pending_tasks(limit=9)
+
+        self.assertEqual(len(claimed), 9)
+        # 4, 4, then only the 1 still outstanding -- never over-claiming.
+        self.assertEqual(
+            [c.args[0] for c in claim.call_args_list], [4, 4, 1],
+            "a large limit must be split into chunks of at most _MAX_CLAIM_ROWS",
+        )
+
+    def test_chunked_claiming_stops_when_the_queue_runs_dry(self):
+        # Without the empty-chunk break this would spin until `remaining` was
+        # exhausted, re-running the 56-partition claim query for nothing.
+        for _ in range(3):
+            self.make_task()
+
+        with (
+            mock.patch.object(run_extract_task, "delay"),
+            mock.patch.object(processing, "_MAX_CLAIM_ROWS", 2),
+            mock.patch.object(
+                processing, "claim_pending_tasks", wraps=processing.claim_pending_tasks
+            ) as claim,
+            self.settings(EXTRACT_TASK_CLAIM_BATCH=2),
+        ):
+            claimed = processing.dispatch_pending_tasks(limit=100)
+
+        self.assertEqual(len(claimed), 3)
+        # 2, 1, then an empty probe that ends the loop.
+        self.assertEqual(claim.call_count, 3)
