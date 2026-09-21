@@ -208,7 +208,16 @@ def dispatch_pending_tasks(limit=None, batch_size=None):
     return task_ids
 
 
-@shared_task
+# ignore_result: this is ~100% of the rows in django_celery_results_taskresult
+# (measured in production, result rows tracked task messages 1:1 at ~775/min),
+# and nothing reads them -- the self-chain drops its own return value and
+# dispatch_processing_tasks sizes its top-up from worker introspection, not the
+# result backend. Safe specifically because this task is never a chord member:
+# the one chord in the codebase (sweep_coverage_records) has
+# test_coverage_for_dataset as its header and build_extract_tasks as its body,
+# and a chord is the one primitive that genuinely needs results to count
+# completions. Do NOT set task_ignore_result globally for that reason.
+@shared_task(ignore_result=True)
 def run_extract_task(task_ids):
     """Run a batch of extract tasks by ID, then dispatch a replacement batch.
 

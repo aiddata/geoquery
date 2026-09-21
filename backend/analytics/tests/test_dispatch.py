@@ -547,3 +547,26 @@ class ClaimBatchingTests(TestCase):
         self.assertEqual(len(claimed), 3)
         # 2, 1, then an empty probe that ends the loop.
         self.assertEqual(claim.call_count, 3)
+
+    def test_extract_task_results_are_not_persisted(self):
+        # run_extract_task was ~100% of django_celery_results_taskresult, which
+        # nothing reads and nothing pruned. Safe only because this task is
+        # never a chord member -- a chord counts completions via the result
+        # backend, so ignoring results there would hang it silently.
+        self.assertTrue(
+            run_extract_task.ignore_result,
+            "run_extract_task must not persist results",
+        )
+
+    def test_chord_member_tasks_still_persist_results(self):
+        # sweep_coverage_records chords test_coverage_for_dataset -> 
+        # build_extract_tasks. If either stopped recording results the chord
+        # would never fire its body.
+        from analytics.tasks.coverage import test_coverage_for_dataset
+        from analytics.tasks.maintenance import build_extract_tasks
+
+        for task in (test_coverage_for_dataset, build_extract_tasks):
+            self.assertFalse(
+                task.ignore_result,
+                f"{task.name} is part of a chord and needs its result recorded",
+            )

@@ -433,6 +433,11 @@ CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "django-db")
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
+# Results are written for every task that does not opt out, and nothing ever
+# pruned them: celery.backend_cleanup was not in the beat schedule, so the
+# table had grown to 2.8M rows / 4.4GB in 43 hours with no upper bound. The
+# cleanup task only runs if it is scheduled (see CELERY_BEAT_SCHEDULE below).
+CELERY_RESULT_EXPIRES = int(os.environ.get("CELERY_RESULT_EXPIRES", str(60 * 60 * 24)))
 CELERY_TIMEZONE = TIME_ZONE
 
 # Two-queue split: only the raster extract task (which needs /data) runs on the
@@ -508,6 +513,13 @@ CELERY_BEAT_SCHEDULE = {
     "sweep-coverage-records": {
         "task": "analytics.tasks.maintenance.sweep_coverage_records",
         "schedule": crontab(hour=3, minute=0),
+    },
+    # Deletes results older than CELERY_RESULT_EXPIRES. Celery ships this task
+    # but does not schedule it here, so without this entry nothing bounded the
+    # result table at all.
+    "celery-backend-cleanup": {
+        "task": "celery.backend_cleanup",
+        "schedule": crontab(hour=4, minute=0),
     },
     "build-extract-tasks": {
         "task": "analytics.tasks.maintenance.build_extract_tasks",

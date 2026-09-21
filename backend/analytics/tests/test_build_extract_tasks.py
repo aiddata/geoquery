@@ -294,3 +294,15 @@ class BuildBeatScheduleTest(TransactionTestCase):
         )
         # crontab with only `minute` set fires every hour at that minute.
         self.assertEqual(set(entry["schedule"].hour), set(range(24)))
+
+    def test_result_backend_cleanup_is_scheduled(self):
+        # Without this entry nothing prunes django_celery_results_taskresult;
+        # it had reached 2.8M rows / 4.4GB in 43 hours unbounded.
+        from django.conf import settings
+
+        self.assertIn("celery-backend-cleanup", settings.CELERY_BEAT_SCHEDULE)
+        self.assertEqual(
+            settings.CELERY_BEAT_SCHEDULE["celery-backend-cleanup"]["task"],
+            "celery.backend_cleanup",
+        )
+        self.assertGreater(settings.CELERY_RESULT_EXPIRES, 0)
