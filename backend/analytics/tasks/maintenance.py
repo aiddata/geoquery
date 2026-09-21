@@ -116,7 +116,13 @@ def dispatch_processing_tasks():
     if to_dispatch == 0:
         return {"dispatched": 0, "total_slots": total_slots, "in_flight": in_flight}
 
-    return _run_processing_tasks(limit=to_dispatch)
+    # to_dispatch counts idle *slots*, i.e. messages to publish, but
+    # _run_processing_tasks takes a task limit -- and one message now carries
+    # a batch of them. Claiming the whole wave in one call also means one
+    # advisory lock acquisition for the entire top-up instead of one per slot.
+    from analytics.tasks.processing import _claim_batch_size
+
+    return _run_processing_tasks(limit=to_dispatch * _claim_batch_size())
 
 
 @shared_task

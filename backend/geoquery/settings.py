@@ -444,6 +444,13 @@ CELERY_TASK_ROUTES = {
 }
 
 STALE_TASK_MINUTES = int(os.environ.get("STALE_TASK_MINUTES", "30"))
+
+# Extract tasks claimed (and published) per processing message. Every claim
+# serializes on one advisory lock while holding a pooler connection, so this
+# divides both the lock acquisitions and the connections parked waiting on it.
+# Raise it if the claim is still the bottleneck; lower it if a worker dying
+# mid-batch leaves too much work for free_stale_processing_tasks to recover.
+EXTRACT_TASK_CLAIM_BATCH = int(os.environ.get("EXTRACT_TASK_CLAIM_BATCH", "4"))
 CELERY_BEAT_SCHEDULE = {
     "free-stale-processing-tasks": {
         "task": "analytics.tasks.maintenance.free_stale_processing_tasks",
