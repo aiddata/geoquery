@@ -1,6 +1,7 @@
 import os
 import re
 import time
+from datetime import timedelta
 from collections import defaultdict
 from logging import getLogger
 from pathlib import Path
@@ -8,6 +9,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import connection
+from django.utils import timezone
 
 from analytics.models import Request
 
@@ -71,20 +73,23 @@ class Command(BaseCommand):
         requests_dir = options["requests_dir"] or str(settings.REQUESTS_DIR)
 
         result = _reset_stale_requests(minutes, dry_run=dry_run)
+        unmaterialized = _redispatch_unmaterialized_requests(minutes, dry_run=dry_run)
         orphans = _clean_orphan_output_dirs(requests_dir, minutes, dry_run=dry_run)
 
         if dry_run:
             self.stdout.write(
-                f"Would reset {result['count']} stale claimed requests, remove "
-                f"{orphans['removed']} abandoned output paths and restore "
+                f"Would reset {result['count']} stale claimed requests, "
+                f"re-dispatch {unmaterialized['count']} unmaterialized requests, "
+                f"remove {orphans['removed']} abandoned output paths and restore "
                 f"{orphans['restored']} displaced outputs (--dry-run)."
             )
         else:
             self.stdout.write(
                 self.style.SUCCESS(
                     f"Reset {result['reset']} stale claimed requests to processing, "
-                    f"removed {orphans['removed']} abandoned output paths and "
-                    f"restored {orphans['restored']} displaced outputs."
+                    f"re-dispatched {unmaterialized['redispatched']} unmaterialized "
+                    f"requests, removed {orphans['removed']} abandoned output paths "
+                    f"and restored {orphans['restored']} displaced outputs."
                 )
             )
 
@@ -142,6 +147,84 @@ def _reset_stale_requests(minutes: int, dry_run: bool = False) -> dict:
 
     logger.info("Reset %d stale claimed requests to processing", reset)
     return {"count": reset, "reset": reset}
+
+
+
+def _redispatch_unmaterialized_requests(minutes: int, dry_run: bool = False) -> dict:
+    """Re-dispatch materialization for requests stranded at status=4.
+
+    status=4 means "submitted, materialization pending". It is set by
+    create_request, and materialize_request_tasks is what moves it on --
+    dispatched by the on_request_submitted post_save signal.
+
+    That task already turns its *own* failures into status=-2, so a request
+    only sits at 4 when it never ran at all: the signal never fired (a bulk
+    UPDATE does not fire post_save), or the message was lost -- a broker
+    outage, a worker killed before executing, or the 0.43.1 incident, where
+    the task lived in a module analytics/tasks/__init__.py never imported so
+    every worker dropped it with a KeyError and *every* submitted request
+    stranded at 4.
+
+    Nothing else looks at status=4: the completion sweep's selection query
+    matches only -1 and 0. So those requests were stranded permanently and
+    silently -- 4 is a normal transient state, and -2 is the only status
+    monitoring reads as an error. Observed in production, where one request
+    sat at 4 for four days and completed in 5 seconds once nudged.
+
+    Re-dispatching rather than erroring is deliberate: the work is almost
+    always still valid, and materialize_request is idempotent by design --
+    it deletes any RequestMap rows already attached before recreating them,
+    specifically so re-triggering a stuck request cannot duplicate them. If
+    the retry genuinely cannot resolve, materialize_request_tasks records
+    status=-2 itself, which *is* visible.
+
+    Age is measured from submit_time. Materialization normally finishes in
+    seconds, so the threshold only needs to clear a slow-but-live run rather
+    than distinguish anything subtle.
+    """
+    from analytics.tasks.requests import materialize_request_tasks
+
+    minutes = int(minutes)
+    stuck = list(
+        Request.objects.filter(
+            status=4, submit_time__lt=timezone.now() - timedelta(minutes=minutes)
+        ).values_list("id", flat=True)
+    )
+
+    if dry_run:
+        if stuck:
+            logger.warning(
+                "Would re-dispatch materialization for %d stranded request(s)",
+                len(stuck),
+            )
+        return {"count": len(stuck), "redispatched": 0, "failed": 0}
+
+    redispatched = 0
+    failed = 0
+    for request_id in stuck:
+        try:
+            materialize_request_tasks.delay(str(request_id))
+        except Exception as exc:
+            # An unreachable broker must not stop us trying the rest; the
+            # next pass retries whatever failed. Status is deliberately left
+            # at 4 so it stays a candidate.
+            logger.error(
+                "Could not re-dispatch materialization for request %s: %s",
+                request_id,
+                exc,
+            )
+            failed += 1
+            continue
+        logger.warning(
+            "Re-dispatched materialization for stranded request %s", request_id
+        )
+        redispatched += 1
+
+    if stuck:
+        logger.info(
+            "Re-dispatched %d stranded request(s), %d failed", redispatched, failed
+        )
+    return {"count": len(stuck), "redispatched": redispatched, "failed": failed}
 
 
 def _clean_orphan_output_dirs(requests_dir, minutes: int, dry_run: bool = False) -> dict:

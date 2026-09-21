@@ -31,9 +31,12 @@ def free_stale_processing_tasks():
 
 @shared_task
 def reset_stale_requests():
-    """Reset requests stranded in claimed state (status=2) back to processing.
+    """Recover requests and output that nothing else would pick up again.
 
-    Also collects the output paths a hard-killed sweep left in the requests
+    Three strands, each invisible to the completion sweep (which selects
+    only status -1 and 0): claims stranded at status=2 by a crashed sweep,
+    requests stranded at status=4 because their materialization task never
+    ran, and the output paths a hard-killed sweep left in the requests
     directory -- including restoring output that a kill mid-swap left sitting
     in a ".replaced." aside with nothing at the path its download link points
     at. See _clean_orphan_output_dirs for why the two orphan kinds are not
@@ -41,20 +44,28 @@ def reset_stale_requests():
     """
     from analytics.management.commands.reset_stale_requests import (
         _clean_orphan_output_dirs,
+        _redispatch_unmaterialized_requests,
         _reset_stale_requests,
     )
 
     stale_minutes = getattr(settings, "STALE_TASK_MINUTES", 30)
     result = _reset_stale_requests(stale_minutes)
+    unmaterialized = _redispatch_unmaterialized_requests(stale_minutes)
     orphans = _clean_orphan_output_dirs(str(settings.REQUESTS_DIR), stale_minutes)
     logger.info(
-        "Reset %d stale claimed requests; removed %d abandoned output paths, "
-        "restored %d displaced outputs",
+        "Reset %d stale claimed requests; re-dispatched %d unmaterialized; "
+        "removed %d abandoned output paths, restored %d displaced outputs",
         result["reset"],
+        unmaterialized["redispatched"],
         orphans["removed"],
         orphans["restored"],
     )
-    return {**result, **orphans}
+    return {
+        **result,
+        "unmaterialized": unmaterialized["count"],
+        "redispatched": unmaterialized["redispatched"],
+        **orphans,
+    }
 
 
 @shared_task
