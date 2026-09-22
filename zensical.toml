@@ -74,6 +74,7 @@ nav = [
       { "Developer Docs" = [
         { "Overview" = "get-involved/contributing/dev/index.md" },
         { "Development" = "get-involved/contributing/dev/development.md" },
+        { "Database" = "get-involved/contributing/dev/database.md" },
         { "Deploying" = [
           { "Kubernetes" = [
             { "Overview" = "get-involved/contributing/dev/deploying/kubernetes/index.md" },

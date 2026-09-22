@@ -85,7 +85,7 @@ Use **Django REST Framework (DRF)** for all backend API endpoints.
 
 PostgreSQL with PostGIS. Use `django.contrib.gis` for spatial fields and queries.
 
-**Read `backend/DATABASE.md` before writing queries against `extract_tasks` or
+**Read `docs/get-involved/contributing/dev/database.md` before writing queries against `extract_tasks` or
 `extract_data`, adding an index, adding a background task, or changing cluster
 settings.** It records the decisions governing this database and the justification
 for each — most exist because of a production incident or a measurement. Its
