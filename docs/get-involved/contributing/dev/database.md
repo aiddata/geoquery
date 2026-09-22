@@ -280,15 +280,28 @@ worse as the delay grew. *Fewer waiters and less throughput* is the signature of
 **bandwidth** limit rather than a lock limit: batching commits shortens the queue
 without adding write capacity. Left at 0.
 
-**Build batches commit asynchronously.** `_run_batch` issues
+**Build batches commit asynchronously — mechanism confirmed, benefit unproven,
+retained under observation.** `_run_batch` issues
 `SET LOCAL synchronous_commit = off`, taking the largest single write contributor
-out of the fsync path entirely. Safe only because the work is regenerable: an
-unclean crash loses at most ~200 ms of speculative `extract_tasks` rows whose
-`completed_up_to_fm_id` will not have advanced, so the next pass rebuilds exactly
-what was lost. Revertible via `EXTRACT_TASK_BUILD_SYNCHRONOUS_COMMIT=1`.
+out of the fsync path entirely. That part is verified directly: `WALWrite` waiters
+are now `extract_data` inserts and `UPDATE extract_tasks`, with zero from builder
+INSERTs.
+
+It has **not** been shown to improve throughput (Appendix B). Retained rather
+than reverted on the theory that it may matter under heavier builder load than
+two workers produce — to be re-measured over days, and specifically whenever
+`N_EXTRACT_TASK_BUILDERS` is raised. It buys a real durability trade for no
+measured gain, so this is a live question, not a settled one.
+
+Safe because the work is regenerable: an unclean crash loses at most ~200 ms of
+speculative `extract_tasks` rows whose `completed_up_to_fm_id` will not have
+advanced, so the next pass rebuilds exactly what was lost. Revertible via
+`EXTRACT_TASK_BUILD_SYNCHRONOUS_COMMIT=1`, no deploy needed.
 
 **Do not extend async commit to the processing path** — a lost `status=1` means
-re-running real extraction work.
+re-running real extraction work. The pattern does not generalise either: under
+transaction pooling, `SET` rather than `SET LOCAL` leaks non-durability into
+unrelated transactions (§5).
 
 ---
 
@@ -408,9 +421,13 @@ because under-filled pages cost more than the bloat they prevent.
 
 Conclusion: mechanism confirmed, change **not** adopted (§3).
 
-## Appendix B — `commit_delay` experiment
+## Appendix B — write-path experiments
 
-Five to six one-minute samples per arm, builder running in all:
+Two attempts to buy write headroom. Both are recorded because the *negative*
+results are what establish that the limit is storage bandwidth.
+
+**B1 — `commit_delay`.** Five to six one-minute samples per arm, builder running
+in all:
 
 | `commit_delay` | Tasks/min | `WALWrite` waiters |
 |---|---|---|
@@ -418,7 +435,26 @@ Five to six one-minute samples per arm, builder running in all:
 | 100 µs | 37,994 | 22.3 |
 | 600 µs | 34,583 | **13.4** |
 
-Reverted to 0 (§6).
+Group commit worked — waiters fell — but throughput fell further, monotonically
+with the delay. Reverted to 0 (§6).
+
+**B2 — builder `synchronous_commit = off`.** Hourly aggregates either side of the
+rollout, since minute-scale variance (29k–52k) swamps the effect size:
+
+| Arm | Hours | Mean tasks/min | sd |
+|---|---|---|---|
+| Synchronous | 4 | 35,517 | 4,322 |
+| Asynchronous | 3 | 38,828 | 3,037 |
+
+Async is ~9% higher, but the gap is smaller than either standard deviation, and
+one *sync* hour (40,543) beat an async hour. Builder output was unchanged
+(~800k rows/hour both ways) — the workload whose commits left the fsync path did
+not itself speed up, which is the strongest argument that the effect is not real.
+**Retained under observation, not adopted on evidence** (§6).
+
+Method note for the re-test: hourly throughput is reconstructible retrospectively
+from `extract_tasks.update_time`, so no instrumentation is needed — but control
+for builder output per hour, and discard hours containing a rollout.
 
 ## Appendix C — measurement recipes
 
