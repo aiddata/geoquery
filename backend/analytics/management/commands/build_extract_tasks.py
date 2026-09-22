@@ -233,15 +233,41 @@ class Command(BaseCommand):
         )
 
 
+def _build_synchronous_commit():
+    """Whether build batches wait for fsync. Settable so this can be reverted
+    without a deploy if the durability trade is ever unwanted."""
+    from django.conf import settings
+
+    return getattr(settings, "EXTRACT_TASK_BUILD_SYNCHRONOUS_COMMIT", False)
+
+
 def _run_batch(sql, params):
     """Run one INSERT batch in its own short transaction with a statement timeout.
 
     Returns rows added, or None if the batch failed/timed out (caller stops).
+
+    Commits asynchronously by default (SET LOCAL, so it applies to this
+    transaction only -- not to anything else this role does). The database is
+    write-bandwidth bound: backends queue on the WALWrite lock, and these
+    5000-row batches are the largest single contributor. synchronous_commit
+    = off takes them out of the fsync path entirely -- the rows land in the
+    WAL buffer and the walwriter flushes them behind us -- so the batch stops
+    blocking on storage that the processing path also needs.
+
+    Safe specifically here because the work is regenerable. An unclean crash
+    can lose up to ~200ms of recently committed batches; those are
+    speculative extract_tasks rows, and completed_up_to_fm_id simply will not
+    have advanced for them, so the next pass rebuilds exactly what was lost.
+    No request data, no results, nothing user-facing. Do NOT extend this to
+    the processing path, where a lost status=1 means re-running real
+    extraction work.
     """
     try:
         with transaction.atomic():
             with connection.cursor() as cursor:
                 cursor.execute("SET LOCAL statement_timeout = %s", [BATCH_STATEMENT_TIMEOUT_MS])
+                if not _build_synchronous_commit():
+                    cursor.execute("SET LOCAL synchronous_commit = off")
                 cursor.execute(sql, params)
                 return cursor.rowcount
     except DatabaseError:

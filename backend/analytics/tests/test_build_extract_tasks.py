@@ -306,3 +306,44 @@ class BuildBeatScheduleTest(TransactionTestCase):
             "celery.backend_cleanup",
         )
         self.assertGreater(settings.CELERY_RESULT_EXPIRES, 0)
+
+
+class BuildBatchCommitModeTest(TransactionTestCase):
+    """Build batches commit asynchronously; nothing else does.
+
+    The database is write-bandwidth bound -- backends queue on the WALWrite
+    lock -- and these 5000-row batches are the largest single contributor.
+    Taking them out of the fsync path frees storage bandwidth the processing
+    path also needs. Safe only because the rows are speculative: a crash
+    loses at most ~200ms of them and completed_up_to_fm_id will not have
+    advanced, so the next pass rebuilds exactly what was lost.
+    """
+
+    def captured_sql(self):
+        from analytics.management.commands import build_extract_tasks as cmd
+
+        with CaptureQueriesContext(connection) as ctx:
+            cmd._run_batch("SELECT 1 WHERE false", [])
+        return [q["sql"] for q in ctx.captured_queries]
+
+    def test_batches_commit_asynchronously_by_default(self):
+        self.assertTrue(
+            any("synchronous_commit = off" in q for q in self.captured_sql()),
+            "build batches should not wait for fsync",
+        )
+
+    def test_it_is_scoped_to_the_transaction_not_the_session(self):
+        # SET LOCAL, not SET: a plain SET would leak to every later query on
+        # the same pooled connection, silently making unrelated writes
+        # non-durable.
+        sql = [q for q in self.captured_sql() if "synchronous_commit" in q]
+        self.assertTrue(sql)
+        for q in sql:
+            self.assertIn("SET LOCAL", q, f"must be transaction-scoped: {q}")
+
+    def test_synchronous_commit_can_be_restored_without_a_deploy(self):
+        with self.settings(EXTRACT_TASK_BUILD_SYNCHRONOUS_COMMIT=True):
+            self.assertFalse(
+                any("synchronous_commit" in q for q in self.captured_sql()),
+                "setting must restore default (synchronous) commits",
+            )
