@@ -320,7 +320,7 @@ class MergeQueryCountTestCase(TestCase):
         self.assertEqual(status, "Success")
         self.assertEqual(len(df), 6)
         # Every extract_tasks/extract_data query must carry dataset_id, or it
-        # scans all 57 partitions instead of seeking one.
+        # scans all 56 partitions instead of seeking one.
         partitioned = [
             q["sql"] for q in ctx.captured_queries
             if "extract_task" in q["sql"] or "extract_data" in q["sql"]

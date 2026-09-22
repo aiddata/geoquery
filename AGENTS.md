@@ -85,6 +85,18 @@ Use **Django REST Framework (DRF)** for all backend API endpoints.
 
 PostgreSQL with PostGIS. Use `django.contrib.gis` for spatial fields and queries.
 
+**Read `backend/DATABASE.md` before writing queries against `extract_tasks` or
+`extract_data`, adding an index, adding a background task, or changing cluster
+settings.** It records the decisions governing this database and the justification
+for each — most exist because of a production incident or a measurement. Its
+"Working rules" section is the short version.
+
+The one rule worth repeating here: `extract_tasks` and `extract_data` are LIST
+partitioned on `dataset_id` with `PRIMARY KEY (dataset_id, id)`, so **every query
+must filter on `dataset_id`** — including through joins and relation traversals.
+Filtering on `id` alone cannot seek the index and scans all 56 partitions
+(4.1 s versus 0.2 ms, measured on production).
+
 ## Frontend
 
 ### Framework
