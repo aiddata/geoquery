@@ -329,8 +329,8 @@ TEMPLATE = """<!DOCTYPE html>
           <button class="seg-btn"        data-field="complete_time">Complete Time</button>
         </div>
         <select class="period-select" id="period-select">
-          <option value="day">Day</option>
-          <option value="month" selected>Month</option>
+          <option value="day" selected>Day</option>
+          <option value="month">Month</option>
           <option value="year">Year</option>
         </select>
       </div>
@@ -350,8 +350,8 @@ TEMPLATE = """<!DOCTYPE html>
       </div>
       <div class="chart-controls">
         <select class="period-select" id="ext-period-select">
-          <option value="day">Day</option>
-          <option value="month" selected>Month</option>
+          <option value="day" selected>Day</option>
+          <option value="month">Month</option>
           <option value="year">Year</option>
         </select>
       </div>
@@ -368,7 +368,7 @@ TEMPLATE = """<!DOCTYPE html>
   const DATA = __GQ_STATS__;
 
   let currentField  = 'submit_time';
-  let currentPeriod = 'month';
+  let currentPeriod = 'day';
   let chart = null;
 
   // ── Populate status cards ─────────────────────────────────────────────────
@@ -478,7 +478,7 @@ TEMPLATE = """<!DOCTYPE html>
   updateChart();
 
   // ── Extract task completions chart ────────────────────────────────────────
-  let extCurrentPeriod = 'month';
+  let extCurrentPeriod = 'day';
   let extChart = null;
 
   function updateExtChart() {

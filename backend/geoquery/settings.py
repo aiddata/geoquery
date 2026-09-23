@@ -517,7 +517,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     "build-stats-report": {
         "task": "analytics.tasks.maintenance.build_stats_report",
-        "schedule": 3600,
+        "schedule": 300,
     },
     "sweep-coverage-records": {
         "task": "analytics.tasks.maintenance.sweep_coverage_records",
