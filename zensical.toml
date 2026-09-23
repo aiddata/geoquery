@@ -75,12 +75,14 @@ nav = [
         { "Overview" = "get-involved/contributing/dev/index.md" },
         { "Development" = "get-involved/contributing/dev/development.md" },
         { "Database" = "get-involved/contributing/dev/database.md" },
+        { "Request Lifecycle" = "get-involved/contributing/dev/request-lifecycle.md" },
+        { "GitHub Deploy Setup" = "get-involved/contributing/dev/gh_deploy_setup.md" },
         { "Deploying" = [
           { "Kubernetes" = [
             { "Overview" = "get-involved/contributing/dev/deploying/kubernetes/index.md" },
             { "Container" = "get-involved/contributing/dev/deploying/kubernetes/container.md" },
             { "Helm Chart" = "get-involved/contributing/dev/deploying/kubernetes/helm-chart.md" },
-            { "ArgoCD" = "get-involved/contributing/dev/deploying/kubernetes/argocd.md" },
+            { "Flux" = "get-involved/contributing/dev/deploying/kubernetes/flux.md" },
             { "Development" = "get-involved/contributing/dev/deploying/kubernetes/development.md" },
             { "Ingest Data" = "get-involved/contributing/dev/deploying/kubernetes/ingest-data.md" },
           ]},
