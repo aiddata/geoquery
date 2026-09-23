@@ -90,9 +90,29 @@ class StatsBuilder:
                 if r["bucket"] is not None
             ]
 
+        # Extract task counts, in one GROUP BY over every status. This is the
+        # expensive part of the report -- extract_tasks is ~280M rows across 56
+        # partitions and no filter can prune it, so it reads millions of blocks.
+        # It belongs here, in a task that runs every 5 minutes, rather than in a
+        # view: it was previously served live to the page and took 16s a call,
+        # which is what made the stats page 504 under any concurrency.
+        extract_raw = {
+            r["status"]: r["count"]
+            for r in ExtractTask.objects.values("status").annotate(count=Count("id"))
+        }
+        extract_counts = {
+            "completed": extract_raw.get(1, 0),
+            "pending": extract_raw.get(0, 0),
+            "claimed": extract_raw.get(3, 0),
+            "processing": extract_raw.get(2, 0),
+            "error": extract_raw.get(-1, 0),
+            "total": sum(extract_raw.values()),
+        }
+
         return {
             "total": total,
             "status_counts": status_counts,
+            "extract_counts": extract_counts,
             "time_series": time_series,
             "extract_time_series": extract_time_series,
             "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),

@@ -271,8 +271,8 @@ TEMPLATE = """<!DOCTYPE html>
   <!-- Live status panel -->
   <div class="live-panel">
     <div class="live-panel-header">
-      <div class="live-panel-title"><span class="live-dot"></span>Live Status</div>
-      <div class="live-updated" id="live-updated">Updating…</div>
+      <div class="live-panel-title"><span class="live-dot"></span>Queue Status</div>
+      <div class="live-updated" id="live-updated">—</div>
     </div>
     <div class="live-grid">
       <div>
@@ -306,6 +306,10 @@ TEMPLATE = """<!DOCTYPE html>
           <div class="queue-row">
             <span class="queue-label">Error</span>
             <span class="queue-val error" id="q-ext-error">—</span>
+          </div>
+          <div class="queue-row">
+            <span class="queue-label">Completed</span>
+            <span class="queue-val" id="q-ext-completed">—</span>
           </div>
         </div>
       </div>
@@ -543,29 +547,28 @@ TEMPLATE = """<!DOCTYPE html>
 
   updateExtChart();
 
-  // ── Live status polling (DB-only, no Celery inspect) ─────────────────────
-  async function refreshLive() {
-    try {
-      const res = await fetch('/stats/workers/');
-      if (!res.ok) throw new Error(res.status);
-      const d = await res.json();
+  // ── Queue status, rendered from the report payload ───────────────────────
+  // Deliberately not polled. These counts come from the same 5-minute report
+  // build as everything else on this page. They used to be fetched live from
+  // /stats/workers/, which ran a GROUP BY over ~280M extract_tasks rows on
+  // every call (~16s, millions of block reads) and made the page 504 as soon
+  // as more than one request overlapped.
+  (function renderQueues() {
+    const ext = DATA.extract_counts || {};
+    const req = DATA.status_counts || {};
+    const n = v => (v || 0).toLocaleString();
 
-      document.getElementById('q-req-queued').textContent      = (d.queues.requests_queued || 0).toLocaleString();
-      document.getElementById('q-req-processing').textContent  = (d.queues.requests_processing || 0).toLocaleString();
-      document.getElementById('q-ext-pending2').textContent    = (d.queues.extract_pending || 0).toLocaleString();
-      document.getElementById('q-ext-claimed').textContent     = (d.queues.extract_claimed || 0).toLocaleString();
-      document.getElementById('q-ext-processing2').textContent = (d.queues.extract_processing || 0).toLocaleString();
-      document.getElementById('q-ext-error').textContent       = (d.queues.extract_error || 0).toLocaleString();
+    document.getElementById('q-req-queued').textContent      = n(req.pending);
+    document.getElementById('q-req-processing').textContent  = n(req.processing);
+    document.getElementById('q-ext-pending2').textContent    = n(ext.pending);
+    document.getElementById('q-ext-claimed').textContent     = n(ext.claimed);
+    document.getElementById('q-ext-processing2').textContent = n(ext.processing);
+    document.getElementById('q-ext-error').textContent       = n(ext.error);
+    document.getElementById('q-ext-completed').textContent   = n(ext.completed);
 
-      const now = new Date();
-      document.getElementById('live-updated').textContent = 'Updated ' + now.toLocaleTimeString();
-    } catch (e) {
-      document.getElementById('live-updated').textContent = 'Update failed';
-    }
-  }
-
-  refreshLive();
-  setInterval(refreshLive, 30000);
+    document.getElementById('live-updated').textContent =
+      DATA.generated_at ? 'As of ' + DATA.generated_at : '';
+  })();
 </script>
 </body>
 </html>
