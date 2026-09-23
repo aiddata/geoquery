@@ -418,3 +418,42 @@ export async function fetchRequestsByToken(token: string): Promise<PastRequest[]
 	}
 	return response.json();
 }
+
+// ── Stats ───────────────────────────────────────────────────────
+
+export interface StatsPoint {
+	date: string;
+	count: number;
+}
+
+export interface Stats {
+	total: number;
+	status_counts: { completed: number; pending: number; processing: number; error: number };
+	extract_counts: {
+		completed: number;
+		pending: number;
+		claimed: number;
+		processing: number;
+		error: number;
+		total: number;
+	};
+	time_series: Record<'submit_time' | 'complete_time', Record<string, StatsPoint[]>>;
+	extract_time_series: Record<string, StatsPoint[]>;
+	generated_at: string;
+}
+
+/**
+ * Fetch the statistics snapshot.
+ *
+ * This is a file read on the backend, not a query. The counts are rebuilt every
+ * 5 minutes by a scheduled task, deliberately: computing them per request meant
+ * aggregating ~280M rows, which took ~16s and took the page down under any
+ * concurrency.
+ */
+export async function fetchStats(): Promise<Stats> {
+	const response = await fetch('/api/stats/');
+	if (!response.ok) {
+		throw new Error(`Failed to fetch stats: ${response.status}`);
+	}
+	return response.json();
+}

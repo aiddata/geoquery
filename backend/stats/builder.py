@@ -19,25 +19,29 @@ _STATUS_GROUPS = {
 
 
 class StatsBuilder:
-    """Generate a self-contained HTML statistics report for GeoQuery requests."""
+    """Collect the statistics payload the /stats page renders."""
 
     def __init__(self, output_path=None):
         self.output_path = Path(output_path) if output_path else None
 
-    def render(self) -> str:
-        """Return the rendered HTML string without writing to disk."""
-        return self._render(self._collect())
+    def collect(self) -> dict:
+        """Return the report payload without writing to disk."""
+        return self._collect()
 
     def build(self) -> str:
-        """Render and write the HTML file to output_path."""
+        """Collect and write the JSON payload to output_path.
+
+        Written atomically: the stats view reads this file on every request, and
+        a partially written file would be served as a parse error.
+        """
         if not self.output_path:
             return "Error: no output_path specified"
         try:
             data = self._collect()
-            html = self._render(data)
             self.output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.output_path, "w", encoding="utf-8") as f:
-                f.write(html)
+            tmp = self.output_path.with_suffix(self.output_path.suffix + ".tmp")
+            tmp.write_text(json.dumps(data, default=str), encoding="utf-8")
+            tmp.replace(self.output_path)
             return "Success"
         except Exception as e:
             return f"Error: {e}"
@@ -90,15 +94,30 @@ class StatsBuilder:
                 if r["bucket"] is not None
             ]
 
+        # Extract task counts, in one GROUP BY over every status. This is the
+        # expensive part of the report -- extract_tasks is ~280M rows across 56
+        # partitions and no filter can prune it, so it reads millions of blocks.
+        # It belongs here, in a task that runs every 5 minutes, rather than in a
+        # view: it was previously served live to the page and took 16s a call,
+        # which is what made the stats page 504 under any concurrency.
+        extract_raw = {
+            r["status"]: r["count"]
+            for r in ExtractTask.objects.values("status").annotate(count=Count("id"))
+        }
+        extract_counts = {
+            "completed": extract_raw.get(1, 0),
+            "pending": extract_raw.get(0, 0),
+            "claimed": extract_raw.get(3, 0),
+            "processing": extract_raw.get(2, 0),
+            "error": extract_raw.get(-1, 0),
+            "total": sum(extract_raw.values()),
+        }
+
         return {
             "total": total,
             "status_counts": status_counts,
+            "extract_counts": extract_counts,
             "time_series": time_series,
             "extract_time_series": extract_time_series,
             "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         }
-
-    @staticmethod
-    def _render(data: dict) -> str:
-        from .template import TEMPLATE
-        return TEMPLATE.replace("__GQ_STATS__", json.dumps(data, default=str))
