@@ -293,6 +293,13 @@ two workers produce — to be re-measured over days, and specifically whenever
 `N_EXTRACT_TASK_BUILDERS` is raised. It buys a real durability trade for no
 measured gain, so this is a live question, not a settled one.
 
+**That trigger has fired.** `N_EXTRACT_TASK_BUILDERS` went 2 → 4 on 2026-09-23,
+once a 12-hour window showed processing clearing tasks 2.5× faster than the
+builder created them (905,709/hr built against 2,276,650/hr completed). The
+re-measurement described in Appendix B is now due, and it is the same run that
+answers whether the raise itself paid off — control for builder output per hour
+and discard hours containing the rollout.
+
 Safe because the work is regenerable: an unclean crash loses at most ~200 ms of
 speculative `extract_tasks` rows whose `completed_up_to_fm_id` will not have
 advanced, so the next pass rebuilds exactly what was lost. Revertible via
