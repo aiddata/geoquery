@@ -27,8 +27,12 @@ from stats.builder import StatsBuilder
 
 
 def stats_view(request):
-    path = getattr(settings, "STATS_REPORT_PATH", None)
-    if path and Path(path).exists():
+    path = getattr(
+        settings,
+        "STATS_REPORT_PATH",
+        str(settings.REQUESTS_DIR / "geoquery_stats.html"),
+    )
+    if Path(path).exists():
         html = Path(path).read_text(encoding="utf-8")
     else:
         html = StatsBuilder().render()
