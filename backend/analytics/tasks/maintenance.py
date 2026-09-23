@@ -175,16 +175,32 @@ def _n_extract_task_builders():
     halved extract task throughput (~43k/min with the builder idle, ~22k/min
     with it running), and that penalty lands on user-requested tasks too:
     a request's tasks are priority-bumped ahead of the backlog, but they
-    still run at whatever rate the fleet is managing.
+    still run at whatever rate the fleet is managing. That trade is why this
+    is a knob rather than a constant.
 
-    Build-out is not urgent -- it is already outpacing processing roughly
-    3:1 -- so trading builder parallelism for processing throughput favours
-    the work someone is actually waiting on. Raise it when the queue is
-    drained and building is the thing gating progress.
+    Which side is scarce has since flipped. When this was set to 2, build-out
+    was outpacing processing ~3:1 and the right move was to starve the
+    builder. After the claim batching work took processing to ~43k/min, a
+    12-hour window on 2026-09-23 measured the reverse:
+
+        built      905,709/hr   (~15.1k/min)
+        completed  2,276,650/hr (~37.9k/min)
+
+    Processing now clears tasks 2.5x faster than the builder creates them.
+    The 191M pending backlog hides that -- it is a buffer draining at
+    ~1.37M/hr, so it lasts under six days -- but against the ~1.2B target
+    the builder needs ~40 days to finish supplying work that processing
+    could consume in ~20. Past the point the buffer empties, the builder
+    rate IS the pipeline rate.
+
+    So 4, not 2: enough to close the gap without returning to the six-way
+    fan-out that halved throughput. Expect processing to give up some rate
+    in exchange; the number worth watching is not either rate alone but
+    whether the backlog still drains.
     """
     from django.conf import settings
 
-    return max(1, getattr(settings, "N_EXTRACT_TASK_BUILDERS", 2))
+    return max(1, getattr(settings, "N_EXTRACT_TASK_BUILDERS", 4))
 
 
 

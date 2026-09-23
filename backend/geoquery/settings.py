@@ -475,8 +475,11 @@ EXTRACT_TASK_CLAIM_BATCH = int(os.environ.get("EXTRACT_TASK_CLAIM_BATCH", "64"))
 
 # Parallel workers one extract-task build wave fans out to. Each holds a
 # pooler connection for an 11-20s INSERT batch, so this trades build-out
-# speed against extract throughput -- see _n_extract_task_builders.
-N_EXTRACT_TASK_BUILDERS = int(os.environ.get("N_EXTRACT_TASK_BUILDERS", "2"))
+# speed against extract throughput -- see _n_extract_task_builders, which
+# records the measurements behind this number. Raised 2 -> 4 on 2026-09-23:
+# processing now clears tasks 2.5x faster than the builder creates them, so
+# the builder, not the queue, is what gates the pipeline long-run.
+N_EXTRACT_TASK_BUILDERS = int(os.environ.get("N_EXTRACT_TASK_BUILDERS", "4"))
 
 # Whether extract-task build batches wait for fsync. Off by default: the
 # database is write-bandwidth bound (backends queue on WALWrite) and these
