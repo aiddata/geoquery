@@ -304,10 +304,6 @@ TEMPLATE = """<!DOCTYPE html>
             <span class="queue-val active" id="q-ext-processing2">—</span>
           </div>
           <div class="queue-row">
-            <span class="queue-label">Completed</span>
-            <span class="queue-val" id="q-ext-completed">—</span>
-          </div>
-          <div class="queue-row">
             <span class="queue-label">Error</span>
             <span class="queue-val error" id="q-ext-error">—</span>
           </div>
@@ -446,12 +442,7 @@ TEMPLATE = """<!DOCTYPE html>
             },
             y: {
               beginAtZero: true,
-              ticks: {
-                font: { size: 11 },
-                color: '#64748b',
-                stepSize: 1,
-                callback: v => Number.isInteger(v) ? v : null,
-              },
+              ticks: { font: { size: 11 }, color: '#64748b' },
               grid: { color: '#f1f5f9' }
             }
           }
@@ -536,12 +527,7 @@ TEMPLATE = """<!DOCTYPE html>
             },
             y: {
               beginAtZero: true,
-              ticks: {
-                font: { size: 11 },
-                color: '#64748b',
-                stepSize: 1,
-                callback: v => Number.isInteger(v) ? v : null,
-              },
+              ticks: { font: { size: 11 }, color: '#64748b' },
               grid: { color: '#f1f5f9' }
             }
           }
@@ -569,7 +555,6 @@ TEMPLATE = """<!DOCTYPE html>
       document.getElementById('q-ext-pending2').textContent    = (d.queues.extract_pending || 0).toLocaleString();
       document.getElementById('q-ext-claimed').textContent     = (d.queues.extract_claimed || 0).toLocaleString();
       document.getElementById('q-ext-processing2').textContent = (d.queues.extract_processing || 0).toLocaleString();
-      document.getElementById('q-ext-completed').textContent   = (d.queues.extract_completed || 0).toLocaleString();
       document.getElementById('q-ext-error').textContent       = (d.queues.extract_error || 0).toLocaleString();
 
       const now = new Date();
@@ -580,7 +565,7 @@ TEMPLATE = """<!DOCTYPE html>
   }
 
   refreshLive();
-  setInterval(refreshLive, 10000);
+  setInterval(refreshLive, 30000);
 </script>
 </body>
 </html>

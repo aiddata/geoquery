@@ -39,8 +39,12 @@ def workers_view(request):
     # Status codes: 0=pending, 3=claimed, 2=processing, 1=completed, -1=error
     from analytics.models import ExtractTask, Request
 
+    # Exclude completed (status=1) — there can be tens of millions, and the
+    # total is already in the pre-built static page. Only count the in-flight
+    # statuses (pending/claimed/processing/error) to keep this fast.
     extract_counts = dict(
-        ExtractTask.objects.values("status").annotate(n=Count("id")).values_list("status", "n")
+        ExtractTask.objects.exclude(status=1)
+        .values("status").annotate(n=Count("id")).values_list("status", "n")
     )
     request_counts = dict(
         Request.objects.values("status").annotate(n=Count("id")).values_list("status", "n")
@@ -51,7 +55,6 @@ def workers_view(request):
             "extract_pending": extract_counts.get(0, 0),
             "extract_claimed": extract_counts.get(3, 0),
             "extract_processing": extract_counts.get(2, 0),
-            "extract_completed": extract_counts.get(1, 0),
             "extract_error": extract_counts.get(-1, 0),
             "requests_queued": request_counts.get(-1, 0),
             "requests_processing": request_counts.get(0, 0) + request_counts.get(2, 0),
