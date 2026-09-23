@@ -153,13 +153,13 @@ def process_user_requests():
 
 @shared_task
 def build_stats_report():
-    """Regenerate the HTML statistics report."""
+    """Regenerate the statistics snapshot the /stats page reads."""
     from stats.builder import StatsBuilder
 
     output = getattr(
         settings,
         "STATS_REPORT_PATH",
-        str(settings.REQUESTS_DIR / "geoquery_stats.html"),
+        str(settings.REQUESTS_DIR / "geoquery_stats.json"),
     )
     status = StatsBuilder(output).build()
     logger.info("Stats report build: %s", status)

@@ -19,25 +19,29 @@ _STATUS_GROUPS = {
 
 
 class StatsBuilder:
-    """Generate a self-contained HTML statistics report for GeoQuery requests."""
+    """Collect the statistics payload the /stats page renders."""
 
     def __init__(self, output_path=None):
         self.output_path = Path(output_path) if output_path else None
 
-    def render(self) -> str:
-        """Return the rendered HTML string without writing to disk."""
-        return self._render(self._collect())
+    def collect(self) -> dict:
+        """Return the report payload without writing to disk."""
+        return self._collect()
 
     def build(self) -> str:
-        """Render and write the HTML file to output_path."""
+        """Collect and write the JSON payload to output_path.
+
+        Written atomically: the stats view reads this file on every request, and
+        a partially written file would be served as a parse error.
+        """
         if not self.output_path:
             return "Error: no output_path specified"
         try:
             data = self._collect()
-            html = self._render(data)
             self.output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.output_path, "w", encoding="utf-8") as f:
-                f.write(html)
+            tmp = self.output_path.with_suffix(self.output_path.suffix + ".tmp")
+            tmp.write_text(json.dumps(data, default=str), encoding="utf-8")
+            tmp.replace(self.output_path)
             return "Success"
         except Exception as e:
             return f"Error: {e}"
@@ -117,8 +121,3 @@ class StatsBuilder:
             "extract_time_series": extract_time_series,
             "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         }
-
-    @staticmethod
-    def _render(data: dict) -> str:
-        from .template import TEMPLATE
-        return TEMPLATE.replace("__GQ_STATS__", json.dumps(data, default=str))

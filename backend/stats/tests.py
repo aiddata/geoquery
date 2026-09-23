@@ -1,3 +1,4 @@
+import json
 import tempfile
 from pathlib import Path
 
@@ -7,39 +8,50 @@ from django.urls import NoReverseMatch, reverse
 from stats.builder import StatsBuilder
 
 
-class StatsViewTests(TestCase):
-    """The stats page must not query the database on load.
+class StatsDataViewTests(TestCase):
+    """The stats endpoint must not query the database on request.
 
     It serves a snapshot built every 5 minutes by build_stats_report. The page
-    previously also polled a live endpoint for queue counts, which ran a GROUP
-    BY over ~280M extract_tasks rows -- a global aggregate that no filter can
-    prune -- at ~16s and millions of block reads per call. That made the page
-    504 as soon as two requests overlapped, and survived two attempted fixes
-    because the slow path was the poll, not the page.
+    previously polled a live endpoint for queue counts, which ran a GROUP BY
+    over ~280M extract_tasks rows -- a global aggregate no filter can prune --
+    at ~16s and millions of block reads per call. That made the page 504 as
+    soon as two requests overlapped, and survived two attempted fixes because
+    the slow path was the poll, not the page.
     """
 
-    def test_prebuilt_file_is_served_without_touching_the_database(self):
+    def test_snapshot_is_served_without_touching_the_database(self):
+        payload = {"total": 7, "status_counts": {}, "extract_counts": {}}
         with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "geoquery_stats.html"
-            path.write_text("<html>snapshot</html>", encoding="utf-8")
+            path = Path(tmp) / "geoquery_stats.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
 
             with override_settings(STATS_REPORT_PATH=str(path)):
-                # Zero queries is the whole point: anything else means the page
+                # Zero queries is the point: anything else means the endpoint
                 # is doing work per request again.
                 with self.assertNumQueries(0):
-                    response = self.client.get(reverse("stats"))
+                    response = self.client.get(reverse("stats-data"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content.decode(), "<html>snapshot</html>")
+        self.assertEqual(response.json()["total"], 7)
 
-    def test_missing_file_falls_back_to_a_live_render(self):
+    def test_missing_snapshot_falls_back_to_a_live_collect(self):
         with tempfile.TemporaryDirectory() as tmp:
-            missing = Path(tmp) / "not-built-yet.html"
-            with override_settings(STATS_REPORT_PATH=str(missing)):
-                response = self.client.get(reverse("stats"))
+            with override_settings(STATS_REPORT_PATH=str(Path(tmp) / "absent.json")):
+                response = self.client.get(reverse("stats-data"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"<html", response.content.lower())
+        self.assertIn("extract_counts", response.json())
+
+    def test_corrupt_snapshot_falls_back_rather_than_erroring(self):
+        # A half-written file must not take the page down.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "geoquery_stats.json"
+            path.write_text("{not valid json", encoding="utf-8")
+            with override_settings(STATS_REPORT_PATH=str(path)):
+                response = self.client.get(reverse("stats-data"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("extract_counts", response.json())
 
     def test_there_is_no_live_queue_endpoint(self):
         # Regression guard. Reintroducing a per-request queue endpoint puts the
@@ -48,19 +60,15 @@ class StatsViewTests(TestCase):
             reverse("stats-workers")
         self.assertEqual(self.client.get("/stats/workers/").status_code, 404)
 
-    def test_page_does_not_fetch_anything_at_runtime(self):
-        html = StatsBuilder().render()
-        # The path still appears in an explanatory comment; what must not exist
-        # is a call to it, or any polling timer.
-        self.assertNotIn("fetch('/stats/workers/')", html)
-        self.assertNotIn('setInterval(', html)
+    def test_django_no_longer_claims_the_stats_page_path(self):
+        # /stats belongs to the SvelteKit app now. If Django answers it, the
+        # app route is shadowed and users get a dead page instead.
+        self.assertEqual(self.client.get("/stats/").status_code, 404)
 
 
 class StatsBuilderTests(TestCase):
-    def test_report_carries_the_queue_counts_the_page_renders(self):
-        # The page reads these out of the embedded payload instead of fetching
-        # them, so the build is what has to provide them.
-        data = StatsBuilder()._collect()
+    def test_payload_carries_the_queue_counts_the_page_renders(self):
+        data = StatsBuilder().collect()
 
         self.assertIn("extract_counts", data)
         for key in ("completed", "pending", "claimed", "processing", "error", "total"):
@@ -70,7 +78,12 @@ class StatsBuilderTests(TestCase):
         self.assertIn("status_counts", data)
         self.assertIn("generated_at", data)
 
-    def test_rendered_html_exposes_the_counts_to_the_page(self):
-        html = StatsBuilder().render()
-        self.assertIn("extract_counts", html)
-        self.assertIn("q-ext-completed", html)
+    def test_build_writes_json_atomically(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "geoquery_stats.json"
+            status = StatsBuilder(out).build()
+
+            self.assertEqual(status, "Success")
+            self.assertIn("extract_counts", json.loads(out.read_text()))
+            # the temp file used for the atomic replace must not survive
+            self.assertEqual(list(Path(tmp).glob("*.tmp")), [])

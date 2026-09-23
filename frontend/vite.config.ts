@@ -21,10 +21,6 @@ export default defineConfig({
         target: process.env.API_URL || "http://localhost:8000",
         changeOrigin: false,
       },
-      "/stats": {
-        target: process.env.API_URL || "http://localhost:8000",
-        changeOrigin: false,
-      },
     },
   },
 });
