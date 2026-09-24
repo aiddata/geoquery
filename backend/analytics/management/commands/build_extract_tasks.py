@@ -164,7 +164,8 @@ _INSERT_GLOBAL_BATCH_SQL = """
       AND fm.id > %(completed_up_to_fm_id)s
       AND NOT EXISTS (
           SELECT 1 FROM extract_tasks et
-          WHERE et.fm_id = fm.id
+          WHERE et.dataset_id = %(dataset_id)s
+            AND et.fm_id = fm.id
             AND et.po_id = %(po_id)s
             AND et.resource_ids = %(resource_ids)s
       )
