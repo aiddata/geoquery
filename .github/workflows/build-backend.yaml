@@ -1,4 +1,11 @@
 name: Build backend container
+# Only runs when the backend actually changes, so the two images routinely
+# sit at different commits. The deploy handles that by carrying forward
+# whichever image did not rebuild (see deploy.yml) rather than looking it up.
+#
+# Touching this file is also the way to force a rebuild deliberately -- it is
+# in the path filter below. Useful when the published image needs to be
+# regenerated without an application change.
 on:
   push:
     branches:
