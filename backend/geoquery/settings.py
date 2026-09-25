@@ -552,7 +552,20 @@ CELERY_BEAT_SCHEDULE = {
         # is what makes this a top-up rather than a stampede -- the same shape
         # as dispatch_processing_tasks, which already fills gaps left by dead
         # chains.
-        "schedule": crontab(minute=30),
+        #
+        # Every 10 minutes rather than hourly, because an hourly tick and a
+        # 30-minute staleness window interact badly: a wave that dies just
+        # after a tick is not yet reclaimable at the next one, so recovery
+        # slips a full hour. Measured on 2026-09-24: a rolling deploy killed a
+        # wave at 00:07, RUN_STALE_MINUTES made it claimable at 00:37, the
+        # 00:30 tick was 7 minutes too early, and nothing built again until
+        # 01:30 -- 83 minutes idle. With RUN_STALE_MINUTES at 10, the worst
+        # case is now ~20 minutes.
+        #
+        # The cost of a tick that finds a live wave is one guarded UPDATE plus
+        # the non-global branch, measured at 0.6ms on production -- so the
+        # extra five ticks an hour are free.
+        "schedule": crontab(minute="*/10"),
     },
     "run-user-outreach": {
         "task": "analytics.tasks.maintenance.run_user_outreach",

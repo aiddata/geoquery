@@ -285,15 +285,41 @@ class BuildRunDispatchGuardTest(TransactionTestCase):
 
 
 class BuildBeatScheduleTest(TransactionTestCase):
-    def test_build_extract_tasks_runs_hourly(self):
+    def test_build_extract_tasks_ticks_faster_than_the_run_lock_goes_stale(self):
+        """The tick interval must be shorter than RUN_STALE_MINUTES.
+
+        These two numbers decide how long a killed wave stays dead, and they
+        used to disagree: an hourly tick against a 30-minute staleness window
+        meant a wave dying just after a tick was not yet reclaimable at the
+        next one, so recovery slipped a whole hour. Measured on 2026-09-24 --
+        wave killed 00:07, claimable 00:37, the 00:30 tick 7 minutes too
+        early, nothing built until 01:30. A tick strictly shorter than the
+        window is what bounds recovery at window + tick.
+        """
         from django.conf import settings
+
+        from analytics.management.commands.build_extract_tasks import RUN_STALE_MINUTES
 
         entry = settings.CELERY_BEAT_SCHEDULE["build-extract-tasks"]
         self.assertEqual(
             entry["task"], "analytics.tasks.maintenance.build_extract_tasks"
         )
-        # crontab with only `minute` set fires every hour at that minute.
-        self.assertEqual(set(entry["schedule"].hour), set(range(24)))
+
+        # Every hour is covered, and within the hour the gap between ticks is
+        # what bounds recovery.
+        schedule = entry["schedule"]
+        self.assertEqual(set(schedule.hour), set(range(24)))
+        minutes = sorted(schedule.minute)
+        self.assertGreater(len(minutes), 1, "a single tick per hour cannot bound recovery")
+        gaps = [b - a for a, b in zip(minutes, minutes[1:])] + [60 - minutes[-1] + minutes[0]]
+        # Recovery is bounded by (staleness window + tick gap): the wave waits
+        # out the window, then waits for the next tick. Keeping the gap no
+        # wider than the window caps that at twice the window; letting it grow
+        # past the window is what produced the 83-minute stall.
+        self.assertLessEqual(
+            max(gaps), RUN_STALE_MINUTES,
+            "a tick gap wider than the staleness window unbounds recovery",
+        )
 
     def test_result_backend_cleanup_is_scheduled(self):
         # Without this entry nothing prunes django_celery_results_taskresult;

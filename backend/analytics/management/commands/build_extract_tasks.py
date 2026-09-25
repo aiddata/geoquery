@@ -226,7 +226,15 @@ _MARK_PAIR_CAUGHT_UP_SQL = """
 # a big backlog" (frequent heartbeat) is distinguishable from "workers died
 # silently" (stale heartbeat) without having to guess how long the backlog
 # should take.
-RUN_STALE_MINUTES = 30
+#
+# 10 rather than 30 because this window is what a killed wave waits out before
+# anything can rebuild, and 30 was far wider than the heartbeat needs. The
+# heartbeat fires after every batch, so the margin is the ratio between the
+# two: at the ~112s batches that preceded the per-batch watermark this was
+# already ~5x, and at the ~20s batches it produces it is ~30x. Paired with the
+# 10-minute beat, worst-case idle after an uncleanly killed wave drops from
+# ~90 minutes to ~20.
+RUN_STALE_MINUTES = 10
 
 _TRY_ACQUIRE_RUN_SQL = """
     UPDATE extract_task_build_run
