@@ -1,5 +1,7 @@
 from django.contrib.gis.db import models
+from django.contrib.gis.geos import GEOSGeometry
 from django.contrib.postgres.fields import ArrayField
+from django.contrib.postgres.indexes import GistIndex
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
 
@@ -67,17 +69,87 @@ class FeatureCollection(models.Model):
         return queryset.order_by("name")
 
 
+class FeatureQuerySet(models.QuerySet):
+    def bulk_create(self, objs, *args, **kwargs):
+        # bulk_create skips Feature.save(), so apply the same rule here so the
+        # returned instances carry the point the database stored.
+        objs = list(objs)
+        for obj in objs:
+            obj.sync_representative_point()
+        created = super().bulk_create(objs, *args, **kwargs)
+        for obj in created:
+            obj._snapshot_geometry()
+        return created
+
+
+def _as_geometry(value):
+    if isinstance(value, str):
+        return GEOSGeometry(value, srid=4326)
+    return value
+
+
 class Feature(models.Model):
     """Features table for storing individual geospatial features."""
 
     id = models.AutoField(primary_key=True)
     shape = models.GeometryField(srid=4326)
+    # A single point standing in for the feature. Defaults to the centroid of
+    # `shape`, and is recomputed whenever `shape` changes unless a new point is
+    # supplied in the same write. The rule is enforced by the
+    # features_sync_representative_point trigger (migration 0009) so it holds
+    # for QuerySet.update() and raw SQL too; sync_representative_point() below
+    # mirrors it so in-memory instances match what the database stored.
+    # spatial_index=False because the GIST index is declared in Meta.indexes
+    # instead: that lets migration 0009 build it concurrently after the
+    # backfill rather than inside AddField, where it would have made every
+    # backfill update non-HOT (see database.md §3).
+    representative_point = models.PointField(
+        srid=4326, blank=True, null=True, spatial_index=False
+    )
+
+    objects = FeatureQuerySet.as_manager()
 
     class Meta:
         db_table = "features"
+        indexes = [
+            # Serves tile queries (representative_point && ST_TileEnvelope(...)).
+            GistIndex(fields=["representative_point"], name="idx_features_repr_point"),
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._snapshot_geometry()
 
     def __str__(self):
         return f"Feature {self.id}"
+
+    def _snapshot_geometry(self):
+        # Raw __dict__ values: reading the descriptors would fetch deferred
+        # fields. Values loaded from the database are already GEOSGeometry.
+        self._loaded_shape = self.__dict__.get("shape")
+        self._loaded_point = self.__dict__.get("representative_point")
+
+    def refresh_from_db(self, *args, **kwargs):
+        super().refresh_from_db(*args, **kwargs)
+        self._snapshot_geometry()
+
+    def sync_representative_point(self):
+        """Apply the representative_point rule to this instance (see the field comment)."""
+        if self.shape is None:
+            return
+        self.shape = _as_geometry(self.shape)
+        shape_changed = (
+            self._loaded_shape is not None
+            and self.shape != _as_geometry(self._loaded_shape)
+        )
+        point_changed = self.representative_point != _as_geometry(self._loaded_point)
+        if self.representative_point is None or (shape_changed and not point_changed):
+            self.representative_point = self.shape.centroid
+
+    def save(self, *args, **kwargs):
+        self.sync_representative_point()
+        super().save(*args, **kwargs)
+        self._snapshot_geometry()
 
 
 class FeatMap(models.Model):

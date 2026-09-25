@@ -1,7 +1,9 @@
+from django.contrib.gis.geos import Point, Polygon
+from django.db import connection
 from django.test import TestCase
 from django.urls import reverse
 
-from features.models import FeatureCollection
+from features.models import Feature, FeatureCollection
 
 
 def make_feature_collection(**overrides):
@@ -92,3 +94,85 @@ class FeatureCollectionAutocompleteViewTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("error", response.json())
+
+
+class FeatureRepresentativePointTests(TestCase):
+    square = Polygon(((0, 0), (0, 2), (2, 2), (2, 0), (0, 0)), srid=4326)
+    shifted = Polygon(((10, 10), (10, 12), (12, 12), (12, 10), (10, 10)), srid=4326)
+
+    def test_create_defaults_to_centroid(self):
+        feature = Feature.objects.create(shape=self.square)
+        feature.refresh_from_db()
+
+        self.assertEqual(feature.representative_point, Point(1, 1, srid=4326))
+
+    def test_create_from_wkt_string_defaults_to_centroid(self):
+        feature = Feature.objects.create(shape="POINT(3 4)")
+        feature.refresh_from_db()
+
+        self.assertEqual(feature.representative_point, Point(3, 4, srid=4326))
+
+    def test_explicit_value_is_kept(self):
+        feature = Feature.objects.create(
+            shape=self.square, representative_point=Point(0.5, 0.5, srid=4326)
+        )
+        feature.refresh_from_db()
+
+        self.assertEqual(feature.representative_point, Point(0.5, 0.5, srid=4326))
+
+    def test_bulk_create_defaults_to_centroid(self):
+        Feature.objects.bulk_create([Feature(shape=self.square)])
+
+        feature = Feature.objects.get()
+        self.assertEqual(feature.representative_point, Point(1, 1, srid=4326))
+
+    def test_save_after_shape_change_recomputes_point(self):
+        feature = Feature.objects.create(shape=self.square)
+        feature = Feature.objects.get(pk=feature.pk)
+
+        feature.shape = self.shifted
+        feature.save()
+
+        self.assertEqual(feature.representative_point, Point(11, 11, srid=4326))
+        feature.refresh_from_db()
+        self.assertEqual(feature.representative_point, Point(11, 11, srid=4326))
+
+    def test_save_after_shape_change_keeps_point_set_in_same_write(self):
+        feature = Feature.objects.create(shape=self.square)
+        feature = Feature.objects.get(pk=feature.pk)
+
+        feature.shape = self.shifted
+        feature.representative_point = Point(10.5, 10.5, srid=4326)
+        feature.save()
+
+        feature.refresh_from_db()
+        self.assertEqual(feature.representative_point, Point(10.5, 10.5, srid=4326))
+
+    def test_queryset_update_of_shape_recomputes_point(self):
+        feature = Feature.objects.create(shape=self.square)
+
+        Feature.objects.filter(pk=feature.pk).update(shape=self.shifted)
+
+        feature.refresh_from_db()
+        self.assertEqual(feature.representative_point, Point(11, 11, srid=4326))
+
+    def test_queryset_update_with_explicit_point_keeps_it(self):
+        feature = Feature.objects.create(shape=self.square)
+
+        Feature.objects.filter(pk=feature.pk).update(
+            shape=self.shifted, representative_point=Point(10.5, 10.5, srid=4326)
+        )
+
+        feature.refresh_from_db()
+        self.assertEqual(feature.representative_point, Point(10.5, 10.5, srid=4326))
+
+    def test_raw_sql_insert_defaults_to_centroid(self):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO features (shape) VALUES (ST_GeomFromText(%s, 4326)) RETURNING id",
+                [self.square.wkt],
+            )
+            (feature_id,) = cursor.fetchone()
+
+        feature = Feature.objects.get(pk=feature_id)
+        self.assertEqual(feature.representative_point, Point(1, 1, srid=4326))
