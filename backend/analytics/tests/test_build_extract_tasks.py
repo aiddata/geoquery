@@ -347,3 +347,164 @@ class BuildBatchCommitModeTest(TransactionTestCase):
                 any("synchronous_commit" in q for q in self.captured_sql()),
                 "setting must restore default (synchronous) commits",
             )
+
+
+class BuildProgressWatermarkTest(TransactionTestCase):
+    """Each batch records how far it got, not just the batch that finishes a pair.
+
+    completed_up_to_fm_id used to advance only when a pair ran out of work
+    (added < batch_size). A pair returning full batches recorded nothing, so
+    every batch restarted at fm.id > 0 and re-walked everything it had already
+    built -- cost growing with what was done rather than what was left, which
+    is what this table exists to prevent. Measured on production against a
+    pair with 695k rows built: 53,248ms and 169.7M buffer hits to find the
+    next 5,000 rows, versus 621ms and 724k hits resuming from the watermark.
+    """
+
+    def _dataset_with_one_resource(self, name):
+        d = Dataset.objects.create(
+            name=name, path=f"/data/{name}", active=True, is_global=True, task_group_period=None
+        )
+        ProcessingOption.objects.create(
+            dataset=d, short_name="mean", function="rasterstats_default_mean", active=True
+        )
+        DatasetResource.objects.create(
+            dataset=d, name=f"{name}-r1", path="r1.tif",
+            temporal=datetime(2020, 1, 1, tzinfo=timezone.utc),
+        )
+        return d
+
+    def _make_fms(self, count, name="fc-wm"):
+        fc = FeatureCollection.objects.create(
+            name=name, path=f"/data/{name}", active=True, is_user_upload=False
+        )
+        return [
+            FeatMap.objects.create(fc=fc, geom=Feature.objects.create(shape=Point(0, 0)))
+            for _ in range(count)
+        ]
+
+    def _pair_for(self, dataset):
+        """Create the progress row the way a real run does, without building."""
+        from analytics.management.commands import build_extract_tasks as cmd
+
+        with connection.cursor() as cursor:
+            cursor.execute(cmd._SYNC_STANDARD_PAIRS_SQL)
+        return ExtractTaskBuildProgress.objects.get(po__dataset_id=dataset.id)
+
+    def _run_one_batch(self, dataset, pair, batch_size, start_from):
+        """One batch of exactly the statement production runs.
+
+        Driven directly rather than through _build_global_tasks because that
+        loops until every pair is exhausted, so a whole-run assertion can only
+        ever see the finished state -- never the mid-flight watermark this
+        class is about.
+        """
+        from analytics.management.commands import build_extract_tasks as cmd
+
+        po = ProcessingOption.objects.get(dataset_id=dataset.id)
+        resource = DatasetResource.objects.get(dataset_id=dataset.id)
+        return cmd._run_batch(
+            cmd._INSERT_GLOBAL_BATCH_SQL,
+            {
+                "dataset_id": dataset.id,
+                "resource_ids": [resource.id],
+                "task_group_period": None,
+                "po_id": po.id,
+                "completed_up_to_fm_id": start_from,
+                "batch_size": batch_size,
+                "progress_id": pair.id,
+            },
+            fetch=True,
+        )
+
+    def test_a_full_batch_records_how_far_it_got(self):
+        # The regression this class exists for: a pair with more work left
+        # than one batch must still record progress, or the next batch
+        # rescans everything it already built.
+        d = self._dataset_with_one_resource("wm_full")
+        fms = self._make_fms(3)
+        pair = self._pair_for(d)
+
+        added, max_fm_id = self._run_one_batch(d, pair, batch_size=2, start_from=0)
+        pair.refresh_from_db()
+
+        self.assertEqual(added, 2, "batch_size should have capped this batch")
+        self.assertEqual(max_fm_id, fms[1].id)
+        self.assertEqual(
+            pair.completed_up_to_fm_id, max_fm_id,
+            "watermark must advance to the last row the batch actually inserted",
+        )
+        self.assertLess(
+            pair.completed_up_to_fm_id, fms[-1].id,
+            "the pair is not finished, so the watermark must not jump past unbuilt rows",
+        )
+
+    def test_the_next_batch_resumes_from_the_watermark(self):
+        d = self._dataset_with_one_resource("wm_resume")
+        fms = self._make_fms(3)
+        pair = self._pair_for(d)
+
+        self._run_one_batch(d, pair, batch_size=2, start_from=0)
+        pair.refresh_from_db()
+        added, _ = self._run_one_batch(
+            d, pair, batch_size=2, start_from=pair.completed_up_to_fm_id
+        )
+
+        self.assertEqual(added, 1, "only the one unbuilt row should remain")
+        self.assertEqual(
+            sorted(ExtractTask.objects.filter(dataset_id=d.id).values_list("fm_id", flat=True)),
+            sorted(f.id for f in fms),
+            "resuming must add to what the first batch built, not redo or skip it",
+        )
+
+    def test_a_partial_batch_still_marks_the_pair_caught_up(self):
+        # Unchanged behaviour: a pair that runs out of work jumps to the
+        # current max fm_id, which covers the tail where there was nothing to
+        # do -- beyond the last row it actually inserted.
+        d = self._dataset_with_one_resource("wm_partial")
+        fms = self._make_fms(2)
+
+        _build_extract_tasks(batch_size=50)
+
+        pair = ExtractTaskBuildProgress.objects.get(po__dataset_id=d.id)
+        self.assertGreaterEqual(pair.completed_up_to_fm_id, fms[-1].id)
+        self.assertIsNone(pair.claimed_at, "a caught-up pair must release its claim")
+
+    def test_a_batch_that_inserts_nothing_leaves_the_watermark_alone(self):
+        # GREATEST/IS NOT NULL guard: an empty batch must not reset a
+        # watermark to 0 or stall a pair by moving it backwards.
+        d = self._dataset_with_one_resource("wm_empty")
+        self._make_fms(2)
+
+        _build_extract_tasks(batch_size=50)
+        pair = ExtractTaskBuildProgress.objects.get(po__dataset_id=d.id)
+        before = pair.completed_up_to_fm_id
+
+        _build_extract_tasks(batch_size=50)
+        pair.refresh_from_db()
+
+        self.assertEqual(pair.completed_up_to_fm_id, before)
+        self.assertEqual(ExtractTask.objects.filter(dataset_id=d.id).count(), 2)
+
+    def test_the_watermark_advances_in_the_same_statement_as_the_insert(self):
+        """Not stylistic: _run_batch commits asynchronously, so a separately
+        committed watermark could survive a crash that lost the insert, and
+        those feat_map rows would be skipped forever with nothing to notice.
+        One statement means they are lost or kept together.
+        """
+        self._dataset_with_one_resource("wm_atomic")
+        self._make_fms(3)
+
+        with CaptureQueriesContext(connection) as ctx:
+            _build_global_tasks(batch_size=2)
+
+        inserts = [
+            q["sql"] for q in ctx.captured_queries
+            if "INSERT INTO extract_tasks" in q["sql"]
+        ]
+        self.assertTrue(inserts, "expected the batch INSERT to run")
+        for sql in inserts:
+            self.assertIn(
+                "UPDATE extract_task_build_progress", sql,
+                "the watermark UPDATE must live inside the INSERT's own statement",
+            )
