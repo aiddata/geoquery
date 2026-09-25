@@ -106,9 +106,24 @@ jobs:
           #                  the two builds of one commit from racing.
           #   failed      -> stop. Never ship half of a commit.
           #   no run      -> that build wasn't triggered by this commit (its
-          #                  paths didn't change), so the branch's last
-          #                  successful image is genuinely the right one.
-          BRANCH="${{ steps.ctx.outputs.branch }}"
+          #                  paths didn't change), so leave the chart's tag
+          #                  alone. See below for why we don't look it up.
+          #
+          # That last case used to ask the API for the branch's most recent
+          # successful run, and it shipped a nine-day-old frontend into
+          # production. 0.48.0 was a backend-only commit; the lookup returned
+          # 281e69b (built 2026-09-16) rather than d819181 (built 2026-09-23),
+          # which predated the /stats route, so that page 404'd until the image
+          # was pinned by hand. Re-running the identical query afterwards
+          # returned d819181 consistently, so it could not be reproduced -- the
+          # deploy trusted one call and had no way to notice the answer had
+          # moved backwards.
+          #
+          # The fix is to stop asking. The chart already pins a known-good tag
+          # for the image that didn't rebuild: it is what is deployed and
+          # working right now. Rediscovering it can only agree with the chart or
+          # be wrong, so preserving it is strictly safer than any query, and it
+          # removes this failure mode rather than narrowing it.
           SHA="${{ steps.ctx.outputs.sha }}"
           TRIGGER_WF_NAME="${{ github.event.workflow_run.name }}"
 
@@ -134,10 +149,9 @@ jobs:
               echo "${WF_NAME}: ${RUN_SHA:0:7} (triggered this deploy)"
 
             elif [ -z "$THIS_COMMIT" ] || [ "$THIS_COMMIT" = "null:null" ]; then
-              RUN_SHA=$(gh api \
-                "repos/${{ github.repository }}/actions/workflows/${WF_ID}/runs?branch=${BRANCH}&status=success&per_page=1" \
-                --jq '.workflow_runs[0].head_sha // ""')
-              echo "${WF_NAME}: ${RUN_SHA:0:7} (not built for ${SHA:0:7}; branch's last success)"
+              # Empty means "leave the chart's tag alone" -- see the header.
+              RUN_SHA=""
+              echo "${WF_NAME}: not built for ${SHA:0:7}; keeping the chart's current tag"
 
             elif [ "${THIS_COMMIT%%:*}" != "completed" ]; then
               echo "${WF_NAME} is still running for ${SHA:0:7} (${THIS_COMMIT})."
@@ -155,12 +169,9 @@ jobs:
               echo "${WF_NAME}: ${RUN_SHA:0:7} (succeeded for this commit)"
             fi
 
-            if [ -z "$RUN_SHA" ]; then
-              echo "ERROR: no successful '${WF_NAME}' run found on branch ${BRANCH}"
-              echo "skip=true" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-
+            # Empty is a valid answer now: it means "this image did not rebuild,
+            # so don't touch it". The update step skips the sed for an empty
+            # value rather than writing a blank tag.
             echo "${KEY}_sha=${RUN_SHA}" >> $GITHUB_OUTPUT
             echo "${KEY}_sha_short=${RUN_SHA:0:7}" >> $GITHUB_OUTPUT
           done
@@ -190,14 +201,24 @@ jobs:
           PUB_BE=$(grep -oP 'geoquery-backend:\K\S+' /tmp/geoquery/values.yaml || echo "?")
           PUB_FE=$(grep -oP 'geoquery-frontend:\K\S+' /tmp/geoquery/values.yaml || echo "?")
 
-          if [ "$PUB_BE" = "$EXPECTED_BE" ] && [ "$PUB_FE" = "$EXPECTED_FE" ]; then
+          # An empty expectation means that image is being preserved rather
+          # than set, so it can't disagree with what is published.
+          MISMATCH=0
+          if [ -n "$EXPECTED_BE" ] && [ "$PUB_BE" != "$EXPECTED_BE" ]; then
+            MISMATCH=1
+          fi
+          if [ -n "$EXPECTED_FE" ] && [ "$PUB_FE" != "$EXPECTED_FE" ]; then
+            MISMATCH=1
+          fi
+
+          if [ "$MISMATCH" -eq 0 ]; then
             echo "Chart ${VERSION} is already published with these exact images — nothing to do."
             exit 0
           fi
 
           echo "ERROR: chart ${VERSION} is already published, with different images:"
           echo "  published: backend=${PUB_BE} frontend=${PUB_FE}"
-          echo "  wanted:    backend=${EXPECTED_BE} frontend=${EXPECTED_FE}"
+          echo "  wanted:    backend=${EXPECTED_BE:-<unchanged>} frontend=${EXPECTED_FE:-<unchanged>}"
           echo "chart-releaser will not overwrite it, so publishing would silently do nothing."
           echo "Use a new [DEPLOY-X.Y.Z] version."
           exit 1
@@ -218,10 +239,24 @@ jobs:
           BACKEND_SHA="${{ steps.builds.outputs.backend_sha_short }}"
 
           sed -i "s/^version:.*/version: ${VERSION}/" helm-charts/charts/geoquery/Chart.yaml
-          sed -i "s|image: ghcr.io/aiddata/geoquery-frontend:.*|image: ghcr.io/aiddata/geoquery-frontend:${FRONTEND_SHA}|" \
-            helm-charts/charts/geoquery/values.yaml
-          sed -i "s|image: ghcr.io/aiddata/geoquery-backend:.*|image: ghcr.io/aiddata/geoquery-backend:${BACKEND_SHA}|" \
-            helm-charts/charts/geoquery/values.yaml
+
+          # An empty SHA means that image did not rebuild for this commit, so
+          # the chart's existing tag is the deployed, working one -- leave it.
+          # Writing an empty tag here is what a naive sed would do, and it would
+          # produce "geoquery-frontend:" and a broken chart.
+          if [ -n "$FRONTEND_SHA" ]; then
+            sed -i "s|image: ghcr.io/aiddata/geoquery-frontend:.*|image: ghcr.io/aiddata/geoquery-frontend:${FRONTEND_SHA}|" \
+              helm-charts/charts/geoquery/values.yaml
+          else
+            echo "frontend: unchanged (did not rebuild for this commit)"
+          fi
+
+          if [ -n "$BACKEND_SHA" ]; then
+            sed -i "s|image: ghcr.io/aiddata/geoquery-backend:.*|image: ghcr.io/aiddata/geoquery-backend:${BACKEND_SHA}|" \
+              helm-charts/charts/geoquery/values.yaml
+          else
+            echo "backend: unchanged (did not rebuild for this commit)"
+          fi
 
           echo "Chart.yaml:" && grep '^version:' helm-charts/charts/geoquery/Chart.yaml
           echo "values.yaml:" && grep 'image: ghcr.io/aiddata/geoquery-' helm-charts/charts/geoquery/values.yaml
@@ -240,7 +275,12 @@ jobs:
             echo "helm-charts already at ${{ steps.ctx.outputs.version }} with these images — nothing to push."
             exit 0
           fi
-          git commit -m "chore: bump geoquery chart to ${{ steps.ctx.outputs.version }} (backend ${{ steps.builds.outputs.backend_sha_short }}, frontend ${{ steps.builds.outputs.frontend_sha_short }})"
+          # Read the tags back out of the file rather than echoing the step
+          # outputs: a preserved image has an empty output, and the message
+          # should describe what the chart now says, not what this run set.
+          BE=$(grep -oP 'geoquery-backend:\K\S+' charts/geoquery/values.yaml)
+          FE=$(grep -oP 'geoquery-frontend:\K\S+' charts/geoquery/values.yaml)
+          git commit -m "chore: bump geoquery chart to ${{ steps.ctx.outputs.version }} (backend ${BE}, frontend ${FE})"
           git push
 
       - name: Checkout nova-fluxcd
