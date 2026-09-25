@@ -153,24 +153,62 @@ _RELEASE_CLAIM_SQL = "UPDATE extract_task_build_progress SET claimed_at = NULL W
 # duplicate-key IntegrityError on the exact same row.
 _TOUCH_CLAIM_SQL = "UPDATE extract_task_build_progress SET claimed_at = NOW() WHERE id = %s"
 
+# The batch advances the pair's watermark in the SAME statement that inserts
+# the rows, which is load-bearing rather than tidy. _run_batch commits
+# asynchronously, and its safety argument is that a lost batch takes its
+# progress with it: if the watermark were written by a separate statement, a
+# crash could keep the watermark while losing the async INSERT, and those
+# feat_map rows would be skipped forever with nothing to notice. Inside one
+# transaction the two are lost or kept together, so the next pass rebuilds
+# exactly what was lost.
+#
+# Before this, the watermark only moved when a pair ran out of work
+# (added < batch_size). A pair returning full batches never recorded
+# anything, so every batch restarted at fm.id > 0 and re-walked everything it
+# had already built -- cost growing with what was done rather than what was
+# left, which is precisely what this table exists to prevent. Measured on a
+# pair with 695k rows built: 53,248ms and 169.7M buffer hits to find the next
+# 5,000 rows, against 621ms and 724k hits when resuming from the watermark.
+#
+# GREATEST guards the watermark against moving backwards if two workers
+# briefly overlap on one pair (see _TOUCH_CLAIM_SQL); the IS NOT NULL guard
+# leaves it alone when a batch inserts nothing. Data-modifying CTEs always
+# run to completion even when unreferenced, so `advanced` fires regardless of
+# what the outer SELECT reads.
 _INSERT_GLOBAL_BATCH_SQL = """
-    INSERT INTO extract_tasks
-        (dataset_id, resource_ids, task_group_period, fm_id, po_id, status, priority, attempts, submit_time)
-    SELECT %(dataset_id)s, %(resource_ids)s, %(task_group_period)s, fm.id, %(po_id)s, 0, 0, 0, NOW()
-    FROM feat_map fm
-    INNER JOIN feature_collections fc ON fm.fc_id = fc.id
-    WHERE fc.active = TRUE
-      AND fc.is_user_upload = FALSE
-      AND fm.id > %(completed_up_to_fm_id)s
-      AND NOT EXISTS (
-          SELECT 1 FROM extract_tasks et
-          WHERE et.dataset_id = %(dataset_id)s
-            AND et.fm_id = fm.id
-            AND et.po_id = %(po_id)s
-            AND et.resource_ids = %(resource_ids)s
-      )
-    ORDER BY fm.id
-    LIMIT %(batch_size)s
+    WITH inserted AS (
+        INSERT INTO extract_tasks
+            (dataset_id, resource_ids, task_group_period, fm_id, po_id, status, priority, attempts, submit_time)
+        SELECT %(dataset_id)s, %(resource_ids)s, %(task_group_period)s, fm.id, %(po_id)s, 0, 0, 0, NOW()
+        FROM feat_map fm
+        INNER JOIN feature_collections fc ON fm.fc_id = fc.id
+        WHERE fc.active = TRUE
+          AND fc.is_user_upload = FALSE
+          AND fm.id > %(completed_up_to_fm_id)s
+          AND NOT EXISTS (
+              SELECT 1 FROM extract_tasks et
+              WHERE et.dataset_id = %(dataset_id)s
+                AND et.fm_id = fm.id
+                AND et.po_id = %(po_id)s
+                AND et.resource_ids = %(resource_ids)s
+          )
+        ORDER BY fm.id
+        LIMIT %(batch_size)s
+        RETURNING fm_id
+    ),
+    batch AS (
+        SELECT count(*) AS added, max(fm_id) AS max_fm_id FROM inserted
+    ),
+    advanced AS (
+        UPDATE extract_task_build_progress p
+        SET completed_up_to_fm_id =
+                GREATEST(COALESCE(p.completed_up_to_fm_id, 0), batch.max_fm_id)
+        FROM batch
+        WHERE p.id = %(progress_id)s
+          AND batch.max_fm_id IS NOT NULL
+        RETURNING p.completed_up_to_fm_id
+    )
+    SELECT added, max_fm_id FROM batch
 """
 
 _MARK_PAIR_CAUGHT_UP_SQL = """
@@ -242,10 +280,14 @@ def _build_synchronous_commit():
     return getattr(settings, "EXTRACT_TASK_BUILD_SYNCHRONOUS_COMMIT", False)
 
 
-def _run_batch(sql, params):
+def _run_batch(sql, params, fetch=False):
     """Run one INSERT batch in its own short transaction with a statement timeout.
 
     Returns rows added, or None if the batch failed/timed out (caller stops).
+    With fetch=True the statement is expected to return a row and that row is
+    returned instead of the rowcount -- the global batch reports its own count
+    because its INSERT is wrapped in a CTE, so rowcount would describe the
+    outer SELECT rather than the insert.
 
     Commits asynchronously by default (SET LOCAL, so it applies to this
     transaction only -- not to anything else this role does). The database is
@@ -270,7 +312,7 @@ def _run_batch(sql, params):
                 if not _build_synchronous_commit():
                     cursor.execute("SET LOCAL synchronous_commit = off")
                 cursor.execute(sql, params)
-                return cursor.rowcount
+                return cursor.fetchone() if fetch else cursor.rowcount
     except DatabaseError:
         logger.exception("build_extract_tasks batch failed/timed out")
         return None
@@ -352,7 +394,7 @@ def _build_global_tasks(batch_size=BATCH_SIZE):
         for progress_id, resource_ids, po_id, completed_up_to_fm_id, dataset_id, task_group_period in pairs:
             with connection.cursor() as cursor:
                 cursor.execute(_TOUCH_CLAIM_SQL, [progress_id])
-            added = _run_batch(
+            result = _run_batch(
                 _INSERT_GLOBAL_BATCH_SQL,
                 {
                     "dataset_id": dataset_id,
@@ -361,12 +403,18 @@ def _build_global_tasks(batch_size=BATCH_SIZE):
                     "po_id": po_id,
                     "completed_up_to_fm_id": completed_up_to_fm_id or 0,
                     "batch_size": batch_size,
+                    "progress_id": progress_id,
                 },
+                fetch=True,
             )
-            if added is None:
+            if result is None:
                 with connection.cursor() as cursor:
                     cursor.execute(_RELEASE_CLAIM_SQL, [progress_id])
                 continue  # this pair failed/timed out; try the rest of the page
+
+            # The watermark for these rows has already been advanced by the
+            # statement above, atomically with the insert.
+            added, _max_fm_id = result
 
             made_progress = True
             total_added += added
