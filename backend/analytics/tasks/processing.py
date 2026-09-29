@@ -260,30 +260,23 @@ def run_extract_task(task_ids):
             logger.exception("Tasks %s could not dispatch a successor", task_ids)
 
 
-def _positions_needing_processing(n, existing_rows):
-    """Which indices into resource_ids (0..n-1) still need a value computed.
+def _positions_needing_processing(n):
+    """Every index into resource_ids (0..n-1). A retry recomputes all of them.
 
-    First run (no ExtractData rows yet): every position. On a rerun, a
-    position needs (re)processing if ANY existing row has a NULL at that
-    index in whichever array field matches its data_column. Granularity here
-    is per resource-index, not per name: a single processor call for one
-    resource typically returns several named results at once (e.g. mean,
-    min, max), so if even one of those names is still NULL at position i,
-    the whole call for resource i has to be redone -- there's no way to
-    recompute just the missing name. Positions where every name is already
-    filled are left out entirely, which is what makes a rerun skip a
-    previously-successful resource instead of recomputing it.
+    This used to skip positions whose value was already non-NULL, reading an
+    array NULL as "position i still needs work". That reading is gone: a NULL
+    now means the extraction ran and found nodata, which is a final answer,
+    not a request to retry. Telling those apart again would need a separate
+    per-position marker.
+
+    The only thing the skip bought was avoiding recomputation of
+    already-successful resources on a grouped task's retry. That is free for
+    single-position tasks (nothing to skip) and is paid only by grouped ones,
+    and only when they actually fail. Do NOT reintroduce the skip without
+    adding an explicit attempted-marker first -- without one it silently
+    resurrects the infinite-retry bug for every nodata result.
     """
-    if not existing_rows:
-        return set(range(n))
-
-    positions = set()
-    for row in existing_rows:
-        values = getattr(row, f"{row.data_column}_values") or []
-        for i in range(n):
-            if i >= len(values) or values[i] is None:
-                positions.add(i)
-    return positions
+    return set(range(n))
 
 
 def _run_extract_task(task_id):
@@ -368,7 +361,7 @@ def _run_extract_task(task_id):
                 dataset_id=task.dataset_id, extract_task_id=task_id
             )
         )
-        positions = _positions_needing_processing(n, existing_rows)
+        positions = _positions_needing_processing(n)
 
         # name -> {position: value}, accumulated only from calls that
         # succeeded this run. A resource whose call raises contributes
@@ -469,21 +462,10 @@ def _run_extract_task(task_id):
         )
         raise
 
-    # A position is incomplete if either (a) it raised this run -- an empty
-    # result list is a legitimate success and must NOT be confused with a
-    # position that has no ExtractData row because it failed, or (b) some
-    # name's stored array still has a NULL there, which also catches a name
-    # that finished filling on an EARLIER run without this run touching it.
-    failed_positions = {i for _, i, _ in failures}
-    null_positions = set()
-    for row in ExtractData.objects.filter(
-        dataset_id=task.dataset_id, extract_task_id=task_id
-    ):
-        values = list(getattr(row, f"{row.data_column}_values") or [])
-        values += [None] * (n - len(values))
-        null_positions.update(i for i in range(n) if values[i] is None)
-
-    incomplete_positions = failed_positions | null_positions
+    # A run that raised nothing is complete. A NULL value means the extraction
+    # ran and found nodata -- a final answer, not an unfinished position (see
+    # _positions_needing_processing).
+    incomplete_positions = {i for _, i, _ in failures}
 
     if not incomplete_positions:
         # dataset_id included so this prunes to one partition -- see the
@@ -495,8 +477,6 @@ def _run_extract_task(task_id):
         return {"task_id": task_id, "results": len(all_names)}
 
     parts = [f"resource {rid}[{i}]: {exc!r}" for rid, i, exc in failures]
-    if null_positions - failed_positions:
-        parts.append(f"positions still null: {sorted(null_positions - failed_positions)}")
     error = "; ".join(parts)[:100]
     ExtractTask.objects.filter(id=task_id, dataset_id=task.dataset_id).update(
         status=-1, error=error

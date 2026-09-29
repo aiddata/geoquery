@@ -209,7 +209,7 @@ class ProcessingTestCase(TestCase):
 
     # --- rerun only touches NULL positions ------------------------------------
 
-    def test_rerun_only_reprocesses_null_positions(self):
+    def test_rerun_recomputes_every_position(self):
         resources = self.make_resources(3)
         task = self.make_task(resources, status=QUEUED)
         failing_id = resources[1].id
@@ -247,9 +247,10 @@ class ProcessingTestCase(TestCase):
         self.assertEqual(task.status, DONE)
         self.assertIsNotNone(result)
 
-        # Only the previously-NULL position (r1) should have been recomputed;
-        # r0 and r2 were already filled and must not have been called again.
-        self.assertEqual(call_log, ["r1"])
+        # Every position is recomputed on a retry -- a NULL no longer means
+        # "position i still needs work" (it will shortly mean "nodata"), so
+        # there is nothing left to derive a skip list from.
+        self.assertEqual(call_log, ["r0", "r1", "r2"])
 
         row.refresh_from_db()
         self.assertEqual(row.float_values, [0.0, 1.0, 2.0])
@@ -295,7 +296,7 @@ class ProcessingTestCase(TestCase):
 
         task.refresh_from_db()
         self.assertEqual(task.status, DONE)
-        self.assertEqual(call_log, ["r1"])
+        self.assertEqual(call_log, ["r0", "r1", "r2"])
         # One distinct name ("mean"), not existing_by_name(1) + produced(1) = 2.
         self.assertEqual(result, {"task_id": task.id, "results": 1})
 
@@ -333,3 +334,23 @@ class ProcessingTestCase(TestCase):
         self.assertIsNone(result)
         task.refresh_from_db()
         self.assertEqual(task.status, QUEUED)
+
+    def test_null_position_does_not_block_completion(self):
+        # A run that raises nothing is complete, even if a processor returned
+        # no value for some position. This is what lets a NULL mean "nodata"
+        # rather than "retry me".
+        resources = self.make_resources(3)
+        task = self.make_task(resources, status=QUEUED)
+
+        def sparse(geometry, path, **kw):
+            if path.stem == "r1":
+                return []  # legitimate success that yields no named result
+            idx = int(path.stem[-1])
+            return [("mean", float(idx))]
+
+        with mock.patch.object(processing, "get_func", return_value=sparse):
+            _run_extract_task(task.id)
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, DONE)
+        self.assertIsNone(task.error)
