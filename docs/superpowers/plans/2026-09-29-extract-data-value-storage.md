@@ -373,6 +373,7 @@ existed to feed the skip list."
 - [ ] A task with `len(resource_ids) > 1` writes the array position-aligned and leaves the scalars NULL
 - [ ] A name whose first value is nodata but whose later values are floats produces a `float` row, not a `str` row
 - [ ] An all-nodata task writes one row with every value column NULL and reaches `status=1`
+- [ ] A run that produced nothing at all (every position raised) leaves a previous run's rows intact
 
 **Verify:** `python manage.py test analytics.tests.test_processing -v 2` → OK
 
@@ -431,6 +432,31 @@ Append to `ProcessingTestCase` in `backend/analytics/tests/test_processing.py`:
         row = self.data_row(task, "mean")
         self.assertEqual(row.float_values, [0.0, 10.0, 20.0])
         self.assertIsNone(row.float_value)
+
+    def test_total_failure_does_not_wipe_a_previous_runs_results(self):
+        # The row set is replaced wholesale on each run, which would destroy
+        # good data if a retry happened to fail on every position. A run that
+        # produced nothing must leave the previous run's rows alone.
+        resources = self.make_resources(1)
+        task = self.make_task(resources, status=QUEUED)
+
+        with mock.patch.object(
+            processing, "get_func", return_value=lambda g, p, **kw: [("mean", 4.5)]
+        ):
+            _run_extract_task(task.id)
+        self.assertEqual(self.data_row(task, "mean").float_value, 4.5)
+
+        ExtractTask.objects.filter(id=task.id).update(status=PENDING)
+
+        def always_fails(geometry, path, **kw):
+            raise RuntimeError("boom")
+
+        with mock.patch.object(processing, "get_func", return_value=always_fails):
+            with self.assertRaises(RuntimeError):
+                _run_extract_task(task.id)
+
+        # Still there -- a transient failure must not cost us the good value.
+        self.assertEqual(self.data_row(task, "mean").float_value, 4.5)
 
     def test_leading_nodata_does_not_type_the_row_as_str(self):
         # The bug this fixes: data_column was taken from the FIRST value seen,
@@ -518,9 +544,23 @@ In `_run_extract_task`, replace the entire block that begins `existing_by_name =
         # this run's results are the complete picture for this task. Replace
         # the row set wholesale rather than merging into whatever a previous
         # run left behind. dataset_id prunes to one partition.
-        ExtractData.objects.filter(
-            dataset_id=task.dataset_id, extract_task_id=task_id
-        ).delete()
+        #
+        # Guarded on `produced` being non-empty: an empty one means EVERY
+        # position raised this run, and wiping a previous run's good results
+        # because of a transient failure would be strictly worse than keeping
+        # them. The task goes to status=-1 either way and is recomputed in
+        # full on retry. The old merge-based code got this for free via its
+        # `elif not values_by_pos: continue` branch.
+        #
+        # A position that raised while others succeeded still lands as NULL
+        # here, which is indistinguishable from nodata at the row level. That
+        # is safe because the task is status=-1, and consumers gate on
+        # status=1 (see manage_user_requests._check_request_tasks) -- so a
+        # failed task's NULLs are never read as results.
+        if produced:
+            ExtractData.objects.filter(
+                dataset_id=task.dataset_id, extract_task_id=task_id
+            ).delete()
 
         rows = []
         for name, values_by_pos in produced.items():
