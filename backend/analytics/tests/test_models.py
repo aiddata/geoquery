@@ -83,14 +83,16 @@ class ExtractTaskResourceIdsHashTest(TestCase):
 
 class ExtractDataArraysTest(TestCase):
     def test_value_arrays_exist(self):
+        # Both sides of the row exist: scalars for single-resource tasks,
+        # arrays for grouped ones. A row populates one side or the other.
         field_names = {f.name for f in ExtractData._meta.get_fields()}
         self.assertIn("float_values", field_names)
         self.assertIn("int_values", field_names)
         self.assertIn("str_values", field_names)
         self.assertIn("dataset_id", field_names)
-        self.assertNotIn("float_value", field_names)
-        self.assertNotIn("int_value", field_names)
-        self.assertNotIn("str_value", field_names)
+        self.assertIn("float_value", field_names)
+        self.assertIn("int_value", field_names)
+        self.assertIn("str_value", field_names)
 
     def test_value_array_columns_are_postgres_arrays(self):
         from django.db import connection
