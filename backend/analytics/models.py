@@ -228,8 +228,12 @@ class ExtractData(models.Model):
       actually used per row, matching data_column. The others stay NULL, not
       an array of NULLs.
     - Element-level (each array's own field is null=True): within whichever
-      one column is in use, a NULL at position i means resource_ids[i] still
-      needs (re)processing -- see analytics.tasks.processing._run_extract_task.
+      column is in use, a NULL at position i means no value was stored for
+      resource_ids[i] -- the processor produced none, or that position failed
+      this run. It is NOT a request to reprocess. Whether a task still needs
+      work is a property of ExtractTask.status, not of this row: see
+      analytics.tasks.processing._positions_needing_processing, which
+      recomputes every position on a retry.
 
     Primary key is the natural (dataset_id, extract_task_id, name) tuple, not
     a surrogate id -- (extract_task, name) was always the real uniqueness

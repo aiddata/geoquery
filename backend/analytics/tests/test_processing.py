@@ -28,8 +28,7 @@ class ProcessingTestCase(TestCase):
     Real contention isn't exercised here (see test_dispatch.py's docstring) --
     these cover the single-worker contract: resource_ids[i] maps to index i
     in every ExtractData row's value arrays, one resource's failure leaves
-    only its own position(s) NULL, and a rerun only touches positions that
-    are still NULL.
+    only its own position(s) NULL, and a rerun recomputes every position.
     """
 
     @classmethod
@@ -207,7 +206,7 @@ class ProcessingTestCase(TestCase):
         self.assertEqual(row.float_values, [20.0, 0.0, 10.0])
         self.assertEqual(call_log, ["r2", "r0", "r1"])
 
-    # --- rerun only touches NULL positions ------------------------------------
+    # --- rerun recomputes every position -------------------------------------
 
     def test_rerun_recomputes_every_position(self):
         resources = self.make_resources(3)
@@ -336,9 +335,11 @@ class ProcessingTestCase(TestCase):
         self.assertEqual(task.status, QUEUED)
 
     def test_null_position_does_not_block_completion(self):
-        # A run that raises nothing is complete, even if a processor returned
-        # no value for some position. This is what lets a NULL mean "nodata"
-        # rather than "retry me".
+        # A run that raises nothing is complete, even where a processor
+        # produced no value for a position. This is the precondition for
+        # storing nodata as a real NULL: the completion check no longer
+        # scans stored arrays. (The nodata value itself is still the string
+        # 'None' until _classify_value changes in a later commit.)
         resources = self.make_resources(3)
         task = self.make_task(resources, status=QUEUED)
 
@@ -354,3 +355,9 @@ class ProcessingTestCase(TestCase):
         task.refresh_from_db()
         self.assertEqual(task.status, DONE)
         self.assertIsNone(task.error)
+
+        row = self.data_row(task, "mean")
+        self.assertEqual(row.float_values, [0.0, None, 2.0])
+        self.assertEqual(
+            ExtractData.objects.filter(extract_task_id=task.id).count(), 1
+        )
