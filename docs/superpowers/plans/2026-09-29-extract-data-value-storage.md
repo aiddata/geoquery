@@ -46,6 +46,33 @@ Task 7 (the cutover command) ships in the same release but is *executed* afterwa
 
 All test commands run from `backend/`. The project uses the `djm` alias for management commands (`djm <command>` in place of the full `docker compose exec` invocation).
 
+## Test baseline
+
+The dev stack runs in Docker and the local user is not in the docker group, so every command needs `sudo docker compose exec -T backend uv run python manage.py …` (sudo is passwordless; `-T` is required).
+
+Two baselines, measured 2026-09-29 on this branch before any code changed:
+
+- `test analytics visualize` → **215 tests, 1 failure**
+- `test` (full suite) → **697 tests, 11 failures**
+
+All 11 pre-date this work and must not be counted against any task:
+
+```
+analytics.tests.test_views.RequestViewStandardSubmissionTest.test_integrity_error_on_create_falls_back_to_get
+catalog.tests.EndpointTests.test_autocomplete_respects_grants
+catalog.tests.EndpointTests.test_coverage_endpoint_respects_grants
+catalog.tests.EndpointTests.test_dataset_detail_widens_extract_types_for_granted_user
+catalog.tests.EndpointTests.test_dataset_list_excludes_private_for_anonymous
+catalog.tests.EndpointTests.test_dataset_list_includes_private_for_granted_user
+catalog.tests.EndpointTests.test_submission_resolves_private_dataset_for_granted_user
+features.tests.FeatureCollectionAutocompleteViewTests.test_excludes_inactive_and_private_collections
+features.tests.FeatureCollectionAutocompleteViewTests.test_response_shape_matches_expected_fields
+mcp_server.tests.test_tools_requests.SubmitRequestTests.test_confirmed_call_creates_the_request_with_source_mcp
+public_api.tests.test_datasets.PublicDatasetCoverageViewTests.test_returns_datasets_covering_given_feature_ids
+```
+
+Tasks 1–5 verify against `analytics visualize`, which is sufficient because they only touch code those apps exercise. **Task 6 must run the full suite**: dropping `data_column` breaks `mcp_server/tests/factories.py`, which `analytics visualize` does not cover.
+
 ---
 
 ### Task 1: Add scalar value columns
@@ -863,6 +890,7 @@ discriminator from both queries."
 - Modify: `backend/analytics/models.py`
 - Create: `backend/analytics/migrations/0028_extractdata_drop_data_column.py`
 - Modify: `backend/analytics/tests/test_processing.py`, `backend/analytics/tests/test_merge.py`, `backend/visualize/tests/test_data.py`
+- Modify: `backend/mcp_server/tests/factories.py:117` — passes `data_column="float"` to `ExtractData.objects.create()`, which becomes a `TypeError` once the field is gone
 
 **Acceptance Criteria:**
 - [ ] `grep -rn "data_column" backend/ --include=*.py` returns only migration files
@@ -870,7 +898,7 @@ discriminator from both queries."
 - [ ] `python manage.py makemigrations --check --dry-run` reports no pending changes
 - [ ] Full suite passes
 
-**Verify:** `python manage.py test analytics visualize -v 2` → OK
+**Verify:** `python manage.py test -v 1` (the FULL suite, not just `analytics visualize`) → 697 tests, 11 failures, all from the documented baseline
 
 **Steps:**
 
@@ -932,20 +960,33 @@ Run: `grep -rn "data_column" backend/analytics/tests/ backend/visualize/tests/`
 
 For `test_merge.py`'s `ExtractData.objects.create(...)` calls, drop only the `data_column=` argument and leave the `*_values=` arguments as they are — the merge reader now selects on those.
 
-- [ ] **Step 4: Confirm nothing outside migrations references it**
+- [ ] **Step 4: Fix the mcp_server test factory**
+
+`backend/mcp_server/tests/factories.py:117` builds ExtractData rows with `data_column="float"`. Drop that one keyword argument, leaving `float_values=[value]` intact:
+
+```python
+        ExtractData.objects.create(
+            extract_task=task,
+            dataset_id=self.dataset.id,
+            name=name,
+            float_values=[value],
+        )
+```
+
+- [ ] **Step 5: Confirm nothing outside migrations references it**
 
 Run: `grep -rn "data_column" backend/ --include=*.py | grep -v migrations`
 Expected: no output.
 
-- [ ] **Step 5: Apply and run the full suite**
+- [ ] **Step 6: Apply and run the full suite**
 
-Run: `python manage.py migrate analytics && python manage.py makemigrations --check --dry-run && python manage.py test analytics visualize -v 2`
-Expected: migration OK, `No changes detected`, suite OK.
+Run: `python manage.py migrate analytics && python manage.py makemigrations --check --dry-run && python manage.py test -v 1`
+Expected: migration OK, `No changes detected`, and **697 tests with 11 failures** — every one of them from the documented baseline list. `analytics visualize` alone is NOT sufficient here.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add backend/analytics/models.py backend/analytics/migrations/0028_extractdata_drop_data_column.py backend/analytics/tests/ backend/visualize/tests/
+git add backend/analytics/models.py backend/analytics/migrations/0028_extractdata_drop_data_column.py backend/analytics/tests/ backend/visualize/tests/ backend/mcp_server/tests/factories.py
 git commit -m "Drop the extract_data data_column discriminator
 
 Redundant now that each type has its own scalar and array column: the
