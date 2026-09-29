@@ -210,17 +210,23 @@ class ExtractTaskBuildRun(models.Model):
 class ExtractData(models.Model):
     """Extract data table for storing extraction results.
 
-    One row per (extract_task, name) -- see ExtractTask.resource_ids. Values
-    are arrays position-aligned with the owning task's resource_ids: index i
-    here is the result for resource_ids[i].
+    One row per (extract_task, name) -- see ExtractTask.resource_ids.
+
+    The row has two value paths. The array columns are position-aligned with
+    the owning task's resource_ids: index i is the result for resource_ids[i].
+    The scalar columns carry the single-value case, where resource_ids has
+    exactly one element -- which every row in production currently is. Only
+    one path is populated per row; the unused one stays NULL, which costs a
+    null-bitmap bit rather than storage.
+
+    The scalar columns are declared but not yet written: the writer in
+    analytics.tasks.processing starts choosing between the two paths in a
+    later change. Until then every row still uses the array path.
 
     Two independent levels of NULL, not to be conflated:
-    - Column-level (float_values/int_values/str_values each nullable): only
-      ONE of the three is actually used per row, matching data_column --
-      exactly like the old scalar float_value/int_value/str_value columns
-      this replaced, where a row's value had one type and the other two
-      columns were simply irrelevant to it. The other two stay NULL, not an
-      array of NULLs.
+    - Column-level (each value column nullable): only ONE value column is
+      actually used per row, matching data_column. The others stay NULL, not
+      an array of NULLs.
     - Element-level (each array's own field is null=True): within whichever
       one column is in use, a NULL at position i means resource_ids[i] still
       needs (re)processing -- see analytics.tasks.processing._run_extract_task.
@@ -243,9 +249,11 @@ class ExtractData(models.Model):
     name = models.CharField(max_length=100)
     data_column = models.CharField(max_length=100, blank=True, null=True)
     # Single-value path: used when cardinality(resource_ids) == 1, which is
-    # every non-grouped task. Carrying one number in a 1-element array costs
-    # ~29 bytes against 8 for a scalar -- about 41% of the row -- and 713.7M
-    # of 713.7M production rows were 1-element when this was measured.
+    # every non-grouped task. A 1-element array carries ~20 bytes of array
+    # header before its payload -- for an 8-byte int8 or float8 that is ~29
+    # bytes against 8, about 41% of the row. The same header overhead applies
+    # to str_value, though the saving there varies with string length.
+    # 713.7M of 713.7M production rows were 1-element when this was measured.
     int_value = models.BigIntegerField(blank=True, null=True)
     float_value = models.FloatField(blank=True, null=True)
     str_value = models.CharField(max_length=100, blank=True, null=True)

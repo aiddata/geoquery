@@ -4,9 +4,18 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     """Add scalar value columns beside the existing arrays.
 
-    ADD COLUMN with no default and NULL allowed is a catalog-only change in
-    PostgreSQL 11+, so this is instant on the 713.7M-row partitioned table
-    rather than a rewrite. It cascades to all 57 partitions automatically.
+    ADD COLUMN with no default and NULL allowed has long been a catalog-only
+    change in PostgreSQL -- no table rewrite -- so this is effectively instant
+    on the 713.7M-row table rather than proportional to its size. (The PG11
+    fast path people usually cite is the one for non-null constant DEFAULTs,
+    which is a different case and not what this does.)
+
+    It is not lock-free, though: each ADD COLUMN takes ACCESS EXCLUSIVE on the
+    partitioned parent and cascades to all 57 partitions, and Django runs all
+    three in one transaction, so the lock is held across them until commit.
+    At the ~400 inserts/sec this table sees that should resolve in
+    milliseconds, but it does briefly block writers -- see 0023 for the same
+    consideration on a much heavier ALTER.
     """
 
     dependencies = [

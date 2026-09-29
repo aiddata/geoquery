@@ -107,6 +107,21 @@ class ExtractDataArraysTest(TestCase):
                 self.assertEqual(row[0], "ARRAY", f"{col} is not an array type")
                 self.assertEqual(row[1], udt, f"{col} has unexpected udt_name {row[1]}")
 
+    def test_scalar_value_columns_match_their_array_element_types(self):
+        # A scalar column whose type drifts from its array counterpart would
+        # silently truncate or overflow once the writer starts choosing
+        # between the two paths per row.
+        from django.db import connection
+        with connection.cursor() as cursor:
+            for col, udt in [("float_value", "float8"), ("int_value", "int8"), ("str_value", "varchar")]:
+                cursor.execute("""
+                    SELECT udt_name FROM information_schema.columns
+                    WHERE table_name = 'extract_data' AND column_name = %s
+                """, [col])
+                row = cursor.fetchone()
+                self.assertIsNotNone(row, f"{col} missing from extract_data")
+                self.assertEqual(row[0], udt, f"{col} has unexpected udt_name {row[0]}")
+
     def test_composite_primary_key_at_db_level(self):
         with connection.cursor() as cursor:
             cursor.execute("""
