@@ -202,7 +202,7 @@ writer starts using it in a later commit."
 **Files:**
 - Modify: `backend/analytics/tasks/processing.py:263-286` (`_positions_needing_processing`)
 - Modify: `backend/analytics/tasks/processing.py:474-496` (completion check in `_run_extract_task`)
-- Modify: `backend/analytics/tests/test_processing.py:212-256`
+- Modify: `backend/analytics/tests/test_processing.py:212-256` and `:257-300` — **both** rerun tests assert `call_log == ["r1"]`, not just the first
 
 **Acceptance Criteria:**
 - [ ] `_positions_needing_processing(n)` returns `set(range(n))` unconditionally and no longer takes `existing_rows`
