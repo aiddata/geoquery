@@ -366,9 +366,11 @@ existed to feed the skip list."
 - Modify: `backend/analytics/tasks/processing.py:37-51` (`_classify_value`)
 - Modify: `backend/analytics/tasks/processing.py:415-461` (row assembly in `_run_extract_task`)
 - Modify: `backend/analytics/tests/test_processing.py`
+- Modify: `backend/analytics/models.py` — the `ExtractData` docstring says "The scalar columns are declared but not yet written", which this task makes false. Correct it here rather than deferring to Task 6; a docstring that contradicts the code is how the next reader gets it wrong.
 
 **Acceptance Criteria:**
 - [ ] `_classify_value(None)` returns `None`; no code path can produce the string `'None'`
+- [ ] The `ExtractData` docstring no longer claims the scalar columns are unwritten
 - [ ] A task with `len(resource_ids) == 1` writes `float_value`/`int_value`/`str_value` and leaves the arrays NULL
 - [ ] A task with `len(resource_ids) > 1` writes the array position-aligned and leaves the scalars NULL
 - [ ] A name whose first value is nodata but whose later values are floats produces a `float` row, not a `str` row
