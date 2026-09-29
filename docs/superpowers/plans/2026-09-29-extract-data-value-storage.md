@@ -38,6 +38,7 @@ Task 7 (the cutover command) ships in the same release but is *executed* afterwa
 | `backend/analytics/tasks/merge.py` | CSV/DataFrame reader | 4 |
 | `backend/visualize/data.py` | Request/explore SQL and row aggregation | 5 |
 | `backend/analytics/management/commands/reset_extract_data.py` | Cutover: truncate + per-partition reset | 7 |
+| `backend/analytics/tests/test_models.py` | Schema-shape assertions on `ExtractData` | 1 |
 | `backend/analytics/tests/test_processing.py` | Writer and completeness coverage | 2, 3, 6 |
 | `backend/analytics/tests/test_merge.py` | Merge reader coverage | 4, 6 |
 | `backend/visualize/tests/test_data.py` | Visualize reader coverage | 5, 6 |
@@ -54,12 +55,14 @@ All test commands run from `backend/`. The project uses the `djm` alias for mana
 **Files:**
 - Modify: `backend/analytics/models.py:209-252`
 - Create: `backend/analytics/migrations/0027_extractdata_scalar_values.py`
+- Modify: `backend/analytics/tests/test_models.py:84-93`
 
 **Acceptance Criteria:**
 - [ ] `ExtractData` declares `int_value` (BigInteger), `float_value` (Float), `str_value` (CharField max_length=100), all `blank=True, null=True`
 - [ ] Migration 0027 applies cleanly and `\d extract_data` shows the three new columns
 - [ ] `python manage.py makemigrations --check --dry-run` reports no pending model changes
-- [ ] Existing test suite passes unchanged — nothing reads the new columns yet
+- [ ] `ExtractDataArraysTest.test_value_arrays_exist` asserts both sides exist, rather than asserting the scalars are absent
+- [ ] No new test failures beyond the pre-existing `test_views` one
 
 **Verify:** `python manage.py test analytics visualize -v 2` → OK, no failures
 
@@ -124,20 +127,38 @@ class Migration(migrations.Migration):
     ]
 ```
 
-- [ ] **Step 3: Confirm the migration matches the model**
+- [ ] **Step 3: Update the model test that asserts the scalars are absent**
+
+`ExtractDataArraysTest.test_value_arrays_exist` in `backend/analytics/tests/test_models.py` was written to lock in migration 0019's removal of the scalar columns. Task 1 reintroduces them, so its three `assertNotIn` lines are now false by design. Replace the test body:
+
+```python
+    def test_value_arrays_exist(self):
+        # Both sides of the row exist: scalars for single-resource tasks,
+        # arrays for grouped ones. A row populates one side or the other.
+        field_names = {f.name for f in ExtractData._meta.get_fields()}
+        self.assertIn("float_values", field_names)
+        self.assertIn("int_values", field_names)
+        self.assertIn("str_values", field_names)
+        self.assertIn("dataset_id", field_names)
+        self.assertIn("float_value", field_names)
+        self.assertIn("int_value", field_names)
+        self.assertIn("str_value", field_names)
+```
+
+- [ ] **Step 4: Confirm the migration matches the model**
 
 Run: `python manage.py makemigrations --check --dry-run`
 Expected: `No changes detected`
 
-- [ ] **Step 4: Apply and confirm the suite is green**
+- [ ] **Step 5: Apply and confirm the suite is green**
 
 Run: `python manage.py migrate analytics && python manage.py test analytics visualize -v 2`
 Expected: migration `0027_extractdata_scalar_values... OK`, then the full suite passes with no failures.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add backend/analytics/models.py backend/analytics/migrations/0027_extractdata_scalar_values.py
+git add backend/analytics/models.py backend/analytics/migrations/0027_extractdata_scalar_values.py backend/analytics/tests/test_models.py
 git commit -m "Add scalar value columns to extract_data
 
 Every one of the 713.7M production rows is a 1-element array, which
