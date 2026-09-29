@@ -17,6 +17,14 @@ _STATUS_GROUPS = {
     "error":      [-2],
 }
 
+# Every query here is a global aggregate, and the extract_tasks ones scan all 56
+# partitions for minutes at a time. On the primary that cost ~3 cores, one rw
+# pooler slot and a stream of cold blocks through the page cache every 5
+# minutes; none of it needs read-after-write consistency, so it runs on a
+# standby. Only the backend and background-worker pods are given PG_RO_*;
+# anywhere else the alias falls back to the primary (see settings._pg).
+_DB = "replica"
+
 
 class StatsBuilder:
     """Collect the statistics payload the /stats page renders."""
@@ -50,7 +58,7 @@ class StatsBuilder:
 
     def _collect(self) -> dict:
         # Per-status counts
-        raw = {r["status"]: r["count"] for r in Request.objects.values("status").annotate(count=Count("id"))}
+        raw = {r["status"]: r["count"] for r in Request.objects.using(_DB).values("status").annotate(count=Count("id"))}
         status_counts = {
             label: sum(raw.get(code, 0) for code in codes)
             for label, codes in _STATUS_GROUPS.items()
@@ -64,7 +72,7 @@ class StatsBuilder:
 
         for field in ("submit_time", "complete_time"):
             time_series[field] = {}
-            qs = Request.objects.filter(**{f"{field}__isnull": False})
+            qs = Request.objects.using(_DB).filter(**{f"{field}__isnull": False})
             for period, trunc_fn in trunc_fns.items():
                 rows = (
                     qs.annotate(bucket=trunc_fn(field))
@@ -80,7 +88,7 @@ class StatsBuilder:
 
         # Extract task completions over time
         extract_time_series: dict[str, list] = {}
-        qs_extract = ExtractTask.objects.filter(status=1, complete_time__isnull=False)
+        qs_extract = ExtractTask.objects.using(_DB).filter(status=1, complete_time__isnull=False)
         for period, trunc_fn in trunc_fns.items():
             rows = (
                 qs_extract.annotate(bucket=trunc_fn("complete_time"))
@@ -102,7 +110,7 @@ class StatsBuilder:
         # which is what made the stats page 504 under any concurrency.
         extract_raw = {
             r["status"]: r["count"]
-            for r in ExtractTask.objects.values("status").annotate(count=Count("id"))
+            for r in ExtractTask.objects.using(_DB).values("status").annotate(count=Count("id"))
         }
         extract_counts = {
             "completed": extract_raw.get(1, 0),

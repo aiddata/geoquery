@@ -19,6 +19,9 @@ class StatsDataViewTests(TestCase):
     the slow path was the poll, not the page.
     """
 
+    # The live-collect fallback reads through the "replica" alias.
+    databases = {"default", "replica"}
+
     def test_snapshot_is_served_without_touching_the_database(self):
         payload = {"total": 7, "status_counts": {}, "extract_counts": {}}
         with tempfile.TemporaryDirectory() as tmp:
@@ -67,6 +70,9 @@ class StatsDataViewTests(TestCase):
 
 
 class StatsBuilderTests(TestCase):
+    # StatsBuilder reads through the "replica" alias.
+    databases = {"default", "replica"}
+
     def test_payload_carries_the_queue_counts_the_page_renders(self):
         data = StatsBuilder().collect()
 

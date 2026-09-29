@@ -175,8 +175,9 @@ def _pg(prefix, fallback=None):
 
     Two prefixes are in play in the cluster: ``PG_RW_*`` points at the
     read/write pgBouncer, ``PG_RO_*`` at the read-only one in front of the
-    standbys. Only the backend pods are given ``PG_RO_*``; workers, beat,
-    ingest and the migration Job get ``PG_RW_*`` alone, so ``fallback`` is what
+    standbys. Only the backend and background-worker pods are given
+    ``PG_RO_*``; processing workers, beat, ingest and the migration Job get
+    ``PG_RW_*`` alone, so ``fallback`` is what
     keeps a stray ``.using("replica")`` in those processes pointing at the
     primary instead of crashing on startup.
     """
@@ -521,6 +522,13 @@ CELERY_BEAT_SCHEDULE = {
     "build-stats-report": {
         "task": "analytics.tasks.maintenance.build_stats_report",
         "schedule": 300,
+        # A run takes ~300-400 s, so any stall on the background queue piles
+        # these up: on 2026-09-28 ~580 had queued behind a scaled-down worker,
+        # and when it came back they drained FIFO, ran side by side and
+        # saturated pooler-rw. Expiring before the next tick means at most one
+        # unstarted message exists; a late one is dropped, not run. The next
+        # tick replaces it anyway, and the page keeps serving the old snapshot.
+        "options": {"expires": 240},
     },
     "sweep-coverage-records": {
         "task": "analytics.tasks.maintenance.sweep_coverage_records",
