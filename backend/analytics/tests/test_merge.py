@@ -54,7 +54,7 @@ class MergeTaskResultsTestCase(TestCase):
         task = self.make_task([resource])
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[12.5],
+            float_values=[12.5],
         )
 
         status, df = merge_task_results({task.id: self.dataset.id})
@@ -83,7 +83,7 @@ class MergeTaskResultsTestCase(TestCase):
         task = self.make_task([r2, r0, r1])
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[20.0, 0.0, 10.0],
+            float_values=[20.0, 0.0, 10.0],
         )
 
         status, df = merge_task_results({task.id: self.dataset.id})
@@ -106,7 +106,7 @@ class MergeTaskResultsTestCase(TestCase):
         task = self.make_task([r0, r1], status=-1)
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[None, 7.5],
+            float_values=[None, 7.5],
         )
 
         status, df = merge_task_results({task.id: self.dataset.id})
@@ -134,7 +134,7 @@ class MergeTaskResultsTestCase(TestCase):
         task_a = self.make_task([r0, r1], status=-1)
         ExtractData.objects.create(
             extract_task=task_a, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[None, 7.5],
+            float_values=[None, 7.5],
         )
 
         # A second feature/task where null2-0 DOES have a value, so the
@@ -155,7 +155,7 @@ class MergeTaskResultsTestCase(TestCase):
         )
         ExtractData.objects.create(
             extract_task=task_b, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[3.5, 9.0],
+            float_values=[3.5, 9.0],
         )
 
         status, df = merge_task_results({task_a.id: self.dataset.id, task_b.id: self.dataset.id})
@@ -187,7 +187,7 @@ class MergeTaskResultsTestCase(TestCase):
         task = self.make_task([r_sub, r_plain], kwargs={"outcome": "event_count"})
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[1.0, 2.0],
+            float_values=[1.0, 2.0],
         )
 
         status, df = merge_task_results({task.id: self.dataset.id})
@@ -200,18 +200,18 @@ class MergeTaskResultsTestCase(TestCase):
 
     # --- int/str typed columns coerce correctly ---------------------------
 
-    def test_int_and_str_data_columns(self):
+    def test_int_and_str_typed_columns(self):
         resource = DatasetResource.objects.create(
             dataset=self.dataset, name="typed_resource", path="t.tif"
         )
         task = self.make_task([resource])
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="count",
-            data_column="int", int_values=[5],
+            int_values=[5],
         )
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="majority",
-            data_column="str", str_values=["forest"],
+            str_values=["forest"],
         )
 
         status, df = merge_task_results({task.id: self.dataset.id})
@@ -221,21 +221,82 @@ class MergeTaskResultsTestCase(TestCase):
         self.assertEqual(row["typed_resource.count"], 5)
         self.assertEqual(row["typed_resource.majority"], "forest")
 
-    # --- unsupported data_column still raises ------------------------------
+    # --- scalar rows and nodata -------------------------------------------
 
-    def test_unsupported_data_column_raises(self):
+    def test_scalar_value_row_is_read(self):
         resource = DatasetResource.objects.create(
-            dataset=self.dataset, name="bad_resource", path="b.tif"
+            dataset=self.dataset, name="my_resource", path="r1.tif"
         )
         task = self.make_task([resource])
         ExtractData.objects.create(
-            extract_task=task, dataset_id=self.dataset.id, name="weird",
-            data_column="bogus",
+            extract_task=task, dataset_id=self.dataset.id, name="mean",
+            float_value=12.5,
         )
 
-        with self.assertRaises(Exception) as cm:
-            merge_task_results({task.id: self.dataset.id})
-        self.assertIn("Unsupported data column type", str(cm.exception))
+        status, df = merge_task_results({task.id: self.dataset.id})
+
+        self.assertEqual(status, "Success")
+        self.assertEqual(df.iloc[0]["my_resource.mean"], 12.5)
+
+    def test_all_null_row_produces_no_column_not_the_string_none(self):
+        resource = DatasetResource.objects.create(
+            dataset=self.dataset, name="my_resource", path="r1.tif"
+        )
+        task = self.make_task([resource])
+        ExtractData.objects.create(
+            extract_task=task, dataset_id=self.dataset.id, name="mean",
+        )
+
+        status, df = merge_task_results({task.id: self.dataset.id})
+
+        self.assertEqual(status, "Success")
+        # The nodata row contributes no cell, so no such column is assembled --
+        # and critically the literal text "None" appears nowhere.
+        self.assertNotIn("my_resource.mean", df.columns)
+
+    def test_nodata_row_beside_a_populated_one_becomes_nan_not_the_string_none(self):
+        # The production shape: two features, same resource, one with a value
+        # and one nodata. The column exists because the populated row creates
+        # it, so the nodata cell is a real NaN rather than an absent column --
+        # this is what a user actually sees in a downloaded CSV, and it is the
+        # case the 210.3M 'None' strings were corrupting.
+        resource = DatasetResource.objects.create(
+            dataset=self.dataset, name="my_resource", path="r1.tif"
+        )
+        other_feature = Feature.objects.create(shape=Point(1, 1))
+        other_fm = FeatMap.objects.create(
+            fc=self.fc, geom=other_feature, name="Feature B", attr={"iso": "DEF"}
+        )
+
+        populated = self.make_task([resource])
+        ExtractData.objects.create(
+            extract_task=populated, dataset_id=self.dataset.id, name="mean",
+            float_value=12.5,
+        )
+
+        nodata = ExtractTask.objects.create(
+            resource_ids=[resource.id],
+            dataset_id=self.dataset.id,
+            fm=other_fm,
+            po=self.po,
+            status=1,
+        )
+        ExtractData.objects.create(
+            extract_task=nodata, dataset_id=self.dataset.id, name="mean",
+        )
+
+        status, df = merge_task_results(
+            {populated.id: self.dataset.id, nodata.id: self.dataset.id}
+        )
+
+        self.assertEqual(status, "Success")
+        self.assertIn("my_resource.mean", df.columns)
+
+        by_geom = df.set_index("geom_id")["my_resource.mean"]
+        self.assertEqual(by_geom[self.feature.id], 12.5)
+        # A genuine NaN -- not the string "None", not 0, not absent.
+        self.assertTrue(pd.isna(by_geom[other_feature.id]))
+        self.assertNotIn("None", df["my_resource.mean"].astype(str).tolist())
 
     # --- missing task still raises ------------------------------------------
 
@@ -292,7 +353,7 @@ class MergeQueryCountTestCase(TestCase):
             )
             ExtractData.objects.create(
                 extract_task=task, dataset_id=dataset.id, name="mean",
-                data_column="float", float_values=[float(start + i)],
+                float_values=[float(start + i)],
             )
             task_map[task.id] = dataset.id
         return task_map

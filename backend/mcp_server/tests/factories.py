@@ -114,7 +114,6 @@ class World:
             extract_task=task,
             dataset_id=self.dataset.id,
             name=name,
-            data_column="float",
             float_values=[value],
         )
         self.tasks.append(task)

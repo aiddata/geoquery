@@ -28,8 +28,7 @@ class ProcessingTestCase(TestCase):
     Real contention isn't exercised here (see test_dispatch.py's docstring) --
     these cover the single-worker contract: resource_ids[i] maps to index i
     in every ExtractData row's value arrays, one resource's failure leaves
-    only its own position(s) NULL, and a rerun only touches positions that
-    are still NULL.
+    only its own position(s) NULL, and a rerun recomputes every position.
     """
 
     @classmethod
@@ -82,8 +81,7 @@ class ProcessingTestCase(TestCase):
         self.assertEqual(result, {"task_id": task.id, "results": 1})
 
         row = self.data_row(task, "mean")
-        self.assertEqual(row.data_column, "float")
-        self.assertEqual(row.float_values, [1.5])
+        self.assertEqual(row.float_value, 1.5)
         self.assertEqual(row.dataset_id, self.dataset.id)
 
     # --- grouped multi-element task, all succeed ----------------------------
@@ -108,7 +106,6 @@ class ProcessingTestCase(TestCase):
         mean_row = self.data_row(task, "mean")
         self.assertEqual(mean_row.float_values, [0.0, 10.0, 20.0])
         count_row = self.data_row(task, "count")
-        self.assertEqual(count_row.data_column, "int")
         self.assertEqual(count_row.int_values, [0, 1, 2])
 
     # --- grouped task, partial failure ---------------------------------------
@@ -207,9 +204,9 @@ class ProcessingTestCase(TestCase):
         self.assertEqual(row.float_values, [20.0, 0.0, 10.0])
         self.assertEqual(call_log, ["r2", "r0", "r1"])
 
-    # --- rerun only touches NULL positions ------------------------------------
+    # --- rerun recomputes every position -------------------------------------
 
-    def test_rerun_only_reprocesses_null_positions(self):
+    def test_rerun_recomputes_every_position(self):
         resources = self.make_resources(3)
         task = self.make_task(resources, status=QUEUED)
         failing_id = resources[1].id
@@ -247,9 +244,10 @@ class ProcessingTestCase(TestCase):
         self.assertEqual(task.status, DONE)
         self.assertIsNotNone(result)
 
-        # Only the previously-NULL position (r1) should have been recomputed;
-        # r0 and r2 were already filled and must not have been called again.
-        self.assertEqual(call_log, ["r1"])
+        # Every position is recomputed on a retry -- a NULL no longer means
+        # "position i still needs work" (it will shortly mean "nodata"), so
+        # there is nothing left to derive a skip list from.
+        self.assertEqual(call_log, ["r0", "r1", "r2"])
 
         row.refresh_from_db()
         self.assertEqual(row.float_values, [0.0, 1.0, 2.0])
@@ -295,7 +293,7 @@ class ProcessingTestCase(TestCase):
 
         task.refresh_from_db()
         self.assertEqual(task.status, DONE)
-        self.assertEqual(call_log, ["r1"])
+        self.assertEqual(call_log, ["r0", "r1", "r2"])
         # One distinct name ("mean"), not existing_by_name(1) + produced(1) = 2.
         self.assertEqual(result, {"task_id": task.id, "results": 1})
 
@@ -333,3 +331,125 @@ class ProcessingTestCase(TestCase):
         self.assertIsNone(result)
         task.refresh_from_db()
         self.assertEqual(task.status, QUEUED)
+
+    def test_null_position_does_not_block_completion(self):
+        # A run that raises nothing is complete, even where a processor
+        # produced no value for a position. This is the precondition for
+        # storing nodata as a real NULL: the completion check no longer
+        # scans stored arrays. (The nodata value itself is still the string
+        # 'None' until _classify_value changes in a later commit.)
+        resources = self.make_resources(3)
+        task = self.make_task(resources, status=QUEUED)
+
+        def sparse(geometry, path, **kw):
+            if path.stem == "r1":
+                return []  # legitimate success that yields no named result
+            idx = int(path.stem[-1])
+            return [("mean", float(idx))]
+
+        with mock.patch.object(processing, "get_func", return_value=sparse):
+            _run_extract_task(task.id)
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, DONE)
+        self.assertIsNone(task.error)
+
+        row = self.data_row(task, "mean")
+        self.assertEqual(row.float_values, [0.0, None, 2.0])
+        self.assertEqual(
+            ExtractData.objects.filter(extract_task_id=task.id).count(), 1
+        )
+
+    # --- nodata is NULL, not the string "None" -----------------------------
+
+    def test_nodata_is_stored_as_null_not_the_string_none(self):
+        resources = self.make_resources(1)
+        task = self.make_task(resources, status=QUEUED)
+
+        with mock.patch.object(
+            processing, "get_func", return_value=lambda g, p, **kw: [("mean", None)]
+        ):
+            _run_extract_task(task.id)
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, DONE)
+
+        row = self.data_row(task, "mean")
+        self.assertIsNone(row.float_value)
+        self.assertIsNone(row.int_value)
+        self.assertIsNone(row.str_value)
+        self.assertIsNone(row.float_values)
+        self.assertIsNone(row.int_values)
+        self.assertIsNone(row.str_values)
+
+    def test_single_resource_task_writes_scalar_not_array(self):
+        resources = self.make_resources(1)
+        task = self.make_task(resources, status=QUEUED)
+
+        with mock.patch.object(
+            processing, "get_func", return_value=lambda g, p, **kw: [("mean", 1.5)]
+        ):
+            _run_extract_task(task.id)
+
+        row = self.data_row(task, "mean")
+        self.assertEqual(row.float_value, 1.5)
+        self.assertIsNone(row.float_values)
+
+    def test_grouped_task_writes_array_not_scalar(self):
+        resources = self.make_resources(3)
+        task = self.make_task(resources, status=QUEUED)
+
+        def func(geometry, path, **kw):
+            return [("mean", float(int(path.stem[-1])) * 10)]
+
+        with mock.patch.object(processing, "get_func", return_value=func):
+            _run_extract_task(task.id)
+
+        row = self.data_row(task, "mean")
+        self.assertEqual(row.float_values, [0.0, 10.0, 20.0])
+        self.assertIsNone(row.float_value)
+
+    def test_total_failure_does_not_wipe_a_previous_runs_results(self):
+        # The row set is replaced wholesale on each run, which would destroy
+        # good data if a retry happened to fail on every position. A run that
+        # produced nothing must leave the previous run's rows alone.
+        resources = self.make_resources(1)
+        task = self.make_task(resources, status=QUEUED)
+
+        with mock.patch.object(
+            processing, "get_func", return_value=lambda g, p, **kw: [("mean", 4.5)]
+        ):
+            _run_extract_task(task.id)
+        self.assertEqual(self.data_row(task, "mean").float_value, 4.5)
+
+        ExtractTask.objects.filter(id=task.id).update(status=PENDING)
+
+        def always_fails(geometry, path, **kw):
+            raise RuntimeError("boom")
+
+        with mock.patch.object(processing, "get_func", return_value=always_fails):
+            with self.assertRaises(RuntimeError):
+                _run_extract_task(task.id)
+
+        # Still there -- a transient failure must not cost us the good value.
+        self.assertEqual(self.data_row(task, "mean").float_value, 4.5)
+
+    def test_leading_nodata_does_not_type_the_row_as_str(self):
+        # The bug this fixes: the row's type was taken from the FIRST value
+        # seen, so a nodata at position 0 typed the whole row 'str' and
+        # stringified every real value after it. Masked until now only
+        # because every production array happens to have one element.
+        resources = self.make_resources(3)
+        task = self.make_task(resources, status=QUEUED)
+
+        def func(geometry, path, **kw):
+            if path.stem == "r0":
+                return [("mean", None)]
+            return [("mean", float(int(path.stem[-1])))]
+
+        with mock.patch.object(processing, "get_func", return_value=func):
+            _run_extract_task(task.id)
+
+        row = self.data_row(task, "mean")
+        self.assertEqual(row.float_values, [None, 1.0, 2.0])
+        self.assertIsNone(row.str_values)

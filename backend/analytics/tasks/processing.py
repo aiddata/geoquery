@@ -35,21 +35,44 @@ def get_func(op):
 
 
 def _classify_value(value):
-    """Return (data_column, coerced_value) for a raw processor result.
+    """Return (column, coerced) for a raw processor result, or None for nodata.
 
-    Matches the old scalar _store_extract_value's type dispatch: int before
-    float (order matters -- bool would otherwise be misfiled as int, but
-    processors never return bool here so it's not a live concern), anything
-    that isn't int/float/str is stringified rather than dropped.
+    None is nodata, not a value: it becomes SQL NULL. Before this, the
+    fallthrough below stringified it, and 210,329,319 production rows carried
+    the literal text 'None' -- which merge.py's `values[i] is None` guard does
+    not catch, so it reached user downloads as the string "None".
+
+    int before float (order matters -- bool would otherwise be misfiled as
+    int, but processors never return bool here so it's not a live concern),
+    anything that isn't int/float/str is stringified rather than dropped.
     """
+    if value is None:
+        return None
     if isinstance(value, int):
         return "int", value
-    elif isinstance(value, float):
+    if isinstance(value, float):
         return "float", value
-    elif isinstance(value, str):
+    if isinstance(value, str):
         return "str", value
-    else:
-        return "str", str(value)
+    return "str", str(value)
+
+
+def _column_for(values_by_pos):
+    """Pick the value column for one name, from its first non-nodata value.
+
+    Returns None when every position is nodata -- the row is still written, so
+    that "we ran this and found nothing" stays distinguishable from "we never
+    ran this", but no value column is populated.
+
+    Deliberately the first NON-None value rather than simply the first: a
+    leading nodata used to type the whole row 'str' and silently coerce every
+    real value after it into the varchar array.
+    """
+    for i in sorted(values_by_pos):
+        classified = _classify_value(values_by_pos[i])
+        if classified is not None:
+            return classified[0]
+    return None
 
 
 # Distinct from accounts.adopt_auth_user's ADVISORY_LOCK_ID (8419307742115) --
@@ -260,38 +283,32 @@ def run_extract_task(task_ids):
             logger.exception("Tasks %s could not dispatch a successor", task_ids)
 
 
-def _positions_needing_processing(n, existing_rows):
-    """Which indices into resource_ids (0..n-1) still need a value computed.
+def _positions_needing_processing(n):
+    """Every index into resource_ids (0..n-1). A retry recomputes all of them.
 
-    First run (no ExtractData rows yet): every position. On a rerun, a
-    position needs (re)processing if ANY existing row has a NULL at that
-    index in whichever array field matches its data_column. Granularity here
-    is per resource-index, not per name: a single processor call for one
-    resource typically returns several named results at once (e.g. mean,
-    min, max), so if even one of those names is still NULL at position i,
-    the whole call for resource i has to be redone -- there's no way to
-    recompute just the missing name. Positions where every name is already
-    filled are left out entirely, which is what makes a rerun skip a
-    previously-successful resource instead of recomputing it.
+    This used to skip positions whose value was already non-NULL, reading an
+    array NULL as "position i still needs work". That reading is gone: a NULL
+    now means the extraction ran and found nodata, which is a final answer,
+    not a request to retry. Telling those apart again would need a separate
+    per-position marker.
+
+    The only thing the skip bought was avoiding recomputation of
+    already-successful resources on a grouped task's retry. That is free for
+    single-position tasks (nothing to skip) and is paid only by grouped ones,
+    and only when they actually fail. Do NOT reintroduce the skip without
+    adding an explicit attempted-marker first -- without one it silently
+    resurrects the infinite-retry bug for every nodata result.
     """
-    if not existing_rows:
-        return set(range(n))
-
-    positions = set()
-    for row in existing_rows:
-        values = getattr(row, f"{row.data_column}_values") or []
-        for i in range(n):
-            if i >= len(values) or values[i] is None:
-                positions.add(i)
-    return positions
+    return set(range(n))
 
 
 def _run_extract_task(task_id):
     """Lock the task row, run the processor once per resource, and store results.
 
-    Accepts rows in pending (0) or queued (3). On success (every position of
-    every name filled) status is set to 1; otherwise -1 with a summary of
-    what failed. Each resource_ids[i] is processed independently -- one
+    Accepts rows in pending (0) or queued (3). On success (no position raised
+    this run) status is set to 1; otherwise -1 with a summary of what failed.
+    A NULL value is nodata, a final answer, and does not hold a task back.
+    Each resource_ids[i] is processed independently -- one
     resource's exception is caught and leaves that position NULL rather than
     aborting the others in the same run (see the per-resource try/except
     below) or failing the task outright (see the conditional re-raise at the
@@ -360,15 +377,7 @@ def _run_extract_task(task_id):
         geometry = shapely.from_wkb(bytes(task.fm.geom.shape.wkb))
 
         n = len(task.resource_ids)
-        # dataset_id included so this prunes to one partition -- extract_data
-        # is LIST partitioned on dataset_id with PRIMARY KEY (dataset_id, id),
-        # so extract_task_id alone scans every partition.
-        existing_rows = list(
-            ExtractData.objects.filter(
-                dataset_id=task.dataset_id, extract_task_id=task_id
-            )
-        )
-        positions = _positions_needing_processing(n, existing_rows)
+        positions = _positions_needing_processing(n)
 
         # name -> {position: value}, accumulated only from calls that
         # succeeded this run. A resource whose call raises contributes
@@ -415,50 +424,71 @@ def _run_extract_task(task_id):
             for name, value in results:
                 produced.setdefault(name, {})[i] = value
 
-        existing_by_name = {row.name: row for row in existing_rows}
-        # The set of distinct result names across both prior runs and this
-        # one -- reused below for the reported `results` count so it stays
-        # the actual number of names rather than double-counting a name that
-        # exists in both existing_by_name and produced (e.g. a rerun that
-        # fills a previously-NULL position for a name already partially
-        # filled by an earlier run).
-        all_names = set(existing_by_name) | set(produced)
-        for name in all_names:
-            values_by_pos = produced.get(name, {})
-            row = existing_by_name.get(name)
+        # Every position is recomputed (see _positions_needing_processing), so
+        # this run's results are the complete picture for this task. Replace
+        # the row set wholesale rather than merging into whatever a previous
+        # run left behind.
+        #
+        # A position that raised while others succeeded still lands as NULL
+        # here, indistinguishable from nodata at the row level. Two consumers,
+        # two different reasons that is acceptable:
+        #   - merge (the CSV download path) gates on status=1, so a failed
+        #     task's rows are never merged at all.
+        #   - visualize does NOT gate on status -- neither the request nor the
+        #     explore SQL filters et.status -- but a failed position already
+        #     rendered as an empty cell there before this change, so nothing
+        #     regresses.
+        # What broadens is the MEANING of an empty cell, from "failed or not
+        # yet processed" to "failed or nodata". Both render identically.
+        rows = []
+        for name, values_by_pos in produced.items():
+            row = ExtractData(
+                extract_task_id=task_id,
+                dataset_id=task.dataset_id,
+                name=name,
+            )
+            column = _column_for(values_by_pos)
+            if column is not None:
+                if n == 1:
+                    classified = _classify_value(values_by_pos.get(0))
+                    if classified is not None:
+                        setattr(row, f"{column}_value", classified[1])
+                else:
+                    values = [None] * n
+                    for i, value in values_by_pos.items():
+                        classified = _classify_value(value)
+                        if classified is not None:
+                            if classified[0] != column:
+                                logger.warning(
+                                    "Task %s name %s position %d: %s value in a %s "
+                                    "row. Stored as-is; a genuinely incompatible type "
+                                    "will raise at insert. A name is assumed to "
+                                    "produce one type across every position.",
+                                    task_id, name, i, classified[0], column,
+                                )
+                            values[i] = classified[1]
+                    setattr(row, f"{column}_values", values)
+            rows.append(row)
 
-            if row is None:
-                # First time this name has appeared for this task; seed a
-                # fresh row with a fully-NULL array and fill in only the
-                # positions this run actually produced.
-                data_column, _ = _classify_value(next(iter(values_by_pos.values())))
-                row = ExtractData(
-                    extract_task_id=task_id,
-                    dataset_id=task.dataset_id,
-                    name=name,
-                    data_column=data_column,
-                )
-                setattr(row, f"{data_column}_values", [None] * n)
-            elif not values_by_pos:
-                # Nothing new for this already-existing name this run --
-                # leave every position (filled or still-NULL) untouched.
-                continue
-
-            # data_column is fixed at row creation (above) and assumed to be
-            # valid for every future value stored under this name -- i.e. a
-            # given name is assumed to always produce the same value type
-            # across every position and every run. If a name ever produced a
-            # mixed type (e.g. int on one call, str on another), the value
-            # would still be coerced and stored into the array chosen by the
-            # *first* type seen, silently misfiling it rather than raising.
-            array_field = f"{row.data_column}_values"
-            values = list(getattr(row, array_field) or [None] * n)
-            values += [None] * (n - len(values))
-            for i, value in values_by_pos.items():
-                _, coerced = _classify_value(value)
-                values[i] = coerced
-            setattr(row, array_field, values)
-            row.save()
+        # The delete is guarded on `produced` being non-empty: an empty one
+        # means EVERY position raised this run, and wiping a previous run's
+        # good results because of a transient failure would be strictly worse
+        # than keeping them. The task goes to status=-1 either way and is
+        # recomputed in full on retry. The old merge-based code got this for
+        # free via its `elif not values_by_pos: continue` branch. dataset_id
+        # prunes the delete to one partition.
+        #
+        # delete + bulk_create have to land together: a crash between them
+        # would leave the task with no rows at all and nothing written back.
+        # Rows are built above, outside this block, so it holds no locks while
+        # doing Python work.
+        with transaction.atomic():
+            if produced:
+                ExtractData.objects.filter(
+                    dataset_id=task.dataset_id, extract_task_id=task_id
+                ).delete()
+            ExtractData.objects.bulk_create(rows)
+        all_names = set(produced)
 
     except Exception as exc:
         logger.exception("Task %s failed: %s", task_id, exc)
@@ -469,21 +499,10 @@ def _run_extract_task(task_id):
         )
         raise
 
-    # A position is incomplete if either (a) it raised this run -- an empty
-    # result list is a legitimate success and must NOT be confused with a
-    # position that has no ExtractData row because it failed, or (b) some
-    # name's stored array still has a NULL there, which also catches a name
-    # that finished filling on an EARLIER run without this run touching it.
-    failed_positions = {i for _, i, _ in failures}
-    null_positions = set()
-    for row in ExtractData.objects.filter(
-        dataset_id=task.dataset_id, extract_task_id=task_id
-    ):
-        values = list(getattr(row, f"{row.data_column}_values") or [])
-        values += [None] * (n - len(values))
-        null_positions.update(i for i in range(n) if values[i] is None)
-
-    incomplete_positions = failed_positions | null_positions
+    # A run that raised nothing is complete. A NULL value means the extraction
+    # ran and found nodata -- a final answer, not an unfinished position (see
+    # _positions_needing_processing).
+    incomplete_positions = {i for _, i, _ in failures}
 
     if not incomplete_positions:
         # dataset_id included so this prunes to one partition -- see the
@@ -495,8 +514,6 @@ def _run_extract_task(task_id):
         return {"task_id": task_id, "results": len(all_names)}
 
     parts = [f"resource {rid}[{i}]: {exc!r}" for rid, i, exc in failures]
-    if null_positions - failed_positions:
-        parts.append(f"positions still null: {sorted(null_positions - failed_positions)}")
     error = "; ".join(parts)[:100]
     ExtractTask.objects.filter(id=task_id, dataset_id=task.dataset_id).update(
         status=-1, error=error

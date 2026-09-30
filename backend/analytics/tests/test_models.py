@@ -83,14 +83,16 @@ class ExtractTaskResourceIdsHashTest(TestCase):
 
 class ExtractDataArraysTest(TestCase):
     def test_value_arrays_exist(self):
+        # Both sides of the row exist: scalars for single-resource tasks,
+        # arrays for grouped ones. A row populates one side or the other.
         field_names = {f.name for f in ExtractData._meta.get_fields()}
         self.assertIn("float_values", field_names)
         self.assertIn("int_values", field_names)
         self.assertIn("str_values", field_names)
         self.assertIn("dataset_id", field_names)
-        self.assertNotIn("float_value", field_names)
-        self.assertNotIn("int_value", field_names)
-        self.assertNotIn("str_value", field_names)
+        self.assertIn("float_value", field_names)
+        self.assertIn("int_value", field_names)
+        self.assertIn("str_value", field_names)
 
     def test_value_array_columns_are_postgres_arrays(self):
         from django.db import connection
@@ -104,6 +106,21 @@ class ExtractDataArraysTest(TestCase):
                 self.assertIsNotNone(row, f"{col} column does not exist")
                 self.assertEqual(row[0], "ARRAY", f"{col} is not an array type")
                 self.assertEqual(row[1], udt, f"{col} has unexpected udt_name {row[1]}")
+
+    def test_scalar_value_columns_match_their_array_element_types(self):
+        # A scalar column whose type drifts from its array counterpart would
+        # silently truncate or overflow once the writer starts choosing
+        # between the two paths per row.
+        from django.db import connection
+        with connection.cursor() as cursor:
+            for col, udt in [("float_value", "float8"), ("int_value", "int8"), ("str_value", "varchar")]:
+                cursor.execute("""
+                    SELECT udt_name FROM information_schema.columns
+                    WHERE table_name = 'extract_data' AND column_name = %s
+                """, [col])
+                row = cursor.fetchone()
+                self.assertIsNotNone(row, f"{col} missing from extract_data")
+                self.assertEqual(row[0], udt, f"{col} has unexpected udt_name {row[0]}")
 
     def test_composite_primary_key_at_db_level(self):
         with connection.cursor() as cursor:

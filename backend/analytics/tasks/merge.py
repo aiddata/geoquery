@@ -222,23 +222,40 @@ def merge_task_results(task_map):
                 rows[key] = row_base
 
             for td in task_data:
-                if td.data_column == "int":
+                # Exactly one side of the row is populated: the array columns
+                # when the task covers several resources, the scalar columns
+                # when it covers one. A row with neither is a nodata result --
+                # the record that the extraction ran and found nothing -- and
+                # contributes no cells at all.
+                #
+                # Arrays are checked first because a grouped row is the case
+                # where position matters; a scalar row is wrapped into a
+                # 1-element list so the position loop below is identical for
+                # both shapes.
+                if td.int_values is not None:
                     values, coerce = td.int_values, int
-                elif td.data_column == "float":
+                elif td.float_values is not None:
                     values, coerce = td.float_values, float
-                elif td.data_column == "str":
+                elif td.str_values is not None:
                     values, coerce = td.str_values, str
+                elif td.int_value is not None:
+                    values, coerce = [td.int_value], int
+                elif td.float_value is not None:
+                    values, coerce = [td.float_value], float
+                elif td.str_value is not None:
+                    values, coerce = [td.str_value], str
                 else:
-                    raise Exception(f"Unsupported data column type: {td.data_column}")
+                    continue
 
-                values = values or []
                 for i, dr_name in enumerate(dr_names):
-                    # A None at position i means resource_ids[i]'s result wasn't
-                    # computed for this task (failed, or not yet processed) --
-                    # see ExtractData's docstring. That's expected, not an error:
-                    # skip it entirely rather than writing a placeholder, so the
-                    # resulting uneven row set becomes a genuine NaN (not a
-                    # fabricated one) when pd.DataFrame assembles rows below.
+                    # A None at position i is a final answer, not a gap: either
+                    # the extraction found nodata there, or that position failed
+                    # this run (in which case the task is status=-1 and merge is
+                    # never reached for it -- see ExtractData's docstring). It is
+                    # expected, not an error: skip it entirely rather than
+                    # writing a placeholder, so the resulting uneven row set
+                    # becomes a genuine NaN (not a fabricated one) when
+                    # pd.DataFrame assembles rows below.
                     if i >= len(values) or values[i] is None:
                         continue
                     rows[key][f"{dr_name}.{td.name}"] = coerce(values[i])
