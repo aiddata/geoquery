@@ -95,3 +95,7 @@ class ResetExtractDataTest(TransactionTestCase):
         self.assertEqual(done.attempts, 0)
         pending.refresh_from_db()
         self.assertEqual(pending.status, 0)
+        # attempts is the tell: it was 2 before the run and the reset sets it
+        # to 0. If the WHERE status <> 0 predicate ever broke, status would
+        # still read 0 here (it already was) but attempts would not.
+        self.assertEqual(pending.attempts, 2)

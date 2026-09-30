@@ -45,7 +45,9 @@ _RESET_SQL = """
 class Command(BaseCommand):
     help = (
         "Discard every extract_data row and return processed extract tasks to "
-        "pending, so they are re-extracted into the current schema."
+        "pending, so they are re-extracted into the current schema. Stop the "
+        "extract worker fleet first: a task completing mid-run is reset "
+        "despite having good rows, and is reprocessed for nothing."
     )
 
     def add_arguments(self, parser):
@@ -71,49 +73,63 @@ class Command(BaseCommand):
             )
             sys.exit(1)
 
-        # VACUUM cannot run inside a transaction block.
-        connection.set_autocommit(True)
-
-        with connection.cursor() as cursor:
-            cursor.execute(_PARTITIONS_SQL)
-            partitions = [r[0] for r in cursor.fetchall()]
-
-        if options["dry_run"]:
-            total = 0
-            with connection.cursor() as cursor:
-                for table in partitions:
-                    cursor.execute(_COUNT_SQL.format(table=table))
-                    n = cursor.fetchone()[0]
-                    total += n
-                    if n:
-                        self.stdout.write(f"{table}: would reset {n:,} tasks")
+        if not options["dry_run"]:
             self.stdout.write(
                 self.style.WARNING(
-                    f"dry run: {total:,} tasks across {len(partitions)} partitions"
+                    "Run this with the extract worker fleet stopped. A task that "
+                    "completes between the TRUNCATE and its partition's reset is "
+                    "returned to pending anyway, and reprocessed for nothing."
                 )
             )
-            return
 
-        with connection.cursor() as cursor:
-            cursor.execute("TRUNCATE extract_data")
-        self.stdout.write(self.style.SUCCESS("extract_data truncated"))
-
-        total = 0
-        for table in partitions:
+        # VACUUM cannot run inside a transaction block. Restored in the finally
+        # below so this cannot silently end a caller's transaction if handle()
+        # is ever invoked from inside one.
+        previous_autocommit = connection.get_autocommit()
+        connection.set_autocommit(True)
+        try:
             with connection.cursor() as cursor:
-                cursor.execute(_RESET_SQL.format(table=table))
-                n = cursor.rowcount
-                total += n
-                # Vacuum between partitions, not once at the end: the point is
-                # to stop one partition's dead tuples accumulating across all
-                # 57 of them at once.
-                cursor.execute(f"VACUUM {table}")
-            if n:
-                self.stdout.write(f"{table}: reset {n:,} tasks, vacuumed")
-            logger.info("reset_extract_data: %s reset %d tasks", table, n)
+                cursor.execute(_PARTITIONS_SQL)
+                partitions = [r[0] for r in cursor.fetchall()]
 
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"reset {total:,} tasks across {len(partitions)} partitions"
+            if options["dry_run"]:
+                total = 0
+                with connection.cursor() as cursor:
+                    for table in partitions:
+                        cursor.execute(_COUNT_SQL.format(table=table))
+                        n = cursor.fetchone()[0]
+                        total += n
+                        if n:
+                            self.stdout.write(f"{table}: would reset {n:,} tasks")
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"dry run: {total:,} tasks across {len(partitions)} partitions"
+                    )
+                )
+                return
+
+            with connection.cursor() as cursor:
+                cursor.execute("TRUNCATE extract_data")
+            self.stdout.write(self.style.SUCCESS("extract_data truncated"))
+
+            total = 0
+            for table in partitions:
+                with connection.cursor() as cursor:
+                    cursor.execute(_RESET_SQL.format(table=table))
+                    n = cursor.rowcount
+                    total += n
+                    # Vacuum between partitions, not once at the end: the point
+                    # is to stop one partition's dead tuples accumulating
+                    # across all 57 of them at once.
+                    cursor.execute(f"VACUUM {table}")
+                if n:
+                    self.stdout.write(f"{table}: reset {n:,} tasks, vacuumed")
+                logger.info("reset_extract_data: %s reset %d tasks", table, n)
+
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"reset {total:,} tasks across {len(partitions)} partitions"
+                )
             )
-        )
+        finally:
+            connection.set_autocommit(previous_autocommit)
