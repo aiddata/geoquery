@@ -109,10 +109,12 @@ _REQUEST_EXTRACT_DATA_SQL = """
     INNER JOIN feat_map fm ON fm.id = et.fm_id
     INNER JOIN processing_options po ON po.id = et.po_id
     -- A row populates either the scalar side (one resource) or the array side
-    -- (several). unnest(NULL) yields no rows, so a scalar row would vanish
-    -- from the payload entirely without wrapping each scalar in a 1-element
-    -- array first. Multi-arg unnest pads shorter arrays with NULL to match
-    -- the longest, so resource_ids still drives the row count either way.
+    -- (several). Multi-arg unnest pads shorter arrays with NULL to match the
+    -- longest, so et.resource_ids drives the row count either way: a scalar
+    -- row still produces its row, but every value column comes back NULL --
+    -- silently reading as nodata rather than failing loudly. Wrapping each
+    -- scalar in a 1-element array lines it up with resource_ids' single
+    -- position so the real value comes through.
     CROSS JOIN LATERAL unnest(
             et.resource_ids,
             COALESCE(ed.float_values, ARRAY[ed.float_value]),
@@ -151,10 +153,12 @@ _EXPLORE_EXTRACT_DATA_SQL = """
     INNER JOIN feat_map fm ON fm.id = et.fm_id
     INNER JOIN processing_options po ON po.id = et.po_id
     -- A row populates either the scalar side (one resource) or the array side
-    -- (several). unnest(NULL) yields no rows, so a scalar row would vanish
-    -- from the payload entirely without wrapping each scalar in a 1-element
-    -- array first. Multi-arg unnest pads shorter arrays with NULL to match
-    -- the longest, so resource_ids still drives the row count either way.
+    -- (several). Multi-arg unnest pads shorter arrays with NULL to match the
+    -- longest, so et.resource_ids drives the row count either way: a scalar
+    -- row still produces its row, but every value column comes back NULL --
+    -- silently reading as nodata rather than failing loudly. Wrapping each
+    -- scalar in a 1-element array lines it up with resource_ids' single
+    -- position so the real value comes through.
     CROSS JOIN LATERAL unnest(
             et.resource_ids,
             COALESCE(ed.float_values, ARRAY[ed.float_value]),

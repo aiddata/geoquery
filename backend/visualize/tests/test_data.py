@@ -165,9 +165,10 @@ class VisualizeDataTestCase(TestCase):
     # --- scalar rows -------------------------------------------------------
 
     def test_build_request_data_scalar_row_is_not_dropped_by_unnest(self):
-        # Scalar rows have NULL arrays, and unnest(NULL) yields no rows -- so
-        # without the COALESCE wrapping, the whole row silently disappears
-        # from the payload rather than failing loudly.
+        # Scalar rows have NULL arrays, and multi-arg unnest pads shorter
+        # arrays with NULL to match resource_ids' length -- so without the
+        # COALESCE wrapping, the row still comes out but its value column
+        # is NULL, silently reading as nodata rather than failing loudly.
         resource = DatasetResource.objects.create(
             dataset=self.dataset, name="ds1-r1", label="Jan 2020", path="r1.tif"
         )
