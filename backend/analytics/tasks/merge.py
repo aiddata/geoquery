@@ -248,12 +248,14 @@ def merge_task_results(task_map):
                     continue
 
                 for i, dr_name in enumerate(dr_names):
-                    # A None at position i means resource_ids[i]'s result wasn't
-                    # computed for this task (failed, or not yet processed) --
-                    # see ExtractData's docstring. That's expected, not an error:
-                    # skip it entirely rather than writing a placeholder, so the
-                    # resulting uneven row set becomes a genuine NaN (not a
-                    # fabricated one) when pd.DataFrame assembles rows below.
+                    # A None at position i is a final answer, not a gap: either
+                    # the extraction found nodata there, or that position failed
+                    # this run (in which case the task is status=-1 and merge is
+                    # never reached for it -- see ExtractData's docstring). It is
+                    # expected, not an error: skip it entirely rather than
+                    # writing a placeholder, so the resulting uneven row set
+                    # becomes a genuine NaN (not a fabricated one) when
+                    # pd.DataFrame assembles rows below.
                     if i >= len(values) or values[i] is None:
                         continue
                     rows[key][f"{dr_name}.{td.name}"] = coerce(values[i])
