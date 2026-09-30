@@ -427,25 +427,19 @@ def _run_extract_task(task_id):
         # Every position is recomputed (see _positions_needing_processing), so
         # this run's results are the complete picture for this task. Replace
         # the row set wholesale rather than merging into whatever a previous
-        # run left behind. dataset_id prunes to one partition.
-        #
-        # Guarded on `produced` being non-empty: an empty one means EVERY
-        # position raised this run, and wiping a previous run's good results
-        # because of a transient failure would be strictly worse than keeping
-        # them. The task goes to status=-1 either way and is recomputed in
-        # full on retry. The old merge-based code got this for free via its
-        # `elif not values_by_pos: continue` branch.
+        # run left behind.
         #
         # A position that raised while others succeeded still lands as NULL
-        # here, which is indistinguishable from nodata at the row level. That
-        # is safe because the task is status=-1, and consumers gate on
-        # status=1 (see manage_user_requests._check_request_tasks) -- so a
-        # failed task's NULLs are never read as results.
-        if produced:
-            ExtractData.objects.filter(
-                dataset_id=task.dataset_id, extract_task_id=task_id
-            ).delete()
-
+        # here, indistinguishable from nodata at the row level. Two consumers,
+        # two different reasons that is acceptable:
+        #   - merge (the CSV download path) gates on status=1, so a failed
+        #     task's rows are never merged at all.
+        #   - visualize does NOT gate on status -- neither the request nor the
+        #     explore SQL filters et.status -- but a failed position already
+        #     rendered as an empty cell there before this change, so nothing
+        #     regresses.
+        # What broadens is the MEANING of an empty cell, from "failed or not
+        # yet processed" to "failed or nodata". Both render identically.
         rows = []
         for name, values_by_pos in produced.items():
             row = ExtractData(
@@ -467,15 +461,33 @@ def _run_extract_task(task_id):
                             if classified[0] != column:
                                 logger.warning(
                                     "Task %s name %s position %d: %s value in a %s "
-                                    "row; coercing. A name is assumed to produce one "
-                                    "type across every position.",
+                                    "row. Stored as-is; a genuinely incompatible type "
+                                    "will raise at insert. A name is assumed to "
+                                    "produce one type across every position.",
                                     task_id, name, i, classified[0], column,
                                 )
                             values[i] = classified[1]
                     setattr(row, f"{column}_values", values)
             rows.append(row)
 
-        ExtractData.objects.bulk_create(rows)
+        # The delete is guarded on `produced` being non-empty: an empty one
+        # means EVERY position raised this run, and wiping a previous run's
+        # good results because of a transient failure would be strictly worse
+        # than keeping them. The task goes to status=-1 either way and is
+        # recomputed in full on retry. The old merge-based code got this for
+        # free via its `elif not values_by_pos: continue` branch. dataset_id
+        # prunes the delete to one partition.
+        #
+        # delete + bulk_create have to land together: a crash between them
+        # would leave the task with no rows at all and nothing written back.
+        # Rows are built above, outside this block, so it holds no locks while
+        # doing Python work.
+        with transaction.atomic():
+            if produced:
+                ExtractData.objects.filter(
+                    dataset_id=task.dataset_id, extract_task_id=task_id
+                ).delete()
+            ExtractData.objects.bulk_create(rows)
         all_names = set(produced)
 
     except Exception as exc:

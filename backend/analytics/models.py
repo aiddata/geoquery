@@ -219,10 +219,6 @@ class ExtractData(models.Model):
     one path is populated per row; the unused one stays NULL, which costs a
     null-bitmap bit rather than storage.
 
-    The scalar columns are declared but not yet written: the writer in
-    analytics.tasks.processing starts choosing between the two paths in a
-    later change. Until then every row still uses the array path.
-
     Two independent levels of NULL, not to be conflated:
     - Column-level (each value column nullable): only ONE value column is
       actually used per row, matching data_column. The others stay NULL, not
