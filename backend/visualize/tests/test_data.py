@@ -50,11 +50,11 @@ class VisualizeDataTestCase(TestCase):
         )
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[12.5],
+            float_values=[12.5],
         )
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="count",
-            data_column="int", int_values=[5],
+            int_values=[5],
         )
         req = self._make_request(task)
 
@@ -95,7 +95,7 @@ class VisualizeDataTestCase(TestCase):
         )
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[10.0, 20.0, 30.0],
+            float_values=[10.0, 20.0, 30.0],
         )
         req = self._make_request(task)
 
@@ -132,7 +132,7 @@ class VisualizeDataTestCase(TestCase):
         )
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[None, 7.5],
+            float_values=[None, 7.5],
         )
         req = self._make_request(task)
 
@@ -152,7 +152,7 @@ class VisualizeDataTestCase(TestCase):
         )
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="majority",
-            data_column="str", str_values=["forest"],
+            str_values=["forest"],
         )
         req = self._make_request(task)
 
@@ -226,7 +226,7 @@ class VisualizeDataTestCase(TestCase):
         )
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[100.0, 200.0],
+            float_values=[100.0, 200.0],
         )
         # Not linked via RequestMap at all -- build_explore_data must not
         # require one.
@@ -248,14 +248,14 @@ class VisualizeDataTestCase(TestCase):
         )
         ExtractData.objects.create(
             extract_task=matching_task, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[1.0],
+            float_values=[1.0],
         )
         other_task = ExtractTask.objects.create(
             resource_ids=[resource.id], dataset_id=self.dataset.id, fm=self.fm, po=other_po, status=1,
         )
         ExtractData.objects.create(
             extract_task=other_task, dataset_id=self.dataset.id, name="other",
-            data_column="float", float_values=[2.0],
+            float_values=[2.0],
         )
 
         result = build_explore_data([self.fc.id], [self.po.id])

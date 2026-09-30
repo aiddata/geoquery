@@ -54,7 +54,7 @@ class MergeTaskResultsTestCase(TestCase):
         task = self.make_task([resource])
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[12.5],
+            float_values=[12.5],
         )
 
         status, df = merge_task_results({task.id: self.dataset.id})
@@ -83,7 +83,7 @@ class MergeTaskResultsTestCase(TestCase):
         task = self.make_task([r2, r0, r1])
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[20.0, 0.0, 10.0],
+            float_values=[20.0, 0.0, 10.0],
         )
 
         status, df = merge_task_results({task.id: self.dataset.id})
@@ -106,7 +106,7 @@ class MergeTaskResultsTestCase(TestCase):
         task = self.make_task([r0, r1], status=-1)
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[None, 7.5],
+            float_values=[None, 7.5],
         )
 
         status, df = merge_task_results({task.id: self.dataset.id})
@@ -134,7 +134,7 @@ class MergeTaskResultsTestCase(TestCase):
         task_a = self.make_task([r0, r1], status=-1)
         ExtractData.objects.create(
             extract_task=task_a, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[None, 7.5],
+            float_values=[None, 7.5],
         )
 
         # A second feature/task where null2-0 DOES have a value, so the
@@ -155,7 +155,7 @@ class MergeTaskResultsTestCase(TestCase):
         )
         ExtractData.objects.create(
             extract_task=task_b, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[3.5, 9.0],
+            float_values=[3.5, 9.0],
         )
 
         status, df = merge_task_results({task_a.id: self.dataset.id, task_b.id: self.dataset.id})
@@ -187,7 +187,7 @@ class MergeTaskResultsTestCase(TestCase):
         task = self.make_task([r_sub, r_plain], kwargs={"outcome": "event_count"})
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="mean",
-            data_column="float", float_values=[1.0, 2.0],
+            float_values=[1.0, 2.0],
         )
 
         status, df = merge_task_results({task.id: self.dataset.id})
@@ -200,18 +200,18 @@ class MergeTaskResultsTestCase(TestCase):
 
     # --- int/str typed columns coerce correctly ---------------------------
 
-    def test_int_and_str_data_columns(self):
+    def test_int_and_str_typed_columns(self):
         resource = DatasetResource.objects.create(
             dataset=self.dataset, name="typed_resource", path="t.tif"
         )
         task = self.make_task([resource])
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="count",
-            data_column="int", int_values=[5],
+            int_values=[5],
         )
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="majority",
-            data_column="str", str_values=["forest"],
+            str_values=["forest"],
         )
 
         status, df = merge_task_results({task.id: self.dataset.id})
@@ -353,7 +353,7 @@ class MergeQueryCountTestCase(TestCase):
             )
             ExtractData.objects.create(
                 extract_task=task, dataset_id=dataset.id, name="mean",
-                data_column="float", float_values=[float(start + i)],
+                float_values=[float(start + i)],
             )
             task_map[task.id] = dataset.id
         return task_map

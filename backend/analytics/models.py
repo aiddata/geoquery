@@ -220,14 +220,17 @@ class ExtractData(models.Model):
     null-bitmap bit rather than storage.
 
     Two independent levels of NULL, not to be conflated:
-    - Column-level (each value column nullable): only ONE value column is
-      actually used per row, matching data_column. The others stay NULL, not
-      an array of NULLs.
+    - Column-level: only ONE value column is used per row. Which one is
+      implied by which is non-NULL -- there is no discriminator column, and
+      none is needed, because nothing requires the type of a NULL value.
+      A row with every value column NULL is a nodata result: a complete
+      record that the extraction ran and found nothing there.
     - Element-level (each array's own field is null=True): within whichever
-      column is in use, a NULL at position i means no value was stored for
-      resource_ids[i] -- the processor produced none, or that position failed
-      this run. It is NOT a request to reprocess. Whether a task still needs
-      work is a property of ExtractTask.status, not of this row: see
+      column is in use, a NULL at position i means nodata for
+      resource_ids[i] -- a final answer, not a request to reprocess. (A
+      position that failed also lands as NULL, but that task is status=-1
+      and merge never reads it; see _run_extract_task.) Whether a task still
+      needs work is a property of ExtractTask.status, not of this row: see
       analytics.tasks.processing._positions_needing_processing, which
       recomputes every position on a retry.
 
@@ -247,7 +250,6 @@ class ExtractData(models.Model):
     )
     dataset_id = models.IntegerField()
     name = models.CharField(max_length=100)
-    data_column = models.CharField(max_length=100, blank=True, null=True)
     # Single-value path: used when cardinality(resource_ids) == 1, which is
     # every non-grouped task. A 1-element array carries ~20 bytes of array
     # header before its payload -- for an 8-byte int8 or float8 that is ~29
