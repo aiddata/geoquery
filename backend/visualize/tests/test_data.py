@@ -162,6 +162,54 @@ class VisualizeDataTestCase(TestCase):
         self.assertEqual(feature_record["ds1-str.majority"], "forest")
         self.assertEqual(result["col_filter_desc"], {"ds1-str.majority": "threshold: 1–5"})
 
+    # --- scalar rows -------------------------------------------------------
+
+    def test_build_request_data_scalar_row_is_not_dropped_by_unnest(self):
+        # Scalar rows have NULL arrays, and unnest(NULL) yields no rows -- so
+        # without the COALESCE wrapping, the whole row silently disappears
+        # from the payload rather than failing loudly.
+        resource = DatasetResource.objects.create(
+            dataset=self.dataset, name="ds1-r1", label="Jan 2020", path="r1.tif"
+        )
+        task = ExtractTask.objects.create(
+            resource_ids=[resource.id], dataset_id=self.dataset.id,
+            fm=self.fm, po=self.po, status=1,
+        )
+        ExtractData.objects.create(
+            extract_task=task, dataset_id=self.dataset.id, name="mean",
+            float_value=3.25,
+        )
+        ExtractData.objects.create(
+            extract_task=task, dataset_id=self.dataset.id, name="count",
+            int_value=7,
+        )
+        req = self._make_request(task)
+
+        result = build_request_data(req)
+
+        record = result["features"][str(self.feature.id)]
+        self.assertEqual(record["ds1-r1.mean"], 3.25)
+        self.assertIsInstance(record["ds1-r1.mean"], float)
+        self.assertEqual(record["ds1-r1.count"], 7)
+        self.assertIsInstance(record["ds1-r1.count"], int)
+
+    def test_build_request_data_all_null_row_yields_none(self):
+        resource = DatasetResource.objects.create(
+            dataset=self.dataset, name="ds1-r1", label="Jan 2020", path="r1.tif"
+        )
+        task = ExtractTask.objects.create(
+            resource_ids=[resource.id], dataset_id=self.dataset.id,
+            fm=self.fm, po=self.po, status=1,
+        )
+        ExtractData.objects.create(
+            extract_task=task, dataset_id=self.dataset.id, name="mean",
+        )
+        req = self._make_request(task)
+
+        result = build_request_data(req)
+
+        self.assertIsNone(result["features"][str(self.feature.id)]["ds1-r1.mean"])
+
     # --- explore data (same flattening, filtered by fc/po instead of request)
 
     def test_build_explore_data_grouped_task_attributes_each_resource(self):

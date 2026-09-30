@@ -56,21 +56,28 @@ def _load_jsonb(value):
 
 
 # Reconstructs the pre-redesign one-row-per-(task, resource, name) shape from
-# ExtractTask.resource_ids and ExtractData's float_values/int_values/
-# str_values arrays (see analytics.models.ExtractTask/ExtractData
-# docstrings for the position-alignment invariant this depends on).
+# ExtractTask.resource_ids and ExtractData's value columns (see
+# analytics.models.ExtractTask/ExtractData docstrings for the
+# position-alignment invariant this depends on).
+#
+# An ExtractData row populates exactly one side: the scalar columns
+# (int_value/float_value/str_value) when the task covers a single resource,
+# or the array columns (*_values, position-aligned with resource_ids) when
+# it covers several. Never both, and possibly neither (a nodata result).
 #
 # unnest(et.resource_ids, ed.float_values, ed.int_values, ed.str_values)
 # WITH ORDINALITY walks all four arrays in lockstep by position: position i
 # of resource_ids pairs with position i of each value array, one output row
-# per position. Only one of the three value arrays is ever populated per
-# ExtractData row (matching ed.data_column); the other two are genuinely
-# NULL, not empty arrays. Per Postgres semantics, a NULL array argument to a
-# multi-array unnest() is treated as an empty array, so its column comes
-# back NULL for every row the *other*, populated arrays generate -- which is
-# exactly what lets the Python loop below keep branching on data_column to
-# pick one of int_value/float_value/str_value, unchanged from how it read
-# the old scalar columns of the same names.
+# per position. But a scalar row's array columns are NULL, and Postgres
+# treats a NULL array argument to a multi-array unnest() as empty -- so
+# without help, a scalar row would come out with every value column NULL
+# instead of surfacing the scalar. COALESCE(ed.float_values,
+# ARRAY[ed.float_value]) (and the same for int/str) falls back to a
+# 1-element array wrapping the scalar whenever the array side is NULL, so
+# the single position lines up with resource_ids' single element either
+# way. The Python loop below then just picks whichever of
+# int_value/float_value/str_value came back non-NULL for a given row --
+# no discriminator column needed.
 #
 # Joins wherever extract_tasks/extract_data appear include dataset_id
 # alongside the id column: both tables are LIST partitioned on dataset_id
@@ -91,7 +98,6 @@ _REQUEST_EXTRACT_DATA_SQL = """
         po.short_name AS po_short_name,
         et.kwargs AS task_kwargs,
         ed.name AS name,
-        ed.data_column AS data_column,
         u.int_value AS int_value,
         u.float_value AS float_value,
         u.str_value AS str_value
@@ -102,7 +108,17 @@ _REQUEST_EXTRACT_DATA_SQL = """
         ON rm.dataset_id = et.dataset_id AND rm.task_id = et.id
     INNER JOIN feat_map fm ON fm.id = et.fm_id
     INNER JOIN processing_options po ON po.id = et.po_id
-    CROSS JOIN LATERAL unnest(et.resource_ids, ed.float_values, ed.int_values, ed.str_values)
+    -- A row populates either the scalar side (one resource) or the array side
+    -- (several). unnest(NULL) yields no rows, so a scalar row would vanish
+    -- from the payload entirely without wrapping each scalar in a 1-element
+    -- array first. Multi-arg unnest pads shorter arrays with NULL to match
+    -- the longest, so resource_ids still drives the row count either way.
+    CROSS JOIN LATERAL unnest(
+            et.resource_ids,
+            COALESCE(ed.float_values, ARRAY[ed.float_value]),
+            COALESCE(ed.int_values,   ARRAY[ed.int_value]),
+            COALESCE(ed.str_values,   ARRAY[ed.str_value])
+        )
         WITH ORDINALITY AS u(resource_id, float_value, int_value, str_value, ord)
     INNER JOIN dataset_resources dr ON dr.id = u.resource_id
     INNER JOIN datasets d ON d.id = dr.dataset_id
@@ -126,7 +142,6 @@ _EXPLORE_EXTRACT_DATA_SQL = """
         po.short_name AS po_short_name,
         et.kwargs AS task_kwargs,
         ed.name AS name,
-        ed.data_column AS data_column,
         u.int_value AS int_value,
         u.float_value AS float_value,
         u.str_value AS str_value
@@ -135,7 +150,17 @@ _EXPLORE_EXTRACT_DATA_SQL = """
         ON et.dataset_id = ed.dataset_id AND et.id = ed.extract_task_id
     INNER JOIN feat_map fm ON fm.id = et.fm_id
     INNER JOIN processing_options po ON po.id = et.po_id
-    CROSS JOIN LATERAL unnest(et.resource_ids, ed.float_values, ed.int_values, ed.str_values)
+    -- A row populates either the scalar side (one resource) or the array side
+    -- (several). unnest(NULL) yields no rows, so a scalar row would vanish
+    -- from the payload entirely without wrapping each scalar in a 1-element
+    -- array first. Multi-arg unnest pads shorter arrays with NULL to match
+    -- the longest, so resource_ids still drives the row count either way.
+    CROSS JOIN LATERAL unnest(
+            et.resource_ids,
+            COALESCE(ed.float_values, ARRAY[ed.float_value]),
+            COALESCE(ed.int_values,   ARRAY[ed.int_value]),
+            COALESCE(ed.str_values,   ARRAY[ed.str_value])
+        )
         WITH ORDINALITY AS u(resource_id, float_value, int_value, str_value, ord)
     INNER JOIN dataset_resources dr ON dr.id = u.resource_id
     INNER JOIN datasets d ON d.id = dr.dataset_id
@@ -183,13 +208,14 @@ def _aggregate_data_rows(data_rows: list[dict], features: dict[str, dict]):
         if record is None:
             continue  # data row points to a feature not in feat_map for this request
 
-        dtype = dr["data_column"]
-        if dtype == "int":
-            value = dr["int_value"]
-            value = int(value) if value is not None else None
-        elif dtype == "float":
-            value = dr["float_value"]
-            value = float(value) if value is not None else None
+        # Whichever column the unnest produced a value in. All three NULL is a
+        # nodata result -- the extraction ran and found nothing -- and stays
+        # None. Tested with `is not None` rather than truthiness so a genuine
+        # 0, 0.0 or "" is not mistaken for absence.
+        if dr["int_value"] is not None:
+            value = int(dr["int_value"])
+        elif dr["float_value"] is not None:
+            value = float(dr["float_value"])
         else:
             value = dr["str_value"]
         record[col] = value
