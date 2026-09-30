@@ -221,21 +221,38 @@ class MergeTaskResultsTestCase(TestCase):
         self.assertEqual(row["typed_resource.count"], 5)
         self.assertEqual(row["typed_resource.majority"], "forest")
 
-    # --- unsupported data_column still raises ------------------------------
+    # --- scalar rows and nodata -------------------------------------------
 
-    def test_unsupported_data_column_raises(self):
+    def test_scalar_value_row_is_read(self):
         resource = DatasetResource.objects.create(
-            dataset=self.dataset, name="bad_resource", path="b.tif"
+            dataset=self.dataset, name="my_resource", path="r1.tif"
         )
         task = self.make_task([resource])
         ExtractData.objects.create(
-            extract_task=task, dataset_id=self.dataset.id, name="weird",
-            data_column="bogus",
+            extract_task=task, dataset_id=self.dataset.id, name="mean",
+            float_value=12.5,
         )
 
-        with self.assertRaises(Exception) as cm:
-            merge_task_results({task.id: self.dataset.id})
-        self.assertIn("Unsupported data column type", str(cm.exception))
+        status, df = merge_task_results({task.id: self.dataset.id})
+
+        self.assertEqual(status, "Success")
+        self.assertEqual(df.iloc[0]["my_resource.mean"], 12.5)
+
+    def test_all_null_row_produces_no_column_not_the_string_none(self):
+        resource = DatasetResource.objects.create(
+            dataset=self.dataset, name="my_resource", path="r1.tif"
+        )
+        task = self.make_task([resource])
+        ExtractData.objects.create(
+            extract_task=task, dataset_id=self.dataset.id, name="mean",
+        )
+
+        status, df = merge_task_results({task.id: self.dataset.id})
+
+        self.assertEqual(status, "Success")
+        # The nodata row contributes no cell, so no such column is assembled --
+        # and critically the literal text "None" appears nowhere.
+        self.assertNotIn("my_resource.mean", df.columns)
 
     # --- missing task still raises ------------------------------------------
 
