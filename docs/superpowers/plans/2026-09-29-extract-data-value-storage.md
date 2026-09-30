@@ -768,7 +768,7 @@ contributes no cell, so it becomes a genuine NaN rather than the string
 
 ### Task 5: Read scalars in visualize
 
-**Goal:** The request and explore SQL cover scalar rows, which have NULL arrays and would otherwise unnest to nothing and vanish.
+**Goal:** The request and explore SQL cover scalar rows, whose NULL arrays otherwise make every value column read as NULL -- silently indistinguishable from nodata.
 
 **Files:**
 - Modify: `backend/visualize/data.py:88-143` (both SQL constants)
@@ -793,9 +793,10 @@ Add to `VisualizeDataTestCase` in `backend/visualize/tests/test_data.py`, using 
     # --- scalar rows -------------------------------------------------------
 
     def test_build_request_data_scalar_row_is_not_dropped_by_unnest(self):
-        # Scalar rows have NULL arrays, and unnest(NULL) yields no rows -- so
-        # without the COALESCE wrapping, the whole row silently disappears
-        # from the payload rather than failing loudly.
+        # Scalar rows have NULL arrays. Multi-arg unnest pads to the longest
+        # array, so resource_ids drives the row count and the row survives --
+        # but every value column comes back NULL, silently reading as nodata
+        # rather than failing loudly.
         resource = DatasetResource.objects.create(
             dataset=self.dataset, name="ds1-r1", label="Jan 2020", path="r1.tif"
         )
@@ -857,8 +858,12 @@ with:
 
 ```sql
     -- A row populates either the scalar side (one resource) or the array side
-    -- (several). unnest(NULL) yields no rows, so a scalar row would vanish
-    -- entirely without wrapping each scalar in a 1-element array first.
+    -- (several). Multi-arg unnest pads shorter arrays with NULL to match the
+    -- longest, so et.resource_ids drives the row count either way: a scalar
+    -- row still produces its row, but every value column comes back NULL --
+    -- silently reading as nodata rather than failing loudly. Wrapping each
+    -- scalar in a 1-element array lines it up with resource_ids' single
+    -- position so the real value comes through.
     CROSS JOIN LATERAL unnest(
             et.resource_ids,
             COALESCE(ed.float_values, ARRAY[ed.float_value]),
@@ -916,10 +921,10 @@ Expected: OK.
 git add backend/visualize/data.py backend/visualize/tests/test_data.py
 git commit -m "Read scalar value columns in visualize
 
-unnest(NULL) yields no rows, so a scalar row would disappear from both
-the request and explore payloads. Wraps each scalar in a 1-element array
-so one lateral covers both row shapes, and drops the data_column
-discriminator from both queries."
+Multi-arg unnest pads shorter arrays to the longest, so resource_ids
+drives the row count -- a scalar row was never dropped, it came back with
+every value NULL, which reads as nodata rather than failing. The COALESCE
+lines the scalar up with its position."
 ```
 
 ---
