@@ -28,7 +28,7 @@
     {
       "id": 3,
       "subject": "Task 4: Read scalars in merge",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         2
       ],
@@ -37,7 +37,7 @@
     {
       "id": 4,
       "subject": "Task 5: Read scalars in visualize",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         3
       ],
@@ -46,7 +46,7 @@
     {
       "id": 5,
       "subject": "Task 6: Drop the data_column discriminator",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         4
       ],
@@ -55,12 +55,12 @@
     {
       "id": 6,
       "subject": "Task 7: Cutover command",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         5
       ],
       "description": "**Goal:** A management command that discards all extract data and returns processed tasks to pending, partition by partition, so the transient bloat stays bounded.\n\n**Files:**\n- Create: `backend/analytics/management/commands/reset_extract_data.py`\n- Create: `backend/analytics/tests/test_reset_extract_data.py`\n\n**Acceptance Criteria:**\n- [ ] Running without --confirm changes nothing and exits non-zero\n- [ ] With --confirm, extract_data is empty and every task with status <> 0 is left at status=0 with complete_time, attempts and error cleared\n- [ ] Tasks already at status=0 are not rewritten\n- [ ] Each extract_tasks partition is updated in its own statement, with a VACUUM between\n- [ ] --dry-run reports the per-partition row counts it would reset and changes nothing\n\n**Verify:** `python manage.py test analytics.tests.test_reset_extract_data -v 2` -> OK\n\n**Steps:**\n1. Write test_reset_extract_data.py as a TransactionTestCase (TRUNCATE and VACUUM do not behave inside TestCase's wrapping transaction): refuses_without_confirm, dry_run_changes_nothing, confirm_truncates_and_resets.\n2. Run -> FAIL (Unknown command).\n3. Write the command: discover partitions from pg_class LIKE 'extract_tasks_ds%', refuse without --confirm via sys.exit(1), connection.set_autocommit(True) because VACUUM cannot run in a transaction, TRUNCATE extract_data, then per-partition UPDATE + VACUUM.\n4. Run -> OK, 3 tests.\n5. Run the whole suite.\n6. Commit.\n\n```json:metadata\n{\"files\": [\"backend/analytics/management/commands/reset_extract_data.py\", \"backend/analytics/tests/test_reset_extract_data.py\"], \"verifyCommand\": \"cd backend && python manage.py test analytics.tests.test_reset_extract_data -v 2\", \"acceptanceCriteria\": [\"refuses without --confirm and exits non-zero\", \"with --confirm extract_data empty and tasks reset with complete_time/attempts/error cleared\", \"already-pending tasks not rewritten\", \"per-partition UPDATE with VACUUM between\", \"--dry-run reports counts and changes nothing\"], \"modelTier\": \"standard\"}\n```"
     }
   ],
-  "lastUpdated": "2026-09-30T14:13:18.452366+00:00"
+  "lastUpdated": "2026-09-30T14:37:28.414262+00:00"
 }

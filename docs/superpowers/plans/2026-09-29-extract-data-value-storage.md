@@ -1171,13 +1171,17 @@ logger = getLogger(__name__)
 # Which extract_tasks partitions exist. extract_tasks is LIST partitioned on
 # dataset_id, so resetting per-partition keeps each statement's dead-tuple
 # footprint to one partition instead of rewriting 347M rows in one shot.
+# Discovered via pg_inherits, NOT a relname LIKE 'extract_tasks_ds%' pattern.
+# Migration 0021 gave a dedicated partition only to datasets that existed when
+# it ran; anything created since routes to the catch-all extract_tasks_default,
+# which a ds_ name filter silently skips. Production's default partition is
+# empty today and every current dataset has its own, but a dataset added before
+# the cutover would land there and be missed.
 _PARTITIONS_SQL = """
     SELECT c.relname
-    FROM pg_class c
-    JOIN pg_namespace n ON n.oid = c.relnamespace
-    WHERE n.nspname = 'public'
-      AND c.relkind = 'r'
-      AND c.relname LIKE 'extract_tasks_ds%'
+    FROM pg_inherits i
+    JOIN pg_class c ON c.oid = i.inhrelid
+    WHERE i.inhparent = 'extract_tasks'::regclass
     ORDER BY c.relname
 """
 
