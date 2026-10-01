@@ -398,6 +398,36 @@ volumes expand, and future instances are created at the right size.
 Expansion is online with `ceph-block` (`allowVolumeExpansion: true`) — no restart,
 no failover.
 
+**Prod must override `max_wal_size` to 16GB / `min_wal_size` to 4GB.** The chart
+defaults to 8GB/4GB; prod sets 16GB/4GB in its environment overlay. This is not
+cosmetic tuning — at the old 4GB ceiling, 899 of 1002 checkpoints over 120h were
+forced by WAL volume (89.7%), emitting 601.6M full-page images across 2,530 GB of
+WAL and 95h of checkpointer write time, out of 120h of wall clock.
+
+The mechanism: a checkpoint *requested* by hitting `max_wal_size` ignores
+`checkpoint_completion_target` and writes as fast as it can. Afterward, the first
+touch of every page emits a full-page image, which refills WAL and triggers the
+next one sooner. The loop is self-reinforcing, and it throttles ordinary
+processing, not just bulk operations — raising the ceiling to 16GB took
+steady-state throughput from 1.42M to 4.5M tasks/hr and made a 136.8M-row
+`extract_tasks` reset run 2.06× faster (12 forced checkpoints instead of 899).
+
+It bites hardest on bulk `UPDATE`s of `extract_tasks` because HOT never applies:
+`status` appears in the `WHERE status = 0` predicate of the partial claim index
+(section 3), which disqualifies the heap-only path for every row, so each row
+churns all five of a partition's large indexes. On the `ds_23` partition,
+`n_tup_hot_upd` was **0** out of 879.7M updates. See also Appendix A.
+
+Both parameters are `sighup` context, so this is a config **reload** — CNPG applies
+it without a restart or failover (`pending_restart` stays false).
+
+**Size any increase against `ceph df`, not `df`.** The data volume is thin
+provisioned, so filesystem free space overstates what is actually available. Each
+of the three instances retains its own `pg_wal` on its own PVC, so a WAL delta
+costs three times that in pool space, and prod shares `ceph-blockpool` with
+staging. That three-times multiplier is why the chart default stays at 8GB rather
+than matching prod.
+
 ---
 
 ## Appendix A — HOT update experiment
