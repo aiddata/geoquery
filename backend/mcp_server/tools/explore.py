@@ -28,9 +28,9 @@ from mcp_server.data.selection import (
     Selection,
     SelectionError,
     apply_formula,
+    column_status,
     load_payload,
     resolve_selection,
-    with_partial_flags,
 )
 from mcp_server.schemas import (
     BOUNDARIES_DESC,
@@ -139,7 +139,7 @@ def _column_stats(features: dict, columns: list[str]) -> dict:
     return stats
 
 
-def _column_meta(payload: dict, columns: list[str], partial: dict) -> list[dict]:
+def _column_meta(payload: dict, columns: list[str], status: dict) -> list[dict]:
     return [
         {
             "name": col,
@@ -147,7 +147,7 @@ def _column_meta(payload: dict, columns: list[str], partial: dict) -> list[dict]
             "temporal": (payload.get("col_temporal") or {}).get(col),
             "description": (payload.get("col_descriptions") or {}).get(col),
             "filter_desc": (payload.get("col_filter_desc") or {}).get(col) or None,
-            "partial": partial.get(col, False),
+            **status[col],
         }
         for col in columns
     ]
@@ -195,7 +195,7 @@ def _get_data(
         # the one dropped by the column cap.
         selected = [formula_column, *selected][:max_columns]
 
-    partial = with_partial_flags(payload)
+    status = column_status(payload)
     features = payload.get("features") or {}
     if search:
         needle = search.lower()
@@ -213,7 +213,7 @@ def _get_data(
     if format == "geojson":
         result_payload = {
             **common,
-            **_geojson(selection, payload, features, selected, partial, attribution),
+            **_geojson(selection, payload, features, selected, status, attribution),
         }
     else:
         build = _long_table if shape == "long" else _table
@@ -224,7 +224,7 @@ def _get_data(
                 payload,
                 features,
                 selected,
-                partial,
+                status,
                 offset,
                 limit,
                 sort_by,
@@ -300,7 +300,7 @@ def _fit_model_payload(payload: dict) -> dict:
 
 
 def _table(
-    selection, payload, features, selected, partial,
+    selection, payload, features, selected, status,
     offset, limit, sort_by, descending, formula,
 ) -> dict:
     if sort_by and sort_by not in selected:
@@ -316,7 +316,7 @@ def _table(
 
     return {
         "shape": "wide",
-        "columns": _column_meta(payload, selected, partial),
+        "columns": _column_meta(payload, selected, status),
         "column_stats": _column_stats(features, selected),
         "rows": [
             {
@@ -340,7 +340,7 @@ def _table(
 
 
 def _long_table(
-    selection, payload, features, selected, partial,
+    selection, payload, features, selected, status,
     offset, limit, sort_by, descending, formula,
 ) -> dict:
     """The same selection, one row per feature per column, with the year split out.
@@ -366,7 +366,7 @@ def _long_table(
 
     return {
         "shape": "long",
-        "columns": _column_meta(payload, selected, partial),
+        "columns": _column_meta(payload, selected, status),
         "column_stats": _column_stats(features, selected),
         "rows": tidy.long_rows(page, selected, years, titles),
         "series_change": tidy.series_change(page, selected, years, titles),
@@ -385,7 +385,7 @@ def _long_table(
     }
 
 
-def _geojson(selection, payload, features, selected, partial, attribution) -> dict:
+def _geojson(selection, payload, features, selected, status, attribution) -> dict:
     """A GeoJSON FeatureCollection the client can render itself.
 
     Over the feature cap the geometry is dropped rather than the features:
@@ -427,7 +427,7 @@ def _geojson(selection, payload, features, selected, partial, attribution) -> di
 
     return {
         "geojson": collection,
-        "columns": _column_meta(payload, selected, partial),
+        "columns": _column_meta(payload, selected, status),
         "column_stats": _column_stats(features, selected),
         "feature_count": len(geom_ids),
         "geometry_omitted": over_cap,
@@ -435,6 +435,41 @@ def _geojson(selection, payload, features, selected, partial, attribution) -> di
         "bbox": payload.get("bbox"),
         "viz_url": viz_url(selection, col=selected[0] if selected else None),
     }
+
+
+def gap_lines(columns: list[dict]) -> list[str]:
+    """Say which columns have holes, and which kind.
+
+    Kept apart because the remedies differ: an export fills an unprocessed
+    feature, but nothing fills one the source has no data for, and a model
+    told only "some features have no value" cannot say which it is.
+    """
+    lines = []
+    partial = [
+        f"{c['name']} ({c['unprocessed_features']:,})"
+        for c in columns
+        if c["partial"]
+    ]
+    if partial:
+        lines.append(
+            "Partly processed — features with no extract yet: "
+            + ", ".join(partial)
+            + ". Say so if you summarise these; an export (preview_request, "
+            "submit_request) would process them."
+        )
+    no_value = [
+        f"{c['name']} ({c['no_value_features']:,})"
+        for c in columns
+        if c["no_value_features"]
+    ]
+    if no_value:
+        lines.append(
+            "Processed, but no value in the source for some features "
+            "(e.g. smaller than a pixel, or outside the data's extent): "
+            + ", ".join(no_value)
+            + ". These are blanks, not zeros, and an export would not fill them."
+        )
+    return lines
 
 
 def _data_block(payload: dict, shape: str) -> str:
@@ -654,13 +689,7 @@ def register(mcp, user_dep):
                 lines.append(
                     f"More rows available — raise `offset`, or open {payload['viz_url']}."
                 )
-        partial = [c["name"] for c in payload["columns"] if c["partial"]]
-        if partial:
-            lines.append(
-                "Partly processed (some features have no value): "
-                + ", ".join(partial)
-                + " — say so if you summarise these."
-            )
+        lines.extend(gap_lines(payload["columns"]))
         if payload["columns_omitted"]:
             lines.append(
                 f"{payload['columns_omitted']} further column(s) not shown; name "

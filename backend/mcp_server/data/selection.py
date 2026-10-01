@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 
-from analytics.models import Request
+from analytics.models import ExtractTask, Request
 from catalog.access import visible_feature_collections, visible_processing_options
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatureCollection
@@ -53,6 +53,8 @@ class Selection:
     # None means "every resource"; a list narrows to particular years/files.
     resource_ids: list[int] | None = None
     request_id: str | None = None
+    # Only for error messages: the extract type the caller narrowed to, if any.
+    extract_type: str | None = None
     datasets: list[Dataset] = field(default_factory=list)
     feature_collections: list[FeatureCollection] = field(default_factory=list)
 
@@ -224,6 +226,7 @@ def resolve_selection(
         fc_names=[fc.name for fc in fcs],
         po_ids=[po.id for po in pos],
         resource_ids=_resolve_resources(dataset_ids, years, resources),
+        extract_type=extract_type,
         datasets=[pos[0].dataset],
         feature_collections=fcs,
     )
@@ -234,29 +237,95 @@ def load_payload(selection: Selection) -> dict:
 
     Both branches go through ``visualize.data``, the same builder the web
     viz routes use, so a number here is the same number the app shows.
+
+    A live selection with no columns raises rather than returning every
+    feature with nothing beside it: "16 features × 0 columns" reads as a
+    finding ("no data here") when it really means "not processed yet".
     """
     if selection.request_id:
         return build_request_data(Request.objects.get(id=selection.request_id))
-    return build_explore_data(
+    payload = build_explore_data(
         selection.fc_ids, selection.po_ids, selection.resource_ids
+    )
+    if not payload.get("columns"):
+        raise SelectionError(_unprocessed_message(selection))
+    return payload
+
+
+def _unprocessed_message(selection: Selection) -> str:
+    """Why a live selection came back empty, and what to call instead."""
+    dataset = selection.datasets[0]
+    what = f"'{dataset.name}'" + (
+        f" (extract type {selection.extract_type!r})" if selection.extract_type else ""
+    )
+    where = ", ".join(selection.fc_names)
+
+    # Narrowed to particular years: say whether it is the years or the whole
+    # dataset that is missing, since the fixes differ. Filtered on dataset_id
+    # so the lookup prunes to one extract_tasks partition.
+    if selection.resource_ids is not None and (
+        ExtractTask.objects.using("replica")
+        .filter(
+            dataset_id=dataset.id,
+            fm__fc_id__in=selection.fc_ids,
+            po_id__in=selection.po_ids,
+            status=1,
+        )
+        .exists()
+    ):
+        return (
+            f"{what} is processed for {where}, but not for the requested "
+            "years/resources. Call again without years/resources to see "
+            "which are processed, or use preview_request and submit_request "
+            "to process the others."
+        )
+    return (
+        f"{what} has not been processed for {where}, so there are no values "
+        "to read -- this is not a finding that the data is empty. "
+        "list_available_data shows what is ready for these boundaries; to get "
+        "this dataset, use preview_request and then submit_request (minutes "
+        "to hours)."
     )
 
 
-def with_partial_flags(payload: dict) -> dict:
-    """``{column: bool}`` -- is this column present for only some features?
+def column_status(payload: dict) -> dict:
+    """Per column: is it partly processed, and how many features lack a value?
 
-    Mirrors the explore page's own partial-column badge. It matters because a
-    partially processed column will happily render a map that looks complete
-    while quietly omitting half the country, and the user has no way to tell
-    from the numbers alone.
+    Two different gaps, with different remedies, and conflating them made a
+    raster with a few sub-pixel districts read as "partly processed" while
+    list_available_data called the same selection complete:
+
+    * ``unprocessed_features`` -- no completed extract for the feature. An
+      export would process it. ``partial`` is true when some, but not all,
+      features are in this state; it mirrors the explore page's own
+      partial-column badge, because a partly processed column renders a map
+      that looks complete while quietly omitting part of the country.
+    * ``no_value_features`` -- the extract ran and the source has nothing
+      there: a feature smaller than a pixel, or outside the raster's extent.
+      A final answer; an export would produce the same blank.
+
+    The payload builder keeps them apart: a feature with an extract_data row
+    has the column as a key (None for a nodata row), and a feature with no
+    row lacks the key entirely.
     """
     features = payload.get("features") or {}
     total = len(features)
-    flags: dict[str, bool] = {}
+    status: dict[str, dict] = {}
     for col in payload.get("columns") or []:
-        nulls = sum(1 for feat in features.values() if feat.get(col) is None)
-        flags[col] = 0 < nulls < total
-    return flags
+        unprocessed = no_value = 0
+        for feat in features.values():
+            if col not in feat:
+                unprocessed += 1
+            elif feat[col] is None:
+                no_value += 1
+        status[col] = {
+            # Absent everywhere is a different problem from absent in
+            # patches, and labelling it 'partial' would hide the real one.
+            "partial": 0 < unprocessed < total,
+            "unprocessed_features": unprocessed,
+            "no_value_features": no_value,
+        }
+    return status
 
 
 def apply_formula(payload: dict, formula: str) -> str:
@@ -273,7 +342,8 @@ def apply_formula(payload: dict, formula: str) -> str:
         raise SelectionError(f"Could not parse formula {formula!r}: {exc}") from None
 
     known = set(payload.get("columns") or [])
-    missing = [c for c in formula_columns(expr) if c not in known]
+    inputs = formula_columns(expr)
+    missing = [c for c in inputs if c not in known]
     if missing:
         raise SelectionError(
             f"Formula references unknown column(s): {', '.join(missing)}. "
@@ -282,7 +352,10 @@ def apply_formula(payload: dict, formula: str) -> str:
 
     name = f"~{formula}"
     for feat in (payload.get("features") or {}).values():
-        feat[name] = evaluate_formula(expr, feat)
+        # A feature missing an input was never processed for it, and the
+        # derived column should say so rather than read as a nodata result.
+        if all(col in feat for col in inputs):
+            feat[name] = evaluate_formula(expr, feat)
     payload["columns"] = [*(payload.get("columns") or []), name]
     payload.setdefault("col_dataset_titles", {})[name] = "Formula"
     payload.setdefault("col_descriptions", {})[name] = formula

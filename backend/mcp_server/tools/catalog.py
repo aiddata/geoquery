@@ -258,7 +258,7 @@ def _list_available_data(user, boundaries: list[str]) -> dict:
         .annotate(n=Count("id"))
         .values_list("dataset_id", "n")
     )
-    coverage = _coverage_fractions(fc_ids, ready_dataset_ids)
+    coverage = _coverage_fractions(fc_ids, ready_dataset_ids, po_ids)
 
     ready_payload = []
     for entry in ready:
@@ -301,12 +301,25 @@ def _list_available_data(user, boundaries: list[str]) -> dict:
     }
 
 
-def _coverage_fractions(fc_ids: list[int], dataset_ids: set[int]) -> dict[int, float]:
+def _coverage_fractions(
+    fc_ids: list[int], dataset_ids: set[int], po_ids: list[int]
+) -> dict[int, float]:
     """Fraction of each boundary's features with a completed extract.
 
-    A dataset can be "available" while covering only part of a selection --
-    a raster that stops at a coastline, or a country only half processed. The
-    model needs that number before it describes a map as showing a country.
+    A dataset can be "available" while only part of a selection is processed
+    -- a country only half requested. The model needs that number before it
+    describes a map as showing a country.
+
+    "Completed" is not "has a value": a nodata result (a feature smaller than
+    a pixel, or past a raster's edge) is a completed extract and counts here.
+    Telling those apart means reading extract_data, which this summary of
+    every ready dataset deliberately avoids; get_data and show_map report it
+    per column from the values they already load. Likewise a feature counts
+    once any year is processed -- per-year gaps are also theirs to report.
+
+    Only the caller's visible extract types count, matching `ready`: a
+    feature processed solely for a private extract type is not one this
+    caller can read.
 
     Read from a standby: a fraction a few seconds behind the primary is still
     the right answer to "how much of this is processed", and the extract_tasks
@@ -320,7 +333,10 @@ def _coverage_fractions(fc_ids: list[int], dataset_ids: set[int]) -> dict[int, f
 
     done = dict(
         ExtractTask.objects.using("replica").filter(
-            fm__fc_id__in=fc_ids, dataset_id__in=dataset_ids, status=1
+            fm__fc_id__in=fc_ids,
+            dataset_id__in=dataset_ids,
+            po_id__in=po_ids,
+            status=1,
         )
         .values("dataset_id")
         .annotate(n=Count("fm_id", distinct=True))
@@ -537,9 +553,12 @@ def register(mcp, user_dep):
         """What data exists for these boundaries, split by how you can get it.
 
         `ready` is already processed and readable immediately with get_data or
-        show_map -- prefer it. `coverage_fraction` says what share of the
-        boundary's features actually have values; well under 1.0 means the
-        dataset only partly reaches this area.
+        show_map -- prefer it. `coverage_fraction` is the share of the
+        boundary's features processed for at least one year; well under 1.0
+        means only part of this area has been processed. It does not mean
+        every feature has a value: get_data and show_map report, per column,
+        features not yet processed for that year and features the source has
+        no data for (e.g. smaller than a pixel).
 
         `requestable` would have to be processed first, via preview_request
         and submit_request, which takes minutes to hours.
@@ -557,7 +576,7 @@ def register(mcp, user_dep):
             lines.append(
                 f"- {entry['dataset']} [{', '.join(entry['extract_types'])}]"
                 + (f" {entry['temporal_range']}" if entry["temporal_range"] else "")
-                + f" — {entry['coverage_fraction']:.0%} of features"
+                + f" — {entry['coverage_fraction']:.0%} of features processed"
             )
         requestable = payload["requestable"]
         if requestable:

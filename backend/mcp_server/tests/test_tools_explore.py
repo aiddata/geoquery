@@ -28,6 +28,7 @@ from mcp_server.tools.explore import (
     _fit_model_payload,
     _get_data,
     _json_size,
+    gap_lines,
     viz_url,
 )
 from mcp_server.data.selection import resolve_selection
@@ -209,6 +210,27 @@ class ListAvailableDataTests(ReplicaReadsTestMixin, TestCase):
             geom=Feature.objects.create(shape=square(10.0, 0.0)),
             name="Eastshire",
         )
+
+        payload = _list_available_data(None, [self.world.fc.name])
+
+        self.assertAlmostEqual(payload["ready"][0]["coverage_fraction"], 2 / 3, places=3)
+
+    def test_coverage_fraction_ignores_extract_types_the_caller_cannot_see(self):
+        from analytics.models import ProcessingOption
+        from features.models import Feature, FeatMap
+
+        from .factories import square
+
+        east = FeatMap.objects.create(
+            fc=self.world.fc,
+            geom=Feature.objects.create(shape=square(10.0, 0.0)),
+            name="Eastshire",
+        )
+        private = ProcessingOption.objects.create(
+            dataset=self.world.dataset, short_name="max", function="f_max",
+            active=True, public=False,
+        )
+        self.world.extract(east, private, self.world.resources[2015], 5.0)
 
         payload = _list_available_data(None, [self.world.fc.name])
 
@@ -437,6 +459,28 @@ class GetDataTableTests(ReplicaReadsTestMixin, TestCase):
         flags = {c["name"]: c["partial"] for c in payload["columns"]}
         self.assertFalse(flags["esa_lc_2015.mean"])
         self.assertTrue(flags["esa_lc_2020.mean"])
+
+    def test_nodata_is_reported_apart_from_partial_processing(self):
+        self.world.extract(
+            self.world.fms[1], self.world.pos["mean"], self.world.resources[2020], None
+        )
+
+        columns = {c["name"]: c for c in self.get()["columns"]}
+        lines = gap_lines(list(columns.values()))
+
+        self.assertFalse(columns["esa_lc_2020.mean"]["partial"])
+        self.assertEqual(columns["esa_lc_2020.mean"]["no_value_features"], 1)
+        self.assertEqual(len(lines), 1)
+        self.assertIn("no value in the source", lines[0])
+        self.assertIn("esa_lc_2020.mean (1)", lines[0])
+
+    def test_partly_processed_columns_point_to_an_export(self):
+        lines = gap_lines(self.get()["columns"])
+
+        self.assertEqual(len(lines), 1)
+        self.assertIn("Partly processed", lines[0])
+        self.assertIn("esa_lc_2020.mean (1)", lines[0])
+        self.assertIn("preview_request", lines[0])
 
     def test_column_stats_ignore_missing_values(self):
         payload = self.get()

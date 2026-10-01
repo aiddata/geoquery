@@ -4,24 +4,27 @@ This is where visibility is enforced for every data-bearing tool, so the
 negative cases matter as much as the positive ones.
 """
 
+from datetime import datetime, timezone
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from guardian.shortcuts import assign_perm
 
+from analytics.models import ProcessingOption
 from catalog.models import Catalog
-from datasets.models import Dataset
+from datasets.models import Dataset, DatasetResource
 from features.models import FeatureCollection
 from geoquery.testing import ReplicaReadsTestMixin
 from mcp_server.data.selection import (
     SelectionError,
     apply_formula,
+    column_status,
     load_payload,
     resolve_selection,
-    with_partial_flags,
 )
 from visualize.data import build_explore_data
 
-from .factories import World
+from .factories import World, make_dataset
 
 User = get_user_model()
 
@@ -224,6 +227,60 @@ class LoadPayloadTests(ReplicaReadsTestMixin, TestCase):
             build_explore_data(fc_ids, po_ids, None),
         )
 
+    def test_an_unprocessed_dataset_is_an_error_not_an_empty_table(self):
+        """Every feature with zero columns reads as "no data here" -- a
+        finding -- when it means "not processed yet"."""
+        dataset = make_dataset(name="pm25", title="PM2.5")
+        ProcessingOption.objects.create(
+            dataset=dataset, short_name="mean", function="f_mean",
+            active=True, public=True,
+        )
+        selection = resolve_selection(
+            None, boundaries=[self.world.fc.name], dataset="pm25"
+        )
+
+        with self.assertRaises(SelectionError) as ctx:
+            load_payload(selection)
+
+        message = str(ctx.exception)
+        self.assertIn("'pm25' has not been processed for gB_v6_TST_ADM1", message)
+        self.assertIn("preview_request", message)
+
+    def test_an_unprocessed_extract_type_is_named_in_the_error(self):
+        selection = resolve_selection(
+            None,
+            boundaries=[self.world.fc.name],
+            dataset=self.world.dataset.name,
+            extract_type="count",
+        )
+
+        with self.assertRaises(SelectionError) as ctx:
+            load_payload(selection)
+
+        self.assertIn("(extract type 'count') has not been processed", str(ctx.exception))
+
+    def test_an_unprocessed_year_says_other_years_are_processed(self):
+        DatasetResource.objects.create(
+            dataset=self.world.dataset,
+            name="esa_lc_2025",
+            path="2025.tif",
+            label="2025",
+            temporal=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        )
+        selection = resolve_selection(
+            None,
+            boundaries=[self.world.fc.name],
+            dataset=self.world.dataset.name,
+            years=[2025],
+        )
+
+        with self.assertRaises(SelectionError) as ctx:
+            load_payload(selection)
+
+        self.assertIn(
+            "but not for the requested years/resources", str(ctx.exception)
+        )
+
     def test_request_payload_reads_the_same_values(self):
         request = self.world.make_request()
         selection = resolve_selection(None, request_id=str(request.id))
@@ -235,7 +292,7 @@ class LoadPayloadTests(ReplicaReadsTestMixin, TestCase):
         )
 
 
-class PartialFlagTests(ReplicaReadsTestMixin, TestCase):
+class ColumnStatusTests(ReplicaReadsTestMixin, TestCase):
     def setUp(self):
         self.world = World().fill()
         self.payload = load_payload(
@@ -248,10 +305,33 @@ class PartialFlagTests(ReplicaReadsTestMixin, TestCase):
         )
 
     def test_a_column_missing_for_some_features_is_flagged_partial(self):
-        flags = with_partial_flags(self.payload)
+        status = column_status(self.payload)
 
-        self.assertFalse(flags["esa_lc_2015.mean"])
-        self.assertTrue(flags["esa_lc_2020.mean"])
+        self.assertFalse(status["esa_lc_2015.mean"]["partial"])
+        self.assertTrue(status["esa_lc_2020.mean"]["partial"])
+        self.assertEqual(status["esa_lc_2020.mean"]["unprocessed_features"], 1)
+
+    def test_a_nodata_result_is_counted_apart_and_is_not_partial(self):
+        """A processed feature the source has no value for (smaller than a
+        pixel, past a raster's edge) is not "partly processed": an export
+        would return the same blank."""
+        self.world.extract(
+            self.world.fms[1], self.world.pos["mean"], self.world.resources[2020], None
+        )
+        payload = load_payload(
+            resolve_selection(
+                None,
+                boundaries=[self.world.fc.name],
+                dataset=self.world.dataset.name,
+                extract_type="mean",
+            )
+        )
+
+        status = column_status(payload)["esa_lc_2020.mean"]
+
+        self.assertFalse(status["partial"])
+        self.assertEqual(status["unprocessed_features"], 0)
+        self.assertEqual(status["no_value_features"], 1)
 
     def test_a_column_missing_for_every_feature_is_not_partial(self):
         """Absent everywhere is a different problem from absent in patches,
@@ -259,7 +339,7 @@ class PartialFlagTests(ReplicaReadsTestMixin, TestCase):
         for record in self.payload["features"].values():
             record.pop("esa_lc_2020.mean", None)
 
-        self.assertFalse(with_partial_flags(self.payload)["esa_lc_2020.mean"])
+        self.assertFalse(column_status(self.payload)["esa_lc_2020.mean"]["partial"])
 
 
 class ApplyFormulaTests(ReplicaReadsTestMixin, TestCase):
@@ -293,6 +373,16 @@ class ApplyFormulaTests(ReplicaReadsTestMixin, TestCase):
         )
         # Northshire has both years (14 - 10); Southshire has only 2015.
         self.assertEqual(values, [4.0, None])
+
+    def test_a_feature_missing_an_input_stays_unprocessed(self):
+        """Southshire has no 2020 extract, so neither does a formula over it."""
+        name = apply_formula(
+            self.payload, "[esa_lc_2020.mean] - [esa_lc_2015.mean]"
+        )
+
+        status = column_status(self.payload)[name]
+        self.assertTrue(status["partial"])
+        self.assertEqual(status["no_value_features"], 0)
 
     def test_unknown_column_lists_the_available_ones(self):
         with self.assertRaises(SelectionError) as ctx:

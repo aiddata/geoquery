@@ -30,9 +30,9 @@ from mcp_server.data.palette import (
 from mcp_server.data.selection import (
     Selection,
     apply_formula,
+    column_status,
     load_payload,
     resolve_selection,
-    with_partial_flags,
 )
 
 MAP_APP_URI = "ui://geoquery/map/v1.html"
@@ -108,7 +108,7 @@ def build_map_payload(
     formula_column = apply_formula(payload, formula) if formula else None
 
     features = payload.get("features") or {}
-    partial = with_partial_flags(payload)
+    status = column_status(payload)
     all_columns = list(payload.get("columns") or [])
 
     active = formula_column or column or (all_columns[0] if all_columns else None)
@@ -166,7 +166,7 @@ def build_map_payload(
                 "label": col.split(".", 1)[-1].replace("_", " "),
                 "dataset_title": (payload.get("col_dataset_titles") or {}).get(col),
                 "temporal": (payload.get("col_temporal") or {}).get(col),
-                "partial": partial.get(col, False),
+                **status[col],
             }
             for col in mappable
         ],

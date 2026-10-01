@@ -34,6 +34,7 @@ from mcp_server.schemas import (
 )
 
 from .common import fmt_count, fmt_number, result, tool_body
+from .explore import gap_lines
 
 _APP_HTML = Path(__file__).resolve().parent.parent / "apps" / "static" / "map-v1.html"
 
@@ -157,6 +158,7 @@ def register(mcp, user_dep):
                 f"max {fmt_number(stats['max'])} over {stats['n']:,} features "
                 "with data."
             )
+        lines.extend(gap_lines(payload["columns"]))
         if payload["truncated"]:
             lines.append(
                 "Too many features to draw inline; the summary above still "
