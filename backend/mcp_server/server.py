@@ -24,7 +24,7 @@ There are two ways to work with it, and the difference matters.
 EXPLORE (instant). Most of GeoQuery's boundary x dataset combinations are
 already processed and can be read immediately. This is the right path for
 answering a question, making a chart, or drawing a map:
-    search_boundaries  -> find the exact boundary names for a place
+    search_boundaries  -> find the exact boundary names for a country, region or district
     list_available_data -> see what is already processed for those boundaries
     get_data           -> actual table/GeoJSON values for analysis or your own visualisation
     show_map           -> an interactive choropleth rendered directly in the chat

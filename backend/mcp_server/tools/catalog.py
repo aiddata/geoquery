@@ -27,6 +27,7 @@ from catalog.access import (
 )
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, FeatureCollection
+from features.search import search_feature_names
 from mcp_server.data.attribution import (
     attribution_for,
     attribution_for_request,
@@ -87,26 +88,95 @@ def _search_boundaries(user, query="", iso3=None, level=None, limit=20) -> dict:
     # User uploads are never public, so they are already excluded -- but say so
     # explicitly: an ephemeral custom boundary must not become selectable here
     # just because someone added it to a catalog.
-    qs = visible_feature_collections(user).filter(is_user_upload=False)
+    scope = visible_feature_collections(user).filter(is_user_upload=False)
+    if iso3:
+        scope = scope.filter(_iso3_filter(iso3))
+    if level is not None:
+        scope = scope.filter(group_level=level)
+
+    qs = scope
     if query:
         qs = qs.filter(
             Q(name__icontains=query)
             | Q(title__icontains=query)
             | Q(description__icontains=query)
         )
-    if iso3:
-        qs = qs.filter(_iso3_filter(iso3))
-    if level is not None:
-        qs = qs.filter(group_level=level)
 
     total = qs.count()
     results = list(qs.order_by("group_level", "name")[: max(1, limit)])
+    # Collection titles only name countries, so on their own they cannot
+    # answer "Nairobi" or "Kumasi". The districts and regions inside the
+    # collections can, within the same iso3/level scope.
+    places = search_feature_names(scope, query, max(1, limit))
+    cited = {fc.id: fc for fc in results}
+    for fm in places.matches:
+        cited.setdefault(fm.fc_id, fm.fc)
     return {
         "boundaries": [_boundary_summary(fc) for fc in results],
         "total_matching": total,
         "truncated": total > len(results),
-        "attribution": attribution_for([], results),
+        "places": [_place_summary(fm) for fm in places.matches],
+        "places_truncated": places.truncated,
+        "places_approximate": places.approximate,
+        "attribution": attribution_for([], cited.values()),
     }
+
+
+def _place_summary(fm: FeatMap) -> dict:
+    return {
+        "name": fm.name,
+        "feature_id": fm.geom_id,
+        "boundary": fm.fc.name,
+        "boundary_title": fm.fc.title or fm.fc.name,
+        "level": fm.fc.group_level,
+    }
+
+
+def _search_boundaries_lines(query: str, payload: dict) -> list[str]:
+    boundaries, places = payload["boundaries"], payload["places"]
+    found = payload["total_matching"]
+    lines = [
+        f"{fmt_count(found, 'boundary set', 'boundary sets')} matched"
+        + (f"; showing {len(boundaries)}." if payload["truncated"] else ".")
+    ]
+    for fc in boundaries:
+        lines.append(
+            f"- {fc['name']}: {fc['title']}"
+            + (f" (level {fc['level']})" if fc["level"] is not None else "")
+        )
+
+    if places:
+        if payload["places_approximate"]:
+            lines.append(f"No place is named '{query}'; closest spellings:")
+        elif payload["places_truncated"]:
+            lines.append(
+                f"Places named like '{query}' (more exist; narrow with iso3 or level):"
+            )
+        else:
+            lines.append(f"Places named like '{query}':")
+        for place in places:
+            lines.append(
+                f"- {place['name']} [feature {place['feature_id']}] in "
+                f"{place['boundary']} ({place['boundary_title']}"
+                + (f", level {place['level']})" if place["level"] is not None else ")")
+            )
+        lines.append(
+            "A place is one feature of its boundary set. Pass that set as "
+            "boundaries=[...] to list_available_data, then read just this place "
+            "with get_data(search='<place name>'), or export it with "
+            "preview_request(boundary=..., feature_ids=[...])."
+        )
+    elif query and not boundaries:
+        # Without this a model given "Nairobi" -> nothing has no idea whether
+        # GeoQuery lacks Kenya or merely lacks the word, and usually gives up.
+        lines.append(
+            f"Nothing matched '{query}'. This searches country names, ISO3 "
+            "codes and the names of administrative areas (regions, "
+            "districts) -- not towns, neighbourhoods or landmarks. If this "
+            "is a town, search for the district or region it lies in, or for "
+            "its country by name or iso3= (e.g. iso3='KEN')."
+        )
+    return lines
 
 
 # ── get_boundary ─────────────────────────────────────────────────────────────
@@ -416,7 +486,15 @@ def register(mcp, user_dep):
     @tool_body
     def search_boundaries(
         query: Annotated[
-            str, Field(description="Text to match against name, title and description.")
+            str,
+            Field(
+                description=(
+                    "A country, region or district name, e.g. 'Ghana' or "
+                    "'Kumasi'. Matched against boundary sets and against the "
+                    "names of the areas inside them; case and accents are "
+                    "ignored."
+                )
+            ),
         ] = "",
         iso3: Annotated[
             str | None, Field(description="ISO3 country code, e.g. 'GHA'.")
@@ -430,22 +508,18 @@ def register(mcp, user_dep):
     ):
         """Find administrative boundary sets for a place.
 
-        Start here: the `name` of a result is what every other tool wants.
-        Search by place name, or narrow with `iso3` and `level` when you
-        already know the country and how fine a breakdown you need.
+        Start here: the `name` of a boundary set is what every other tool
+        wants. A country name matches boundary sets directly (`boundaries`).
+        A region or district name matches the areas inside them (`places`):
+        each place gives the boundary set it belongs to and its
+        `feature_id`. Narrow with `iso3` and `level` when you already know
+        the country and how fine a breakdown you need.
+
+        Only administrative areas are named here, not towns or landmarks;
+        a city is usually found as the district of the same name.
         """
         payload = _search_boundaries(user, query, iso3, level, limit)
-        found = payload["total_matching"]
-        lines = [
-            f"{fmt_count(found, 'boundary set', 'boundary sets')} matched"
-            + (f"; showing {len(payload['boundaries'])}." if payload["truncated"] else ".")
-        ]
-        for fc in payload["boundaries"]:
-            lines.append(
-                f"- {fc['name']}: {fc['title']}"
-                + (f" (level {fc['level']})" if fc["level"] is not None else "")
-            )
-        return result(lines, payload)
+        return result(_search_boundaries_lines(query, payload), payload)
 
     @mcp.tool(annotations=READ_ONLY, output_schema=GENERIC_OUTPUT_SCHEMA)
     @tool_body

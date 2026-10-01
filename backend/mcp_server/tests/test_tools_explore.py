@@ -12,7 +12,7 @@ from guardian.shortcuts import assign_perm
 
 from catalog.models import Catalog
 from datasets.models import Dataset
-from features.models import FeatureCollection
+from features.models import FeatMap, Feature, FeatureCollection
 from geoquery.testing import ReplicaReadsTestMixin
 from mcp_server.data.selection import SelectionError
 from mcp_server.tools.catalog import (
@@ -21,6 +21,7 @@ from mcp_server.tools.catalog import (
     _get_dataset,
     _list_available_data,
     _search_boundaries,
+    _search_boundaries_lines,
     _search_datasets,
 )
 from mcp_server.tools.explore import (
@@ -33,7 +34,7 @@ from mcp_server.tools.explore import (
 )
 from mcp_server.data.selection import resolve_selection
 
-from .factories import World, make_dataset, make_fc
+from .factories import World, make_dataset, make_fc, square
 
 User = get_user_model()
 
@@ -106,6 +107,138 @@ class SearchBoundariesTests(TestCase):
         names = {b["name"] for b in _search_boundaries(None)["boundaries"]}
 
         self.assertNotIn("user_upload_abc123", names)
+
+
+def add_place(fc, name):
+    feature = Feature.objects.create(shape=square(0.0, 0.0))
+    return FeatMap.objects.create(fc=fc, geom=feature, name=name)
+
+
+class SearchBoundariesPlacesTests(TestCase):
+    """Place names match the features inside boundary sets, not just the sets."""
+
+    def setUp(self):
+        self.world = World()
+        self.gha2 = make_fc(name="gB_v6_GHA_ADM2", title="Ghana ADM2", group_level=2)
+        self.kumasi = add_place(self.gha2, "Kumasi Metropolitan")
+        add_place(self.gha2, "Kumasgam")
+        self.stp = make_fc(name="gB_v6_STP_ADM1", title="Sao Tome ADM1")
+        add_place(self.stp, "Água Grande")
+
+    def test_a_district_name_finds_its_boundary_set_and_feature(self):
+        payload = _search_boundaries(None, query="Kumasi")
+
+        self.assertEqual(payload["boundaries"], [])
+        self.assertEqual(
+            payload["places"],
+            [
+                {
+                    "name": "Kumasi Metropolitan",
+                    "feature_id": self.kumasi.geom_id,
+                    "boundary": "gB_v6_GHA_ADM2",
+                    "boundary_title": "Ghana ADM2",
+                    "level": 2,
+                }
+            ],
+        )
+        self.assertFalse(payload["places_approximate"])
+
+    def test_substring_matches_leave_out_fuzzy_near_misses(self):
+        names = {p["name"] for p in _search_boundaries(None, query="kumasi")["places"]}
+
+        self.assertNotIn("Kumasgam", names)
+
+    def test_a_misspelling_falls_back_to_the_closest_spellings(self):
+        payload = _search_boundaries(None, query="Kumassi")
+
+        self.assertTrue(payload["places_approximate"])
+        self.assertIn(
+            "Kumasi Metropolitan", {p["name"] for p in payload["places"]}
+        )
+
+    def test_accents_are_ignored(self):
+        names = {p["name"] for p in _search_boundaries(None, query="agua grande")["places"]}
+
+        self.assertEqual(names, {"Água Grande"})
+
+    def test_exact_names_rank_before_partial_ones_at_any_level(self):
+        country = make_fc(name="gB_v6_TST_ADM0", title="Testland", group_level=0)
+        add_place(country, "Greater Northshire")
+
+        places = _search_boundaries(None, query="northshire")["places"]
+
+        self.assertEqual(
+            [p["name"] for p in places], ["Northshire", "Greater Northshire"]
+        )
+
+    def test_iso3_and_level_narrow_places_too(self):
+        add_place(make_fc(name="gB_v6_GHA_ADM1", title="Ghana ADM1"), "Kumasi Old")
+
+        by_iso3 = _search_boundaries(None, query="Kumasi", iso3="STP")["places"]
+        by_level = _search_boundaries(None, query="Kumasi", level=1)["places"]
+
+        self.assertEqual(by_iso3, [])
+        self.assertEqual([p["name"] for p in by_level], ["Kumasi Old"])
+
+    def test_limit_truncates_places_and_says_so(self):
+        add_place(self.gha2, "Kumasi North")
+
+        payload = _search_boundaries(None, query="Kumasi", limit=1)
+
+        self.assertEqual(len(payload["places"]), 1)
+        self.assertTrue(payload["places_truncated"])
+
+    def test_places_in_private_boundaries_are_hidden_until_granted(self):
+        self.gha2.public = False
+        self.gha2.save()
+        user = User.objects.create_user(username="u", email="u@x.test", password="x")
+
+        self.assertEqual(_search_boundaries(user, query="Kumasi")["places"], [])
+
+        catalog = Catalog.objects.create(name="c")
+        catalog.feature_collections.add(self.gha2)
+        assign_perm("catalog.access_catalog", user, catalog)
+        user = User.objects.get(pk=user.pk)  # access is memoized on the instance
+
+        self.assertEqual(len(_search_boundaries(user, query="Kumasi")["places"]), 1)
+
+    def test_places_in_user_uploads_never_appear(self):
+        upload = make_fc(name="user_upload_abc123", is_user_upload=True, public=True)
+        add_place(upload, "Kumasi Upload")
+
+        names = {p["name"] for p in _search_boundaries(None, query="Kumasi")["places"]}
+
+        self.assertNotIn("Kumasi Upload", names)
+
+    def test_a_place_hit_attributes_its_boundary_set(self):
+        payload = _search_boundaries(None, query="Kumasi")
+
+        self.assertEqual(
+            [b["name"] for b in payload["attribution"]["boundaries"]],
+            ["gB_v6_GHA_ADM2"],
+        )
+
+    def test_short_queries_skip_place_search(self):
+        self.assertEqual(_search_boundaries(None, query="Ku")["places"], [])
+
+    def test_text_names_the_boundary_set_and_how_to_read_the_place(self):
+        payload = _search_boundaries(None, query="Kumasi")
+
+        text = "\n".join(_search_boundaries_lines("Kumasi", payload))
+
+        self.assertIn(
+            f"Kumasi Metropolitan [feature {self.kumasi.geom_id}] in gB_v6_GHA_ADM2",
+            text,
+        )
+        self.assertIn("get_data(search=", text)
+
+    def test_no_match_explains_what_is_searchable(self):
+        payload = _search_boundaries(None, query="Xyzzyville")
+
+        text = "\n".join(_search_boundaries_lines("Xyzzyville", payload))
+
+        self.assertIn("Nothing matched 'Xyzzyville'", text)
+        self.assertIn("iso3=", text)
 
 
 class GetBoundaryTests(TestCase):

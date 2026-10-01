@@ -1,7 +1,9 @@
 from django.contrib.gis.db import models
 from django.contrib.gis.geos import GEOSGeometry
 from django.contrib.postgres.fields import ArrayField
-from django.contrib.postgres.indexes import GistIndex
+from django.contrib.postgres.indexes import GinIndex, GistIndex, OpClass
+from django.db.models import CharField, Func
+from django.db.models.functions import Lower
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
 
@@ -152,6 +154,22 @@ class Feature(models.Model):
         self._snapshot_geometry()
 
 
+class NormalizedName(Func):
+    """A name lower-cased and stripped of accents, for search.
+
+    ``geoquery_unaccent`` is an IMMUTABLE wrapper around ``unaccent()``
+    (migration 0010): ``unaccent()`` itself is only STABLE, so Postgres will
+    not index it. Queries must use this exact expression for the planner to
+    match them to ``idx_feat_map_name_trgm``.
+    """
+
+    function = "geoquery_unaccent"
+    output_field = CharField()
+
+    def __init__(self, expression, **extra):
+        super().__init__(Lower(expression), **extra)
+
+
 class FeatMap(models.Model):
     """Feature map table linking feature collections to individual features."""
 
@@ -172,6 +190,14 @@ class FeatMap(models.Model):
             models.UniqueConstraint(
                 fields=["fc", "geom"], name="feat_map_fc_geom_unique"
             )
+        ]
+        indexes = [
+            # Serves place-name search (features.search). Trigram, so it
+            # answers both substring (LIKE) and fuzzy (%>) matches.
+            GinIndex(
+                OpClass(NormalizedName("name"), name="gin_trgm_ops"),
+                name="idx_feat_map_name_trgm",
+            ),
         ]
 
     def __str__(self):

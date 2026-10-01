@@ -177,6 +177,22 @@ class ServerIntegrationTests(TransactionTestCase):
 
         self.assertEqual(data.structured_content["total_rows"], 2)
 
+    def test_a_place_name_round_trip(self):
+        found = self.call("search_boundaries", {"query": "northshire"})
+        place = found.structured_content["places"][0]
+
+        data = self.call(
+            "get_data",
+            {
+                "boundaries": [place["boundary"]],
+                "dataset": "esa_landcover",
+                "extract_type": "mean",
+                "search": place["name"],
+            },
+        )
+
+        self.assertEqual(data.structured_content["total_rows"], 1)
+
     def test_geojson_survives_the_wire(self):
         result = self.call(
             "get_data",

@@ -17,7 +17,8 @@ def register(mcp):
     @mcp.prompt
     def explore_place(
         place: Annotated[
-            str, Field(description="A country, region or district, e.g. 'Ghana'.")
+            str,
+            Field(description="A country, region or district, e.g. 'Ghana' or 'Kumasi'."),
         ],
     ) -> str:
         """Find and visualise what GeoQuery already has for a place."""
@@ -26,7 +27,9 @@ def register(mcp):
             "Work through this in order:\n"
             f"1. search_boundaries to find the boundary sets for {place}. If "
             "there are several administrative levels, say what each one "
-            "covers and pick the most useful for an overview.\n"
+            "covers and pick the most useful for an overview. If it matches "
+            "a place inside a boundary set rather than a whole set, use that "
+            "set and keep to the place with get_data's `search`.\n"
             "2. list_available_data for that boundary. Summarise what is "
             "ready to read now, and flag anything whose coverage_fraction is "
             "well under 1.0.\n"
