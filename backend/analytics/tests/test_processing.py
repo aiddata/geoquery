@@ -1,13 +1,16 @@
+import hashlib
+import json
+import threading
 from unittest import mock
 
 from django.contrib.gis.geos import Point
-from django.db import connection
-from django.test import TestCase
+from django.db import connection, transaction
+from django.test import TestCase, TransactionTestCase
 from django.test.utils import CaptureQueriesContext
 
 from analytics.models import ExtractData, ExtractTask, ProcessingOption
 from analytics.tasks import processing
-from analytics.tasks.processing import _run_extract_task
+from analytics.tasks.processing import _claim_extract_task, _run_extract_task
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
 
@@ -456,7 +459,7 @@ class ProcessingTestCase(TestCase):
         self.assertEqual(row.float_values, [None, 1.0, 2.0])
         self.assertIsNone(row.str_values)
 
-    # --- the lookup prunes to one partition and fetches only what it reads ---
+    # --- the claim prunes to one partition and fetches only what it reads ---
 
     def run_capturing_queries(self, task, dataset_id):
         with (
@@ -469,9 +472,8 @@ class ProcessingTestCase(TestCase):
         return [q["sql"] for q in ctx.captured_queries]
 
     def test_every_extract_tasks_query_names_the_partition(self):
-        # Production filters on dataset_id or pays for every partition (see
-        # _run_extract_task and database.md). This also catches a field
-        # missing from .only(): reading it lazily issues a SELECT by id alone.
+        # Both sides of the claim need the explicit partition filter, as
+        # does the final status update. No deferred-field reads are needed.
         resources = self.make_resources(1)
         task = self.make_task(resources, status=QUEUED)
 
@@ -479,13 +481,27 @@ class ProcessingTestCase(TestCase):
 
         touching = [
             q for q in queries
-            if 'FROM "extract_tasks"' in q or 'UPDATE "extract_tasks"' in q
+            if "extract_tasks" in q
         ]
-        self.assertEqual(len(touching), 3, touching)  # lock, running, complete
-        for q in touching:
-            self.assertIn(f'"extract_tasks"."dataset_id" = {task.dataset_id}', q)
+        self.assertEqual(len(touching), 2, touching)  # claim, complete
+        claim, complete = touching
+        self.assertEqual(claim.count(f"t.dataset_id = {task.dataset_id}"), 2)
+        self.assertIn(f'"extract_tasks"."dataset_id" = {task.dataset_id}', complete)
         task.refresh_from_db()
         self.assertEqual(task.status, DONE)
+
+    def test_start_and_completion_times_both_come_from_the_database_clock(self):
+        # A worker's clock can be skewed against the primary's, and a
+        # duration taken across the two can even come out negative.
+        task = self.make_task(self.make_resources(1), status=QUEUED)
+
+        queries = self.run_capturing_queries(task, task.dataset_id)
+
+        claim, complete = [q for q in queries if "extract_tasks" in q]
+        self.assertIn("update_time = statement_timestamp()", claim)
+        self.assertIn('"complete_time" = STATEMENT_TIMESTAMP()', complete)
+        task.refresh_from_db()
+        self.assertLessEqual(task.update_time, task.complete_time)
 
     def test_lookup_does_not_fetch_columns_it_never_reads(self):
         resources = self.make_resources(1)
@@ -495,10 +511,10 @@ class ProcessingTestCase(TestCase):
 
         [lookup] = [q for q in queries if "FOR UPDATE" in q]
         for unused in (
-            '"feature_collections"."spatial_extent"',
-            '"feature_collections"."upload_metadata"',
-            '"feat_map"."attr"',
-            '"features"."representative_point"',
+            "spatial_extent",
+            "upload_metadata",
+            "attr",
+            "representative_point",
         ):
             self.assertNotIn(unused, lookup)
 
@@ -511,3 +527,205 @@ class ProcessingTestCase(TestCase):
         self.assertIsNone(_run_extract_task(task.id, task.dataset_id + 1))
         task.refresh_from_db()
         self.assertEqual(task.status, QUEUED)
+
+    def test_claim_preserves_status_and_active_filters(self):
+        resources = self.make_resources(1)
+        task = self.make_task(resources, status=QUEUED)
+        tasks = ExtractTask.objects.filter(dataset_id=task.dataset_id, id=task.id)
+
+        for status in (PENDING, QUEUED, LOCKED, DONE, FAILED):
+            with self.subTest(status=status):
+                tasks.update(status=status, update_time=None)
+                claimed = _claim_extract_task(task.id, task.dataset_id)
+                task.refresh_from_db()
+                if status in (PENDING, QUEUED):
+                    self.assertIsNotNone(claimed)
+                    self.assertEqual(task.status, LOCKED)
+                    self.assertIsNotNone(task.update_time)
+                else:
+                    self.assertIsNone(claimed)
+                    self.assertEqual(task.status, status)
+                    self.assertIsNone(task.update_time)
+
+        tasks.update(status=QUEUED, update_time=None)
+        for related in (self.dataset, self.po, self.fm.fc):
+            with self.subTest(inactive=type(related).__name__):
+                related.active = False
+                related.save(update_fields=["active"])
+                self.assertIsNone(_claim_extract_task(task.id, task.dataset_id))
+                task.refresh_from_db()
+                self.assertEqual(task.status, QUEUED)
+                self.assertIsNone(task.update_time)
+                related.active = True
+                related.save(update_fields=["active"])
+
+        self.assertIsNone(_claim_extract_task(-1, task.dataset_id))
+
+    def test_claim_delivers_geometry_and_both_kwargs_to_processor(self):
+        resources = self.make_resources(1)
+        self.po.kwargs = {"shared": "option", "option_only": [1, None, "é"]}
+        self.po.save(update_fields=["kwargs"])
+        task = self.make_task(resources, kwargs={"shared": "task", "flag": True})
+        processor = mock.Mock(return_value=[("mean", 1.0)])
+
+        with mock.patch.object(processing, "get_func", return_value=processor) as get_func:
+            _run_extract_task(task.id, task.dataset_id)
+
+        get_func.assert_called_once_with(self.po.function)
+        args, kwargs = processor.call_args
+        self.assertEqual(args[0].wkt, "POINT (0 0)")
+        self.assertEqual(str(args[1]), "/data/ds/r0.tif")
+        kwargs_hash = hashlib.md5(
+            json.dumps(task.kwargs, sort_keys=True).encode()
+        ).hexdigest()[:8]
+        self.assertEqual(kwargs, {
+            "name": f"mean_{kwargs_hash}",
+            "shared": "task",
+            "option_only": [1, None, "é"],
+            "flag": True,
+        })
+
+    def test_claim_plan_prunes_selection_and_update(self):
+        # Real partitions catch an UPDATE that joins on dataset_id but still
+        # plans/scans every partition. DDL and the analyzed write roll back
+        # with this TestCase, leaving the shared test schema unchanged.
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "CREATE TABLE extract_tasks_claim_test PARTITION OF extract_tasks "
+                "FOR VALUES IN (%s)",
+                [self.dataset.id],
+            )
+            cursor.execute(
+                "CREATE TABLE extract_tasks_claim_other PARTITION OF extract_tasks "
+                "FOR VALUES IN (-2147483648)"
+            )
+        task = self.make_task(self.make_resources(1), status=QUEUED)
+        with CaptureQueriesContext(connection) as queries:
+            _claim_extract_task(task.id, task.dataset_id)
+        [claim] = queries.captured_queries
+        ExtractTask.objects.filter(dataset_id=task.dataset_id, id=task.id).update(
+            status=QUEUED
+        )
+
+        with connection.cursor() as cursor:
+            cursor.execute("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + claim["sql"])
+            plan = cursor.fetchone()[0][0]["Plan"]
+
+        def nodes(node):
+            yield node
+            for child in node.get("Plans", []):
+                yield from nodes(child)
+
+        scans = [
+            node for node in nodes(plan)
+            if node.get("Relation Name", "").startswith("extract_tasks_")
+        ]
+        self.assertEqual(len(scans), 2, plan)  # candidate and update target
+        self.assertEqual(
+            {node["Relation Name"] for node in scans}, {"extract_tasks_claim_test"}
+        )
+
+
+class ExtractClaimTransactionTests(TransactionTestCase):
+    """Exercise committed claims and competing connections without TestCase's
+    wrapping transaction hiding round trips or holding locks for the test.
+    """
+
+    def setUp(self):
+        dataset = Dataset.objects.create(name="ds", path="/data/ds", active=True)
+        resource = DatasetResource.objects.create(
+            dataset=dataset, name="r0", path="r0.tif"
+        )
+        po = ProcessingOption.objects.create(
+            dataset=dataset, short_name="mean", function="rasterstats_default_mean",
+            active=True,
+        )
+        fc = FeatureCollection.objects.create(name="fc", path="/data/fc", active=True)
+        fm = FeatMap.objects.create(fc=fc, geom=Feature.objects.create(shape=Point(0, 0)))
+        self.task = ExtractTask.objects.create(
+            dataset_id=dataset.id, resource_ids=[resource.id], po=po, fm=fm,
+            status=QUEUED,
+        )
+
+    def test_claim_is_one_statement_and_committed_before_processing(self):
+        def processor(geometry, path, **kwargs):
+            self.assertTrue(connection.get_autocommit())
+            observer = connection.copy()
+            try:
+                with observer.cursor() as cursor:
+                    # A separate connection can see the claim and take the
+                    # row lock immediately while extraction is running.
+                    cursor.execute(
+                        "SELECT status, update_time FROM extract_tasks "
+                        "WHERE dataset_id = %s AND id = %s FOR UPDATE NOWAIT",
+                        [self.task.dataset_id, self.task.id],
+                    )
+                    status, update_time = cursor.fetchone()
+                self.assertEqual(status, LOCKED)
+                self.assertIsNotNone(update_time)
+            finally:
+                observer.close()
+            return [("mean", 1.0)]
+
+        with (
+            mock.patch.object(processing, "get_func", return_value=processor),
+            CaptureQueriesContext(connection) as queries,
+        ):
+            _run_extract_task(self.task.id, self.task.dataset_id)
+
+        statements = [q["sql"] for q in queries.captured_queries]
+        claim_index = next(i for i, q in enumerate(statements) if "FOR UPDATE" in q)
+        self.assertEqual(claim_index, 0, statements)
+        # The very next query loads resources; there is no BEGIN, UPDATE or
+        # COMMIT exchange between claiming and loading.
+        self.assertIn('FROM "dataset_resources"', statements[1])
+
+    def claim_in_thread(self, results, errors, barrier=None):
+        try:
+            if barrier is not None:
+                barrier.wait(timeout=10)
+            results.append(_claim_extract_task(self.task.id, self.task.dataset_id))
+        except Exception as exc:
+            errors.append(exc)
+        finally:
+            connection.close()
+
+    def test_concurrent_claims_have_exactly_one_winner(self):
+        results, errors = [], []
+        barrier = threading.Barrier(4)
+        threads = [
+            threading.Thread(target=self.claim_in_thread, args=(results, errors, barrier))
+            for _ in range(4)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+
+        self.assertFalse(any(thread.is_alive() for thread in threads))
+        self.assertEqual(errors, [])
+        self.assertEqual(len(results), 4)
+        self.assertEqual(sum(result is not None for result in results), 1)
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, LOCKED)
+
+    def test_claim_skips_a_locked_task_without_waiting(self):
+        results, errors = [], []
+        thread = threading.Thread(target=self.claim_in_thread, args=(results, errors))
+        try:
+            with transaction.atomic():
+                ExtractTask.objects.select_for_update().get(
+                    dataset_id=self.task.dataset_id, id=self.task.id
+                )
+                thread.start()
+                thread.join(timeout=2)
+                finished_while_locked = not thread.is_alive()
+        finally:
+            if thread.ident is not None:
+                thread.join(timeout=10)
+
+        self.assertTrue(finished_while_locked, "claim waited for the task's row lock")
+        self.assertEqual(errors, [])
+        self.assertEqual(results, [None])
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, QUEUED)

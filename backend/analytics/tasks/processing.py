@@ -2,17 +2,18 @@ import hashlib
 import json
 import logging
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from warnings import catch_warnings
 
 import shapely
 from celery import shared_task
 from django.db import connection, transaction
-from django.utils import timezone
+from django.db.models.functions import Now
 
 from analytics import metrics
 from analytics.models import ExtractData, ExtractTask
-from datasets.models import Dataset, DatasetResource
+from datasets.models import DatasetResource
 
 logger = logging.getLogger(__name__)
 
@@ -346,6 +347,81 @@ def _run_extract_task(task_id, dataset_id=None):
         timer.finish()
 
 
+@dataclass(frozen=True)
+class _ClaimedTask:
+    dataset_id: int
+    resource_ids: list[int]
+    kwargs: dict | None
+    function: str
+    short_name: str
+    po_kwargs: dict | None
+    geometry_wkb: bytes
+
+
+def _claim_extract_task(task_id, dataset_id=None):
+    """Claim one task and return its inputs in a single autocommit statement.
+
+    The materialized candidate locks only the task row, skipping a competing
+    worker's lock. UPDATE RETURNING commits the claim before Python decodes
+    the inputs, without holding a pooler connection across a SELECT/UPDATE
+    round trip. The PostGIS geometry is returned as WKB for Shapely directly.
+
+    Name the partition on BOTH scans: a dataset_id join alone doesn't ensure
+    the UPDATE prunes partitions. Legacy messages without dataset_id still
+    work, but cannot get the same pruning (as with the old ORM lookup).
+    """
+    partition_filter = "AND t.dataset_id = %s" if dataset_id is not None else ""
+    params = [task_id]
+    if dataset_id is not None:
+        params.extend([dataset_id, dataset_id])
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"""
+            WITH candidate AS MATERIALIZED (
+                SELECT t.id, t.dataset_id, t.resource_ids, t.kwargs,
+                       po.function, po.short_name, po.kwargs AS po_kwargs,
+                       ST_AsBinary(g.shape) AS geometry_wkb
+                FROM extract_tasks AS t
+                JOIN datasets AS d ON d.id = t.dataset_id
+                JOIN processing_options AS po ON po.id = t.po_id
+                JOIN feat_map AS fm ON fm.id = t.fm_id
+                JOIN feature_collections AS fc ON fc.id = fm.fc_id
+                JOIN features AS g ON g.id = fm.geom_id
+                WHERE t.id = %s {partition_filter}
+                  AND t.status IN (0, 3)
+                  AND d.active AND po.active AND fc.active
+                LIMIT 1
+                FOR UPDATE OF t SKIP LOCKED
+            )
+            UPDATE extract_tasks AS t
+            SET status = 2, update_time = statement_timestamp()
+            FROM candidate
+            WHERE t.dataset_id = candidate.dataset_id AND t.id = candidate.id
+              {partition_filter}
+            RETURNING candidate.dataset_id, candidate.resource_ids,
+                      candidate.kwargs::text, candidate.function,
+                      candidate.short_name, candidate.po_kwargs::text,
+                      candidate.geometry_wkb
+            """,
+            params,
+        )
+        row = cursor.fetchone()
+
+    if row is None:
+        return None
+    dataset_id, resource_ids, kwargs, function, short_name, po_kwargs, wkb = row
+    return _ClaimedTask(
+        dataset_id=dataset_id,
+        resource_ids=resource_ids,
+        kwargs=json.loads(kwargs) if kwargs is not None else None,
+        function=function,
+        short_name=short_name,
+        po_kwargs=json.loads(po_kwargs) if po_kwargs is not None else None,
+        geometry_wkb=bytes(wkb),
+    )
+
+
 def _extract(task_id, dataset_id, timer):
     """Lock the task row, run the processor once per resource, and store results.
 
@@ -363,67 +439,16 @@ def _extract(task_id, dataset_id, timer):
     lookup still works, it just can't prune.
     """
     logger.info("Running extract task %s", task_id)
-    now = timezone.now
 
-    # Without dataset_id this lookup can't name a partition: Postgres probes
-    # the pkey of all 57 extract_tasks partitions once per active dataset
-    # (the dataset_id__in subquery below), and plans that across every
-    # partition first. Measured on production (2026-10-01, warm cache):
-    # 6.5ms planning + 2.2ms execution per task without it, 1.3ms + 0.1ms
-    # with it. At ~1,100 tasks/s that was most of the primary's CPU, all of
-    # it spent holding a pooler connection and this row's lock.
-    tasks = ExtractTask.objects.select_for_update(of=("self",), skip_locked=True)
-    if dataset_id is not None:
-        tasks = tasks.filter(dataset_id=dataset_id)
-
-    with transaction.atomic():
-        task = (
-            tasks.select_related("po", "fm__geom")
-            # Only what this function reads. The full select_related used to
-            # ship every feature_collections column and the feature's
-            # representative_point too, for every task. Anything added below
-            # must be added here: reading a deferred field issues its own
-            # query by id alone, which can't prune to a partition.
-            .only(
-                "dataset_id",
-                "resource_ids",
-                "kwargs",
-                "po__function",
-                "po__short_name",
-                "po__kwargs",
-                "fm__geom__shape",
-            )
-            .filter(
-                id=task_id,
-                status__in=(0, 3),
-                fm__fc__active=True,
-                dataset_id__in=Dataset.objects.filter(active=True).values("id"),
-                po__active=True,
-            )
-            .first()
+    task = _claim_extract_task(task_id, dataset_id)
+    if task is None:
+        logger.info(
+            "Task %s is not available (already locked, done, or filtered out)",
+            task_id,
         )
-
-        if task is None:
-            logger.info(
-                "Task %s is not available (already locked, done, or filtered out)",
-                task_id,
-            )
-            timer.outcome = "unavailable"
-            return None
-        timer.dataset_id = task.dataset_id
-
-        task.status = 2
-        task.update_time = now()
-        # Explicit filter, not task.save() -- save() would only filter by id,
-        # and (like claim_pending_tasks before it) an UPDATE without the
-        # dataset_id partition key doesn't get the same per-partition index
-        # seek a SELECT does: it falls back to a full local-index scan on
-        # every partition. Confirmed via EXPLAIN ANALYZE against production:
-        # a bare `WHERE id = X` update took 3.2s; adding dataset_id dropped
-        # it to sub-millisecond.
-        ExtractTask.objects.filter(id=task_id, dataset_id=task.dataset_id).update(
-            status=2, update_time=task.update_time
-        )
+        timer.outcome = "unavailable"
+        return None
+    timer.dataset_id = task.dataset_id
 
     # Setup (resolving resources/func/geometry) and the merge-into-ExtractData
     # step can both raise unexpectedly; catch that the same way the old code
@@ -447,9 +472,9 @@ def _extract(task_id, dataset_id, timer):
         # dataset by construction (see build_extract_tasks.py's equivalent
         # resource_ids[1] comment), so any one of them stands in for it.
         dataset = resources[0].dataset
-        func = get_func(task.po.function)
+        func = get_func(task.function)
 
-        geometry = shapely.from_wkb(bytes(task.fm.geom.shape.wkb))
+        geometry = shapely.from_wkb(task.geometry_wkb)
 
         n = len(task.resource_ids)
         positions = _positions_needing_processing(n)
@@ -466,15 +491,15 @@ def _extract(task_id, dataset_id, timer):
             resource = resources[i]
             dataset_path = Path(dataset.path) / resource.path
 
-            op_kwargs = {"name": task.po.short_name}
-            if task.po.kwargs:
-                op_kwargs.update(task.po.kwargs)
+            op_kwargs = {"name": task.short_name}
+            if task.po_kwargs:
+                op_kwargs.update(task.po_kwargs)
             if task.kwargs:
                 op_kwargs.update(task.kwargs)
                 kwargs_hash = hashlib.md5(
                     json.dumps(task.kwargs, sort_keys=True).encode()
                 ).hexdigest()[:8]
-                op_kwargs["name"] = f"{task.po.short_name}_{kwargs_hash}"
+                op_kwargs["name"] = f"{task.short_name}_{kwargs_hash}"
 
             if dataset.mapped:
                 # A query per resource, so it counts as load, not extract.
@@ -574,7 +599,7 @@ def _extract(task_id, dataset_id, timer):
         logger.exception("Task %s failed: %s", task_id, exc)
         timer.enter("finalize")
         # dataset_id included so this prunes to one partition instead of
-        # scanning all of them -- see the status=2 update above.
+        # scanning all of them.
         ExtractTask.objects.filter(id=task_id, dataset_id=task.dataset_id).update(
             status=-1, error=repr(exc)[:100]
         )
@@ -588,10 +613,11 @@ def _extract(task_id, dataset_id, timer):
     incomplete_positions = {i for _, i, _ in failures}
 
     if not incomplete_positions:
-        # dataset_id included so this prunes to one partition -- see the
-        # status=2 update earlier in this function.
+        # dataset_id included so this prunes to one partition. The database
+        # clock, like update_time in the claim, so durations never mix a
+        # worker's clock with the primary's.
         ExtractTask.objects.filter(id=task_id, dataset_id=task.dataset_id).update(
-            status=1, complete_time=now()
+            status=1, complete_time=Now()
         )
         timer.outcome = "completed"
         logger.info("Task %s completed", task_id)
