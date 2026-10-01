@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+import time
 from pathlib import Path
 from warnings import catch_warnings
 
@@ -9,6 +10,7 @@ from celery import shared_task
 from django.db import connection, transaction
 from django.utils import timezone
 
+from analytics import metrics
 from analytics.models import ExtractData, ExtractTask
 from datasets.models import Dataset, DatasetResource
 
@@ -152,10 +154,16 @@ def claim_pending_tasks(limit=1):
     the UPDATE can join on (dataset_id, id) and let Postgres prune straight
     to the owning partition per row -- confirmed via EXPLAIN ANALYZE: 0.2ms
     versus 4.1s for the same claim.
+
+    Timed in two stages: waiting for the lock, and holding it through commit.
+    The second is what the whole fleet queues behind, so its rate caps claims
+    per second.
     """
+    started = time.perf_counter()
     with transaction.atomic():
         with connection.cursor() as cursor:
             cursor.execute("SELECT pg_advisory_xact_lock(%s)", [CLAIM_LOCK_ID])
+            locked = time.perf_counter()
             cursor.execute(
                 """
                 SELECT id, dataset_id FROM extract_tasks
@@ -167,24 +175,26 @@ def claim_pending_tasks(limit=1):
                 [limit],
             )
             rows = cursor.fetchall()
-            if not rows:
-                return []
-
-            # dataset_id (the partition key) rides along so the UPDATE below
-            # can prune to one partition per row instead of probing all of
-            # them -- see the docstring above.
-            values_clause = ", ".join(["(%s, %s)"] * len(rows))
-            params = [param for task_id, dataset_id in rows for param in (dataset_id, task_id)]
-            cursor.execute(
-                f"""
-                UPDATE extract_tasks AS t
-                SET status = 3, update_time = NOW()
-                FROM (VALUES {values_clause}) AS v(dataset_id, id)
-                WHERE t.dataset_id = v.dataset_id AND t.id = v.id
-                """,
-                params,
-            )
-            return rows
+            if rows:
+                # dataset_id (the partition key) rides along so the UPDATE
+                # below can prune to one partition per row instead of probing
+                # all of them -- see the docstring above.
+                values_clause = ", ".join(["(%s, %s)"] * len(rows))
+                params = [
+                    param for task_id, dataset_id in rows for param in (dataset_id, task_id)
+                ]
+                cursor.execute(
+                    f"""
+                    UPDATE extract_tasks AS t
+                    SET status = 3, update_time = NOW()
+                    FROM (VALUES {values_clause}) AS v(dataset_id, id)
+                    WHERE t.dataset_id = v.dataset_id AND t.id = v.id
+                    """,
+                    params,
+                )
+    metrics.DISPATCH_SECONDS.labels("lock_wait").observe(locked - started)
+    metrics.DISPATCH_SECONDS.labels("claim").observe(time.perf_counter() - locked)
+    return rows
 
 
 # Most tasks one claim statement may take, however large a limit the caller
@@ -228,8 +238,11 @@ def dispatch_pending_tasks(limit=None, batch_size=None):
         claimed.extend(chunk)
         remaining -= len(chunk)
 
-    for start in range(0, len(claimed), batch_size):
-        run_extract_task.delay(claimed[start : start + batch_size])
+    if claimed:
+        started = time.perf_counter()
+        for start in range(0, len(claimed), batch_size):
+            run_extract_task.delay(claimed[start : start + batch_size])
+        metrics.DISPATCH_SECONDS.labels("publish").observe(time.perf_counter() - started)
     return claimed
 
 
@@ -270,6 +283,7 @@ def run_extract_task(task_ids):
     if not isinstance(task_ids, (list, tuple)):
         task_ids = [task_ids]
 
+    metrics.batch_started()
     results = []
     failures = []
     try:
@@ -295,6 +309,9 @@ def run_extract_task(task_ids):
             # Don't let a broker hiccup replace this batch's own outcome. The
             # beat bootstraps a replacement chain on its next tick.
             logger.exception("Tasks %s could not dispatch a successor", task_ids)
+        # After the successor is published, so the idle gap this starts is
+        # purely delivery: how long the slot waits for its next message.
+        metrics.batch_finished()
 
 
 def _positions_needing_processing(n):
@@ -317,6 +334,19 @@ def _positions_needing_processing(n):
 
 
 def _run_extract_task(task_id, dataset_id=None):
+    """Run one extract task, recording its outcome and per-phase timings.
+
+    The timer is finished however _extract exits, so a raising task still
+    counts toward throughput and charges its time to the phase that raised.
+    """
+    timer = metrics.TaskTimer(dataset_id)
+    try:
+        return _extract(task_id, dataset_id, timer)
+    finally:
+        timer.finish()
+
+
+def _extract(task_id, dataset_id, timer):
     """Lock the task row, run the processor once per resource, and store results.
 
     Accepts rows in pending (0) or queued (3). On success (no position raised
@@ -378,7 +408,9 @@ def _run_extract_task(task_id, dataset_id=None):
                 "Task %s is not available (already locked, done, or filtered out)",
                 task_id,
             )
+            timer.outcome = "unavailable"
             return None
+        timer.dataset_id = task.dataset_id
 
         task.status = 2
         task.update_time = now()
@@ -398,6 +430,7 @@ def _run_extract_task(task_id, dataset_id=None):
     # did, marking -1 with repr(exc) and re-raising. Per-resource processing
     # failures are handled separately inside the loop below and never reach
     # this except -- they're expected, not exceptional.
+    timer.enter("load")
     try:
         # id__in does not preserve input order, so resources must be
         # re-ordered against task.resource_ids by dict lookup: position i
@@ -428,6 +461,7 @@ def _run_extract_task(task_id, dataset_id=None):
         produced = {}
         failures = []  # (resource_id, position, exc) for each call that raised this run
 
+        timer.enter("extract")
         for i in sorted(positions):
             resource = resources[i]
             dataset_path = Path(dataset.path) / resource.path
@@ -443,9 +477,12 @@ def _run_extract_task(task_id, dataset_id=None):
                 op_kwargs["name"] = f"{task.po.short_name}_{kwargs_hash}"
 
             if dataset.mapped:
+                # A query per resource, so it counts as load, not extract.
+                timer.enter("load")
                 op_kwargs["category_map"] = dict(
                     dataset.mappings.values_list("map_val", "map_name")
                 )
+                timer.enter("extract")
 
             try:
                 with catch_warnings(record=True) as warnings:
@@ -466,6 +503,7 @@ def _run_extract_task(task_id, dataset_id=None):
             for name, value in results:
                 produced.setdefault(name, {})[i] = value
 
+        timer.enter("write")
         # Every position is recomputed (see _positions_needing_processing), so
         # this run's results are the complete picture for this task. Replace
         # the row set wholesale rather than merging into whatever a previous
@@ -534,13 +572,16 @@ def _run_extract_task(task_id, dataset_id=None):
 
     except Exception as exc:
         logger.exception("Task %s failed: %s", task_id, exc)
+        timer.enter("finalize")
         # dataset_id included so this prunes to one partition instead of
         # scanning all of them -- see the status=2 update above.
         ExtractTask.objects.filter(id=task_id, dataset_id=task.dataset_id).update(
             status=-1, error=repr(exc)[:100]
         )
+        timer.outcome = "failed"
         raise
 
+    timer.enter("finalize")
     # A run that raised nothing is complete. A NULL value means the extraction
     # ran and found nodata -- a final answer, not an unfinished position (see
     # _positions_needing_processing).
@@ -552,6 +593,7 @@ def _run_extract_task(task_id, dataset_id=None):
         ExtractTask.objects.filter(id=task_id, dataset_id=task.dataset_id).update(
             status=1, complete_time=now()
         )
+        timer.outcome = "completed"
         logger.info("Task %s completed", task_id)
         return {"task_id": task_id, "results": len(all_names)}
 
@@ -560,6 +602,7 @@ def _run_extract_task(task_id, dataset_id=None):
     ExtractTask.objects.filter(id=task_id, dataset_id=task.dataset_id).update(
         status=-1, error=error
     )
+    timer.outcome = "failed"
     logger.warning(
         "Task %s incomplete: positions %s still outstanding after this run",
         task_id, sorted(incomplete_positions),

@@ -147,6 +147,14 @@ if PROMETHEUS_ENABLED:
     # some systems; bind the wildcard address explicitly.
     PROMETHEUS_METRICS_EXPORT_ADDRESS = "0.0.0.0"
 
+# Celery worker metrics (analytics.metrics), served by the worker's parent
+# process on this port. Separate from PROMETHEUS_ENABLED, which is the API
+# server's middleware and DB instrumentation: the worker exporter needs
+# PROMETHEUS_MULTIPROC_DIR set in the environment as well, because its tasks
+# run in forked children whose metrics only reach the parent through files.
+# 0 disables it.
+WORKER_METRICS_PORT = int(os.getenv("WORKER_METRICS_PORT", "0"))
+
 ROOT_URLCONF = "geoquery.urls"
 
 TEMPLATES = [
