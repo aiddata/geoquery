@@ -5,7 +5,7 @@ GeoQuery is a web application for geospatial data extraction. Users select geogr
 ## Project Structure
 
 - `frontend/` — SvelteKit app (Svelte 5, TypeScript, Tailwind CSS, shadcn-svelte)
-- `backend/` — Django project with Django REST Framework (Python, PostGIS)
+- `backend/` — Django project with Django REST Framework and a FastMCP server (Python, PostGIS)
 
 ## Development Environment
 
@@ -18,8 +18,9 @@ docker compose up # add --build after changing dependencies or a Containerfile
 - Frontend (Vite dev server): http://localhost:5173 — this is the origin to use in a browser
 - Backend (Django dev server): http://localhost:8000
 - Django admin: http://localhost:8000/admin/
+- MCP server (streamable HTTP): http://localhost:8001/mcp
 
-Services: `db` (PostGIS), `rabbitmq` (Celery broker), `backend` (Django), `worker-processing` and `worker-background` (Celery workers, one per queue), `beat` (Celery scheduler), `frontend` (Vite).
+Services: `db` (PostGIS), `rabbitmq` (Celery broker), `backend` (Django), `mcp` (FastMCP), `worker-processing` and `worker-background` (Celery workers, one per queue), `beat` (Celery scheduler), `frontend` (Vite).
 
 ### Running Commands
 
@@ -30,6 +31,8 @@ docker compose exec backend uv run python manage.py migrate
 docker compose exec backend uv run python manage.py createsuperuser
 docker compose exec backend uv run python manage.py test
 docker compose exec backend uv run python manage.py makemigrations <app>
+# After configuring authenticated MCP sign-in (idempotent):
+docker compose exec backend uv run python manage.py ensure_mcp_oidc_client
 ```
 
 Use `uv` (never `pip`, and never activate a venv) for anything Python. Open a database shell with `docker compose exec db psql -U django_user -d geoquery`.
@@ -40,20 +43,20 @@ Frontend commands run in the `frontend` container the same way, e.g. `docker com
 
 Only some paths are bind-mounted, so not every edit is picked up live:
 
-- `./backend` → `/app/backend`, and the Django dev server auto-reloads. Editing Python code needs no rebuild, but changing `backend/pyproject.toml` does — dependencies are installed with `uv sync` at image build time.
+- `./backend` → `/app/backend` in `backend`, `mcp`, both workers, and `beat`. The Django dev server auto-reloads; the MCP server, Celery workers, and beat do not, so restart those services after changing code they load. Python edits need no rebuild, but changing `backend/pyproject.toml` does — dependencies are installed with `uv sync` at image build time.
 - `./frontend/src` and `./docs` are mounted; nothing else from `frontend/` is. Changes to `package.json`, `vite.config.ts`, `svelte.config.js`, or `components.json` require `docker compose up --build frontend`, as does anything that adds a dependency.
 
 ### Configuration and Data
 
-Secrets come from a `.gitignored` `.env` at the repo root, which Compose reads automatically (`PROTOMAPS_API_KEY`, `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET`, and optionally `GITHUB_GIST_TOKEN` and `EMAIL_PASSWORD`). Everything else the containers need is set inline in `docker-compose.yml`.
+Local secrets and deployment-specific URLs come from a `.gitignored` `.env` at the repo root, which Compose reads automatically. Web-app integrations use `PROTOMAPS_API_KEY`, `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET`, and optionally `GITHUB_GIST_TOKEN` and `EMAIL_PASSWORD`. Authenticated MCP sign-in uses `OIDC_PRIVATE_KEY`, `MCP_OIDC_CLIENT_ID`, and `MCP_OIDC_CLIENT_SECRET`; set a stable `MCP_JWT_SIGNING_KEY` so client registrations survive secret rotation. The MCP server deliberately falls back to anonymous, public-data-only access in local debug mode when its OIDC client is not configured.
 
-Three host directories are mounted into the containers, all `.gitignored`:
+Three host directories are mounted into the containers:
 
-- `./data` → `/data` — input data (`/data/rasters`, `/data/boundaries`). Dataset JSON `path` fields must use the absolute container path, e.g. `/data/rasters/esa_landcover`. Mounted read-only into `worker-processing`, which is the only worker that gets it.
-- `./requests` → `/requests` — extraction results (`settings.REQUESTS_DIR`)
-- `./assets` → `/assets` — the GeoQuery methods paper, copied into each request's output zip by `worker-background`
+- `./data` → `/data` — `.gitignored` input data (`/data/rasters`, `/data/boundaries`). Dataset JSON `path` fields must use the absolute container path, e.g. `/data/rasters/esa_landcover`. Mounted read-write into `backend` for ingestion commands and read-only into `worker-processing` for extraction.
+- `./requests` → `/requests` — `.gitignored` extraction results (`settings.REQUESTS_DIR`), mounted into `backend`, `mcp`, and both workers
+- `./assets` → `/assets` — tracked documentation templates and papers used to build request outputs, mounted into `worker-background` (and copied into the backend image for production)
 
-The backend and worker containers run as `${HOST_UID:-1000}:${HOST_GID:-1000}` so files written to those mounts stay owned by the host user. Export `HOST_UID`/`HOST_GID` if your account is not `1000:1000`.
+The backend, MCP, and worker containers run as `${HOST_UID:-1000}:${HOST_GID:-1000}` so files written to those mounts stay owned by the host user. Export `HOST_UID`/`HOST_GID` if your account is not `1000:1000`.
 
 ## Backend
 
@@ -61,17 +64,26 @@ The backend and worker containers run as `${HOST_UID:-1000}:${HOST_GID:-1000}` s
 
 Use **Django REST Framework (DRF)** for all backend API endpoints.
 
-- API root: `/api/`
-- Features app endpoints: `/api/features/`
-- Add new endpoints by creating views in the appropriate Django app (`features/`, `datasets/`, `analytics/`) and wiring them in the app's `urls.py`
+- Internal SPA endpoints live under `/api/features/`, `/api/datasets/`, `/api/analytics/`, and `/api/visualize/`
+- The read-only public API lives under `/api/public/v1/`; its OpenAPI schema and Swagger UI are at `schema/` and `docs/` beneath that prefix
+- The read-only STAC API lives under `/api/stac/v1/`
+- Authentication, runtime configuration, and precomputed statistics live under `/api/_allauth/` or `/api/auth/`, `/api/config/`, and `/api/stats/`
+- Add new endpoints by creating views in the app that owns the behavior and wiring them in that app's `urls.py`
 - Use DRF serializers for response formatting
 - Use Django ORM (not raw SQL) unless PostGIS-specific SQL is required (e.g., MVT tile generation)
 
-### Django Apps
+### Backend Apps and Modules
 
+- `accounts/` — Custom users, django-allauth integration, and GeoQuery's OIDC provider
 - `features/` — Geographic boundaries: `FeatureCollection`, `Feature`, `FeatMap` models
 - `datasets/` — Data products: `Dataset`, `DatasetResource`, `Mapping` models
 - `analytics/` — Extraction pipeline: `Coverage`, `ProcessingOption`, `ExtractTask`, `ExtractData`, `Request`, `RequestMap` models
+- `catalog/` — Catalog-based access control for datasets, feature collections, and processing options
+- `visualize/` — Request visualization and export endpoints
+- `public_api/` — Versioned public dataset and boundary API
+- `stac_api/` — STAC discovery API
+- `mcp_server/` — FastMCP tools, prompts, authentication, and server command
+- `stats/` — Precomputed public usage statistics
 
 ### Key Models
 
@@ -116,7 +128,7 @@ Uses `shadcn-svelte` (in `src/lib/components/ui/`) and Tailwind CSS.
 
 ### Frontend-Backend Communication
 
-The frontend SvelteKit app communicates with the Django backend API. In development, the Vite dev server proxies or the frontend fetches directly from the Django server (CORS is configured for `localhost:5173`).
+The frontend SvelteKit app communicates with the Django backend API. In development, Vite proxies `/api` to the `backend` service while preserving the browser-facing Host header; this is required for OAuth redirect URLs. Django also allows credentialed CORS from `localhost:5173` and `127.0.0.1:5173`.
 
 ## Documentation
 
@@ -128,6 +140,8 @@ Docs are built on the host (not in Compose), using the `docs` dependency group:
 uv run --only-group docs zensical serve    # http://127.0.0.1:8001
 uv run --only-group docs zensical build --clean
 ```
+
+The docs dev server and the Compose `mcp` service both use host port 8001. Stop `mcp` before running `zensical serve`, or configure one of them to use a different port.
 
 Things to know before editing `docs/`:
 
