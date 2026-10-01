@@ -15,7 +15,8 @@ The custom-boundary path deliberately stayed in the view -- it does not create
 tasks at all, it hands a GeoJSON upload to a Celery ingest task, and the MCP
 server does not offer uploads.
 
-``_build_tasks`` uses one bulk SELECT per resolved dataset to avoid N+1 queries.
+``_build_tasks`` issues a bounded number of queries per resolved dataset --
+one SELECT, one bulk INSERT, one re-SELECT -- rather than per task.
 """
 
 from __future__ import annotations
@@ -255,11 +256,23 @@ def _build_tasks(plan: RequestPlan) -> tuple[dict[int, int], list[dict]]:
     partition-key-adjacent column): it dedupes on task_id the same way the old
     set did, while still recording which dataset each task belongs to.
 
-    Fetches existing tasks in one SELECT per resolved dataset rather than one
-    per (fm, resource, po) triple. _get_or_create_task is still called as a
-    fallback for any combinations that don't exist yet, so tasks are still
-    created on demand when build_extract_tasks hasn't run yet and concurrent
-    IntegrityErrors are still handled correctly.
+    Bounded round trips per resolved dataset, independent of how many tasks
+    the dataset contributes: one SELECT for what already exists, one bulk
+    INSERT for what doesn't, one re-SELECT to resolve the inserted ids, and
+    up to two priority UPDATEs. Tasks are still created on demand when
+    build_extract_tasks hasn't reached this (fm, resource, po) space yet, and
+    concurrent submissions are still safe -- the insert is ON CONFLICT DO
+    NOTHING and the re-SELECT picks up whatever the other writer created.
+
+    This matters because materialization is latency-bound, not work-bound. On
+    production 2026-10-01 a 45-boundary x 8-dataset request spent 11m56s
+    materializing 1,935 tasks while its inserts consumed 691ms of database
+    time in total: the per-task version issued ~2,900 statements that each
+    waited on a PgBouncer server slot. The dataset-at-a-time version issues
+    four.
+
+    _get_or_create_task survives only as the resolution path for a
+    resource_ids_hash collision, which is why it still handles IntegrityError.
     """
     all_task_ids: dict[int, int] = {}
     valid_datasets: list[dict] = []
@@ -307,6 +320,7 @@ def _build_tasks(plan: RequestPlan) -> tuple[dict[int, int], list[dict]]:
             ).update(priority=1)
 
         task_ids = []
+        missing: list[tuple] = []
         for fm in resolved.fms:
             for resource in resolved.resources:
                 for po in resolved.pos:
@@ -314,21 +328,84 @@ def _build_tasks(plan: RequestPlan) -> tuple[dict[int, int], list[dict]]:
                     if key in existing:
                         task_ids.append(existing[key])
                     else:
-                        # Not pre-built yet — create on demand, race-safe.
-                        task = _get_or_create_task(resolved, fm, resource, po)
-                        if task.priority < 1:
-                            # Explicit filter, not task.save() -- save()
-                            # would only filter by id, hitting the same
-                            # unpruned-scan cost as the bulk update above,
-                            # except once per task instead of once per
-                            # request. This is the actual hot path: every
-                            # task that isn't pre-built yet pays this,
-                            # sequentially, inside one long transaction.
-                            ExtractTask.objects.filter(
-                                id=task.id, dataset_id=task.dataset_id
-                            ).update(priority=1)
-                            task.priority = 1
-                        task_ids.append(task.id)
+                        missing.append((fm, resource, po))
+
+        if missing:
+            # One INSERT for every task this dataset still needs, rather than
+            # a get-or-create round trip each. The per-task version was the
+            # dominant cost of materialization, and not because the
+            # statements were slow: measured on production 2026-10-01,
+            # materializing 1,935 tasks took 11m56s while the inserts
+            # themselves consumed 691ms of database time in total (1,440
+            # calls at ~0.5ms). The remaining ~99.9% was queueing for a
+            # PgBouncer server slot behind processing-worker, which saturates
+            # its pool. Round trips, not query time -- see
+            # docs/get-involved/contributing/dev/database.md section 7.
+            #
+            # priority=1 is set here at insert time instead of by a follow-up
+            # UPDATE per task. Those updates were already partition-pruned
+            # (see the bulk bump above and its test), so each was fast, but
+            # there was still one per task; setting the value on the way in
+            # removes the statement entirely.
+            #
+            # ignore_conflicts makes this ON CONFLICT DO NOTHING, so a
+            # concurrent submission inserting the same triple is a no-op
+            # rather than an IntegrityError. The cost is that Postgres
+            # returns no ids for skipped rows and Django cannot populate
+            # pks, hence the re-read below.
+            ExtractTask.objects.bulk_create(
+                [
+                    ExtractTask(
+                        dataset_id=resolved.dataset.id,
+                        resource_ids=[resource.id],
+                        fm=fm,
+                        po=po,
+                        kwargs=task_kwargs,
+                        priority=1,
+                    )
+                    for fm, resource, po in missing
+                ],
+                ignore_conflicts=True,
+            )
+
+            # Re-read the same (fm, resource, po) space to pick up ids for
+            # the rows just inserted and for any a concurrent writer got in
+            # first. .only() clones the queryset, so this re-executes rather
+            # than serving the earlier evaluation's cache.
+            raced: list[int] = []
+            for t in qs.only("id", "fm_id", "resource_ids", "po_id", "priority"):
+                key = (t.fm_id, tuple(t.resource_ids), t.po_id)
+                if key in existing:
+                    continue
+                existing[key] = t.id
+                if t.priority < 1:
+                    # Someone else created this one at the default priority.
+                    raced.append(t.id)
+
+            if raced:
+                # dataset_id rides along for partition pruning, same as the
+                # bulk bump above.
+                ExtractTask.objects.filter(
+                    id__in=raced, dataset_id=resolved.dataset.id
+                ).update(priority=1)
+
+            for fm, resource, po in missing:
+                key = (fm.id, (resource.id,), po.id)
+                if key in existing:
+                    task_ids.append(existing[key])
+                else:
+                    # Only reachable if a row conflicted on the unique index
+                    # without matching this key -- i.e. a resource_ids_hash
+                    # collision, since the index keys on the 32-bit hash
+                    # while this dict keys on the array itself. Vanishingly
+                    # unlikely, but resolve it the old way rather than
+                    # KeyError on it.
+                    task = _get_or_create_task(resolved, fm, resource, po)
+                    if task.priority < 1:
+                        ExtractTask.objects.filter(
+                            id=task.id, dataset_id=task.dataset_id
+                        ).update(priority=1)
+                    task_ids.append(task.id)
 
         all_task_ids.update({tid: resolved.dataset.id for tid in task_ids})
         ds = resolved.spec
