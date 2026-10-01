@@ -175,11 +175,17 @@ _TOUCH_CLAIM_SQL = "UPDATE extract_task_build_progress SET claimed_at = NOW() WH
 # leaves it alone when a batch inserts nothing. Data-modifying CTEs always
 # run to completion even when unreferenced, so `advanced` fires regardless of
 # what the outer SELECT reads.
+#
+# The ::integer[] casts on %(resource_ids)s are required, not decoration:
+# psycopg 3 sends a Python int list as the smallest array type that fits
+# (e.g. '{590}'::int2[]), and Postgres has no integer[] = smallint[] operator.
+# Without the cast the NOT EXISTS comparison raises, _run_batch swallows the
+# DatabaseError, and the build silently inserts nothing.
 _INSERT_GLOBAL_BATCH_SQL = """
     WITH inserted AS (
         INSERT INTO extract_tasks
             (dataset_id, resource_ids, task_group_period, fm_id, po_id, status, priority, attempts, submit_time)
-        SELECT %(dataset_id)s, %(resource_ids)s, %(task_group_period)s, fm.id, %(po_id)s, 0, 0, 0, NOW()
+        SELECT %(dataset_id)s, %(resource_ids)s::integer[], %(task_group_period)s, fm.id, %(po_id)s, 0, 0, 0, NOW()
         FROM feat_map fm
         INNER JOIN feature_collections fc ON fm.fc_id = fc.id
         WHERE fc.active = TRUE
@@ -190,7 +196,7 @@ _INSERT_GLOBAL_BATCH_SQL = """
               WHERE et.dataset_id = %(dataset_id)s
                 AND et.fm_id = fm.id
                 AND et.po_id = %(po_id)s
-                AND et.resource_ids = %(resource_ids)s
+                AND et.resource_ids = %(resource_ids)s::integer[]
           )
         ORDER BY fm.id
         LIMIT %(batch_size)s

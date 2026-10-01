@@ -124,10 +124,12 @@ def _reset_stale_requests(minutes: int, dry_run: bool = False) -> dict:
     Same job, same shape as free_stale_processing_tasks does for ExtractTask
     rows stuck at status=2.
     """
-    # psycopg2 substitutes %s inside the quoted interval literal (verified:
-    # mogrify renders INTERVAL '30 minutes'), which is how
-    # free_stale_processing_tasks has always expressed this. minutes is
-    # coerced to int so the literal can never be anything but a number.
+    # %s is substituted inside the quoted interval literal (renders INTERVAL
+    # '30 minutes'), which is how free_stale_processing_tasks has always
+    # expressed this. That relies on Django's default client-side parameter
+    # binding with psycopg 3; enabling the "server_side_binding" database
+    # option would break it. minutes is coerced to int so the literal can
+    # never be anything but a number.
     minutes = int(minutes)
     predicate = """
         status = 2

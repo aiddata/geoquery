@@ -53,9 +53,9 @@ def _dictfetchall(cursor) -> list[dict]:
 def _load_jsonb(value):
     """Decode a jsonb column value fetched via a raw cursor.
 
-    Django's postgresql backend registers psycopg2's jsonb loader with
-    ``loads=lambda x: x`` (see django/db/backends/postgresql/base.py) so that
-    ORM JSONField reads aren't double-decoded through Django's own decoder --
+    Django's postgresql backend registers psycopg's plain TextLoader for jsonb
+    (see django/db/backends/postgresql/psycopg_any.py) so that ORM JSONField
+    reads aren't double-decoded through Django's own decoder --
     but that means jsonb values fetched through a raw cursor (bypassing
     JSONField entirely, as here) come back as the raw JSON text, not a dict.
     """

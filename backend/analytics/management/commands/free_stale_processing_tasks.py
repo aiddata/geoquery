@@ -9,7 +9,9 @@ logger = logging.getLogger(__name__)
 # Queued (3): the row was claimed for dispatch but its message never reached a
 # worker (broker outage, worker killed mid-publish). Either way the work is
 # still owed and nothing else will pick it up until it is pending again.
-STALE_STATUSES = (2, 3)
+# A list, not a tuple: psycopg 3 adapts lists to arrays (for = ANY(%s)) but
+# does not adapt tuples at all.
+STALE_STATUSES = [2, 3]
 
 
 class Command(BaseCommand):
@@ -35,7 +37,7 @@ class Command(BaseCommand):
                 cursor.execute(
                     """
                     SELECT COUNT(*) FROM extract_tasks
-                    WHERE status IN %s
+                    WHERE status = ANY(%s)
                     AND update_time < NOW() - INTERVAL '%s minutes'
                     """,
                     [STALE_STATUSES, options["minutes"]],
@@ -58,7 +60,7 @@ def _free_stale_tasks(minutes):
             """
             UPDATE extract_tasks
             SET status = 0, update_time = NOW()
-            WHERE status IN %s
+            WHERE status = ANY(%s)
             AND update_time < NOW() - INTERVAL '%s minutes'
             """,
             [STALE_STATUSES, minutes],
