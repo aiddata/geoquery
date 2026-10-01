@@ -16,9 +16,10 @@ def _():
 
 @app.cell
 def _(mo):
+    _request_name = {{REQUEST_NAME}}
     mo.md(
-        """
-        # GeoQuery Results — {{REQUEST_NAME}}
+        f"""
+        # GeoQuery Results — {_request_name}
 
         **Request ID:** `{{REQUEST_ID}}`
         **Generated:** {{DATE}}
@@ -54,7 +55,7 @@ def _():
     import urllib.request
     import zipfile
 
-    DOWNLOAD_URL = "{{DOWNLOAD_URL}}"
+    DOWNLOAD_URL = {{DOWNLOAD_URL}}
     OUT = pathlib.Path("results")
     OUT.mkdir(exist_ok=True)
 

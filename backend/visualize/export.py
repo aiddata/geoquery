@@ -1,5 +1,6 @@
 import json
 import pathlib
+import re
 import urllib.error
 import urllib.request
 from datetime import date, datetime, timezone
@@ -12,6 +13,16 @@ TEMPLATES_DIR = pathlib.Path(__file__).parent / "notebook_templates"
 # All gists we create carry this description prefix so the cleanup sweep can
 # identify them without per-request bookkeeping.
 GIST_DESCRIPTION_PREFIX = "GeoQuery —"
+
+# Seconds before a GitHub API call is abandoned; export runs inside a web
+# worker, so a stalled upstream must not pin it.
+_HTTP_TIMEOUT = 10
+
+_PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
+_WHITESPACE = re.compile(r"\s+")
+# Characters that CommonMark treats as syntax; backslash-escaping them leaves
+# the name as literal text instead of links, images, headings or raw HTML.
+_MARKDOWN_SYNTAX = re.compile(r"([\\`*_{}\[\]()<>#+!|~&])")
 
 _lz = lzstring.LZString()
 
@@ -35,10 +46,10 @@ class GistExporter:
 
     def export(self, fmt: str) -> str:
         if fmt == "colab":
-            content = self._render("colab_template.ipynb")
+            content = self._render_colab()
             return self._colab_url(content)
         elif fmt == "marimo":
-            content = self._render("marimo_template.py")
+            content = self._render_marimo()
             return self._molab_url(content)
         else:
             raise ValueError(f"Unknown export format: {fmt!r}")
@@ -58,15 +69,45 @@ class GistExporter:
 
     # ── Template rendering ───────────────────────────────────────────────────
 
-    def _render(self, template_filename: str) -> str:
-        template = (TEMPLATES_DIR / template_filename).read_text()
-        return (
-            template
-            .replace("{{REQUEST_ID}}", self.request_id)
-            .replace("{{REQUEST_NAME}}", self.request_name)
-            .replace("{{DOWNLOAD_URL}}", self.download_url)
-            .replace("{{DATE}}", date.today().isoformat())
-        )
+    def _display_name(self) -> str:
+        """The request name as inert single-line markdown text."""
+        name = _WHITESPACE.sub(" ", self.request_name).strip()
+        return _MARKDOWN_SYNTAX.sub(r"\\\1", name)
+
+    @staticmethod
+    def _fill(text: str, values: dict) -> str:
+        """Substitute ``{{KEY}}`` placeholders in a single pass.
+
+        One pass means a substituted value is never rescanned, so a request
+        name containing ``{{DOWNLOAD_URL}}`` stays literal.
+        """
+        return _PLACEHOLDER.sub(lambda m: values.get(m.group(1), m.group(0)), text)
+
+    def _render_colab(self) -> str:
+        # Fill the parsed notebook rather than its JSON text: serializing
+        # afterwards escapes every value, so none can alter the structure.
+        values = {
+            "REQUEST_ID": self.request_id,
+            "REQUEST_NAME": self._display_name(),
+            "DOWNLOAD_URL": self.download_url,
+            "DATE": date.today().isoformat(),
+        }
+        notebook = json.loads((TEMPLATES_DIR / "colab_template.ipynb").read_text())
+        for cell in notebook["cells"]:
+            cell["source"] = [self._fill(line, values) for line in cell["source"]]
+        return json.dumps(notebook, indent=1, ensure_ascii=False)
+
+    def _render_marimo(self) -> str:
+        # The template holds REQUEST_NAME and DOWNLOAD_URL as bare Python
+        # expressions, so repr() yields a literal that cannot end its string
+        # early. REQUEST_ID (a UUID) and DATE are server-generated.
+        values = {
+            "REQUEST_ID": self.request_id,
+            "REQUEST_NAME": repr(self._display_name()),
+            "DOWNLOAD_URL": repr(self.download_url),
+            "DATE": date.today().isoformat(),
+        }
+        return self._fill((TEMPLATES_DIR / "marimo_template.py").read_text(), values)
 
     # ── GitHub Gist API ──────────────────────────────────────────────────────
 
@@ -84,11 +125,13 @@ class GistExporter:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req) as resp:
+            with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as resp:
                 return json.loads(resp.read())
         except urllib.error.HTTPError as e:
             body = e.read().decode(errors="replace")
             raise RuntimeError(f"GitHub Gist API error {e.code}: {body}") from e
+        except (urllib.error.URLError, TimeoutError) as e:
+            raise RuntimeError(f"GitHub Gist API unreachable: {e}") from e
 
     # ── Cleanup sweep ────────────────────────────────────────────────────────
 
@@ -139,7 +182,7 @@ class GistExporter:
                 headers=_gist_auth_headers(token),
                 method="GET",
             )
-            with urllib.request.urlopen(req) as resp:
+            with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as resp:
                 batch = json.loads(resp.read())
             if not batch:
                 break
@@ -155,5 +198,5 @@ class GistExporter:
             headers=_gist_auth_headers(token),
             method="DELETE",
         )
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as resp:
             resp.read()
