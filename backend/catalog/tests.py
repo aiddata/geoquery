@@ -468,8 +468,9 @@ class EndpointTests(ReplicaReadsTestMixin, TestCase):
         )
 
     def test_submission_resolves_private_dataset_for_granted_user(self):
-        # No extract tasks exist, so this still 400s -- but on the *later*
-        # "no extract tasks" warning, proving the dataset itself resolved.
+        # The dataset has no resources and feature 1 is in no collection, so
+        # this still 400s -- but on the *later* "nothing to extract" warning,
+        # proving the dataset itself resolved.
         self.client.force_login(self.user)
         response = self.client.post(
             "/api/analytics/requests/",
@@ -483,7 +484,10 @@ class EndpointTests(ReplicaReadsTestMixin, TestCase):
         self.assertEqual(response.status_code, 400)
         warnings = response.json()["warnings"]
         self.assertNotIn("Dataset 'private-ds' not found or not available.", warnings)
-        self.assertTrue(any("No extract tasks found" in w for w in warnings))
+        self.assertIn(
+            "No processing options, resources, or features found for dataset 'private-ds'.",
+            warnings,
+        )
 
     def test_explore_available_rejects_unauthorized_fc_ids(self):
         response = self.client.get(

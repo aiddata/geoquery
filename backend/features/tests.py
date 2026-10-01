@@ -73,6 +73,10 @@ class FeatureCollectionAutocompleteViewTests(ReplicaReadsTestMixin, TestCase):
             "group_class",
             "group_level",
             "source_name",
+            "source_url",
+            "license",
+            "license_url",
+            "citation",
             "tags",
             "date_added",
         }

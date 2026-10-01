@@ -130,20 +130,18 @@ class RequestViewStandardSubmissionTest(TestCase):
         # concurrent materializations both miss the initial .get()
         # (DoesNotExist), one wins .create(), the other must hit
         # IntegrityError and recover by re-fetching the winner's row rather
-        # than crashing. The initial .get() is forced to miss and .create()
-        # is forced to collide; a real row (created ahead of the patch,
-        # standing in for the "other request's" winning insert) is what the
-        # fallback .get() must find.
+        # than crashing.
+        #
+        # The winner's row has to appear *after* _build_tasks' bulk prefetch,
+        # or the prefetch finds it and the get-or-create fallback never runs.
+        # So .create() stands in for the collision: it inserts the "other
+        # request's" winning row, then raises as the unique index would. The
+        # IntegrityError is raised in Python rather than by Postgres because a
+        # real one would abort the TestCase's enclosing transaction; in
+        # production _build_tasks runs in autocommit, outside
+        # materialize_request's atomic block.
         from analytics.models import Request
         from analytics.services import materialize_request
-
-        existing = ExtractTask.objects.create(
-            dataset_id=self.dataset.id,
-            resource_ids=[self.resource.id],
-            fm=self.fm,
-            po=self.po,
-            kwargs=None,
-        )
 
         payload = {
             "email": "a@example.com",
@@ -155,14 +153,27 @@ class RequestViewStandardSubmissionTest(TestCase):
         )
         req = Request.objects.get(id=resp.json()["id"])
 
+        winner = {}
+
+        def insert_winner_then_collide(**fields):
+            winner["task"] = ExtractTask.objects.bulk_create(
+                [ExtractTask(**fields)]
+            )[0]
+            raise IntegrityError
+
+        def get_winner(**lookup):
+            if "task" not in winner:
+                raise ExtractTask.DoesNotExist
+            return winner["task"]
+
         with (
             mock.patch.object(
-                ExtractTask.objects,
-                "get",
-                side_effect=[ExtractTask.DoesNotExist(), existing],
+                ExtractTask.objects, "get", side_effect=get_winner
             ) as mock_get,
             mock.patch.object(
-                ExtractTask.objects, "create", side_effect=IntegrityError
+                ExtractTask.objects,
+                "create",
+                side_effect=insert_winner_then_collide,
             ) as mock_create,
         ):
             materialize_request(req)
@@ -190,5 +201,5 @@ class RequestViewStandardSubmissionTest(TestCase):
             self.assertEqual(call.kwargs, expected_get_kwargs)
 
         rm = RequestMap.objects.get(request_id=req.id)
-        self.assertEqual(rm.task_id, existing.id)
+        self.assertEqual(rm.task_id, winner["task"].id)
         self.assertEqual(rm.dataset_id, self.dataset.id)

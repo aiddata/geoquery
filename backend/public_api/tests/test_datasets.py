@@ -106,14 +106,12 @@ class PublicDatasetCoverageViewTests(ReplicaReadsTestMixin, TestCase):
     def test_returns_datasets_covering_given_feature_ids(self):
         covered = make_dataset(name="covered", path="covered")
         uncovered = make_dataset(name="uncovered", path="uncovered")
-        # Creating a Feature synchronously auto-inserts status=-1 (untested)
-        # Coverage rows against every existing dataset (see
-        # features.signals.on_feature_created), so the row for `covered`
-        # already exists here — flip it to confirmed (status=1) rather than
-        # creating it. `uncovered` is left at -1 (untested), which must not
-        # count as "covering" the feature.
+        # Coverage rows are created in bulk after an ingest, not by creating a
+        # Feature, so the test makes its own. `uncovered` gets an untested
+        # (status=-1) row, which must not count as "covering" the feature.
         feature = Feature.objects.create(shape="POINT(0 0)")
-        Coverage.objects.filter(dataset=covered, geom_id=feature.id).update(status=1)
+        Coverage.objects.create(dataset=covered, geom=feature, status=1)
+        Coverage.objects.create(dataset=uncovered, geom=feature, status=-1)
 
         response = self.client.post(
             reverse("public_api:dataset-coverage"),

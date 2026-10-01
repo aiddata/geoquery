@@ -80,10 +80,9 @@ class PublicDatasetCoverageView(PublicApiBaseMixin, APIView):
     boundary IDs. POST (not GET) to avoid URL length limits for large
     selections, matching the internal datasets/coverage/ endpoint.
 
-    Coverage rows start at status=-1 (untested) the moment a feature or
-    dataset is created — see datasets.signals.on_dataset_created and
-    features.signals.on_feature_created — and are only flipped to 0/1 once
-    the async ST_Contains check runs. Filtering on status=1 here (rather
+    Coverage rows start at status=-1 (untested) when the post-ingest sweep
+    creates them — see analytics.tasks.maintenance.trigger_coverage_and_extract
+    — and are only flipped to 0/1 once the async ST_Contains check runs. Filtering on status=1 here (rather
     than matching any row, untested included) is what makes "covers this
     boundary" mean something.
     """

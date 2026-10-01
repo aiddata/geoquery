@@ -243,7 +243,13 @@ class SubmitRequestTests(TestCase):
         first = self.call()
         state = first.input_required.request_state
 
-        with mock.patch("analytics.signals.chain"):
+        with (
+            mock.patch("analytics.signals.chain"),
+            mock.patch(
+                "analytics.tasks.requests.materialize_request_tasks.delay"
+            ) as materialize,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
             result = self.call(
                 ctx=FakeContext(
                     responses={"confirm": Answer(content={"confirm": True})}, state=state
@@ -256,7 +262,11 @@ class SubmitRequestTests(TestCase):
         self.assertEqual(request.user, self.user)
         self.assertEqual(request.custom_name, "My export")
         self.assertEqual(result.structured_content["task_count"], 4)
-        self.assertEqual(ExtractTask.objects.count(), 4)
+        # The tasks themselves are built in the background once the request
+        # commits (see analytics.services.create_request), so what the tool
+        # owes is a materializing request with that work scheduled.
+        self.assertEqual(request.status, 4)
+        materialize.assert_called_once_with(str(request.id))
 
     def test_declining_creates_nothing(self):
         with mock.patch("analytics.signals.chain"):
