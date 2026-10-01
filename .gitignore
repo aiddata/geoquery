@@ -25,3 +25,7 @@ k8s/
 .worktrees/
 
 manage_secrets.sh
+
+# Signing keys and local key material
+.dev/
+*.pem
