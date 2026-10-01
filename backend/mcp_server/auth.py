@@ -119,6 +119,10 @@ def make_auth_provider():
         # secret: without it, rotation invalidates every issued token and
         # every stored client registration at once.
         jwt_signing_key=settings.MCP_JWT_SIGNING_KEY or None,
+        # Lifetime of the token the chat client holds, not of GeoQuery's own
+        # access token. FastMCP keeps validating and refreshing the upstream
+        # one on each request, so this can be far longer than its hour.
+        fastmcp_access_token_expiry_seconds=settings.MCP_ACCESS_TOKEN_EXPIRY_SECONDS,
     )
 
 

@@ -152,6 +152,28 @@ class AuthProviderEndpointTests(TestCase):
         )
 
 
+class AuthProviderTokenLifetimeTests(TestCase):
+    """The lifetime of the token given to the chat client is configurable."""
+
+    @override_settings(
+        MCP_OIDC_CLIENT_ID="geoquery-mcp",
+        MCP_OIDC_CLIENT_SECRET="s3cret",
+        MCP_AUTH_DISABLED=False,
+        MCP_ACCESS_TOKEN_EXPIRY_SECONDS=12345,
+    )
+    def test_configured_expiry_is_passed_to_the_proxy(self):
+        with mock.patch("fastmcp.server.auth.oauth_proxy.OAuthProxy") as proxy:
+            make_auth_provider()
+        self.assertEqual(
+            proxy.call_args.kwargs["fastmcp_access_token_expiry_seconds"], 12345
+        )
+
+    def test_defaults_to_thirty_days(self):
+        from django.conf import settings
+
+        self.assertEqual(settings.MCP_ACCESS_TOKEN_EXPIRY_SECONDS, 30 * 24 * 60 * 60)
+
+
 class ResolveCurrentUserTests(TransactionTestCase):
     """``resolve_current_user`` as FastMCP actually runs it: as a ``Depends()``
     resolved on the event loop, with the outcome reported to the model.

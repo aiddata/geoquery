@@ -668,6 +668,13 @@ MCP_OIDC_INTERNAL_URL = os.environ.get("MCP_OIDC_INTERNAL_URL", "") or FRONTEND_
 # client-registration store. Must be stable across restarts or every client
 # has to re-register; must be shared if more than one replica runs.
 MCP_JWT_SIGNING_KEY = os.environ.get("MCP_JWT_SIGNING_KEY", "")
+# Lifetime of the access token the MCP server issues to the chat client.
+# Independent of the upstream OIDC access token (one hour): FastMCP
+# re-validates and refreshes that on every request, so this only sets how
+# often the client has to come back for a new token.
+MCP_ACCESS_TOKEN_EXPIRY_SECONDS = int(
+    os.environ.get("MCP_ACCESS_TOKEN_EXPIRY_SECONDS", str(30 * 24 * 60 * 60))
+)
 
 # Explicitly run the MCP server with no authentication, even if an OIDC
 # client is configured. Every caller is then anonymous: public data only, no
