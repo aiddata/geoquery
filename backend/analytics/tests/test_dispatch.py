@@ -66,6 +66,10 @@ class DispatchTestCase(TestCase):
     def statuses(self, *tasks):
         return [ExtractTask.objects.get(id=t.id).status for t in tasks]
 
+    def refs(self, *tasks):
+        """The (id, dataset_id) pairs a claim returns and a message carries."""
+        return [(t.id, t.dataset_id) for t in tasks]
+
     # --- claim_pending_tasks -------------------------------------------------
 
     def test_claim_orders_by_priority_then_age_and_marks_queued(self):
@@ -73,7 +77,7 @@ class DispatchTestCase(TestCase):
         urgent = self.make_task(priority=1, age=timedelta(minutes=1))
         new = self.make_task()
 
-        self.assertEqual(claim_pending_tasks(2), [urgent.id, old.id])
+        self.assertEqual(claim_pending_tasks(2), self.refs(urgent, old))
         self.assertEqual(self.statuses(urgent, old, new), [QUEUED, QUEUED, PENDING])
 
     def test_claim_breaks_priority_and_submit_time_ties_by_id(self):
@@ -91,7 +95,7 @@ class DispatchTestCase(TestCase):
         )
 
         self.assertEqual(
-            claim_pending_tasks(3), [first.id, second.id, third.id]
+            claim_pending_tasks(3), self.refs(first, second, third)
         )
 
     def test_successive_claims_are_disjoint(self):
@@ -102,7 +106,7 @@ class DispatchTestCase(TestCase):
 
         self.assertEqual(len(first), 2)
         self.assertEqual(len(second), 1)
-        self.assertEqual(set(first) | set(second), {a.id, b.id, c.id})
+        self.assertEqual(set(first) | set(second), set(self.refs(a, b, c)))
         self.assertEqual(claim_pending_tasks(2), [])
 
     def test_claim_ignores_non_pending_rows(self):
@@ -129,7 +133,7 @@ class DispatchTestCase(TestCase):
 
         self.assertEqual(result, [{"task_id": first.id, "results": 1}])
         self.assertEqual(self.statuses(first, second), [DONE, QUEUED])
-        delay.assert_called_once_with([second.id])
+        delay.assert_called_once_with(self.refs(second))
 
     def test_noop_still_chains(self):
         # The row was already finished by the time its message arrived; the
@@ -141,7 +145,7 @@ class DispatchTestCase(TestCase):
 
         self.assertEqual(result, [None])
         self.assertEqual(self.statuses(stale, pending), [DONE, QUEUED])
-        delay.assert_called_once_with([pending.id])
+        delay.assert_called_once_with(self.refs(pending))
 
     def test_failure_marks_task_and_still_chains(self):
         def broken(geometry, path, **kw):
@@ -278,7 +282,7 @@ class ClaimLockContentionTest(TransactionTestCase):
         self.assertEqual(errors, [])
         self.assertTrue(all(t.is_alive() is False for t in threads))
 
-        claimed_ids = [cid for r in results for cid in (r or [])]
+        claimed_ids = [cid for r in results for cid, _ in (r or [])]
         self.assertEqual(len(claimed_ids), 20, "every task should be claimed exactly once")
         self.assertEqual(len(set(claimed_ids)), 20, "no task should be claimed twice")
         self.assertEqual(set(claimed_ids), {t.id for t in self.tasks})
@@ -396,7 +400,7 @@ class ClaimBatchingTests(TestCase):
             claimed = processing.dispatch_pending_tasks()
 
         self.assertEqual(len(claimed), 4)
-        delay.assert_called_once_with([t.id for t in tasks])
+        delay.assert_called_once_with([(t.id, t.dataset_id) for t in tasks])
 
     def test_claim_is_issued_once_per_batch_not_once_per_task(self):
         for _ in range(4):
@@ -427,7 +431,7 @@ class ClaimBatchingTests(TestCase):
             mock.patch.object(run_extract_task, "delay") as delay,
             self.settings(EXTRACT_TASK_CLAIM_BATCH=4),
         ):
-            run_extract_task([t.id for t in running])
+            run_extract_task([[t.id, t.dataset_id] for t in running])
 
         self.assertEqual(
             delay.call_count, 1,
@@ -452,7 +456,7 @@ class ClaimBatchingTests(TestCase):
             mock.patch.object(run_extract_task, "delay"),
             self.assertRaises(RuntimeError),
         ):
-            run_extract_task([t.id for t in tasks])
+            run_extract_task([[t.id, t.dataset_id] for t in tasks])
 
         statuses = [ExtractTask.objects.get(id=t.id).status for t in tasks]
         self.assertEqual(statuses[0], FAILED)
@@ -474,6 +478,22 @@ class ClaimBatchingTests(TestCase):
 
         self.assertEqual(result, [{"task_id": task.id, "results": 0}])
         self.assertEqual(ExtractTask.objects.get(id=task.id).status, DONE)
+
+    def test_a_list_of_plain_ids_from_an_older_pod_still_runs(self):
+        # Builds before (id, dataset_id) pairs published plain ids. They still
+        # run, just without partition pruning on the lookup.
+        tasks = [self.make_task(status=QUEUED) for _ in range(2)]
+
+        with (
+            mock.patch.object(processing, "get_func", return_value=lambda g, p, **kw: []),
+            mock.patch.object(run_extract_task, "delay"),
+        ):
+            result = run_extract_task([t.id for t in tasks])
+
+        self.assertEqual(result, [{"task_id": t.id, "results": 0} for t in tasks])
+        self.assertEqual(
+            [ExtractTask.objects.get(id=t.id).status for t in tasks], [DONE, DONE]
+        )
 
     def test_batch_size_is_configurable(self):
         for _ in range(6):

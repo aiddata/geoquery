@@ -101,13 +101,15 @@ def _claim_batch_size():
 def claim_pending_tasks(limit=1):
     """Move up to ``limit`` pending tasks (status=0) to queued (status=3).
 
-    Returns the claimed ids, highest priority then oldest first (ties broken
-    by id). Because the rows are claimed in the same statement that selects
-    them, concurrent callers get disjoint sets: FOR UPDATE SKIP LOCKED steps
-    past rows another transaction is claiming rather than waiting on them or
-    handing out the same row twice. A queued row whose message never arrives
-    (broker outage, worker killed mid-publish) is returned to pending by
-    free_stale_processing_tasks.
+    Returns the claimed ``(id, dataset_id)`` pairs, highest priority then
+    oldest first (ties broken by id). dataset_id rides along into the message
+    so the worker can prune its own lookup to one partition -- see
+    _run_extract_task. Because the rows are claimed in the same statement
+    that selects them, concurrent callers get disjoint sets: FOR UPDATE SKIP
+    LOCKED steps past rows another transaction is claiming rather than
+    waiting on them or handing out the same row twice. A queued row whose
+    message never arrives (broker outage, worker killed mid-publish) is
+    returned to pending by free_stale_processing_tasks.
 
     The `, id` tiebreaker matters at scale: build_extract_tasks inserts in
     large batches sharing one NOW() per INSERT, so many rows can carry the
@@ -171,7 +173,6 @@ def claim_pending_tasks(limit=1):
             # dataset_id (the partition key) rides along so the UPDATE below
             # can prune to one partition per row instead of probing all of
             # them -- see the docstring above.
-            ids = [task_id for task_id, _ in rows]
             values_clause = ", ".join(["(%s, %s)"] * len(rows))
             params = [param for task_id, dataset_id in rows for param in (dataset_id, task_id)]
             cursor.execute(
@@ -183,7 +184,7 @@ def claim_pending_tasks(limit=1):
                 """,
                 params,
             )
-            return ids
+            return rows
 
 
 # Most tasks one claim statement may take, however large a limit the caller
@@ -210,25 +211,26 @@ def dispatch_pending_tasks(limit=None, batch_size=None):
     ``limit`` counts tasks; they are published in messages of ``batch_size``
     tasks each, so this issues one claim (one advisory lock acquisition) for
     what used to take ``limit`` of them. Large limits are claimed in chunks of
-    at most _MAX_CLAIM_ROWS. Returns the claimed task ids.
+    at most _MAX_CLAIM_ROWS. Returns the claimed ``(id, dataset_id)`` pairs,
+    which are also what each message carries.
     """
     if batch_size is None:
         batch_size = _claim_batch_size()
     if limit is None:
         limit = batch_size
 
-    task_ids = []
+    claimed = []
     remaining = limit
     while remaining > 0:
         chunk = claim_pending_tasks(min(remaining, _MAX_CLAIM_ROWS))
         if not chunk:
             break
-        task_ids.extend(chunk)
+        claimed.extend(chunk)
         remaining -= len(chunk)
 
-    for start in range(0, len(task_ids), batch_size):
-        run_extract_task.delay(task_ids[start : start + batch_size])
-    return task_ids
+    for start in range(0, len(claimed), batch_size):
+        run_extract_task.delay(claimed[start : start + batch_size])
+    return claimed
 
 
 # ignore_result: this is ~100% of the rows in django_celery_results_taskresult
@@ -250,19 +252,31 @@ def run_extract_task(task_ids):
     dispatched per message consumed, which is what keeps the fleet at steady
     state: the beat tops up to one in-flight message per slot, and a chain
     that fanned out would grow without bound.
+
+    ``task_ids`` is a list of ``[id, dataset_id]`` pairs, as published by
+    dispatch_pending_tasks. Older builds published plain ids, either as a
+    list or as one bare id per message; those still run, just without the
+    partition pruning that dataset_id buys (see _run_extract_task).
     """
     # A bare id arrives from any pod still running a build that published one
-    # task per message. Harmless to keep permanently, and it is what makes a
-    # rolling deploy safe in both directions.
+    # task per message. Harmless to keep permanently.
+    #
+    # The reverse direction is NOT safe: a pod from before pairs were
+    # introduced cannot read a pair. Each task in such a message fails its
+    # lookup and is logged, the chain still continues, and the rows stay
+    # queued (status=3) until free_stale_processing_tasks returns them to
+    # pending after STALE_TASK_MINUTES. So a rolling deploy across this
+    # change delays some tasks; it does not lose them.
     if not isinstance(task_ids, (list, tuple)):
         task_ids = [task_ids]
 
     results = []
     failures = []
     try:
-        for task_id in task_ids:
+        for ref in task_ids:
+            task_id, dataset_id = ref if isinstance(ref, (list, tuple)) else (ref, None)
             try:
-                results.append(_run_extract_task(task_id))
+                results.append(_run_extract_task(task_id, dataset_id))
             except Exception as exc:
                 # The rest of this batch is already claimed (status=3), so
                 # letting the first failure abort the message would strand
@@ -302,7 +316,7 @@ def _positions_needing_processing(n):
     return set(range(n))
 
 
-def _run_extract_task(task_id):
+def _run_extract_task(task_id, dataset_id=None):
     """Lock the task row, run the processor once per resource, and store results.
 
     Accepts rows in pending (0) or queued (3). On success (no position raised
@@ -313,14 +327,42 @@ def _run_extract_task(task_id):
     aborting the others in the same run (see the per-resource try/except
     below) or failing the task outright (see the conditional re-raise at the
     bottom).
+
+    ``dataset_id`` is the task's partition key, carried in the message from
+    the claim. None is accepted for messages published by older builds; the
+    lookup still works, it just can't prune.
     """
     logger.info("Running extract task %s", task_id)
     now = timezone.now
 
+    # Without dataset_id this lookup can't name a partition: Postgres probes
+    # the pkey of all 57 extract_tasks partitions once per active dataset
+    # (the dataset_id__in subquery below), and plans that across every
+    # partition first. Measured on production (2026-10-01, warm cache):
+    # 6.5ms planning + 2.2ms execution per task without it, 1.3ms + 0.1ms
+    # with it. At ~1,100 tasks/s that was most of the primary's CPU, all of
+    # it spent holding a pooler connection and this row's lock.
+    tasks = ExtractTask.objects.select_for_update(of=("self",), skip_locked=True)
+    if dataset_id is not None:
+        tasks = tasks.filter(dataset_id=dataset_id)
+
     with transaction.atomic():
         task = (
-            ExtractTask.objects.select_for_update(of=("self",), skip_locked=True)
-            .select_related("po", "fm__fc", "fm__geom")
+            tasks.select_related("po", "fm__geom")
+            # Only what this function reads. The full select_related used to
+            # ship every feature_collections column and the feature's
+            # representative_point too, for every task. Anything added below
+            # must be added here: reading a deferred field issues its own
+            # query by id alone, which can't prune to a partition.
+            .only(
+                "dataset_id",
+                "resource_ids",
+                "kwargs",
+                "po__function",
+                "po__short_name",
+                "po__kwargs",
+                "fm__geom__shape",
+            )
             .filter(
                 id=task_id,
                 status__in=(0, 3),

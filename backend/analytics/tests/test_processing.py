@@ -1,7 +1,9 @@
 from unittest import mock
 
 from django.contrib.gis.geos import Point
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 
 from analytics.models import ExtractData, ExtractTask, ProcessingOption
 from analytics.tasks import processing
@@ -453,3 +455,59 @@ class ProcessingTestCase(TestCase):
         row = self.data_row(task, "mean")
         self.assertEqual(row.float_values, [None, 1.0, 2.0])
         self.assertIsNone(row.str_values)
+
+    # --- the lookup prunes to one partition and fetches only what it reads ---
+
+    def run_capturing_queries(self, task, dataset_id):
+        with (
+            mock.patch.object(
+                processing, "get_func", return_value=lambda g, p, **kw: [("mean", 1.0)]
+            ),
+            CaptureQueriesContext(connection) as ctx,
+        ):
+            _run_extract_task(task.id, dataset_id)
+        return [q["sql"] for q in ctx.captured_queries]
+
+    def test_every_extract_tasks_query_names_the_partition(self):
+        # Production filters on dataset_id or pays for every partition (see
+        # _run_extract_task and database.md). This also catches a field
+        # missing from .only(): reading it lazily issues a SELECT by id alone.
+        resources = self.make_resources(1)
+        task = self.make_task(resources, status=QUEUED)
+
+        queries = self.run_capturing_queries(task, task.dataset_id)
+
+        touching = [
+            q for q in queries
+            if 'FROM "extract_tasks"' in q or 'UPDATE "extract_tasks"' in q
+        ]
+        self.assertEqual(len(touching), 3, touching)  # lock, running, complete
+        for q in touching:
+            self.assertIn(f'"extract_tasks"."dataset_id" = {task.dataset_id}', q)
+        task.refresh_from_db()
+        self.assertEqual(task.status, DONE)
+
+    def test_lookup_does_not_fetch_columns_it_never_reads(self):
+        resources = self.make_resources(1)
+        task = self.make_task(resources, status=QUEUED)
+
+        queries = self.run_capturing_queries(task, task.dataset_id)
+
+        [lookup] = [q for q in queries if "FOR UPDATE" in q]
+        for unused in (
+            '"feature_collections"."spatial_extent"',
+            '"feature_collections"."upload_metadata"',
+            '"feat_map"."attr"',
+            '"features"."representative_point"',
+        ):
+            self.assertNotIn(unused, lookup)
+
+    def test_a_mismatched_dataset_id_finds_nothing(self):
+        # The pair is the task's identity on the lookup: a wrong partition key
+        # must not fall through to some other row or to an unpruned search.
+        resources = self.make_resources(1)
+        task = self.make_task(resources, status=QUEUED)
+
+        self.assertIsNone(_run_extract_task(task.id, task.dataset_id + 1))
+        task.refresh_from_db()
+        self.assertEqual(task.status, QUEUED)
