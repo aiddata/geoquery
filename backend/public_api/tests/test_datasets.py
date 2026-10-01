@@ -4,6 +4,7 @@ from django.urls import reverse
 from analytics.models import Coverage
 from datasets.models import Dataset
 from features.models import Feature
+from geoquery.testing import ReplicaReadsTestMixin
 from public_api.serializers import PublicDatasetSerializer
 
 EXPECTED_DATASET_FIELDS = {
@@ -101,7 +102,7 @@ class PublicDatasetCategoryViewTests(TestCase):
         self.assertEqual(tags, {"climate", "raster"})
 
 
-class PublicDatasetCoverageViewTests(TestCase):
+class PublicDatasetCoverageViewTests(ReplicaReadsTestMixin, TestCase):
     def test_returns_datasets_covering_given_feature_ids(self):
         covered = make_dataset(name="covered", path="covered")
         uncovered = make_dataset(name="uncovered", path="uncovered")

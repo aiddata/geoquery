@@ -109,7 +109,9 @@ def build_boundary_docs(public_only: bool = True) -> dict:
     from django.db.models import Count
     from features.models import FeatureCollection, FeatMap
 
-    qs = FeatureCollection.objects.order_by("group_level", "title", "name")
+    # Read from a standby: the output is a nightly docs page, and the feature
+    # count is a GROUP BY over all of feat_map.
+    qs = FeatureCollection.objects.using("replica").order_by("group_level", "title", "name")
     if public_only:
         qs = qs.filter(public=True, active=True)
 
@@ -117,7 +119,7 @@ def build_boundary_docs(public_only: bool = True) -> dict:
     fc_ids = [fc.id for fc in fc_list]
 
     counts = dict(
-        FeatMap.objects.filter(fc_id__in=fc_ids)
+        FeatMap.objects.using("replica").filter(fc_id__in=fc_ids)
         .values("fc_id")
         .annotate(n=Count("id"))
         .values_list("fc_id", "n")

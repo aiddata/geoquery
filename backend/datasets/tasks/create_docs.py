@@ -134,7 +134,13 @@ def _build_dataset_index(datasets) -> str:
 def build_dataset_docs(public_only: bool = True) -> dict:
     from datasets.models import Dataset
 
-    qs = Dataset.objects.prefetch_related("resources", "mappings").order_by("title", "name")
+    # Read from a standby: the output is a nightly docs page, so a few seconds
+    # of lag cost nothing.
+    qs = (
+        Dataset.objects.using("replica")
+        .prefetch_related("resources", "mappings")
+        .order_by("title", "name")
+    )
     if public_only:
         qs = qs.filter(public=True, active=True)
 

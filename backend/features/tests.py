@@ -4,6 +4,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from features.models import Feature, FeatureCollection
+from geoquery.testing import ReplicaReadsTestMixin
 
 
 def make_feature_collection(**overrides):
@@ -51,7 +52,7 @@ class SearchActivePublicTests(TestCase):
         self.assertEqual([fc.name for fc in results], ["aaa", "zzz"])
 
 
-class FeatureCollectionAutocompleteViewTests(TestCase):
+class FeatureCollectionAutocompleteViewTests(ReplicaReadsTestMixin, TestCase):
     def test_response_shape_matches_expected_fields(self):
         make_feature_collection(name="test-fc", path="test-fc")
 

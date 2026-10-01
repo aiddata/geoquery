@@ -4,10 +4,11 @@ from django.test import TestCase
 from analytics.models import ExtractData, ExtractTask, ProcessingOption, Request, RequestMap
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
+from geoquery.testing import ReplicaReadsTestMixin
 from visualize.data import build_explore_available, build_explore_data, build_request_data
 
 
-class VisualizeDataTestCase(TestCase):
+class VisualizeDataTestCase(ReplicaReadsTestMixin, TestCase):
     """build_request_data / build_explore_data / build_explore_available against
     the resource_ids/*_values array schema (see analytics.models.ExtractTask/
     ExtractData docstrings for the position-alignment invariant these queries

@@ -3,6 +3,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from datasets.models import Dataset, DatasetResource
+from geoquery.testing import ReplicaReadsTestMixin
 
 
 def make_dataset(**overrides):
@@ -14,7 +15,7 @@ def make_dataset(**overrides):
     return Dataset.objects.create(**defaults)
 
 
-class StacSearchViewTests(TestCase):
+class StacSearchViewTests(ReplicaReadsTestMixin, TestCase):
     def test_no_params_returns_all_items(self):
         dataset = make_dataset(name="ds-one", path="ds-one")
         DatasetResource.objects.create(dataset=dataset, name="ds-one-a", path="/x/a.tif")

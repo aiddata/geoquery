@@ -100,10 +100,14 @@ class PublicDatasetCoverageView(PublicApiBaseMixin, APIView):
         if not isinstance(feature_ids, list) or not all(type(i) is int for i in feature_ids):
             raise ValidationError({"featureIds": "must be a list of integers"})
 
-        qs = Dataset.objects.filter(active=True, public=True)
+        # Both querysets on the standby, as in datasets.views: the Coverage
+        # lookup is compiled into the Dataset query as a subquery, and Django
+        # refuses a subquery pinned to a different database.
+        qs = Dataset.objects.using("replica").filter(active=True, public=True)
         if feature_ids:
             covered_ids = (
-                Coverage.objects.filter(geom_id__in=feature_ids, status=1)
+                Coverage.objects.using("replica")
+                .filter(geom_id__in=feature_ids, status=1)
                 .values_list("dataset_id", flat=True)
                 .distinct()
             )

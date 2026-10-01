@@ -3,6 +3,7 @@ from stac_pydantic import Collection, Item, ItemCollection
 
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatureCollection
+from geoquery.testing import ReplicaReadsTestMixin
 from stac_api.serializers import CollectionSerializer, ItemSerializer
 
 
@@ -24,7 +25,7 @@ def make_feature_collection(**overrides):
     return FeatureCollection.objects.create(**defaults)
 
 
-class StacSpecConformanceTests(TestCase):
+class StacSpecConformanceTests(ReplicaReadsTestMixin, TestCase):
     def setUp(self):
         self.request = RequestFactory().get("/api/stac/v1/")
 

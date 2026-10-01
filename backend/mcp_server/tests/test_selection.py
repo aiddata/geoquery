@@ -11,6 +11,7 @@ from guardian.shortcuts import assign_perm
 from catalog.models import Catalog
 from datasets.models import Dataset
 from features.models import FeatureCollection
+from geoquery.testing import ReplicaReadsTestMixin
 from mcp_server.data.selection import (
     SelectionError,
     apply_formula,
@@ -182,7 +183,7 @@ class RequestSelectionTests(TestCase):
             resolve_selection(None, request_id="not-a-uuid")
 
 
-class LoadPayloadTests(TestCase):
+class LoadPayloadTests(ReplicaReadsTestMixin, TestCase):
     def setUp(self):
         self.world = World().fill()
 
@@ -234,7 +235,7 @@ class LoadPayloadTests(TestCase):
         )
 
 
-class PartialFlagTests(TestCase):
+class PartialFlagTests(ReplicaReadsTestMixin, TestCase):
     def setUp(self):
         self.world = World().fill()
         self.payload = load_payload(
@@ -261,7 +262,7 @@ class PartialFlagTests(TestCase):
         self.assertFalse(with_partial_flags(self.payload)["esa_lc_2020.mean"])
 
 
-class ApplyFormulaTests(TestCase):
+class ApplyFormulaTests(ReplicaReadsTestMixin, TestCase):
     def setUp(self):
         self.world = World().fill()
         self.payload = load_payload(

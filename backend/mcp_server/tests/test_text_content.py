@@ -31,6 +31,10 @@ class FmtNumberTests(TestCase):
 
 
 class ToolTextTests(TransactionTestCase):
+    # Tools read through the "replica" alias; the data is committed, so that
+    # connection sees it.
+    databases = {"default", "replica"}
+
     def setUp(self):
         self.world = World().fill().simplify()
         self.mcp = build_server(auth=None, user_resolver=lambda: None)

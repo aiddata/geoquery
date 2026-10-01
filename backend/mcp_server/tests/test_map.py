@@ -2,13 +2,14 @@
 
 from django.test import TestCase, override_settings
 
+from geoquery.testing import ReplicaReadsTestMixin
 from mcp_server.apps.map import MAP_APP_URI, build_map_payload
 from mcp_server.data.selection import SelectionError
 
 from .factories import World
 
 
-class MapPayloadTests(TestCase):
+class MapPayloadTests(ReplicaReadsTestMixin, TestCase):
     def setUp(self):
         self.world = World().fill().simplify()
 

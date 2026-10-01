@@ -307,15 +307,19 @@ def _coverage_fractions(fc_ids: list[int], dataset_ids: set[int]) -> dict[int, f
     A dataset can be "available" while covering only part of a selection --
     a raster that stops at a coastline, or a country only half processed. The
     model needs that number before it describes a map as showing a country.
+
+    Read from a standby: a fraction a few seconds behind the primary is still
+    the right answer to "how much of this is processed", and the extract_tasks
+    count is heavy.
     """
     if not dataset_ids:
         return {}
-    total = FeatMap.objects.filter(fc_id__in=fc_ids).count()
+    total = FeatMap.objects.using("replica").filter(fc_id__in=fc_ids).count()
     if not total:
         return {ds_id: 0.0 for ds_id in dataset_ids}
 
     done = dict(
-        ExtractTask.objects.filter(
+        ExtractTask.objects.using("replica").filter(
             fm__fc_id__in=fc_ids, dataset_id__in=dataset_ids, status=1
         )
         .values("dataset_id")

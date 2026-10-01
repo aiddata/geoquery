@@ -4,6 +4,7 @@ from django.urls import reverse
 
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatureCollection
+from geoquery.testing import ReplicaReadsTestMixin
 from stac_api.utils import to_rfc3339
 
 
@@ -25,7 +26,7 @@ def make_feature_collection(**overrides):
     return FeatureCollection.objects.create(**defaults)
 
 
-class StacItemListViewTests(TestCase):
+class StacItemListViewTests(ReplicaReadsTestMixin, TestCase):
     def test_returns_itemcollection_envelope(self):
         dataset = make_dataset(name="ds-one", path="ds-one")
         DatasetResource.objects.create(dataset=dataset, name="ds-one-2020", path="/x/2020.tif")
@@ -103,7 +104,7 @@ class StacItemListViewTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
 
-class StacItemDetailViewTests(TestCase):
+class StacItemDetailViewTests(ReplicaReadsTestMixin, TestCase):
     def test_returns_dataset_resource_item(self):
         dataset = make_dataset(name="ds-one", path="ds-one")
         DatasetResource.objects.create(dataset=dataset, name="ds-one-2020", path="/x/2020.tif")

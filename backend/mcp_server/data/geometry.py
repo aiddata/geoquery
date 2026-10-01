@@ -16,9 +16,14 @@ from __future__ import annotations
 import json
 
 from django.contrib.gis.db.models import Extent
-from django.db import connection
+from django.db import connections
 
 from features.models import Feature
+
+# Boundary geometry changes only on ingest and matview refresh, so seconds of
+# lag cost nothing; the reads run on a standby. In a process without PG_RO_*
+# the alias falls back to the primary (see settings._pg).
+_DB = "replica"
 
 # The tile endpoint's z0-5 and z6-9 tiers (see features.matviews). The coarse
 # tier is for a continent-or-larger view where the fine one would be wasted
@@ -48,7 +53,7 @@ def bbox_for(geom_ids: list[int]) -> list[float] | None:
     """``[west, south, east, north]`` for a set of features, or ``None``."""
     if not geom_ids:
         return None
-    extent = Feature.objects.filter(id__in=geom_ids).aggregate(
+    extent = Feature.objects.using(_DB).filter(id__in=geom_ids).aggregate(
         extent=Extent("shape")
     )["extent"]
     return list(extent) if extent else None
@@ -77,7 +82,7 @@ def geometries_for(
         return {}
 
     table = pick_table(bbox if bbox is not None else bbox_for(geom_ids))
-    with connection.cursor() as cursor:
+    with connections[_DB].cursor() as cursor:
         cursor.execute(
             _GEOJSON_SQL.format(table=table),
             [_COORD_PRECISION, fc_ids, geom_ids],

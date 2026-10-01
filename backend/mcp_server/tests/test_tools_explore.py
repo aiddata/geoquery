@@ -13,6 +13,7 @@ from guardian.shortcuts import assign_perm
 from catalog.models import Catalog
 from datasets.models import Dataset
 from features.models import FeatureCollection
+from geoquery.testing import ReplicaReadsTestMixin
 from mcp_server.data.selection import SelectionError
 from mcp_server.tools.catalog import (
     _get_boundary,
@@ -179,7 +180,7 @@ class DatasetToolTests(TestCase):
             _get_dataset(None, "esa_landcover")
 
 
-class ListAvailableDataTests(TestCase):
+class ListAvailableDataTests(ReplicaReadsTestMixin, TestCase):
     def setUp(self):
         self.world = World().fill()
 
@@ -279,7 +280,7 @@ class GetCitationsTests(TestCase):
         self.assertIn("request_id", str(ctx.exception))
 
 
-class GetDataLongShapeTests(TestCase):
+class GetDataLongShapeTests(ReplicaReadsTestMixin, TestCase):
     """shape="long": the tidy shape a time series is actually asked in."""
 
     def setUp(self):
@@ -360,7 +361,7 @@ class GetDataLongShapeTests(TestCase):
         self.assertIn("geojson", payload)
 
 
-class TextBlockTests(TestCase):
+class TextBlockTests(ReplicaReadsTestMixin, TestCase):
     """What actually reaches the model: values, in the text content block."""
 
     def setUp(self):
@@ -407,7 +408,7 @@ class TextBlockTests(TestCase):
         self.assertNotIn("coordinates", block)
 
 
-class GetDataTableTests(TestCase):
+class GetDataTableTests(ReplicaReadsTestMixin, TestCase):
     def setUp(self):
         self.world = World().fill()
 
@@ -551,7 +552,7 @@ class GetDataTableTests(TestCase):
         self.assertLess(fitted["returned_rows"], 8)
 
 
-class GetDataGeoJsonTests(TestCase):
+class GetDataGeoJsonTests(ReplicaReadsTestMixin, TestCase):
     def setUp(self):
         self.world = World().fill().simplify()
 

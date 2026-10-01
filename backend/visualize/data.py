@@ -11,11 +11,18 @@ from __future__ import annotations
 import json
 
 from django.contrib.gis.db.models import Extent
-from django.db import connection
+from django.db import connections
 
 from features.models import Feature, FeatMap
 from analytics.models import ExtractTask, ProcessingOption
 from datasets.models import Dataset
+
+# Every read here is of finished extraction results and the boundaries and
+# metadata around them, so none of it needs read-after-write consistency, and
+# the extract_data joins are among the heaviest reads the app serves. They run
+# on a standby. In a process without PG_RO_* the alias falls back to the
+# primary (see settings._pg).
+_DB = "replica"
 
 
 def _fmt_kwargs(kwargs: dict) -> str:
@@ -235,7 +242,7 @@ def _col_descriptions_for(po_keys_per_col: dict[str, tuple[int, str]]) -> dict[s
         if ds_ids and short_names:
             po_descriptions = {
                 (po.dataset_id, po.short_name): po.description
-                for po in ProcessingOption.objects.filter(
+                for po in ProcessingOption.objects.using(_DB).filter(
                     dataset_id__in=ds_ids,
                     short_name__in=short_names,
                 )
@@ -250,7 +257,7 @@ def _col_descriptions_for(po_keys_per_col: dict[str, tuple[int, str]]) -> dict[s
 
 def _feature_rows(**filter_kwargs) -> tuple[dict[str, dict], set[str]]:
     feat_rows = (
-        FeatMap.objects
+        FeatMap.objects.using(_DB)
         .filter(**filter_kwargs)
         .select_related("fc")
         .values("geom_id", "name", "attr", "fc__name")
@@ -277,7 +284,7 @@ def _bbox_for(features: dict[str, dict]):
     geom_ids = [int(k) for k in features.keys()]
     if not geom_ids:
         return None
-    extent = Feature.objects.filter(id__in=geom_ids).aggregate(extent=Extent("shape"))["extent"]
+    extent = Feature.objects.using(_DB).filter(id__in=geom_ids).aggregate(extent=Extent("shape"))["extent"]
     return list(extent) if extent else None
 
 
@@ -292,10 +299,10 @@ def build_request_data(request) -> dict:
     # id__in=request.featmap_ids() rather than joining through
     # extracttask__requestmap__request: extract_tasks is LIST partitioned on
     # dataset_id, so that join scans every partition (see Request.featmap_ids).
-    features, fc_names_set = _feature_rows(id__in=request.featmap_ids())
+    features, fc_names_set = _feature_rows(id__in=request.featmap_ids(using=_DB))
 
     # ── 2. Extract data values + the metadata needed for column names ────────
-    with connection.cursor() as cursor:
+    with connections[_DB].cursor() as cursor:
         cursor.execute(_REQUEST_EXTRACT_DATA_SQL, [str(request.id)])
         data_rows = _dictfetchall(cursor)
 
@@ -361,7 +368,7 @@ def build_explore_data(
         sql += _EXPLORE_RESOURCE_FILTER_SQL
         params.append(resource_ids)
 
-    with connection.cursor() as cursor:
+    with connections[_DB].cursor() as cursor:
         cursor.execute(sql, params)
         data_rows = _dictfetchall(cursor)
 
@@ -415,7 +422,7 @@ def build_explore_available(fc_ids: list[int], po_ids: list[int]) -> list[dict]:
     uses for ProcessingOption.
     """
     rows = list(
-        ExtractTask.objects
+        ExtractTask.objects.using(_DB)
         .filter(fm__fc_id__in=fc_ids, po_id__in=po_ids, status=1)
         .values("dataset_id", "po_id", "po__short_name", "po__description")
         .distinct()
@@ -424,7 +431,7 @@ def build_explore_available(fc_ids: list[int], po_ids: list[int]) -> list[dict]:
     dataset_ids = {row["dataset_id"] for row in rows}
     dataset_lookup = {
         d["id"]: d
-        for d in Dataset.objects.filter(id__in=dataset_ids).values("id", "name", "title")
+        for d in Dataset.objects.using(_DB).filter(id__in=dataset_ids).values("id", "name", "title")
     }
 
     def _sort_key(row):

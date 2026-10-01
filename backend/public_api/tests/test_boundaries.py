@@ -2,6 +2,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from features.models import Feature, FeatMap, FeatureCollection
+from geoquery.testing import ReplicaReadsTestMixin
 from public_api.serializers import PublicBoundaryDetailSerializer, PublicBoundarySerializer
 
 EXPECTED_BOUNDARY_FIELDS = {
@@ -50,7 +51,7 @@ class PublicBoundarySerializerTests(TestCase):
         self.assertEqual(set(data.keys()), EXPECTED_BOUNDARY_FIELDS)
 
 
-class PublicBoundaryDetailSerializerTests(TestCase):
+class PublicBoundaryDetailSerializerTests(ReplicaReadsTestMixin, TestCase):
     def test_field_stability(self):
         boundary = make_boundary()
 
@@ -106,7 +107,7 @@ class PublicBoundaryAutocompleteViewTests(TestCase):
         self.assertIn("error", response.json())
 
 
-class PublicBoundaryDetailViewTests(TestCase):
+class PublicBoundaryDetailViewTests(ReplicaReadsTestMixin, TestCase):
     def test_returns_boundary_by_name_with_feature_ids(self):
         boundary = make_boundary(name="lookup-me", path="lookup-me", title="Lookup Me")
         feature = make_feature()

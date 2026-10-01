@@ -9,10 +9,11 @@ from analytics.tasks.merge import merge_task_results
 from analytics.tasks.processing import _run_extract_task
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
+from geoquery.testing import ReplicaReadsTestMixin
 from visualize.data import build_request_data
 
 
-class ExtractDataRoundTripTest(TestCase):
+class ExtractDataRoundTripTest(ReplicaReadsTestMixin, TestCase):
     """Writer -> storage -> BOTH readers, with no hand-built rows anywhere.
 
     Every other test in this area either mocks the writer or constructs

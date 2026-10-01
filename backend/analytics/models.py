@@ -310,7 +310,7 @@ class Request(models.Model):
             models.Index(Lower("contact"), name="requests_contact_lower_idx"),
         ]
 
-    def featmap_ids(self):
+    def featmap_ids(self, using="default"):
         """FeatMap ids this request's extract tasks actually touched.
 
         Resolved one dataset partition at a time rather than by joining
@@ -322,11 +322,18 @@ class Request(models.Model):
         per-request transaction it holds that request's row lock the whole
         time, stacking every later sweep pass behind it. RequestMap already
         carries dataset_id per row, so the grouping is free.
+
+        ``using`` defaults to the primary rather than following
+        ``self._state.db``: the results documentation (through
+        ``feature_collections``) is built right after the sweep decides the
+        request is complete, and must not read a standby that may not have
+        caught up. Read-only viewers of finished results pass ``"replica"``
+        explicitly.
         """
         from collections import defaultdict
 
         tasks_by_dataset = defaultdict(list)
-        for task_id, dataset_id in RequestMap.objects.filter(
+        for task_id, dataset_id in RequestMap.objects.using(using).filter(
             request=self
         ).values_list("task_id", "dataset_id"):
             tasks_by_dataset[dataset_id].append(task_id)
@@ -334,7 +341,8 @@ class Request(models.Model):
         fm_ids = set()
         for dataset_id, ds_task_ids in tasks_by_dataset.items():
             fm_ids.update(
-                ExtractTask.objects.filter(dataset_id=dataset_id, id__in=ds_task_ids)
+                ExtractTask.objects.using(using)
+                .filter(dataset_id=dataset_id, id__in=ds_task_ids)
                 .values_list("fm_id", flat=True)
                 .distinct()
             )

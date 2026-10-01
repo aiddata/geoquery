@@ -102,8 +102,13 @@ class PublicBoundaryDetailSerializer(PublicBoundarySerializer):
     def get_feature_ids(self, obj):
         # No .distinct() needed: FeatMap has a DB-level UniqueConstraint on
         # (fc, geom), so filtering to a single fc already guarantees unique
-        # geom_id values.
-        return list(FeatMap.objects.filter(fc=obj).values_list("geom_id", flat=True))
+        # geom_id values. Read from a standby: tens of thousands of rows for
+        # an ADM2 set, and membership changes only on ingest.
+        return list(
+            FeatMap.objects.using("replica")
+            .filter(fc=obj)
+            .values_list("geom_id", flat=True)
+        )
 
     class Meta(PublicBoundarySerializer.Meta):
         fields = PublicBoundarySerializer.Meta.fields + ["feature_ids"]

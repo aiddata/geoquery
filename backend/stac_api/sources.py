@@ -2,12 +2,19 @@ from datasets.models import Dataset, DatasetResource
 from features.models import FeatureCollection
 
 
+# The STAC API is a read-only view of the public catalog, which changes only on
+# ingest or curation, so every read here runs on a standby. Instances loaded
+# from these querysets keep their related lookups there too (see
+# geoquery.dbrouter).
+_DB = "replica"
+
+
 def dataset_queryset():
-    return Dataset.objects.filter(active=True, public=True).order_by("name")
+    return Dataset.objects.using(_DB).filter(active=True, public=True).order_by("name")
 
 
 def feature_collection_queryset():
-    return FeatureCollection.objects.filter(active=True, public=True).order_by("name")
+    return FeatureCollection.objects.using(_DB).filter(active=True, public=True).order_by("name")
 
 
 def get_collection_source(name):
@@ -52,7 +59,12 @@ def get_items_for_collection(source):
     """
     if is_feature_collection(source):
         return [source]
-    return list(DatasetResource.objects.filter(dataset=source).select_related("dataset").order_by("name"))
+    return list(
+        DatasetResource.objects.using(_DB)
+        .filter(dataset=source)
+        .select_related("dataset")
+        .order_by("name")
+    )
 
 
 def item_stac_id(item):

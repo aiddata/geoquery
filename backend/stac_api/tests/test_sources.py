@@ -2,6 +2,7 @@ from django.test import TestCase
 
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatureCollection
+from geoquery.testing import ReplicaReadsTestMixin
 from stac_api.sources import (
     all_collection_sources,
     get_collection_source,
@@ -40,7 +41,7 @@ class IsFeatureCollectionTests(TestCase):
         self.assertFalse(is_feature_collection(dataset))
 
 
-class GetCollectionSourceTests(TestCase):
+class GetCollectionSourceTests(ReplicaReadsTestMixin, TestCase):
     def test_finds_a_dataset_by_name(self):
         make_dataset(name="ds-one", path="ds-one")
         self.assertIsInstance(get_collection_source("ds-one"), Dataset)
@@ -67,7 +68,7 @@ class GetCollectionSourceTests(TestCase):
         self.assertIsInstance(get_collection_source("shared-name"), Dataset)
 
 
-class AllCollectionSourcesTests(TestCase):
+class AllCollectionSourcesTests(ReplicaReadsTestMixin, TestCase):
     def test_combines_datasets_and_feature_collections(self):
         make_dataset(name="ds-one", path="ds-one")
         make_feature_collection(name="fc-one", path="fc-one")
@@ -94,7 +95,7 @@ class AllCollectionSourcesTests(TestCase):
         self.assertEqual(names, ["a-thing", "b-thing", "c-thing"])
 
 
-class GetItemsForCollectionTests(TestCase):
+class GetItemsForCollectionTests(ReplicaReadsTestMixin, TestCase):
     def test_returns_dataset_resources_for_a_dataset(self):
         dataset = make_dataset(name="ds-one", path="ds-one")
         DatasetResource.objects.create(dataset=dataset, name="ds-one-2020", path="/x/2020.tif")
@@ -122,7 +123,7 @@ class ItemStacIdTests(TestCase):
         self.assertEqual(item_stac_id(fc), "fc-one-item")
 
 
-class GetItemTests(TestCase):
+class GetItemTests(ReplicaReadsTestMixin, TestCase):
     def test_finds_a_dataset_resource_item_by_stac_id(self):
         dataset = make_dataset(name="ds-one", path="ds-one")
         DatasetResource.objects.create(dataset=dataset, name="ds-one-2020", path="/x/2020.tif")

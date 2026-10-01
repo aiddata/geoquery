@@ -9,7 +9,9 @@ attribution line.
 
 TransactionTestCase because FastMCP runs sync tools in a worker thread, which
 opens its own database connection; a plain TestCase wraps everything in a
-transaction that thread would never see.
+transaction that thread would never see. Tests whose tools read through the
+"replica" alias list it in ``databases``; the data is committed, so that
+connection sees it too.
 """
 
 import asyncio
@@ -42,6 +44,8 @@ DATA_BEARING_TOOLS = {
 
 
 class ServerIntegrationTests(TransactionTestCase):
+    databases = {"default", "replica"}
+
     def setUp(self):
         self.world = World().fill().simplify()
         self.mcp = build_server(auth=None, user_resolver=lambda: None)
@@ -312,6 +316,8 @@ class ConnectionLifecycleTests(TransactionTestCase):
     production runs out of connections.
     """
 
+    databases = {"default", "replica"}
+
     def setUp(self):
         self.world = World().fill()
         self.request = self.world.make_request()
@@ -460,6 +466,8 @@ class AttributionContractTests(TransactionTestCase):
     source. Asserted here, once, over every such tool, so a new tool cannot
     quietly opt out.
     """
+
+    databases = {"default", "replica"}
 
     def setUp(self):
         self.world = World().fill().simplify()

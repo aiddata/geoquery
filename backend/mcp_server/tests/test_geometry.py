@@ -2,6 +2,7 @@
 
 from django.test import TestCase
 
+from geoquery.testing import ReplicaReadsTestMixin
 from mcp_server.data.geometry import (
     _COARSE_TABLE,
     _FINE_TABLE,
@@ -34,7 +35,7 @@ class PickTableTests(TestCase):
         self.assertEqual(pick_table(None), _FINE_TABLE)
 
 
-class GeometriesForTests(TestCase):
+class GeometriesForTests(ReplicaReadsTestMixin, TestCase):
     def setUp(self):
         self.world = World().simplify()
         self.geom_ids = [f.id for f in self.world.features]
@@ -87,7 +88,7 @@ class GeometriesForTests(TestCase):
         self.assertEqual(geometries_for([fc.id], [feature.id]), {})
 
 
-class BboxForTests(TestCase):
+class BboxForTests(ReplicaReadsTestMixin, TestCase):
     def setUp(self):
         self.world = World()
 

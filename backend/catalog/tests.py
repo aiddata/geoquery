@@ -5,28 +5,28 @@ The rule under test, from catalog.access:
     visible = active AND (public OR member of a catalog the caller can access)
 """
 
+from analytics.models import ProcessingOption
+from datasets.models import Dataset
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser, Group
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 from django.test import Client, TestCase
 from django.test.utils import CaptureQueriesContext
+from features.models import FeatureCollection
+from geoquery.testing import ReplicaReadsTestMixin
 from guardian.models import GroupObjectPermission, UserObjectPermission
 from guardian.shortcuts import assign_perm
 
-from analytics.models import ProcessingOption
 from catalog.access import (
     accessible_catalog_ids,
     filter_processing_options,
     resolve_feature_collection_for_tiles,
     visible_datasets,
-    visible_feature_collections,
     visible_processing_options,
     visible_processing_options_for_dataset,
 )
 from catalog.models import Catalog
-from datasets.models import Dataset
-from features.models import FeatureCollection
 
 User = get_user_model()
 
@@ -210,21 +210,33 @@ class ProcessingOptionWideningTests(TestCase):
         self.private_ds = make_dataset(name="priv-ds", active=True, public=False)
 
         self.public_po = ProcessingOption.objects.create(
-            dataset=self.public_ds, short_name="mean", function="mean",
-            active=True, public=True,
+            dataset=self.public_ds,
+            short_name="mean",
+            function="mean",
+            active=True,
+            public=True,
         )
         self.granted_po = ProcessingOption.objects.create(
-            dataset=self.public_ds, short_name="max", function="max",
-            active=True, public=False,
+            dataset=self.public_ds,
+            short_name="max",
+            function="max",
+            active=True,
+            public=False,
         )
         self.inactive_po = ProcessingOption.objects.create(
-            dataset=self.public_ds, short_name="min", function="min",
-            active=False, public=False,
+            dataset=self.public_ds,
+            short_name="min",
+            function="min",
+            active=False,
+            public=False,
         )
         # Lives on a dataset the user cannot see.
         self.po_on_private_ds = ProcessingOption.objects.create(
-            dataset=self.private_ds, short_name="sum", function="sum",
-            active=True, public=False,
+            dataset=self.private_ds,
+            short_name="sum",
+            function="sum",
+            active=True,
+            public=False,
         )
 
         self.catalog = Catalog.objects.create(name="Extra options")
@@ -244,7 +256,9 @@ class ProcessingOptionWideningTests(TestCase):
 
     def test_ungranted_user_sees_public_options_only(self):
         self.assertEqual(
-            set(visible_processing_options_for_dataset(AnonymousUser(), self.public_ds)),
+            set(
+                visible_processing_options_for_dataset(AnonymousUser(), self.public_ds)
+            ),
             {self.public_po},
         )
 
@@ -264,20 +278,23 @@ class ProcessingOptionWideningTests(TestCase):
         # filter_processing_options backs the serializer's prefetched path, so
         # it must not drift from the ORM version.
         self.assertEqual(
-            {po.id for po in filter_processing_options(
-                self.user, self.public_ds.processing_options.all()
-            )},
-            {po.id for po in visible_processing_options_for_dataset(
-                self.user, self.public_ds
-            )},
+            {
+                po.id
+                for po in filter_processing_options(
+                    self.user, self.public_ds.processing_options.all()
+                )
+            },
+            {
+                po.id
+                for po in visible_processing_options_for_dataset(
+                    self.user, self.public_ds
+                )
+            },
         )
 
 
-class TileVisibilityTests(TestCase):
-    # The tile view reads geometry through the "replica" alias. Under test that
-    # alias is a MIRROR of "default" (see settings.DATABASES), so this only
-    # satisfies Django's multi-database isolation guard.
-    databases = {"default", "replica"}
+class TileVisibilityTests(ReplicaReadsTestMixin, TestCase):
+    # The tile view reads geometry through the "replica" alias.
 
     def setUp(self):
         self.public_fc = make_fc(name="pub-fc", active=True, public=True)
@@ -348,20 +365,25 @@ class TileVisibilityTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
 
-class EndpointTests(TestCase):
+class EndpointTests(ReplicaReadsTestMixin, TestCase):
     # Dataset, autocomplete and feature-id reads go to the "replica" alias.
-    databases = {"default", "replica"}
 
     def setUp(self):
         self.public_ds = make_dataset(name="public-ds", active=True, public=True)
         self.private_ds = make_dataset(name="private-ds", active=True, public=False)
         self.public_po = ProcessingOption.objects.create(
-            dataset=self.private_ds, short_name="mean", function="mean",
-            active=True, public=True,
+            dataset=self.private_ds,
+            short_name="mean",
+            function="mean",
+            active=True,
+            public=True,
         )
         self.granted_po = ProcessingOption.objects.create(
-            dataset=self.private_ds, short_name="max", function="max",
-            active=True, public=False,
+            dataset=self.private_ds,
+            short_name="max",
+            function="max",
+            active=True,
+            public=False,
         )
         self.public_fc = make_fc(name="public-fc", active=True, public=True)
         self.private_fc = make_fc(name="private-fc", active=True, public=False)
@@ -399,7 +421,9 @@ class EndpointTests(TestCase):
         )
 
     def test_autocomplete_respects_grants(self):
-        anon = {r["name"] for r in self.client.get("/api/features/autocomplete/").json()}
+        anon = {
+            r["name"] for r in self.client.get("/api/features/autocomplete/").json()
+        }
         self.assertNotIn("private-fc", anon)
 
         self.client.force_login(self.user)
@@ -475,21 +499,21 @@ class EndpointTests(TestCase):
         with CaptureQueriesContext(connection) as ctx:
             self.client.get("/api/datasets/")
         guardian_queries = [
-            q for q in ctx.captured_queries
+            q
+            for q in ctx.captured_queries
             if "guardian_userobjectpermission" in q["sql"]
         ]
         self.assertEqual(len(guardian_queries), 1)
 
 
-class CsrfContractTest(TestCase):
+class CsrfContractTest(ReplicaReadsTestMixin, TestCase):
     """force_login runs with enforce_csrf_checks=False, so none of the other
     endpoint tests catch this. /api/datasets/coverage/ authenticates the
     session now, which makes DRF enforce CSRF for logged-in callers -- the
     frontend must reach it through apiFetch, not a bare fetch.
-    """
 
-    # /api/datasets/coverage/ reads through the "replica" alias.
-    databases = {"default", "replica"}
+    /api/datasets/coverage/ reads through the "replica" alias.
+    """
 
     def test_coverage_post_requires_csrf_token_when_logged_in(self):
         user = User.objects.create_user(

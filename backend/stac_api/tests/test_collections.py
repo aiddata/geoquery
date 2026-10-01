@@ -4,6 +4,7 @@ from django.urls import reverse
 
 from datasets.models import Dataset
 from features.models import FeatureCollection
+from geoquery.testing import ReplicaReadsTestMixin
 
 
 def make_dataset(**overrides):
@@ -25,7 +26,7 @@ def make_feature_collection(**overrides):
     return FeatureCollection.objects.create(**defaults)
 
 
-class StacCollectionListViewTests(TestCase):
+class StacCollectionListViewTests(ReplicaReadsTestMixin, TestCase):
     def test_returns_collections_and_links_envelope(self):
         make_dataset(name="ds-one", path="ds-one")
         make_feature_collection(name="fc-one", path="fc-one")
@@ -48,7 +49,7 @@ class StacCollectionListViewTests(TestCase):
         self.assertEqual(ids, {"visible"})
 
 
-class StacCollectionDetailViewTests(TestCase):
+class StacCollectionDetailViewTests(ReplicaReadsTestMixin, TestCase):
     def test_returns_dataset_backed_collection(self):
         make_dataset(name="ds-one", path="ds-one", title="DS One")
 

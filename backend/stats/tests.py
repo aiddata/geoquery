@@ -5,10 +5,11 @@ from pathlib import Path
 from django.test import TestCase, override_settings
 from django.urls import NoReverseMatch, reverse
 
+from geoquery.testing import ReplicaReadsTestMixin
 from stats.builder import StatsBuilder
 
 
-class StatsDataViewTests(TestCase):
+class StatsDataViewTests(ReplicaReadsTestMixin, TestCase):
     """The stats endpoint must not query the database on request.
 
     It serves a snapshot built every 5 minutes by build_stats_report. The page
@@ -16,11 +17,9 @@ class StatsDataViewTests(TestCase):
     over ~280M extract_tasks rows -- a global aggregate no filter can prune --
     at ~16s and millions of block reads per call. That made the page 504 as
     soon as two requests overlapped, and survived two attempted fixes because
-    the slow path was the poll, not the page.
+    the slow path was the poll, not the page. The live-collect fallback reads
+    through the "replica" alias.
     """
-
-    # The live-collect fallback reads through the "replica" alias.
-    databases = {"default", "replica"}
 
     def test_snapshot_is_served_without_touching_the_database(self):
         payload = {"total": 7, "status_counts": {}, "extract_counts": {}}
@@ -69,9 +68,8 @@ class StatsDataViewTests(TestCase):
         self.assertEqual(self.client.get("/stats/").status_code, 404)
 
 
-class StatsBuilderTests(TestCase):
+class StatsBuilderTests(ReplicaReadsTestMixin, TestCase):
     # StatsBuilder reads through the "replica" alias.
-    databases = {"default", "replica"}
 
     def test_payload_carries_the_queue_counts_the_page_renders(self):
         data = StatsBuilder().collect()
