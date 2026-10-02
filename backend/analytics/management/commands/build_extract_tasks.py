@@ -35,6 +35,7 @@ _INSERT_NON_GLOBAL_BATCH_SQL = """
       AND fc.active = TRUE
       AND fc.is_user_upload = FALSE
       AND d.active = TRUE
+      AND d.is_global = FALSE
       AND d.task_group_period IS NULL
       AND NOT EXISTS (
           SELECT 1 FROM extract_tasks et
@@ -170,16 +171,36 @@ _TOUCH_CLAIM_SQL = "UPDATE extract_task_build_progress SET claimed_at = NOW() WH
 # pair with 695k rows built: 53,248ms and 169.7M buffer hits to find the next
 # 5,000 rows, against 621ms and 724k hits when resuming from the watermark.
 #
+# ON CONFLICT DO NOTHING covers rows the NOT EXISTS cannot see: ones another
+# transaction committed after this statement's snapshot was taken. Block
+# extraction (analytics.blocks) writes these same rows directly, and without
+# it a block committing the same (fm, po, resources) mid-statement would fail
+# this whole 5,000-row batch with a unique violation.
+#
+# That makes `added` (rows inserted) smaller than `selected` (candidates the
+# LIMIT took) whenever a row conflicts, so the caller's caught-up check must
+# use `selected`: a full page of candidates means there may be more beyond
+# it, however many of them conflicted. Checking `added` would mark the pair
+# caught up to the current max and silently skip every candidate past this
+# page. For the same reason the watermark advances to the last *candidate*,
+# not the last insert -- every candidate up to it now exists, either inserted
+# here or by whoever won the conflict. `candidates` is MATERIALIZED so the
+# insert and both counts read the same rows.
+#
 # GREATEST guards the watermark against moving backwards if two workers
 # briefly overlap on one pair (see _TOUCH_CLAIM_SQL); the IS NOT NULL guard
-# leaves it alone when a batch inserts nothing. Data-modifying CTEs always
-# run to completion even when unreferenced, so `advanced` fires regardless of
-# what the outer SELECT reads.
+# leaves it alone when a batch selects nothing. Data-modifying CTEs always
+# run to completion even when unreferenced, so `inserted` and `advanced` fire
+# regardless of what the outer SELECT reads.
+#
+# The ::integer[] casts on %(resource_ids)s are required, not decoration:
+# psycopg 3 sends a Python int list as the smallest array type that fits
+# (e.g. '{590}'::int2[]), and Postgres has no integer[] = smallint[] operator.
+# Without the cast the NOT EXISTS comparison raises, _run_batch swallows the
+# DatabaseError, and the build silently inserts nothing.
 _INSERT_GLOBAL_BATCH_SQL = """
-    WITH inserted AS (
-        INSERT INTO extract_tasks
-            (dataset_id, resource_ids, task_group_period, fm_id, po_id, status, priority, attempts, submit_time)
-        SELECT %(dataset_id)s, %(resource_ids)s, %(task_group_period)s, fm.id, %(po_id)s, 0, 0, 0, NOW()
+    WITH candidates AS MATERIALIZED (
+        SELECT fm.id AS fm_id
         FROM feat_map fm
         INNER JOIN feature_collections fc ON fm.fc_id = fc.id
         WHERE fc.active = TRUE
@@ -194,10 +215,22 @@ _INSERT_GLOBAL_BATCH_SQL = """
           )
         ORDER BY fm.id
         LIMIT %(batch_size)s
+    ),
+    inserted AS (
+        INSERT INTO extract_tasks
+            (dataset_id, resource_ids, task_group_period, fm_id, po_id, status, priority, attempts, submit_time)
+        SELECT %(dataset_id)s, %(resource_ids)s::integer[], %(task_group_period)s, c.fm_id, %(po_id)s, 0, 0, 0, NOW()
+        FROM candidates c
+        ORDER BY c.fm_id
+        ON CONFLICT (dataset_id, fm_id, po_id, resource_ids_hash) WHERE kwargs IS NULL
+        DO NOTHING
         RETURNING fm_id
     ),
     batch AS (
-        SELECT count(*) AS added, max(fm_id) AS max_fm_id FROM inserted
+        SELECT (SELECT count(*) FROM inserted) AS added,
+               count(*) AS selected,
+               max(fm_id) AS max_fm_id
+        FROM candidates
     ),
     advanced AS (
         UPDATE extract_task_build_progress p
@@ -208,7 +241,7 @@ _INSERT_GLOBAL_BATCH_SQL = """
           AND batch.max_fm_id IS NOT NULL
         RETURNING p.completed_up_to_fm_id
     )
-    SELECT added, max_fm_id FROM batch
+    SELECT added, selected, max_fm_id FROM batch
 """
 
 _MARK_PAIR_CAUGHT_UP_SQL = """
@@ -288,6 +321,15 @@ def _build_synchronous_commit():
     return getattr(settings, "EXTRACT_TASK_BUILD_SYNCHRONOUS_COMMIT", False)
 
 
+def _global_build_enabled():
+    """Whether the global branch builds at all. Block extraction
+    (analytics.blocks) computes global datasets from the progress pairs
+    directly, so the pending rows built here are optional once it runs."""
+    from django.conf import settings
+
+    return getattr(settings, "EXTRACT_TASK_BUILDER_GLOBAL_ENABLED", True)
+
+
 def _run_batch(sql, params, fetch=False):
     """Run one INSERT batch in its own short transaction with a statement timeout.
 
@@ -347,6 +389,14 @@ def _release_build_run_if_done(current_max_fm_id):
             cursor.execute(_RELEASE_RUN_SQL)
 
 
+def sync_progress_pairs():
+    """Create a progress row for every active global (resource_ids, po) pair
+    that lacks one. Idempotent; shared with block extraction."""
+    with connection.cursor() as cursor:
+        cursor.execute(_SYNC_STANDARD_PAIRS_SQL)
+        cursor.execute(_SYNC_GROUPED_PAIRS_SQL)
+
+
 def _claim_next_progress_pairs(current_max_fm_id, limit):
     """Select the next page of claimable progress pairs and mark them claimed.
 
@@ -381,12 +431,20 @@ def _build_global_tasks(batch_size=BATCH_SIZE):
     UPDATE, which is what makes SKIP LOCKED actually exclusive) so concurrent
     workers never claim the same pair, and each pair's batch is independently
     transactional.
+
+    Does nothing when EXTRACT_TASK_BUILDER_GLOBAL_ENABLED is off. Checked
+    here because every entry point passes through: the management command,
+    trigger_coverage_and_extract's inline fallback, and a
+    build_extract_tasks_worker message queued before the flag was turned off.
     """
+    if not _global_build_enabled():
+        logger.info("build_extract_tasks: global build disabled, skipping")
+        return 0
+
     total_added = 0
 
+    sync_progress_pairs()
     with connection.cursor() as cursor:
-        cursor.execute(_SYNC_STANDARD_PAIRS_SQL)
-        cursor.execute(_SYNC_GROUPED_PAIRS_SQL)
         cursor.execute(_MAX_FEAT_MAP_ID_SQL)
         current_max_fm_id = cursor.fetchone()[0]
 
@@ -422,7 +480,7 @@ def _build_global_tasks(batch_size=BATCH_SIZE):
 
             # The watermark for these rows has already been advanced by the
             # statement above, atomically with the insert.
-            added, _max_fm_id = result
+            added, selected, _max_fm_id = result
 
             made_progress = True
             total_added += added
@@ -434,7 +492,8 @@ def _build_global_tasks(batch_size=BATCH_SIZE):
             )
 
             with connection.cursor() as cursor:
-                if added < batch_size:
+                # selected, not added: see _INSERT_GLOBAL_BATCH_SQL.
+                if selected < batch_size:
                     cursor.execute(_MARK_PAIR_CAUGHT_UP_SQL, [current_max_fm_id, progress_id])
                 else:
                     cursor.execute(_RELEASE_CLAIM_SQL, [progress_id])

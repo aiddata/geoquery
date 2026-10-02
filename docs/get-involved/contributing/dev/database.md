@@ -45,6 +45,14 @@ The short version. Each rule links to the section that justifies it.
 - One message in, one message out for self-chaining tasks — anything else grows
   the queue without bound (§2).
 
+**Computing global datasets**
+
+- Prefer block extraction to the per-task path for bulk work: one claim and
+  one commit per block of thousands of tasks, rather than several per task
+  (§11).
+- Write task rows directly in their final state. A row that never sits at
+  `status = 0` never enters the claim index (§3, §11).
+
 **Adding state that means "something is working on this"**
 
 - Write the reaper at the same time. Every such marker we have added stranded
@@ -174,7 +182,9 @@ updates impossible.**
 `status` appearing in the predicate means Postgres treats it as indexed, so every
 status transition changes index membership and disqualifies the update from HOT.
 Result: `n_tup_hot_upd` is ~0 against tens of millions of updates, and each of
-the two status transitions per task rewrites all five index entries.
+the three status transitions per task (0 → 3 at dispatch, 3 → 2 at claim,
+2 → 1 at finalize) rewrites all five index entries. Block extraction (§11)
+writes its rows once, already complete, so it pays none of them.
 
 We measured the alternative properly (Appendix A). Getting HOT requires **both**
 removing `status` from the index **and** lowering `fillfactor` — neither alone
@@ -187,7 +197,7 @@ does anything — and at `fillfactor=50` you get 97.8% HOT.
   and is scanned while filtering for the `status = 0` rows that, at steady state,
   become rare. The cost lands exactly when the table is largest.
 - **HOT's benefit decays; the index cost is permanent.** Each task is updated
-  exactly twice in its life, so the WAL saving is proportional to the *build-out
+  exactly three times in its life, so the WAL saving is proportional to the *build-out
   rate* and largely evaporates at steady state. The scan cost is proportional to
   *table size*, which is forever.
 - The claim is already the fleet's throughput ceiling (§2). Reintroducing a
@@ -253,6 +263,14 @@ connection and leaks into whatever transaction reuses it next. Setting
 non-durable. Django's `CONN_MAX_AGE = 0` and `DISABLE_SERVER_SIDE_CURSORS = True`
 are for the same reason — server-side cursors are connection-local and break
 under transaction pooling.
+
+**Non-Django clients need the same care.** The MCP server's OAuth proxy keeps
+its state in `mcp_oauth_state` through asyncpg, not Django, and reaches it via
+`pooler-tasks`. asyncpg's default statement cache names prepared statements on
+a server connection the next transaction may not get, and its default pool
+holds ten idle connections per process, so `mcp_server.auth` builds the pool
+with `statement_cache_size=0` and `max_size=MCP_STATE_POOL_SIZE`. The proxy's
+store never deletes expired rows; `purge_expired_oauth_state` does, hourly.
 
 **The pool budget must stay under `max_connections`.** `default_pool_size ×
 instances`, summed across all three pools, is the real ceiling. It currently sums
@@ -345,6 +363,7 @@ We have found this four times; the recovery table is now:
 | `.replaced.*` dirs | displaced output | **restored** if `request_dir` missing, else deleted |
 | `extract_task_build_progress.claimed_at` | pair being built | self-expires (`CLAIM_STALE_MINUTES`) |
 | `extract_task_build_run.in_progress` | wave running | self-expires (`RUN_STALE_MINUTES`) |
+| `extract_task_build_progress.block_claim_token` | block being computed | self-expires (`EXTRACT_BLOCK_LEASE_MINUTES`), re-dispatched by `dispatch_block_chains` |
 
 Two lessons worth keeping:
 
@@ -427,6 +446,132 @@ of the three instances retains its own `pg_wal` on its own PVC, so a WAL delta
 costs three times that in pool space, and prod shares `ceph-blockpool` with
 staging. That three-times multiplier is why the chart default stays at 8GB rather
 than matching prod.
+
+---
+
+## 11. Block extraction: one claim and one commit per block
+
+The per-task path pays per task for everything in §2–§6: a builder INSERT,
+three non-HOT status updates, a share of the serialized claim, and three
+commits. It also re-reads the raster for every task: `rasterstats` opened the
+file and read the feature's window once per processing option, so min, max,
+mean, sum and count of the same pixels were five reads. At ~700 tasks/s the
+workers were queueing on the database with CPU to spare, and no setting
+removes a cost that is paid per task.
+
+`analytics/blocks.py` computes global datasets in **blocks** instead: one
+`resource_ids` unit × up to `EXTRACT_BLOCK_SIZE` feat_map rows × every active
+processing option of that resource.
+
+- **Claim.** Lease the resource's `extract_task_build_progress` pairs (all
+  options at the same `computed_up_to_fm_id`) and take the next range of
+  feat_map ids above that watermark. Claims are serialized on
+  `pg_advisory_xact_lock(BLOCK_CLAIM_LOCK_ID)`: the claim is two statements
+  (lock a seed pair, then its siblings), and with `SKIP LOCKED` alone a second
+  claimer arriving between them skipped the locked seed and leased the same
+  resource's next option by itself, splitting the resource into two blocks
+  that each read the raster. Unlike §2 the lock costs nothing that matters:
+  the table holds thousands of rows, not billions, so it is held for a few
+  millisecond statements once per block. `SKIP LOCKED` stays for the rows'
+  other writers (the builder's batch, a block's fence), which the claim steps
+  past rather than waits on.
+- **Scan.** One partition-pruned query finds which of the range's tasks are
+  already done (1) or in flight on the per-task path (2, 3). Those are
+  skipped, so the ~700M tasks the per-task path already completed cost one
+  index range scan per block.
+- **Compute.** One `rasterstats` call per resource and option group over every
+  geometry: one raster open, one windowed read per feature for all stats.
+  Percentage coverage weighting or selection uses separate batches for
+  Point/MultiPoint and other geometries, then restores input order. The
+  installed rasterstats disables coverage flags when it encounters a point
+  and otherwise carries that state into subsequent polygons: a mixed batch
+  reproduced a polygon sum of 567 instead of 425.8800048828125. Isolating
+  points preserves the per-task values while retaining batching within each
+  group. Parity is tested per stat, categorical, nodata, grouped resources,
+  and mixed geometries with coverage weighting/selection and geometry
+  splitting (`limit`) in `test_blocks.py`. A batched call that raises
+  is retried per feature, so a bad geometry fails only its own tasks -- but
+  only once the resource is shown to be readable. A resource's first failure
+  opens the file itself; if that fails the block errors and backs off (below)
+  with nothing written, instead of recording an outage as a -1 for every task
+  in the range. The share of failed features cannot make that distinction,
+  because a block that recomputes only -1 rows fails all of them legitimately.
+- **Write.** One transaction: a `COPY` into transaction-scoped temp tables,
+  the `extract_tasks` rows written directly at `status = 1` (or -1 with an
+  error), their `extract_data`, and last the fenced watermark update.
+
+**Rows are written once, already complete.** They never sit at `status = 0`,
+so they never enter or leave the claim index, and none of §3's index
+rewrites happen. `complete_time` is set because the stats completion chart
+counts only rows that have one.
+
+**Coexisting with the per-task path.** The write takes over existing rows in
+place with an `UPDATE`, only at 0 (built, unclaimed) or -1 (failed), and then
+inserts the rest. A row the per-task path claims after the scan (2 or 3)
+fails the `UPDATE`'s `WHERE`, keeps its own result, and is counted
+`unavailable`. Both sides lock with `SKIP LOCKED`, so neither waits on rows
+the other holds; a row a block skips stays with the per-task path. It is an
+`UPDATE` and not an upsert because `INSERT ... ON CONFLICT DO UPDATE` draws an
+id from `extract_tasks`' 32-bit identity for every row it takes over. Values
+pass through the `ExtractData` model fields before the `COPY`, so an array
+whose positions disagree on type is stored as `bulk_create` stores it, and a
+value its column cannot take -- one the field cannot coerce, an integer
+outside PostgreSQL bigint bounds, or one too long for `varchar(100)` -- fails
+only its own task, as on the per-task path, rather than the whole block.
+Bigint bounds are checked after coercion for both scalar and array columns;
+Django's field preparation alone does not enforce them. Conversion
+`OverflowError` (for example, an infinity coerced into an integer array) is
+also caught per task. Without these checks, one invalid value aborts the
+block before its watermark advances and repeats at every lease expiry.
+Regression tests verify both bigint endpoints, out-of-range values,
+conversion overflow, preservation of prior results, and progress into later
+blocks. Tasks a block marks -1
+are reset by `manage_processing_task_errors` and retried by the per-task path:
+blocks have no retry machinery of their own. User requests and non-global
+datasets stay on the per-task path.
+
+**The lease is fenced, heartbeated and re-triggered** (§8). Every write is
+fenced on `block_claim_token`, so a worker whose lease was taken over rolls
+back everything it computed. The fence runs last in the write transaction,
+which locks `extract_tasks` rows before the progress row -- the same order as
+the builder's batch. Run first, the two deadlocked when they reached the same
+pair: the block waited on a row the builder had inserted, and the builder
+waited on the progress row the block's fence held. A heartbeat thread
+refreshes the lease at a fifth of `EXTRACT_BLOCK_LEASE_MINUTES` so a slow
+block is not mistaken for a dead one (§4); a beat that fails closes its
+connection, so the next one reconnects instead of failing on a dropped
+connection until the lease expires. The lease is refreshed once more
+immediately before the write, which therefore always starts with a full
+lease period. `run_extract_block` self-chains one
+message in, one out (§2), and ends the chain when there is nothing to claim
+or the claim itself raised. A block that raises after its claim keeps its
+lease for another full period instead of releasing it, and the chain moves
+on: released, a deterministic failure was the lowest claimable block, so it
+took down every chain that claimed it in turn. `geoquery_extract_blocks`
+counts blocks by outcome, so one failing repeatedly shows as a steady `error`
+rate. `dispatch_block_chains` refills idle `blocks`-queue slots every five
+minutes, which is also what claims an expired lease.
+
+**One commit per block.** At block size 2,000 and five options that is one
+commit per 10,000 tasks, against three per task before. That is the change
+that matters for §6: whether the write limit there is bandwidth or per-commit
+flush latency, the per-task path paid it ~2,000 times a second at 700
+tasks/s.
+
+**The builder is optional once blocks run.** Blocks never read the pending
+backlog the builder creates; they take its rows over when they reach them.
+`EXTRACT_TASK_BUILDER_GLOBAL_ENABLED=0` stops the global build from every
+entry point -- the scheduled wave, the management command,
+`trigger_coverage_and_extract`'s inline fallback, and worker messages already
+queued when the flag changes -- and leaves the non-global branch running. The
+builder's insert has `ON CONFLICT DO NOTHING`
+so that a block committing the same rows mid-statement cannot fail its
+5,000-row batch.
+
+**Not yet measured in production.** Check parity and per-core rates on real
+data with `manage.py benchmark_extract_block --resource <id> [--write]`
+before enabling, then compare whole hours as in Appendix B. Roll out with
+`EXTRACT_BLOCK_DATASETS` before enabling everywhere.
 
 ---
 

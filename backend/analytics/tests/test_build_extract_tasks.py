@@ -1,11 +1,14 @@
+import threading
+import time
 from datetime import datetime, timezone
 from unittest import mock
 
 from django.contrib.gis.geos import Point
-from django.db import connection
-from django.test import TransactionTestCase
+from django.db import connection, transaction
+from django.test import TransactionTestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 
+from analytics.management.commands import build_extract_tasks
 from analytics.management.commands.build_extract_tasks import _build_extract_tasks, _build_global_tasks
 from analytics.models import Coverage, ExtractTask, ExtractTaskBuildProgress, ProcessingOption
 from datasets.models import Dataset, DatasetResource
@@ -111,6 +114,47 @@ class BuildExtractTasksGroupingTest(TransactionTestCase):
         for t in tasks:
             self.assertEqual(t.dataset_id, d.id)
             self.assertIsNone(t.task_group_period)
+
+    @override_settings(EXTRACT_TASK_BUILDER_GLOBAL_ENABLED=False)
+    def test_disabling_global_build_ignores_retained_coverage(self):
+        from analytics.tasks import maintenance
+
+        fm = self._make_feature_and_fm()
+        datasets = []
+        for name in ("becomes_global", "stays_non_global"):
+            dataset = Dataset.objects.create(
+                name=name, path=f"/data/{name}", active=True, is_global=False
+            )
+            ProcessingOption.objects.create(
+                dataset=dataset, short_name="mean",
+                function="rasterstats_default_mean", active=True,
+            )
+            DatasetResource.objects.create(
+                dataset=dataset, name=f"{name}-r1", path="r1.tif",
+                temporal=datetime(2020, 1, 1, tzinfo=timezone.utc),
+            )
+            Coverage.objects.create(geom=fm.geom, dataset=dataset, status=1)
+            datasets.append(dataset)
+
+        global_dataset, non_global_dataset = datasets
+        # Changing a dataset to global leaves its existing coverage intact.
+        global_dataset.is_global = True
+        global_dataset.save(update_fields=["is_global"])
+
+        # Cover the command/inline path and the scheduled task, without
+        # mocking the coverage-based builder that previously bypassed the flag.
+        for build in (_build_extract_tasks, maintenance.build_extract_tasks):
+            with self.subTest(entry_point=build.__name__):
+                build()
+                self.assertFalse(
+                    ExtractTask.objects.filter(dataset_id=global_dataset.id).exists()
+                )
+                self.assertEqual(
+                    list(ExtractTask.objects.filter(
+                        dataset_id=non_global_dataset.id
+                    ).values_list("fm_id", "status")),
+                    [(fm.id, 0)],
+                )
 
     def test_claiming_prevents_duplicate_tasks_on_rerun(self):
         d = Dataset.objects.create(
@@ -451,7 +495,7 @@ class BuildProgressWatermarkTest(TransactionTestCase):
         fms = self._make_fms(3)
         pair = self._pair_for(d)
 
-        added, max_fm_id = self._run_one_batch(d, pair, batch_size=2, start_from=0)
+        added, _selected, max_fm_id = self._run_one_batch(d, pair, batch_size=2, start_from=0)
         pair.refresh_from_db()
 
         self.assertEqual(added, 2, "batch_size should have capped this batch")
@@ -472,7 +516,7 @@ class BuildProgressWatermarkTest(TransactionTestCase):
 
         self._run_one_batch(d, pair, batch_size=2, start_from=0)
         pair.refresh_from_db()
-        added, _ = self._run_one_batch(
+        added, _, _ = self._run_one_batch(
             d, pair, batch_size=2, start_from=pair.completed_up_to_fm_id
         )
 
@@ -534,3 +578,82 @@ class BuildProgressWatermarkTest(TransactionTestCase):
                 "UPDATE extract_task_build_progress", sql,
                 "the watermark UPDATE must live inside the INSERT's own statement",
             )
+
+    def test_a_conflict_mid_batch_does_not_mark_the_pair_caught_up(self):
+        # A row committed by another transaction (block extraction) after the
+        # batch's snapshot passes NOT EXISTS and then conflicts, so the batch
+        # inserts fewer rows than it selected. Treating that as "caught up"
+        # jumped the watermark to the current max and skipped every candidate
+        # past the page -- here fms[2], which nothing would ever build.
+        d = self._dataset_with_one_resource("wm_conflict")
+        fms = self._make_fms(3)
+        po = ProcessingOption.objects.get(dataset_id=d.id)
+        resource = DatasetResource.objects.get(dataset_id=d.id)
+        inserted, release = threading.Event(), threading.Event()
+        blocked = threading.Event()
+        errors = []
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_backend_pid()")
+            (batch_pid,) = cursor.fetchone()
+
+        def concurrent_insert():
+            try:
+                with transaction.atomic():
+                    ExtractTask.objects.create(
+                        dataset_id=d.id, resource_ids=[resource.id], fm=fms[0], po=po,
+                        status=1,
+                    )
+                    inserted.set()
+                    # Commit only once this insert is actually blocking the
+                    # builder, rather than guessing how fast setup will run.
+                    deadline = time.monotonic() + 10
+                    with connection.cursor() as cursor:
+                        while not release.is_set() and time.monotonic() < deadline:
+                            cursor.execute(
+                                "SELECT pg_backend_pid() = ANY(pg_blocking_pids(%s))",
+                                [batch_pid],
+                            )
+                            if cursor.fetchone()[0]:
+                                blocked.set()
+                                break
+                            release.wait(0.01)
+            except Exception as exc:
+                errors.append(exc)
+            finally:
+                inserted.set()
+                connection.close()
+
+        writer = threading.Thread(target=concurrent_insert)
+        writer.start()
+        # The batch selects fms[0] (the insert is uncommitted, so NOT EXISTS
+        # cannot see it), then waits on the unique index until it commits.
+        real_run_batch, results = build_extract_tasks._run_batch, []
+
+        def recording_run_batch(*args, **kwargs):
+            result = real_run_batch(*args, **kwargs)
+            results.append(result)
+            return result
+
+        try:
+            self.assertTrue(inserted.wait(10))
+            self.assertFalse(errors, errors)
+            with mock.patch.object(build_extract_tasks, "_run_batch", side_effect=recording_run_batch):
+                _build_global_tasks(batch_size=2)
+        finally:
+            release.set()
+            writer.join(10)
+        self.assertFalse(writer.is_alive())
+        self.assertFalse(errors, errors)
+        self.assertTrue(blocked.is_set(), "builder never waited on the competing insert")
+
+        # The race actually happened: a batch selected a row it then could
+        # not insert. Without this the test passes vacuously whenever the
+        # writer commits before the batch takes its snapshot.
+        self.assertTrue(
+            any(r is not None and r[0] < r[1] for r in results),
+            f"no batch conflicted: {results}",
+        )
+        self.assertEqual(
+            sorted(ExtractTask.objects.filter(dataset_id=d.id).values_list("fm_id", flat=True)),
+            sorted(f.id for f in fms),
+        )

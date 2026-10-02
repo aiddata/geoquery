@@ -447,6 +447,12 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_DEFAULT_QUEUE = "background"
 CELERY_TASK_ROUTES = {
     "analytics.tasks.processing.run_extract_task": {"queue": "processing"},
+    # Block extraction also reads /data, but runs on its own queue and worker
+    # deployment: dispatch_processing_tasks sizes its top-up from every slot
+    # on the processing workers, so sharing them would count block slots as
+    # idle per-task slots. Separate queues also let the two fleets scale
+    # independently.
+    "analytics.tasks.blocks.run_extract_block": {"queue": "blocks"},
 }
 
 STALE_TASK_MINUTES = int(os.environ.get("STALE_TASK_MINUTES", "30"))
@@ -482,6 +488,32 @@ EXTRACT_TASK_CLAIM_BATCH = int(os.environ.get("EXTRACT_TASK_CLAIM_BATCH", "64"))
 # the builder, not the queue, is what gates the pipeline long-run.
 N_EXTRACT_TASK_BUILDERS = int(os.environ.get("N_EXTRACT_TASK_BUILDERS", "4"))
 
+# Whether the builder's global wave runs. Block extraction (analytics.blocks)
+# computes global datasets directly from the same progress pairs, so once it
+# carries the load the builder only adds pending rows that blocks would have
+# written themselves. Turning this off leaves the non-global (coverage-gated)
+# branch running.
+EXTRACT_TASK_BUILDER_GLOBAL_ENABLED = (
+    os.environ.get("EXTRACT_TASK_BUILDER_GLOBAL_ENABLED", "1") == "1"
+)
+
+# Block extraction: one claim computes every active processing option of one
+# resource (or grouped resource bucket) for up to EXTRACT_BLOCK_SIZE features,
+# reading the raster once, and writes them all in one transaction. See
+# analytics/blocks.py and docs/get-involved/contributing/dev/database.md.
+EXTRACT_BLOCKS_ENABLED = os.environ.get("EXTRACT_BLOCKS_ENABLED", "0") == "1"
+# Features per block. Memory per block scales with this times geometry size,
+# and tasks per block with this times the resource's processing options.
+EXTRACT_BLOCK_SIZE = int(os.environ.get("EXTRACT_BLOCK_SIZE", "2000"))
+# How long a block's lease survives without a heartbeat before another worker
+# may take the block over. The heartbeat runs at a fifth of this.
+EXTRACT_BLOCK_LEASE_MINUTES = int(os.environ.get("EXTRACT_BLOCK_LEASE_MINUTES", "10"))
+# Comma-separated dataset ids to restrict blocks to, for a staged rollout.
+# Empty means every active global dataset.
+EXTRACT_BLOCK_DATASETS = [
+    int(x) for x in os.environ.get("EXTRACT_BLOCK_DATASETS", "").split(",") if x.strip()
+]
+
 # Whether extract-task build batches wait for fsync. Off by default: the
 # database is write-bandwidth bound (backends queue on WALWrite) and these
 # 5000-row batches are the largest single contributor, while the rows they
@@ -514,6 +546,13 @@ CELERY_BEAT_SCHEDULE = {
     "dispatch-processing-tasks": {
         "task": "analytics.tasks.maintenance.dispatch_processing_tasks",
         "schedule": crontab(minute="0,5,10,15,20,25,30,35,40,45,50,55"),
+    },
+    "dispatch-block-chains": {
+        "task": "analytics.tasks.blocks.dispatch_block_chains",
+        # The recovery trigger for block leases (database.md section 8): a
+        # chain that dies leaves its lease to expire, and this re-dispatches
+        # a chain to take the block over. A no-op unless EXTRACT_BLOCKS_ENABLED.
+        "schedule": crontab(minute="1,6,11,16,21,26,31,36,41,46,51,56"),
     },
     "process-user-requests": {
         "task": "analytics.tasks.maintenance.process_user_requests",

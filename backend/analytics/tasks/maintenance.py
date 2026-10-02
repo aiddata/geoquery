@@ -68,25 +68,22 @@ def reset_stale_requests():
     }
 
 
-@shared_task
-def dispatch_processing_tasks():
-    """Bootstrap or top up extract task chains to fill idle worker slots.
+def _idle_slots(task_name):
+    """Pool slots, and how many are already running or holding ``task_name``,
+    across the workers consuming that task's queue.
 
-    Each running extract task self-chains (dispatches the next task on
-    completion), so this beat only needs to fill gaps -- idle workers after
-    startup, or chains that died due to worker crashes.
+    Returns (workers, total_slots, in_flight). Shared by the per-task and
+    block top-up beats, each of which fills idle slots on its own queue.
     """
     from celery import current_app
-    from analytics.management.commands.run_processing_tasks import _run_processing_tasks
 
-    TASK = "analytics.tasks.processing.run_extract_task"
-    queue = settings.CELERY_TASK_ROUTES[TASK]["queue"]
+    queue = settings.CELERY_TASK_ROUTES[task_name]["queue"]
 
-    # Only workers consuming the processing queue can run extract tasks, so
-    # find those first and scope the remaining broadcasts to them. That keeps
-    # the background workers' pool slots out of the count, and lets each call
-    # return as soon as those workers reply instead of waiting out the timeout
-    # on stale entries in the gossip table.
+    # Only workers consuming the task's queue can run it, so find those first
+    # and scope the remaining broadcasts to them. That keeps other workers'
+    # pool slots out of the count, and lets each call return as soon as those
+    # workers reply instead of waiting out the timeout on stale entries in the
+    # gossip table.
     inspect = current_app.control.inspect(timeout=5.0)
     active_queues = inspect.active_queues() or {}
     workers = [
@@ -96,7 +93,7 @@ def dispatch_processing_tasks():
     ]
     if not workers:
         logger.warning("No workers consuming the %r queue; nothing dispatched", queue)
-        return {"dispatched": 0, "total_slots": 0, "in_flight": 0}
+        return workers, 0, 0
 
     inspect = current_app.control.inspect(destination=workers, timeout=5.0)
     stats = inspect.stats() or {}
@@ -116,8 +113,26 @@ def dispatch_processing_tasks():
         for name, tasks in source.items()
         if name in workers
         for t in tasks
-        if t["name"] == TASK
+        if t["name"] == task_name
     )
+    return workers, total_slots, in_flight
+
+
+@shared_task
+def dispatch_processing_tasks():
+    """Bootstrap or top up extract task chains to fill idle worker slots.
+
+    Each running extract task self-chains (dispatches the next task on
+    completion), so this beat only needs to fill gaps -- idle workers after
+    startup, or chains that died due to worker crashes.
+    """
+    from analytics.management.commands.run_processing_tasks import _run_processing_tasks
+
+    workers, total_slots, in_flight = _idle_slots(
+        "analytics.tasks.processing.run_extract_task"
+    )
+    if not workers:
+        return {"dispatched": 0, "total_slots": 0, "in_flight": 0}
     to_dispatch = max(0, total_slots - in_flight)
 
     logger.info(
@@ -218,10 +233,15 @@ def build_extract_tasks():
     """
     from analytics.management.commands.build_extract_tasks import (
         _build_non_global_tasks,
+        _global_build_enabled,
         try_acquire_build_run,
     )
 
-    if try_acquire_build_run():
+    if not _global_build_enabled():
+        # Block extraction computes global datasets from the progress pairs
+        # directly; see analytics/blocks.py.
+        logger.info("build_extract_tasks: global wave disabled, building non-global tasks only")
+    elif try_acquire_build_run():
         for _ in range(_n_extract_task_builders()):
             build_extract_tasks_worker.delay()
     else:

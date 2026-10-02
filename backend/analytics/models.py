@@ -162,6 +162,16 @@ class ExtractTaskBuildProgress(models.Model):
     )
     completed_up_to_fm_id = models.IntegerField(blank=True, null=True)
     claimed_at = models.DateTimeField(blank=True, null=True)
+    # Block extraction (analytics.blocks) tracks its own progress through the
+    # same pairs, independently of the builder's columns above:
+    # computed_up_to_fm_id is the highest feat_map.id whose tasks for this
+    # pair are computed (or were found already done or in flight), and
+    # block_claimed_at / block_claim_token are a lease. Every write a block
+    # makes is fenced on the token, so a worker whose lease expired and was
+    # taken over cannot commit.
+    computed_up_to_fm_id = models.IntegerField(blank=True, null=True)
+    block_claimed_at = models.DateTimeField(blank=True, null=True)
+    block_claim_token = models.UUIDField(blank=True, null=True)
 
     class Meta:
         db_table = "extract_task_build_progress"

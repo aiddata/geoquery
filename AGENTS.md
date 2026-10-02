@@ -19,7 +19,11 @@ docker compose up # add --build after changing dependencies or a Containerfile
 - Backend (Django dev server): http://localhost:8000
 - Django admin: http://localhost:8000/admin/
 
+<<<<<<< Updated upstream
 Services: `db` (PostGIS), `rabbitmq` (Celery broker), `backend` (Django), `worker-processing` and `worker-background` (Celery workers, one per queue), `beat` (Celery scheduler), `frontend` (Vite).
+=======
+Services: `db` (PostGIS), `rabbitmq` (Celery broker), `backend` (Django), `mcp` (FastMCP), `worker-processing`, `worker-blocks`, and `worker-background` (Celery workers, one per queue), `beat` (Celery scheduler), `frontend` (Vite).
+>>>>>>> Stashed changes
 
 ### Running Commands
 
@@ -40,7 +44,11 @@ Frontend commands run in the `frontend` container the same way, e.g. `docker com
 
 Only some paths are bind-mounted, so not every edit is picked up live:
 
+<<<<<<< Updated upstream
 - `./backend` → `/app/backend`, and the Django dev server auto-reloads. Editing Python code needs no rebuild, but changing `backend/pyproject.toml` does — dependencies are installed with `uv sync` at image build time.
+=======
+- `./backend` → `/app/backend` in `backend`, `mcp`, all three workers, and `beat`. The Django dev server auto-reloads; the MCP server, Celery workers, and beat do not, so restart those services after changing code they load. Python edits need no rebuild, but changing `backend/pyproject.toml` does — dependencies are installed with `uv sync` at image build time.
+>>>>>>> Stashed changes
 - `./frontend/src` and `./docs` are mounted; nothing else from `frontend/` is. Changes to `package.json`, `vite.config.ts`, `svelte.config.js`, or `components.json` require `docker compose up --build frontend`, as does anything that adds a dependency.
 
 ### Configuration and Data
@@ -49,9 +57,15 @@ Secrets come from a `.gitignored` `.env` at the repo root, which Compose reads a
 
 Three host directories are mounted into the containers, all `.gitignored`:
 
+<<<<<<< Updated upstream
 - `./data` → `/data` — input data (`/data/rasters`, `/data/boundaries`). Dataset JSON `path` fields must use the absolute container path, e.g. `/data/rasters/esa_landcover`. Mounted read-only into `worker-processing`, which is the only worker that gets it.
 - `./requests` → `/requests` — extraction results (`settings.REQUESTS_DIR`)
 - `./assets` → `/assets` — the GeoQuery methods paper, copied into each request's output zip by `worker-background`
+=======
+- `./data` → `/data` — `.gitignored` input data (`/data/rasters`, `/data/boundaries`). Dataset JSON `path` fields must use the absolute container path, e.g. `/data/rasters/esa_landcover`. Mounted read-write into `backend` for ingestion commands and read-only into `worker-processing` and `worker-blocks` for extraction.
+- `./requests` → `/requests` — `.gitignored` extraction results (`settings.REQUESTS_DIR`), mounted into `backend`, `mcp`, `worker-processing`, and `worker-background`
+- `./assets` → `/assets` — tracked documentation templates and papers used to build request outputs, mounted into `worker-background` (and copied into the backend image for production)
+>>>>>>> Stashed changes
 
 The backend and worker containers run as `${HOST_UID:-1000}:${HOST_GID:-1000}` so files written to those mounts stay owned by the host user. Export `HOST_UID`/`HOST_GID` if your account is not `1000:1000`.
 

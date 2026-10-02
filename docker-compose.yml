@@ -36,6 +36,7 @@ services:
       - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
       - DB_HOST=db
       - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,backend
+      - EXTRACT_TASK_BUILDER_GLOBAL_ENABLED=${EXTRACT_TASK_BUILDER_GLOBAL_ENABLED:-1}
       - REQUESTS_DIR=/requests
       - DOWNLOAD_BASE_URL=${DOWNLOAD_BASE_URL:-http://localhost:8000}
       - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-http://localhost:5173}
@@ -147,6 +148,41 @@ services:
       - db
       - rabbitmq
 
+  # Block extraction (analytics/blocks.py). Reads rasters like
+  # worker-processing, but on its own queue so the per-task top-up never
+  # counts these slots as its own.
+  worker-blocks:
+    build:
+      context: .
+      dockerfile: backend/Containerfile
+    image: geoquery-backend
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    command: uv run celery -A geoquery worker -Q blocks --loglevel=info --prefetch-multiplier=1
+    volumes:
+      - ./backend:/app/backend
+      - type: bind
+        source: ./data
+        target: /data
+        read_only: true
+        bind:
+          create_host_path: false
+    environment:
+      - DJANGO_DEBUG=true
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
+      - DB_HOST=db
+      - EXTRACT_BLOCKS_ENABLED=${EXTRACT_BLOCKS_ENABLED:-0}
+      - EXTRACT_BLOCK_SIZE=${EXTRACT_BLOCK_SIZE:-2000}
+      - EXTRACT_BLOCK_DATASETS=${EXTRACT_BLOCK_DATASETS:-}
+      - PG_RW_DBNAME=geoquery
+      - PG_RW_USER=django_user
+      - PG_RW_PASSWORD=dev_password
+      - PG_RW_HOST=db
+      - PG_RW_PORT=5432
+      - PG_SSL_MODE=disable
+    depends_on:
+      - db
+      - rabbitmq
+
   worker-background:
     build:
       context: .
@@ -164,6 +200,9 @@ services:
       - DB_HOST=db
       - REQUESTS_DIR=/requests
       - ASSETS_DIR=/assets
+      # The block top-up beat and the builder both run on this queue.
+      - EXTRACT_BLOCKS_ENABLED=${EXTRACT_BLOCKS_ENABLED:-0}
+      - EXTRACT_TASK_BUILDER_GLOBAL_ENABLED=${EXTRACT_TASK_BUILDER_GLOBAL_ENABLED:-1}
       - DOWNLOAD_BASE_URL=${DOWNLOAD_BASE_URL:-http://localhost:8000}
       - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-http://localhost:5173}
       - EMAIL_PASSWORD=${EMAIL_PASSWORD}

@@ -75,6 +75,46 @@ def _column_for(values_by_pos):
     return None
 
 
+def data_values(produced, n, label):
+    """Yield ``(name, field, value)`` for each ExtractData row of one task.
+
+    ``produced`` maps name -> {position: raw value}, and ``n`` is the task's
+    len(resource_ids). ``field`` is the ExtractData column the value belongs
+    in -- a scalar column when n == 1, an array column position-aligned with
+    resource_ids otherwise -- or None when every position is nodata, in which
+    case the row is still written with no value column set. ``label`` only
+    identifies the task in log messages.
+
+    Shared by the per-task path and block extraction (analytics.blocks) so
+    both store values identically.
+    """
+    for name, values_by_pos in produced.items():
+        column = _column_for(values_by_pos)
+        if column is None:
+            yield name, None, None
+        elif n == 1:
+            classified = _classify_value(values_by_pos.get(0))
+            if classified is None:
+                yield name, None, None
+            else:
+                yield name, f"{column}_value", classified[1]
+        else:
+            values = [None] * n
+            for i, value in values_by_pos.items():
+                classified = _classify_value(value)
+                if classified is not None:
+                    if classified[0] != column:
+                        logger.warning(
+                            "Task %s name %s position %d: %s value in a %s "
+                            "row. Stored as-is; a genuinely incompatible type "
+                            "will raise at insert. A name is assumed to "
+                            "produce one type across every position.",
+                            label, name, i, classified[0], column,
+                        )
+                    values[i] = classified[1]
+            yield name, f"{column}_values", values
+
+
 # Distinct from accounts.adopt_auth_user's ADVISORY_LOCK_ID (8419307742115) --
 # any int8 works for pg_advisory_xact_lock as long as it doesn't collide with
 # another lock use in the codebase.
@@ -483,33 +523,14 @@ def _run_extract_task(task_id, dataset_id=None):
         # What broadens is the MEANING of an empty cell, from "failed or not
         # yet processed" to "failed or nodata". Both render identically.
         rows = []
-        for name, values_by_pos in produced.items():
+        for name, field, value in data_values(produced, n, task_id):
             row = ExtractData(
                 extract_task_id=task_id,
                 dataset_id=task.dataset_id,
                 name=name,
             )
-            column = _column_for(values_by_pos)
-            if column is not None:
-                if n == 1:
-                    classified = _classify_value(values_by_pos.get(0))
-                    if classified is not None:
-                        setattr(row, f"{column}_value", classified[1])
-                else:
-                    values = [None] * n
-                    for i, value in values_by_pos.items():
-                        classified = _classify_value(value)
-                        if classified is not None:
-                            if classified[0] != column:
-                                logger.warning(
-                                    "Task %s name %s position %d: %s value in a %s "
-                                    "row. Stored as-is; a genuinely incompatible type "
-                                    "will raise at insert. A name is assumed to "
-                                    "produce one type across every position.",
-                                    task_id, name, i, classified[0], column,
-                                )
-                            values[i] = classified[1]
-                    setattr(row, f"{column}_values", values)
+            if field is not None:
+                setattr(row, field, value)
             rows.append(row)
 
         # The delete is guarded on `produced` being non-empty: an empty one
