@@ -558,6 +558,60 @@ class BuildProgressWatermarkTest(TransactionTestCase):
         self.assertEqual(pair.completed_up_to_fm_id, before)
         self.assertEqual(ExtractTask.objects.filter(dataset_id=d.id).count(), 2)
 
+    def test_a_task_past_the_watermark_still_blocks_a_duplicate(self):
+        # The existence check is bounded to fm_id > watermark. Tasks the
+        # request path created past the watermark are exactly what it must
+        # still find; a bound written the wrong way round would hide them.
+        d = self._dataset_with_one_resource("wm_bound")
+        fms = self._make_fms(3)
+        pair = self._pair_for(d)
+        po = ProcessingOption.objects.get(dataset_id=d.id)
+        resource = DatasetResource.objects.get(dataset_id=d.id)
+        ExtractTask.objects.create(dataset_id=d.id, resource_ids=[resource.id], fm=fms[2], po=po)
+
+        added, _ = self._run_one_batch(d, pair, batch_size=50, start_from=fms[0].id)
+
+        self.assertEqual(added, 1, "only fms[1] is past the watermark and unbuilt")
+        self.assertEqual(
+            sorted(ExtractTask.objects.filter(dataset_id=d.id).values_list("fm_id", flat=True)),
+            [fms[1].id, fms[2].id],
+        )
+
+    def test_the_existence_check_is_bounded_by_the_watermark(self):
+        """The bound is logically redundant, so no row-level assertion can
+        catch its removal; what it buys is the planner seeing it. Without it,
+        a pair whose rows postdate the statistics was planned as a rescan of
+        everything it had built, per candidate feature -- 24-30s per batch
+        against ~110ms with it, measured on a production replica.
+        """
+        from analytics.management.commands import build_extract_tasks as cmd
+
+        d = self._dataset_with_one_resource("wm_plan")
+        fms = self._make_fms(2)
+        pair = self._pair_for(d)
+        po = ProcessingOption.objects.get(dataset_id=d.id)
+        resource = DatasetResource.objects.get(dataset_id=d.id)
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "EXPLAIN " + cmd._INSERT_GLOBAL_BATCH_SQL,
+                {
+                    "dataset_id": d.id,
+                    "resource_ids": [resource.id],
+                    "task_group_period": None,
+                    "po_id": po.id,
+                    "completed_up_to_fm_id": fms[0].id,
+                    "batch_size": 50,
+                    "progress_id": pair.id,
+                },
+            )
+            plan = "\n".join(row[0] for row in cursor.fetchall())
+
+        self.assertIn(
+            f"fm_id > {fms[0].id}", plan,
+            "the extract_tasks probe must carry the watermark bound itself",
+        )
+
     def test_the_watermark_advances_in_the_same_statement_as_the_insert(self):
         """Not stylistic: _run_batch commits asynchronously, so a separately
         committed watermark could survive a crash that lost the insert, and

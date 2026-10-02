@@ -193,6 +193,18 @@ _TOUCH_CLAIM_SQL = "UPDATE extract_task_build_progress SET claimed_at = NOW() WH
 # without it a task with custom kwargs hid the default task this builds.
 # resource_ids is still compared in full, since the hash is only 32 bits.
 #
+# et.fm_id > %(completed_up_to_fm_id)s changes nothing logically -- it
+# already follows from et.fm_id = fm.id and fm.id > the watermark -- but
+# Postgres does not carry inequalities across an equality, so without it the
+# planner cannot see that the probe only concerns rows past the watermark.
+# That matters for a pair being built: its rows postdate the partition's
+# statistics, so the planner estimates a handful (19, against 70,000 actual)
+# and picks a nested-loop anti join that rescans every row the pair already
+# has once per candidate feature. Batch time then grows with the pair's
+# progress. Measured on a production replica, pair (ds 24, [3288], po 34)
+# with 70k rows built: 24-30s per batch without the bound, ~110ms with it.
+# Fully built pairs and empty partitions were unaffected (~45ms, ~3ms).
+#
 # The ::integer[] casts on %(resource_ids)s are required, not decoration:
 # psycopg 3 sends a Python int list as the smallest array type that fits
 # (e.g. '{590}'::int2[]), and Postgres has no integer[] = smallint[] operator.
@@ -216,6 +228,7 @@ _INSERT_GLOBAL_BATCH_SQL = """
                 AND et.kwargs IS NULL
                 AND et.resource_ids_hash = extract_tasks_resource_ids_hash(%(resource_ids)s::integer[])
                 AND et.resource_ids = %(resource_ids)s::integer[]
+                AND et.fm_id > %(completed_up_to_fm_id)s
           )
         ORDER BY fm.id
         LIMIT %(batch_size)s
