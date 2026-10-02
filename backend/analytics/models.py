@@ -175,7 +175,7 @@ class ExtractTaskBuildProgress(models.Model):
 
 class ExtractTaskBuildRun(models.Model):
     """Singleton row coordinating parallel build_extract_tasks workers so the
-    daily beat schedule can't pile up a fresh wave of workers on top of one
+    beat schedule can't pile up a fresh wave of workers on top of one
     still grinding through the backlog -- the same "unbounded daily pileup"
     pattern that caused the original extract_tasks bloat incident, just at
     the task-dispatch level instead of the transaction level.
@@ -186,9 +186,11 @@ class ExtractTaskBuildRun(models.Model):
     "workers died silently" (stale heartbeat) without needing to guess how
     long the whole backlog should take.
 
-    build_extract_tasks.py accesses this table exclusively through raw SQL
-    (see try_acquire_build_run et al.) -- this class exists purely so the
-    model's migration state stays anchored to a real class in models.py.
+    run_id fences a wave's heartbeat and completion; workers_remaining
+    releases its guard when the last worker finishes, even with a capped
+    backlog. An interrupted wave still expires via last_progress_at.
+
+    This class keeps the model's migration state anchored in models.py.
     Without it, `makemigrations` sees a model in migration history with no
     matching class in models.py and offers to delete it, which is exactly
     what happened once already (migration 0026, reverted): the table looked
@@ -199,6 +201,8 @@ class ExtractTaskBuildRun(models.Model):
     id = models.SmallIntegerField(primary_key=True, default=1)
     in_progress = models.BooleanField(default=False)
     last_progress_at = models.DateTimeField(blank=True, null=True)
+    run_id = models.UUIDField(blank=True, null=True)
+    workers_remaining = models.PositiveIntegerField(default=0, db_default=0)
 
     class Meta:
         db_table = "extract_task_build_run"

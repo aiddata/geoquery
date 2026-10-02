@@ -1,8 +1,14 @@
 import time
 from logging import getLogger
+from uuid import uuid4
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import DatabaseError, connection, transaction
+from django.db.models import Case, F, When
+from django.db.models.functions import Now
+
+from analytics.models import ExtractTaskBuildProgress, ExtractTaskBuildRun
 
 
 logger = getLogger(__name__)
@@ -11,7 +17,6 @@ logger = getLogger(__name__)
 # transaction (which pins the vacuum horizon and, on the NFS-backed data
 # volume, can wedge indefinitely on a stalled write with no way to recover
 # short of killing the backend -- see the extract_tasks bloat incident).
-BATCH_SIZE = 5000
 BATCH_STATEMENT_TIMEOUT_MS = 5 * 60 * 1000  # 5 minutes
 
 # Non-global datasets: gated by a confirmed coverage row (status=1). This
@@ -140,6 +145,7 @@ _CLAIM_PROGRESS_PAIRS_SQL = """
     UPDATE extract_task_build_progress
     SET claimed_at = NOW()
     WHERE id = ANY(%s)
+    RETURNING claimed_at
 """
 
 _RELEASE_CLAIM_SQL = "UPDATE extract_task_build_progress SET claimed_at = NULL WHERE id = %s"
@@ -276,10 +282,11 @@ RUN_STALE_MINUTES = 10
 
 _TRY_ACQUIRE_RUN_SQL = """
     UPDATE extract_task_build_run
-    SET in_progress = TRUE, last_progress_at = NOW()
+    SET in_progress = TRUE, last_progress_at = NOW(),
+        run_id = %s, workers_remaining = %s
     WHERE id = 1
       AND (NOT in_progress OR last_progress_at < NOW() - INTERVAL '{stale_minutes} minutes')
-    RETURNING TRUE
+    RETURNING run_id
 """.format(stale_minutes=RUN_STALE_MINUTES)
 
 _HEARTBEAT_RUN_SQL = "UPDATE extract_task_build_run SET last_progress_at = NOW() WHERE id = 1"
@@ -364,13 +371,48 @@ def _run_batch(sql, params, fetch=False):
         return None
 
 
-def try_acquire_build_run():
-    """Claim the singleton run-lock. Returns True if the caller should dispatch
-    a fresh wave of parallel workers, False if a previous wave's heartbeat is
-    still fresh (already running)."""
+def try_acquire_build_run(worker_count=1):
+    """Return a new wave's UUID, or None while a healthy wave is running.
+
+    The existing stale heartbeat also reaps the worker count after a crash.
+    """
     with connection.cursor() as cursor:
-        cursor.execute(_TRY_ACQUIRE_RUN_SQL)
-        return cursor.fetchone() is not None
+        cursor.execute(_TRY_ACQUIRE_RUN_SQL, [uuid4(), worker_count])
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+
+def finish_build_worker(run_id):
+    # The last worker releases the wave even when capped with work still
+    # left. A late worker from a reaped wave cannot finish a replacement.
+    ExtractTaskBuildRun.objects.filter(pk=1, run_id=run_id, workers_remaining__gt=0).update(
+        workers_remaining=F("workers_remaining") - 1,
+        in_progress=Case(When(workers_remaining__gt=1, then=True), default=False),
+    )
+
+
+def _heartbeat_build_run(run_id):
+    if run_id is None:
+        with connection.cursor() as cursor:
+            cursor.execute(_HEARTBEAT_RUN_SQL)
+        return True
+    return bool(
+        ExtractTaskBuildRun.objects.filter(pk=1, run_id=run_id, in_progress=True).update(last_progress_at=Now())
+    )
+
+
+def _release_unstarted_claims(pair_ids, claimed_at):
+    # Clear only claims still belonging to this page; a delayed worker must
+    # not clear a replacement's claims after CLAIM_STALE_MINUTES.
+    ExtractTaskBuildProgress.objects.filter(pk__in=pair_ids, claimed_at=claimed_at).update(claimed_at=None)
+
+
+def _build_limits(batch_size, max_tasks):
+    batch_size = settings.EXTRACT_TASK_BUILD_BATCH_SIZE if batch_size is None else batch_size
+    max_tasks = settings.EXTRACT_TASK_BUILD_MAX_TASKS if max_tasks is None else max_tasks
+    if batch_size < 1 or max_tasks < 0:
+        raise ValueError("batch_size must be positive and max_tasks must be nonnegative")
+    return batch_size, max_tasks
 
 
 def _any_incomplete_pairs(current_max_fm_id):
@@ -408,10 +450,12 @@ def _claim_next_progress_pairs(current_max_fm_id, limit):
         pairs = cursor.fetchall()
         if pairs:
             cursor.execute(_CLAIM_PROGRESS_PAIRS_SQL, [[p[0] for p in pairs]])
+            claimed_at = cursor.fetchone()[0]
+            pairs = [(*p, claimed_at) for p in pairs]
         return pairs
 
 
-def _build_global_tasks(batch_size=BATCH_SIZE):
+def _build_global_tasks(batch_size=None, max_tasks=None, run_id=None):
     """One parallel worker's share of the global-dataset backlog.
 
     Safe to run many of these concurrently: pairs are claimed via
@@ -419,7 +463,11 @@ def _build_global_tasks(batch_size=BATCH_SIZE):
     UPDATE, which is what makes SKIP LOCKED actually exclusive) so concurrent
     workers never claim the same pair, and each pair's batch is independently
     transactional.
+
+    max_tasks counts newly inserted rows, not candidates or batches. A
+    shortened final batch must not mark a pair caught up if it hit its limit.
     """
+    batch_size, max_tasks = _build_limits(batch_size, max_tasks)
     total_added = 0
 
     with connection.cursor() as cursor:
@@ -428,54 +476,68 @@ def _build_global_tasks(batch_size=BATCH_SIZE):
         cursor.execute(_MAX_FEAT_MAP_ID_SQL)
         current_max_fm_id = cursor.fetchone()[0]
 
-    while True:
+    while not max_tasks or total_added < max_tasks:
+        if run_id is not None and not _heartbeat_build_run(run_id):
+            break
         with transaction.atomic():
             pairs = _claim_next_progress_pairs(current_max_fm_id, PAIRS_PER_ROUND)
 
         if not pairs:
-            _release_build_run_if_done(current_max_fm_id)
+            if run_id is None:
+                _release_build_run_if_done(current_max_fm_id)
             break
 
         made_progress = False
-        for progress_id, resource_ids, po_id, completed_up_to_fm_id, dataset_id, task_group_period in pairs:
-            with connection.cursor() as cursor:
-                cursor.execute(_TOUCH_CLAIM_SQL, [progress_id])
-            result = _run_batch(
-                _INSERT_GLOBAL_BATCH_SQL,
-                {
-                    "dataset_id": dataset_id,
-                    "resource_ids": resource_ids,
-                    "task_group_period": task_group_period,
-                    "po_id": po_id,
-                    "completed_up_to_fm_id": completed_up_to_fm_id or 0,
-                    "batch_size": batch_size,
-                    "progress_id": progress_id,
-                },
-                fetch=True,
-            )
-            if result is None:
+        unstarted = {p[0] for p in pairs}
+        try:
+            for (
+                progress_id, resource_ids, po_id, completed_up_to_fm_id,
+                dataset_id, task_group_period, _claimed_at,
+            ) in pairs:
+                if max_tasks and total_added >= max_tasks:
+                    break
+                if run_id is not None and not _heartbeat_build_run(run_id):
+                    break
+                unstarted.remove(progress_id)
+                insert_limit = min(batch_size, max_tasks - total_added) if max_tasks else batch_size
                 with connection.cursor() as cursor:
-                    cursor.execute(_RELEASE_CLAIM_SQL, [progress_id])
-                continue  # this pair failed/timed out; try the rest of the page
+                    cursor.execute(_TOUCH_CLAIM_SQL, [progress_id])
+                result = _run_batch(
+                    _INSERT_GLOBAL_BATCH_SQL,
+                    {
+                        "dataset_id": dataset_id,
+                        "resource_ids": resource_ids,
+                        "task_group_period": task_group_period,
+                        "po_id": po_id,
+                        "completed_up_to_fm_id": completed_up_to_fm_id or 0,
+                        "batch_size": insert_limit,
+                        "progress_id": progress_id,
+                    },
+                    fetch=True,
+                )
+                if result is None:
+                    with connection.cursor() as cursor:
+                        cursor.execute(_RELEASE_CLAIM_SQL, [progress_id])
+                    continue  # this pair failed/timed out; try the rest of the page
 
-            # The watermark for these rows has already been advanced by the
-            # statement above, atomically with the insert.
-            added, _max_fm_id = result
+                # The statement already advanced the watermark atomically.
+                added, _max_fm_id = result
+                made_progress = True
+                total_added += added
+                _heartbeat_build_run(run_id)
+                logger.info(
+                    "build_extract_tasks global batch: progress_id=%s resources=%s po=%s added %d (total %d)",
+                    progress_id, resource_ids, po_id, added, total_added,
+                )
 
-            made_progress = True
-            total_added += added
-            with connection.cursor() as cursor:
-                cursor.execute(_HEARTBEAT_RUN_SQL)
-            logger.info(
-                "build_extract_tasks global batch: progress_id=%s resources=%s po=%s added %d (total %d)",
-                progress_id, resource_ids, po_id, added, total_added,
-            )
-
-            with connection.cursor() as cursor:
-                if added < batch_size:
-                    cursor.execute(_MARK_PAIR_CAUGHT_UP_SQL, [current_max_fm_id, progress_id])
-                else:
-                    cursor.execute(_RELEASE_CLAIM_SQL, [progress_id])
+                with connection.cursor() as cursor:
+                    if added < insert_limit:
+                        cursor.execute(_MARK_PAIR_CAUGHT_UP_SQL, [current_max_fm_id, progress_id])
+                    else:
+                        cursor.execute(_RELEASE_CLAIM_SQL, [progress_id])
+        finally:
+            if unstarted:
+                _release_unstarted_claims(unstarted, pairs[0][-1])
 
         if not made_progress:
             logger.warning(
@@ -488,20 +550,22 @@ def _build_global_tasks(batch_size=BATCH_SIZE):
     return total_added
 
 
-def _build_non_global_tasks(batch_size=BATCH_SIZE):
+def _build_non_global_tasks(batch_size=None, max_tasks=None):
+    batch_size, max_tasks = _build_limits(batch_size, max_tasks)
     total_added = 0
-    while True:
-        added = _run_batch(_INSERT_NON_GLOBAL_BATCH_SQL, [batch_size])
+    while not max_tasks or total_added < max_tasks:
+        insert_limit = min(batch_size, max_tasks - total_added) if max_tasks else batch_size
+        added = _run_batch(_INSERT_NON_GLOBAL_BATCH_SQL, [insert_limit])
         if added is None:
             break
         total_added += added
         logger.info("build_extract_tasks non-global batch: added %d (total %d)", added, total_added)
-        if added < batch_size:
+        if added < insert_limit:
             break
     return total_added
 
 
-def _build_extract_tasks(batch_size=BATCH_SIZE):
+def _build_extract_tasks(batch_size=None, max_tasks=None):
     """Create ExtractTask rows for covered dataset/feature pairs that don't have one yet.
 
     Runs both branches in this one process (used by the management command
@@ -510,8 +574,11 @@ def _build_extract_tasks(batch_size=BATCH_SIZE):
     see tasks/maintenance.py.
     """
     t_start = time.perf_counter()
-
-    total_added = _build_global_tasks(batch_size) + _build_non_global_tasks(batch_size)
+    batch_size, max_tasks = _build_limits(batch_size, max_tasks)
+    total_added = _build_global_tasks(batch_size, max_tasks)
+    if not max_tasks or total_added < max_tasks:
+        remaining = max_tasks - total_added if max_tasks else 0
+        total_added += _build_non_global_tasks(batch_size, remaining)
 
     elapsed = time.perf_counter() - t_start
     logger.info("Generated %d new extract tasks in %.2fs", total_added, elapsed)

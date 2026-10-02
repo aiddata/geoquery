@@ -212,7 +212,7 @@ def build_extract_tasks():
     Fire-and-forget for the parallel workers: this does not wait on them,
     since blocking on child-task results from within the same worker pool
     risks deadlock if all concurrency slots end up waiting rather than
-    working. try_acquire_build_run guards against celery-beat's daily
+    working. try_acquire_build_run guards against celery-beat's configured
     schedule launching a fresh wave on top of one still working through the
     backlog -- see build_extract_tasks.py for why that matters.
     """
@@ -221,9 +221,11 @@ def build_extract_tasks():
         try_acquire_build_run,
     )
 
-    if try_acquire_build_run():
-        for _ in range(_n_extract_task_builders()):
-            build_extract_tasks_worker.delay()
+    worker_count = _n_extract_task_builders()
+    run_id = try_acquire_build_run(worker_count)
+    if run_id is not None:
+        for _ in range(worker_count):
+            build_extract_tasks_worker.delay(run_id=str(run_id))
     else:
         logger.info("build_extract_tasks: a wave is already in progress, not dispatching another")
 
@@ -231,12 +233,16 @@ def build_extract_tasks():
 
 
 @shared_task
-def build_extract_tasks_worker():
+def build_extract_tasks_worker(run_id=None):
     """One parallel worker's share of the global-dataset backlog. Safe to run
     many of these concurrently -- see build_extract_tasks.py."""
-    from analytics.management.commands.build_extract_tasks import _build_global_tasks
+    from analytics.management.commands.build_extract_tasks import _build_global_tasks, finish_build_worker
 
-    return _build_global_tasks()
+    try:
+        return _build_global_tasks(run_id=run_id)
+    finally:
+        if run_id is not None:
+            finish_build_worker(run_id)
 
 
 @shared_task

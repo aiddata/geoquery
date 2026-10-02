@@ -1,9 +1,13 @@
+import os
+import runpy
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest import mock
 
 from django.contrib.gis.geos import Point
+from django.core.exceptions import ImproperlyConfigured
 from django.db import connection
-from django.test import TransactionTestCase
+from django.test import SimpleTestCase, TransactionTestCase
 from django.test.utils import CaptureQueriesContext
 
 from analytics.management.commands.build_extract_tasks import _build_extract_tasks, _build_global_tasks
@@ -234,14 +238,12 @@ class BuildExtractTasksGroupingTest(TransactionTestCase):
 
 
 class BuildRunDispatchGuardTest(TransactionTestCase):
-    """The run-lock is what makes an hourly build beat safe.
+    """The run guard makes frequent build triggers safe.
 
-    The beat fires hourly so a wave killed mid-flight (rolling deploy,
-    eviction, OOM) resumes within the hour instead of waiting for the next
-    daily tick -- the run-lock and per-pair claims expire on their own, so
-    the work is claimable again, but nothing re-dispatched workers to claim
-    it. Firing that often is only safe because try_acquire_build_run refuses
-    to launch a second fan-out on top of a live one.
+    Healthy waves reject overlapping launches. Finished/capped waves release
+    the guard when their last worker exits; interrupted waves recover through
+    the stale heartbeat and a later trigger. The defaults trigger every ten
+    minutes, and operators can choose a different cadence.
     """
 
     def set_run(self, *, in_progress, minutes_ago):
@@ -270,9 +272,8 @@ class BuildRunDispatchGuardTest(TransactionTestCase):
         delay.assert_not_called()
 
     def test_a_dead_wave_is_restarted(self):
-        # RUN_STALE_MINUTES is 30; this is the case the hourly beat exists
-        # for -- workers gone, lock still flagged in_progress, nothing
-        # re-dispatching them.
+        # A crashed worker never decrements workers_remaining. The next
+        # trigger after the heartbeat goes stale must still launch a new wave.
         from analytics.management.commands.build_extract_tasks import (
             RUN_STALE_MINUTES,
         )
@@ -329,43 +330,67 @@ class BuildRunDispatchGuardTest(TransactionTestCase):
 
         self.assertEqual(delay.call_count, 1)
 
+    def test_only_the_last_worker_releases_a_capped_wave(self):
+        from analytics.management.commands import build_extract_tasks as cmd
+        from analytics.models import ExtractTaskBuildRun
+        from analytics.tasks import maintenance
+
+        self.set_run(in_progress=False, minutes_ago=1)
+        run_id = cmd.try_acquire_build_run(worker_count=2)
+        with mock.patch.object(cmd, "_build_global_tasks", return_value=3):
+            maintenance.build_extract_tasks_worker(run_id=str(run_id))
+            run = ExtractTaskBuildRun.objects.get(id=1)
+            self.assertTrue(run.in_progress)
+            self.assertEqual(run.workers_remaining, 1)
+            self.assertIsNone(cmd.try_acquire_build_run(worker_count=2))
+            maintenance.build_extract_tasks_worker(run_id=str(run_id))
+
+        run.refresh_from_db()
+        self.assertFalse(run.in_progress)
+        self.assertEqual(run.workers_remaining, 0)
+        self.assertIsNotNone(cmd.try_acquire_build_run(worker_count=2))
+
+    def test_a_late_worker_cannot_finish_or_heartbeat_a_replacement_wave(self):
+        from analytics.management.commands import build_extract_tasks as cmd
+        from analytics.models import ExtractTaskBuildRun
+
+        self.set_run(in_progress=False, minutes_ago=1)
+        old_run_id = cmd.try_acquire_build_run(worker_count=2)
+        self.set_run(in_progress=True, minutes_ago=cmd.RUN_STALE_MINUTES + 1)
+        new_run_id = cmd.try_acquire_build_run(worker_count=2)
+        self.assertNotEqual(old_run_id, new_run_id)
+
+        cmd.finish_build_worker(old_run_id)
+        self.assertFalse(cmd._heartbeat_build_run(old_run_id))
+        run = ExtractTaskBuildRun.objects.get(id=1)
+        self.assertTrue(run.in_progress)
+        self.assertEqual(run.workers_remaining, 2)
+        self.assertEqual(run.run_id, new_run_id)
+
+    def test_a_failed_worker_releases_its_wave_slot(self):
+        from analytics.management.commands import build_extract_tasks as cmd
+        from analytics.models import ExtractTaskBuildRun
+        from analytics.tasks import maintenance
+
+        self.set_run(in_progress=False, minutes_ago=1)
+        run_id = cmd.try_acquire_build_run()
+        with mock.patch.object(cmd, "_build_global_tasks", side_effect=RuntimeError("failed")):
+            with self.assertRaises(RuntimeError):
+                maintenance.build_extract_tasks_worker(run_id=str(run_id))
+        self.assertFalse(ExtractTaskBuildRun.objects.get(id=1).in_progress)
+
 
 class BuildBeatScheduleTest(TransactionTestCase):
-    def test_build_extract_tasks_ticks_faster_than_the_run_lock_goes_stale(self):
-        """The tick interval must be shorter than RUN_STALE_MINUTES.
-
-        These two numbers decide how long a killed wave stays dead, and they
-        used to disagree: an hourly tick against a 30-minute staleness window
-        meant a wave dying just after a tick was not yet reclaimable at the
-        next one, so recovery slipped a whole hour. Measured on 2026-09-24 --
-        wave killed 00:07, claimable 00:37, the 00:30 tick 7 minutes too
-        early, nothing built until 01:30. A tick strictly shorter than the
-        window is what bounds recovery at window + tick.
-        """
+    def test_build_extract_tasks_uses_the_configured_interval(self):
         from django.conf import settings
-
-        from analytics.management.commands.build_extract_tasks import RUN_STALE_MINUTES
 
         entry = settings.CELERY_BEAT_SCHEDULE["build-extract-tasks"]
         self.assertEqual(
             entry["task"], "analytics.tasks.maintenance.build_extract_tasks"
         )
 
-        # Every hour is covered, and within the hour the gap between ticks is
-        # what bounds recovery.
-        schedule = entry["schedule"]
-        self.assertEqual(set(schedule.hour), set(range(24)))
-        minutes = sorted(schedule.minute)
-        self.assertGreater(len(minutes), 1, "a single tick per hour cannot bound recovery")
-        gaps = [b - a for a, b in zip(minutes, minutes[1:])] + [60 - minutes[-1] + minutes[0]]
-        # Recovery is bounded by (staleness window + tick gap): the wave waits
-        # out the window, then waits for the next tick. Keeping the gap no
-        # wider than the window caps that at twice the window; letting it grow
-        # past the window is what produced the 83-minute stall.
-        self.assertLessEqual(
-            max(gaps), RUN_STALE_MINUTES,
-            "a tick gap wider than the staleness window unbounds recovery",
-        )
+        self.assertGreaterEqual(entry["schedule"], 1)
+        self.assertEqual(entry["schedule"], settings.EXTRACT_TASK_BUILD_INTERVAL_SECONDS)
 
     def test_result_backend_cleanup_is_scheduled(self):
         # Without this entry nothing prunes django_celery_results_taskresult;
@@ -558,6 +583,95 @@ class BuildProgressWatermarkTest(TransactionTestCase):
         self.assertEqual(pair.completed_up_to_fm_id, before)
         self.assertEqual(ExtractTask.objects.filter(dataset_id=d.id).count(), 2)
 
+    def test_a_capped_worker_trims_the_last_batch_and_resumes(self):
+        d = self._dataset_with_one_resource("capped")
+        fms = self._make_fms(8)
+
+        with self.settings(EXTRACT_TASK_BUILD_BATCH_SIZE=3, EXTRACT_TASK_BUILD_MAX_TASKS=5):
+            self.assertEqual(_build_global_tasks(), 5)
+            pair = ExtractTaskBuildProgress.objects.get(po__dataset_id=d.id)
+            self.assertEqual(pair.completed_up_to_fm_id, fms[4].id)
+            self.assertIsNone(pair.claimed_at)
+            self.assertEqual(_build_global_tasks(), 3)
+
+        self.assertEqual(ExtractTask.objects.filter(dataset_id=d.id).count(), 8)
+        pair.refresh_from_db()
+        self.assertEqual(pair.completed_up_to_fm_id, fms[-1].id)
+
+    def test_a_cap_smaller_than_one_batch_releases_unstarted_pairs(self):
+        d = self._dataset_with_one_resource("small_cap")
+        DatasetResource.objects.create(
+            dataset=d, name="small_cap-r2", path="r2.tif",
+            temporal=datetime(2021, 1, 1, tzinfo=timezone.utc),
+        )
+        self._make_fms(4)
+
+        self.assertEqual(_build_global_tasks(batch_size=5, max_tasks=2), 2)
+        pairs = ExtractTaskBuildProgress.objects.filter(po__dataset_id=d.id)
+        self.assertEqual(pairs.count(), 2)
+        self.assertFalse(pairs.filter(claimed_at__isnull=False).exists())
+        self.assertEqual(_build_global_tasks(batch_size=5, max_tasks=0), 6)
+        self.assertEqual(ExtractTask.objects.filter(dataset_id=d.id).count(), 8)
+
+    def test_preexisting_tasks_do_not_consume_the_worker_budget(self):
+        d = self._dataset_with_one_resource("existing_cap")
+        fms = self._make_fms(5)
+        po = ProcessingOption.objects.get(dataset_id=d.id)
+        resource = DatasetResource.objects.get(dataset_id=d.id)
+        ExtractTask.objects.create(dataset_id=d.id, resource_ids=[resource.id], fm=fms[0], po=po)
+
+        self.assertEqual(_build_global_tasks(batch_size=3, max_tasks=2), 2)
+        self.assertEqual(ExtractTask.objects.filter(dataset_id=d.id).count(), 3)
+
+    def test_non_global_workers_also_obey_the_cap(self):
+        from analytics.management.commands.build_extract_tasks import _build_non_global_tasks
+
+        d = self._dataset_with_one_resource("non_global_cap")
+        d.is_global = False
+        d.save(update_fields=["is_global"])
+        for fm in self._make_fms(8):
+            Coverage.objects.create(dataset=d, geom=fm.geom, status=1)
+
+        with self.settings(EXTRACT_TASK_BUILD_BATCH_SIZE=3, EXTRACT_TASK_BUILD_MAX_TASKS=5):
+            self.assertEqual(_build_non_global_tasks(), 5)
+            self.assertEqual(_build_non_global_tasks(), 3)
+        self.assertEqual(ExtractTask.objects.filter(dataset_id=d.id).count(), 8)
+
+    def test_the_management_command_shares_one_budget_across_both_branches(self):
+        global_ds = self._dataset_with_one_resource("shared_global")
+        non_global_ds = self._dataset_with_one_resource("shared_non_global")
+        non_global_ds.is_global = False
+        non_global_ds.save(update_fields=["is_global"])
+        for fm in self._make_fms(2):
+            Coverage.objects.create(dataset=non_global_ds, geom=fm.geom, status=1)
+
+        with self.settings(EXTRACT_TASK_BUILD_BATCH_SIZE=2, EXTRACT_TASK_BUILD_MAX_TASKS=3):
+            self.assertEqual(_build_extract_tasks()["added"], 3)
+        self.assertEqual(ExtractTask.objects.filter(dataset_id=global_ds.id).count(), 2)
+        self.assertEqual(ExtractTask.objects.filter(dataset_id=non_global_ds.id).count(), 1)
+
+    def test_a_superseded_worker_does_not_build_any_tasks(self):
+        from analytics.management.commands import build_extract_tasks as cmd
+        from uuid import uuid4
+
+        d = self._dataset_with_one_resource("old_worker")
+        self._make_fms(3)
+        self.assertEqual(_build_global_tasks(run_id=uuid4()), 0)
+        self.assertFalse(ExtractTask.objects.filter(dataset_id=d.id).exists())
+
+    def test_unstarted_claim_cleanup_does_not_clear_a_replacement_claim(self):
+        from analytics.management.commands import build_extract_tasks as cmd
+
+        d = self._dataset_with_one_resource("claim_cleanup")
+        pair = self._pair_for(d)
+        with connection.cursor() as cursor:
+            cursor.execute(cmd._CLAIM_PROGRESS_PAIRS_SQL, [[pair.id]])
+            old_claim = cursor.fetchone()[0]
+            cursor.execute(cmd._TOUCH_CLAIM_SQL, [pair.id])
+        cmd._release_unstarted_claims([pair.id], old_claim)
+        pair.refresh_from_db()
+        self.assertIsNotNone(pair.claimed_at)
+
     def test_a_task_past_the_watermark_still_blocks_a_duplicate(self):
         # The existence check is bounded to fm_id > watermark. Tasks the
         # request path created past the watermark are exactly what it must
@@ -634,3 +748,67 @@ class BuildProgressWatermarkTest(TransactionTestCase):
                 "UPDATE extract_task_build_progress", sql,
                 "the watermark UPDATE must live inside the INSERT's own statement",
             )
+
+
+class BuildEnvironmentSettingsTest(SimpleTestCase):
+    def load_settings(self, **env):
+        with mock.patch.dict(os.environ, env):
+            return runpy.run_path(str(Path(__file__).resolve().parents[2] / "geoquery" / "settings.py"))
+
+    def test_environment_controls_the_schedule_and_limits(self):
+        config = self.load_settings(
+            EXTRACT_TASK_BUILD_INTERVAL_SECONDS="125",
+            EXTRACT_TASK_BUILD_BATCH_SIZE="7",
+            EXTRACT_TASK_BUILD_MAX_TASKS="19",
+        )
+        self.assertEqual(config["CELERY_BEAT_SCHEDULE"]["build-extract-tasks"]["schedule"], 125)
+        self.assertEqual(config["EXTRACT_TASK_BUILD_BATCH_SIZE"], 7)
+        self.assertEqual(config["EXTRACT_TASK_BUILD_MAX_TASKS"], 19)
+
+    def test_default_build_schedule_preserves_the_recovery_budget(self):
+        """Protect the default ~20-minute crash-recovery budget.
+
+        On 2026-09-24 a wave died at 00:07, became claimable at 00:37,
+        missed the hourly 00:30 trigger, and resumed at 01:30: 83 minutes
+        idle. Recovery needs both expired claims and another trigger.
+
+        This checks the shipped defaults independently of environment
+        overrides. Operators may intentionally choose slower triggers; queue
+        and process startup delays are outside this scheduling budget.
+        """
+        from analytics.management.commands.build_extract_tasks import (
+            CLAIM_STALE_MINUTES,
+            RUN_STALE_MINUTES,
+        )
+
+        with mock.patch.dict(os.environ):
+            for name in (
+                "EXTRACT_TASK_BUILD_INTERVAL_SECONDS",
+                "EXTRACT_TASK_BUILD_BATCH_SIZE",
+                "EXTRACT_TASK_BUILD_MAX_TASKS",
+            ):
+                os.environ.pop(name, None)
+            config = self.load_settings()
+
+        interval = config["CELERY_BEAT_SCHEDULE"]["build-extract-tasks"]["schedule"]
+        stale_seconds = max(CLAIM_STALE_MINUTES, RUN_STALE_MINUTES) * 60
+        self.assertLessEqual(stale_seconds + interval, 20 * 60)
+
+    def test_operators_can_choose_a_longer_interval_and_larger_batches(self):
+        config = self.load_settings(
+            EXTRACT_TASK_BUILD_INTERVAL_SECONDS="3600",
+            EXTRACT_TASK_BUILD_BATCH_SIZE="100000",
+            EXTRACT_TASK_BUILD_MAX_TASKS="300000",
+        )
+        self.assertEqual(config["CELERY_BEAT_SCHEDULE"]["build-extract-tasks"]["schedule"], 3600)
+        self.assertEqual(config["EXTRACT_TASK_BUILD_BATCH_SIZE"], 100000)
+        self.assertEqual(config["EXTRACT_TASK_BUILD_MAX_TASKS"], 300000)
+
+    def test_invalid_limits_are_rejected_at_startup(self):
+        for name, value in (
+            ("EXTRACT_TASK_BUILD_INTERVAL_SECONDS", "0"),
+            ("EXTRACT_TASK_BUILD_BATCH_SIZE", "0"),
+            ("EXTRACT_TASK_BUILD_MAX_TASKS", "-1"),
+        ):
+            with self.subTest(name=name), self.assertRaisesMessage(ImproperlyConfigured, name):
+                self.load_settings(**{name: value})
