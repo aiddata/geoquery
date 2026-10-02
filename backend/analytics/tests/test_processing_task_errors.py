@@ -3,9 +3,9 @@
 Before MAX_EXTRACT_TASK_ATTEMPTS existed this command reset every errored task
 unconditionally and incremented `attempts` with nothing reading it, so a task
 failing for a permanent reason cycled -1 -> 0 -> -1 once an hour forever.
-Capping it is only safe because _check_request_tasks stops counting an
-exhausted task as pending -- otherwise a request holding one would be
-re-queued by the completion sweep indefinitely.
+Capping it also decides what happens to a request holding such a task: it is
+marked failed (status -2) rather than either completing with silently missing
+columns or being re-queued by the completion sweep forever.
 """
 
 from django.test import TestCase, override_settings
@@ -13,8 +13,12 @@ from django.test import TestCase, override_settings
 from analytics.management.commands.manage_processing_task_errors import (
     _manage_processing_task_errors,
 )
-from analytics.management.commands.manage_user_requests import _check_request_tasks
-from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
+from analytics.management.commands.manage_user_requests import (
+    _check_request_tasks,
+    _manage_user_requests,
+)
+from analytics.models import ExtractTask, ProcessingOption, RequestMap
+from analytics.services import create_request, materialize_request
 from datasets.models import Dataset, DatasetResource
 from features.models import Feature, FeatMap, FeatureCollection
 
@@ -104,52 +108,110 @@ class RetryCapTests(ErrorSweepFixture):
 
 
 @override_settings(MAX_EXTRACT_TASK_ATTEMPTS=3)
-class ExhaustedTaskDoesNotHangRequestTests(ErrorSweepFixture):
+class ExhaustedTaskFailsItsRequestTests(ErrorSweepFixture):
     """Why the cap and the completion sweep cannot ship separately.
 
-    _check_request_tasks derives pending as total - completed, counting only
-    status=1 as completed. An exhausted task is neither completed nor
-    retryable, so without being counted as finished it would hold the request
-    at pending forever -- the same shape as a stranded claim, but permanent.
+    _check_request_tasks counts only status=1 as completed, so an exhausted
+    task is neither completed nor retryable. Left in pending the sweep would
+    requeue the request forever; quietly excluded, the request would complete
+    and hand back a download missing that task's column. It is reported
+    separately so the sweep can fail the request instead.
+
+    Built through create_request/materialize_request rather than a hand-made
+    Request: the sweep runs _validation_error first, and a Request with an
+    empty data blob is itself one of the three validation failures, so a
+    hand-made one gets marked -2 before reaching any of this.
     """
 
     def setUp(self):
         super().setUp()
-        # A second resource so the two tasks differ on resource_ids: they share
-        # dataset/fm/po, and the unique index keys on all four.
+        # Second resource so the request resolves to two tasks.
         self.resource2 = DatasetResource.objects.create(
             dataset=self.dataset, name="ds-r2", path="r2.tif"
         )
-        self.request = Request.objects.create(status=-1, data={})
-        self.done = ExtractTask.objects.create(
-            dataset_id=self.dataset.id,
-            resource_ids=[self.resource.id],
-            fm=self.fm,
-            po=self.po,
-            status=1,
+        created = create_request(
+            user=None,
+            contact="a@example.com",
+            name=None,
+            feature_ids=[self.feature.id],
+            datasets=[{"datasetName": self.dataset.name}],
         )
-        self.stuck = self.errored_task(attempts=3, resource=self.resource2)
-        for task in (self.done, self.stuck):
-            RequestMap.objects.create(
-                request=self.request, task_id=task.id, dataset_id=task.dataset_id
+        materialize_request(created.request)
+        created.request.refresh_from_db()
+        self.request = created.request
+
+        task_ids = list(
+            RequestMap.objects.filter(request=self.request).values_list(
+                "task_id", flat=True
             )
+        )
+        self.assertEqual(len(task_ids), 2, "fixture should resolve to two tasks")
+        self.done_id, self.stuck_id = task_ids
+        ExtractTask.objects.filter(
+            id=self.done_id, dataset_id=self.dataset.id
+        ).update(status=1)
+        ExtractTask.objects.filter(
+            id=self.stuck_id, dataset_id=self.dataset.id
+        ).update(status=-1, attempts=3)
 
-    def test_exhausted_task_is_not_counted_as_pending(self):
-        pending, completed = _check_request_tasks(self.request, dry_run=True)
+    def _set_stuck_attempts(self, attempts):
+        ExtractTask.objects.filter(
+            id=self.stuck_id, dataset_id=self.dataset.id
+        ).update(attempts=attempts)
 
-        self.assertEqual(pending, 0, "request should be able to finish")
+    def test_exhausted_task_is_reported_separately(self):
+        pending, completed, failed = _check_request_tasks(
+            self.request, dry_run=True
+        )
+
+        self.assertEqual(failed, 1)
         self.assertEqual(
-            set(completed), {self.done.id},
+            set(completed), {self.done_id},
             "the failed task must not appear as completed data",
         )
 
-    def test_retryable_error_still_holds_the_request(self):
+    def test_retryable_error_is_not_reported_as_failed(self):
         """The cap must not make every error terminal -- only exhausted ones."""
-        ExtractTask.objects.filter(
-            id=self.stuck.id, dataset_id=self.stuck.dataset_id
-        ).update(attempts=1)
+        self._set_stuck_attempts(1)
 
-        pending, completed = _check_request_tasks(self.request, dry_run=True)
+        pending, completed, failed = _check_request_tasks(
+            self.request, dry_run=True
+        )
 
-        self.assertEqual(pending, 1, "a task with retries left is still pending")
-        self.assertEqual(set(completed), {self.done.id})
+        self.assertEqual(failed, 0, "a task with retries left has not failed")
+        self.assertEqual(pending, 1, "and is still pending")
+
+    def test_sweep_marks_the_request_failed(self):
+        """The contract: a request containing a dead task errors, it does not
+        finish. Completing it would hand the user a download silently missing
+        that task's column."""
+        _manage_user_requests(request_id=str(self.request.id))
+
+        self.request.refresh_from_db()
+        self.assertEqual(
+            self.request.status, -2,
+            "request with a permanently failed task should be marked error",
+        )
+        self.assertIsNone(
+            self.request.complete_time,
+            "a failed request must not look completed",
+        )
+
+    def test_sweep_requeues_instead_of_failing_when_retries_remain(self):
+        self._set_stuck_attempts(1)
+
+        _manage_user_requests(request_id=str(self.request.id))
+
+        self.request.refresh_from_db()
+        self.assertNotEqual(
+            self.request.status, -2,
+            "a retryable error must not fail the request",
+        )
+
+    def test_dry_run_does_not_fail_the_request(self):
+        _manage_user_requests(request_id=str(self.request.id), dry_run=True)
+
+        self.request.refresh_from_db()
+        self.assertEqual(
+            self.request.status, -1, "dry run must not write status"
+        )

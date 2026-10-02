@@ -222,6 +222,8 @@ def _manage_user_requests(
     assets_dir="../assets",
     dry_run=False,
 ):
+    from django.conf import settings
+
     logger.info(
         "Starting User Request Management Script %s", time.strftime("%Y-%m-%d %H:%M:%S")
     )
@@ -335,9 +337,33 @@ def _manage_user_requests(
             # transaction. _build_output writes files (CSV, HTML, JSON, PDF,
             # GeoPackage, zip); holding a requests row lock across that is
             # what let one slow request stack every other sweep behind it.
-            missing_items, merge_map = _check_request_tasks(
+            missing_items, merge_map, failed_items = _check_request_tasks(
                 request_obj, dry_run=dry_run
             )
+
+            # Checked before missing_items: an exhausted task also counts as
+            # missing, and requeueing would put the request back in the same
+            # state next pass, forever. Nothing will advance those tasks --
+            # manage_processing_task_errors stops retrying at
+            # MAX_EXTRACT_TASK_ATTEMPTS -- so the request cannot be completed
+            # correctly and is failed instead of being handed a download with
+            # silently missing columns.
+            if failed_items > 0:
+                if not dry_run:
+                    _request_error(
+                        request_id,
+                        f"{failed_items} of {missing_items + len(merge_map)} "
+                        f"extract task(s) failed permanently after "
+                        f"{settings.MAX_EXTRACT_TASK_ATTEMPTS} attempts",
+                        claim=error_claim,
+                    )
+                else:
+                    logger.warning(
+                        "Request (id: %s) has %d permanently failed extract "
+                        "task(s); would be marked failed",
+                        request_id, failed_items,
+                    )
+                continue
 
             if missing_items > 0:
                 if not dry_run:
@@ -659,9 +685,10 @@ def _check_request_tasks(request, dry_run=False):
     """Check entire request for completion.
 
     Returns count of tasks still pending and a {task_id: dataset_id} map of
-    completed extract tasks. "Pending" excludes both completed tasks and ones
-    that errored and exhausted their retries, so a request holding a
-    permanently-failing task still reaches zero and finishes.
+    completed extract tasks, plus the count of tasks that errored and
+    exhausted their retries. A request holding any of those cannot be
+    completed correctly -- the caller fails it rather than shipping a download
+    with silently missing columns.
 
     Every extract_tasks query here is grouped by dataset_id first. The table
     is LIST partitioned on dataset_id with PRIMARY KEY (dataset_id, id), so
@@ -706,14 +733,14 @@ def _check_request_tasks(request, dry_run=False):
             }
         )
 
-        # Tasks that errored and used up their retries. manage_processing_task_errors
-        # stops returning these to pending (attempts < MAX_EXTRACT_TASK_ATTEMPTS),
-        # so without counting them as finished here the request would never see
-        # pending reach zero and would be re-queued by this sweep forever --
-        # the same shape of bug as a stranded claim, just permanent. They are
-        # deliberately absent from completed_task_map: the request completes,
-        # and the failed task's column is missing from the output rather than
-        # the whole download being withheld.
+        # Tasks that errored and used up their retries.
+        # manage_processing_task_errors stops returning these to pending once
+        # attempts reaches MAX_EXTRACT_TASK_ATTEMPTS, so nothing will ever
+        # advance them. Counted separately rather than folded into pending:
+        # the caller needs to tell "not finished yet" (requeue and wait) apart
+        # from "will never finish" (fail the request). Left out of pending
+        # would silently complete a request with missing columns; left in,
+        # the sweep would requeue it forever.
         exhausted_count += ExtractTask.objects.filter(
             dataset_id=dataset_id,
             id__in=ds_task_ids,
@@ -735,16 +762,10 @@ def _check_request_tasks(request, dry_run=False):
             len(missing_ids), request.id, missing_ids,
         )
 
-    pending_task_count = total - len(completed_task_map) - exhausted_count
+    pending_task_count = total - len(completed_task_map)
     logger.info("Processing tasks pending: %d/%d", pending_task_count, total)
-    if exhausted_count:
-        logger.warning(
-            "%d of %d extract task(s) for request %s failed permanently after "
-            "%d attempts; completing the request without them",
-            exhausted_count, total, request.id, max_attempts,
-        )
 
-    return pending_task_count, completed_task_map
+    return pending_task_count, completed_task_map, exhausted_count
 
 
 def _build_output(request, task_map, download_server, requests_dir, assets_dir):

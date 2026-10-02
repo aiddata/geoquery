@@ -567,7 +567,10 @@ def request_progress(request: Request) -> tuple[int, int]:
     """
     from analytics.management.commands.manage_user_requests import _check_request_tasks
 
-    pending, completed = _check_request_tasks(request, dry_run=True)
+    # failed tasks stay in the total but never in completed, so a request
+    # held up by one shows progress stalled short of 100% rather than
+    # appearing complete.
+    pending, completed, _failed = _check_request_tasks(request, dry_run=True)
     return len(completed), len(completed) + pending
 
 

@@ -633,7 +633,7 @@ class SweepClaimTests(TestCase):
             Request.objects.filter(id=req.id).update(
                 status=2, process_time=timezone.now()
             )
-            return 1, {}  # pending count, merge map
+            return 1, {}, 0  # pending count, merge map, failed count
 
         with mock.patch(
             "analytics.management.commands.manage_user_requests._check_request_tasks",
