@@ -459,6 +459,22 @@ CELERY_TASK_ROUTES = {
 
 STALE_TASK_MINUTES = int(os.environ.get("STALE_TASK_MINUTES", "30"))
 
+# How many times manage_processing_task_errors will return an errored extract
+# task (status = -1) to pending before giving up on it. Before this existed the
+# sweep reset every errored task unconditionally and incremented `attempts`
+# with nothing ever reading it, so a task failing for a permanent reason -- a
+# missing raster, a geometry the processor cannot handle -- cycled
+# -1 -> 0 -> -1 forever, once an hour, indefinitely.
+#
+# A task at status = -1 whose attempts have reached this is "exhausted": the
+# sweep leaves it alone, and _check_request_tasks in manage_user_requests stops
+# counting it as pending so a request containing one can still finish, with
+# that task's column absent from the output rather than the whole request
+# hanging. Deliberately expressed as status + attempts rather than a new
+# terminal status value: five call sites read task status, and one missed would
+# fail silently as a request waiting forever on work it believes unfinished.
+MAX_EXTRACT_TASK_ATTEMPTS = int(os.environ.get("MAX_EXTRACT_TASK_ATTEMPTS", "5"))
+
 # Extract tasks claimed (and published) per processing message.
 #
 # The claim asks for the globally highest-priority pending task, and

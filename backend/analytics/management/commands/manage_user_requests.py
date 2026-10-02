@@ -659,7 +659,9 @@ def _check_request_tasks(request, dry_run=False):
     """Check entire request for completion.
 
     Returns count of tasks still pending and a {task_id: dataset_id} map of
-    completed extract tasks.
+    completed extract tasks. "Pending" excludes both completed tasks and ones
+    that errored and exhausted their retries, so a request holding a
+    permanently-failing task still reaches zero and finishes.
 
     Every extract_tasks query here is grouped by dataset_id first. The table
     is LIST partitioned on dataset_id with PRIMARY KEY (dataset_id, id), so
@@ -670,6 +672,8 @@ def _check_request_tasks(request, dry_run=False):
     it -- confirmed in production via pg_stat_activity. RequestMap already
     carries dataset_id per row, so the grouping is free.
     """
+    from django.conf import settings
+
     logger.info("Checking status of processing tasks (dry_run=%s)...", dry_run)
 
     task_rows = list(
@@ -685,6 +689,8 @@ def _check_request_tasks(request, dry_run=False):
 
     existing_ids = set()
     completed_task_map = {}
+    exhausted_count = 0
+    max_attempts = settings.MAX_EXTRACT_TASK_ATTEMPTS
     for dataset_id, ds_task_ids in tasks_by_dataset.items():
         existing_ids.update(
             ExtractTask.objects.filter(
@@ -700,6 +706,21 @@ def _check_request_tasks(request, dry_run=False):
             }
         )
 
+        # Tasks that errored and used up their retries. manage_processing_task_errors
+        # stops returning these to pending (attempts < MAX_EXTRACT_TASK_ATTEMPTS),
+        # so without counting them as finished here the request would never see
+        # pending reach zero and would be re-queued by this sweep forever --
+        # the same shape of bug as a stranded claim, just permanent. They are
+        # deliberately absent from completed_task_map: the request completes,
+        # and the failed task's column is missing from the output rather than
+        # the whole download being withheld.
+        exhausted_count += ExtractTask.objects.filter(
+            dataset_id=dataset_id,
+            id__in=ds_task_ids,
+            status=-1,
+            attempts__gte=max_attempts,
+        ).count()
+
         # Bump priority on pending tasks so workers pick them up before
         # background tasks
         if not dry_run:
@@ -714,8 +735,14 @@ def _check_request_tasks(request, dry_run=False):
             len(missing_ids), request.id, missing_ids,
         )
 
-    pending_task_count = total - len(completed_task_map)
+    pending_task_count = total - len(completed_task_map) - exhausted_count
     logger.info("Processing tasks pending: %d/%d", pending_task_count, total)
+    if exhausted_count:
+        logger.warning(
+            "%d of %d extract task(s) for request %s failed permanently after "
+            "%d attempts; completing the request without them",
+            exhausted_count, total, request.id, max_attempts,
+        )
 
     return pending_task_count, completed_task_map
 
