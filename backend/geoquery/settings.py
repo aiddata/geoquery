@@ -515,13 +515,37 @@ EXTRACT_TASK_BUILD_SYNCHRONOUS_COMMIT = (
     os.environ.get("EXTRACT_TASK_BUILD_SYNCHRONOUS_COMMIT", "0") == "1"
 )
 CELERY_BEAT_SCHEDULE = {
+    # Both sweeps used to be hourly interval schedules, for two reasons that
+    # no longer hold. They each ran one unpruned UPDATE over all 57 partitions
+    # of extract_tasks -- mean 815s, max 1063s -- so running them often would
+    # have meant a 13-minute write transaction holding a pooler server slot
+    # several times an hour. Migration 0029's partial indexes took those scans
+    # to 6.2s and 0.22s, so the cost argument for an hour is gone.
+    #
+    # The hour was also expensive in latency. A task stranded at status 2/3
+    # waits STALE_TASK_MINUTES (30) to become eligible and then up to another
+    # hour for the next tick; request c7501786 spent 63% of its 2h18m wall
+    # time on exactly that, with 15,363 of its 15,364 tasks already done.
+    # At 10 minutes the worst case drops from ~90 to ~40 minutes, almost all
+    # of which is now the staleness threshold rather than the schedule.
+    #
+    # crontab rather than an interval, deliberately. An integer schedule
+    # counts from beat process start, so every deploy pushed both sweeps out
+    # by up to a full hour -- observed twice during the 0.60.0/0.61.1
+    # rollouts, where neither ran for 44 minutes after the pods restarted.
+    # crontab pins them to wall clock, so a restart costs at most one tick.
+    #
+    # Offset by 5 minutes so they never run together. As interval schedules
+    # they shared a tick and contended on the same scan, which is why their
+    # runtimes matched to 0.1s across 13 runs. They are cheap now, but there
+    # is no reason to overlap them.
     "free-stale-processing-tasks": {
         "task": "analytics.tasks.maintenance.free_stale_processing_tasks",
-        "schedule": 3600,
+        "schedule": crontab(minute="*/10"),
     },
     "manage-processing-task-errors": {
         "task": "analytics.tasks.maintenance.manage_processing_task_errors",
-        "schedule": 3600,
+        "schedule": crontab(minute="5-59/10"),
     },
     "reset-stale-requests": {
         "task": "analytics.tasks.maintenance.reset_stale_requests",
