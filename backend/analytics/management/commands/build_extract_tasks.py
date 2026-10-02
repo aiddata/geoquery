@@ -20,6 +20,10 @@ BATCH_STATEMENT_TIMEOUT_MS = 5 * 60 * 1000  # 5 minutes
 # are always standard (task_group_period IS NULL): grouping only makes sense
 # for the time-series-shaped global datasets that drive the (resource, po) x
 # feat_map cross below.
+#
+# The NOT EXISTS uses the same task identity as the global batch below; see
+# _INSERT_GLOBAL_BATCH_SQL for why kwargs IS NULL and resource_ids_hash are
+# there.
 _INSERT_NON_GLOBAL_BATCH_SQL = """
     INSERT INTO extract_tasks
         (dataset_id, resource_ids, task_group_period, fm_id, po_id, status, priority, attempts, submit_time)
@@ -41,6 +45,8 @@ _INSERT_NON_GLOBAL_BATCH_SQL = """
           WHERE et.dataset_id = d.id
             AND et.fm_id = fm.id
             AND et.po_id = po.id
+            AND et.kwargs IS NULL
+            AND et.resource_ids_hash = extract_tasks_resource_ids_hash(ARRAY[dr.id])
             AND et.resource_ids = ARRAY[dr.id]
       )
     LIMIT %s
@@ -176,6 +182,17 @@ _TOUCH_CLAIM_SQL = "UPDATE extract_task_build_progress SET claimed_at = NOW() WH
 # run to completion even when unreferenced, so `advanced` fires regardless of
 # what the outer SELECT reads.
 #
+# The NOT EXISTS matches the task identity the request path uses
+# (services._get_or_create_task): kwargs IS NULL and resource_ids_hash are
+# what let it seek extract_tasks_fm_po_resources_null_kwargs_idx, a partial
+# index Postgres can only use when the query implies its WHERE kwargs IS NULL.
+# Without them each probe went through the fm_id index and filtered out every
+# other task for that feature -- ~186 rows each on dataset 24. Measured on a
+# production replica: 5,000 already-built features took 955k buffer hits and
+# ~630ms, against 25k and ~27ms. kwargs IS NULL is also a correctness check:
+# without it a task with custom kwargs hid the default task this builds.
+# resource_ids is still compared in full, since the hash is only 32 bits.
+#
 # The ::integer[] casts on %(resource_ids)s are required, not decoration:
 # psycopg 3 sends a Python int list as the smallest array type that fits
 # (e.g. '{590}'::int2[]), and Postgres has no integer[] = smallint[] operator.
@@ -196,6 +213,8 @@ _INSERT_GLOBAL_BATCH_SQL = """
               WHERE et.dataset_id = %(dataset_id)s
                 AND et.fm_id = fm.id
                 AND et.po_id = %(po_id)s
+                AND et.kwargs IS NULL
+                AND et.resource_ids_hash = extract_tasks_resource_ids_hash(%(resource_ids)s::integer[])
                 AND et.resource_ids = %(resource_ids)s::integer[]
           )
         ORDER BY fm.id

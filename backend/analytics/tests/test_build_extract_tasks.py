@@ -130,6 +130,52 @@ class BuildExtractTasksGroupingTest(TransactionTestCase):
         tasks = list(ExtractTask.objects.filter(dataset_id=d.id, po=po))
         self.assertEqual(len(tasks), 1)
 
+    def test_a_task_with_kwargs_does_not_hide_the_default_task(self):
+        """A request can create a task with custom kwargs for the same
+        (fm, po, resources). It is a different task, so the builder must
+        still create the default (kwargs IS NULL) one beside it."""
+        d = Dataset.objects.create(
+            name="kwargs_ds", path="/data/kwargs_ds", active=True, is_global=True, task_group_period=None
+        )
+        po = ProcessingOption.objects.create(
+            dataset=d, short_name="mean", function="rasterstats_default_mean", active=True
+        )
+        r1 = DatasetResource.objects.create(
+            dataset=d, name="kwargs_ds-r1", path="r1.tif", temporal=datetime(2020, 1, 1, tzinfo=timezone.utc)
+        )
+        fm = self._make_feature_and_fm(name="fc5")
+        ExtractTask.objects.create(
+            dataset_id=d.id, resource_ids=[r1.id], fm=fm, po=po, kwargs={"categories": [1, 2]}
+        )
+
+        _build_extract_tasks()
+
+        tasks = ExtractTask.objects.filter(dataset_id=d.id, po=po, fm=fm)
+        self.assertEqual(tasks.filter(kwargs__isnull=True).count(), 1)
+        self.assertEqual(tasks.filter(kwargs__isnull=False).count(), 1)
+
+    def test_a_task_with_kwargs_does_not_hide_the_default_non_global_task(self):
+        d = Dataset.objects.create(
+            name="kwargs_ng_ds", path="/data/kwargs_ng_ds", active=True, is_global=False, task_group_period=None
+        )
+        po = ProcessingOption.objects.create(
+            dataset=d, short_name="mean", function="rasterstats_default_mean", active=True
+        )
+        r1 = DatasetResource.objects.create(
+            dataset=d, name="kwargs_ng_ds-r1", path="r1.tif", temporal=datetime(2020, 1, 1, tzinfo=timezone.utc)
+        )
+        fm = self._make_feature_and_fm(name="fc6")
+        Coverage.objects.create(geom=fm.geom, dataset=d, status=1)
+        ExtractTask.objects.create(
+            dataset_id=d.id, resource_ids=[r1.id], fm=fm, po=po, kwargs={"categories": [1, 2]}
+        )
+
+        _build_extract_tasks()
+
+        tasks = ExtractTask.objects.filter(dataset_id=d.id, po=po, fm=fm)
+        self.assertEqual(tasks.filter(kwargs__isnull=True).count(), 1)
+        self.assertEqual(tasks.filter(kwargs__isnull=False).count(), 1)
+
     def test_claim_is_touched_per_pair_before_its_own_batch_runs(self):
         """claimed_at must be refreshed as each pair's own batch starts, not
         left at whenever the whole page was claimed -- otherwise a pair late
