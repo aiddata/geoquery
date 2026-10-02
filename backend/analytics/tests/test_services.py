@@ -327,14 +327,17 @@ class CreateRequestTests(SubmissionFixture):
                 f"priority-bump UPDATE missing dataset_id, can't be partition-pruned: {sql}",
             )
 
-    def test_fallback_priority_bump_on_first_create_prunes_to_one_partition(self):
-        """Same partition-pruning requirement as the bulk bump above, but for
-        the per-task fallback path (_build_tasks' else branch): every task
-        created on demand here defaults to priority=0, so this fires on
-        every single task of a first-time submission -- the hot path behind
-        the production incident this closes (a "fairly small" request still
-        took minutes, one unpruned ~seconds-each UPDATE per task, all inside
-        one long transaction that ended up blocking other submissions too).
+    def test_first_create_issues_no_per_task_priority_update(self):
+        """Replaces an earlier test that asserted the opposite.
+
+        Tasks created on demand used to default to priority=0 and get a
+        follow-up UPDATE each. That UPDATE was made partition-pruned after a
+        production incident (a "fairly small" request taking minutes on one
+        unpruned ~seconds-each UPDATE per task, inside one long transaction
+        that blocked other submissions), which made each statement fast but
+        left one per task. _build_tasks now sets priority on the way in, so
+        on a first-time submission the statement does not exist at all --
+        there is nothing pre-existing to bump.
         """
         with CaptureQueriesContext(connection) as ctx:
             self.create()
@@ -343,12 +346,49 @@ class CreateRequestTests(SubmissionFixture):
             q["sql"] for q in ctx.captured_queries
             if "UPDATE" in q["sql"] and "extract_tasks" in q["sql"] and "priority" in q["sql"]
         ]
-        self.assertTrue(bump_queries, "expected at least one priority-bump UPDATE")
-        for sql in bump_queries:
-            self.assertIn(
-                f"\"dataset_id\" = {self.dataset.id}", sql,
-                f"priority-bump UPDATE missing dataset_id, can't be partition-pruned: {sql}",
+        self.assertEqual(
+            bump_queries, [],
+            f"first create should set priority at insert, not by UPDATE: {bump_queries}",
+        )
+        self.assertEqual(
+            set(ExtractTask.objects.values_list("priority", flat=True)), {1}
+        )
+
+    def test_materialization_query_count_does_not_scale_with_task_count(self):
+        """The invariant the per-task path violated.
+
+        Materialization is latency-bound, not work-bound: on production
+        2026-10-01 a request's 1,935 tasks took 11m56s to materialize while
+        the inserts themselves used 691ms of database time in total. The cost
+        was ~2,900 statements each waiting on a PgBouncer server slot, so the
+        thing to pin is the statement count, not the duration.
+
+        Six extra resources take this dataset from 8 tasks to 32. The old
+        per-task path would issue roughly 2 + 2*32 statements for the
+        dataset loop alone; the bulk path issues four regardless.
+        """
+        for year in range(2021, 2027):
+            DatasetResource.objects.create(
+                dataset=self.dataset,
+                name=f"ds_{year}",
+                path=f"{year}.tif",
+                label=str(year),
             )
+
+        with CaptureQueriesContext(connection) as ctx:
+            created = self.create()
+
+        self.assertEqual(created.task_count, 32)
+        self.assertEqual(ExtractTask.objects.count(), 32)
+
+        task_statements = [
+            q["sql"] for q in ctx.captured_queries if "extract_tasks" in q["sql"]
+        ]
+        self.assertLess(
+            len(task_statements), 12,
+            "extract_tasks statement count is scaling with task count: "
+            + "\n".join(task_statements),
+        )
 
     def test_nothing_resolvable_raises_with_the_warnings_attached(self):
         with self.assertRaises(NoExtractTasksError) as ctx:
