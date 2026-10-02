@@ -356,7 +356,8 @@ def register(mcp, user_dep):
         ctx: Context = None,
         user=user_dep,
     ):
-        """Create a permanent, downloadable export of a data selection.
+        """Create a permanent export of a data selection: a zip of CSV,
+        GeoPackage and documentation for the user to download.
 
         This starts real processing and produces a shareable artifact, so the
         user is asked to confirm before anything is created -- call it

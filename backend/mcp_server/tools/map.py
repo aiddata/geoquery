@@ -120,7 +120,7 @@ def register(mcp, user_dep):
         ] = True,
         user=user_dep,
     ):
-        """Show a data selection as an interactive choropleth in the chat.
+        """Visualize a data selection as an interactive choropleth map in the chat.
 
         Pass several years at once and the map gets a year slider; the user
         can also switch column, palette and classification inside it without

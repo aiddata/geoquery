@@ -416,11 +416,11 @@ def _coverage_fractions(
 
 
 def _requestable_datasets(user, fc_ids: list[int], ready_dataset_ids: set[int]):
-    """Visible datasets that could cover these boundaries but have no extracts.
+    """Visible datasets that *could* cover these boundaries but have no extracts.
 
-    "Could cover" is either global coverage, or a specifically calculated
-    coverage. Without that filter the list would include every dataset in the
-    catalog, so it helps us know where data would be available for a place.
+    "Could cover" is either global coverage or a Coverage row for one of these
+    features. Without that filter the list would include every dataset in the
+    catalog, and exporting one that does not reach this area produces nothing.
     """
     geom_ids = FeatMap.objects.filter(fc_id__in=fc_ids).values("geom_id")
     return list(
@@ -511,10 +511,10 @@ def register(mcp, user_dep):
 
         Start here: every other GeoQuery tool takes boundaries by the `name`
         this returns. A country name matches boundary sets directly
-        (`boundaries`). A region or district name matches the ADMs inside
-        them (`places`): each place gives the boundaries it belongs to and
-        its `feature_id`. Narrow with `iso3` and `level` when you already
-        know the country and how fine a breakdown you need.
+        (`boundaries`). A region or district name matches the administrative
+        areas inside them (`places`): each place gives the boundaries it
+        belongs to and its `feature_id`. Narrow with `iso3` and `level` when
+        you already know the country and how fine a breakdown you need.
 
         Only administrative areas are named here, not towns or landmarks;
         a city is usually found as the district of the same name.
@@ -625,20 +625,22 @@ def register(mcp, user_dep):
         boundaries: Annotated[list[str], Field(description=BOUNDARIES_DESC)],
         user=user_dep,
     ):
-        """What data exists for these boundaries, split by how you can get it.
+        """What data is available for these boundaries, split by how you can
+        get it.
 
         `ready` is already processed and readable immediately with get_data or
-        show_map. `coverage_fraction` is the share of the boundary's features
-        processed for at least one year; well under 1.0 means only part of this
-        area has been processed. It does not mean every feature has a value:
-        get_data and show_map report, per column, features not yet processed
-        for that year and features the source has no data for
-        (e.g. smaller than a pixel).
+        show_map -- prefer it. `coverage_fraction` is the share of the
+        boundary's features processed for at least one year; well under 1.0
+        means only part of this area has been processed. It does not mean
+        every feature has a value: get_data and show_map report, per column,
+        features not yet processed for that year and features the source has
+        no data for (e.g. smaller than a pixel).
 
         `requestable` would have to be processed first, via preview_request
         and submit_request, which takes minutes to hours.
 
-        Results include `attribution`; relay these to the user where appropriate.
+        Results include `attribution`; relay the sources, licenses and
+        citations to the user.
         """
         payload = _list_available_data(user, boundaries)
         lines = [
@@ -690,9 +692,12 @@ def register(mcp, user_dep):
         ] = "apa",
         user=user_dep,
     ):
-        """Returns the citations and license for each item, if available.
-        Please pass these along to the user so that they can properly
-        attribute and contextualize their work.
+        """Citations and licenses for the data you used, as a formatted
+        reference list.
+
+        Also names the items with no recorded citation or license -- tell the
+        user about those explicitly, because they have to check the source
+        themselves before publishing.
         """
         payload = _get_citations(user, datasets, boundaries, request_id, style)
         lines = [payload["references"]]
