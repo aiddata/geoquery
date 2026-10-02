@@ -65,6 +65,93 @@ def _issuer() -> str:
     return f"{settings.FRONTEND_BASE_URL.rstrip('/')}/api/idp"
 
 
+def _signing_secret() -> str:
+    """The secret every replica derives its shared keys from.
+
+    ``MCP_JWT_SIGNING_KEY`` when set, otherwise the OIDC client secret --
+    the same fallback FastMCP uses for its own signing key, so a deployment
+    that sets neither key explicitly still agrees with itself across pods.
+    """
+    return settings.MCP_JWT_SIGNING_KEY or settings.MCP_OIDC_CLIENT_SECRET
+
+
+def _oauth_state_storage():
+    """Where the OAuth proxy keeps its state: ``mcp_oauth_state``, encrypted.
+
+    FastMCP's default is an encrypted file store under FASTMCP_HOME, which
+    pins the server to a single pod: an /authorize handled by one replica and
+    the /auth/callback landing on another would not find each other's state.
+    A Postgres table is shared by every replica. The proxy adds no encryption
+    to a store it is handed, so the Fernet wrapper here does what its default
+    did, and like that default a key change reads as a cache miss (clients
+    re-register) rather than an error.
+    """
+    from key_value.aio.stores.postgresql import PostgreSQLStore
+    from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
+
+    class OAuthStateStore(PostgreSQLStore):
+        async def _create_pool(self):
+            import asyncpg
+            from django.db import connections
+
+            db = connections["default"].settings_dict
+            # Through pgBouncer in transaction mode (pooler-tasks in
+            # production), so no named prepared statements: asyncpg's
+            # statement cache would look for them on whichever server
+            # connection the next transaction happens to get. And a small
+            # pool, opened on demand -- asyncpg's default holds ten idle
+            # connections per pod.
+            return await asyncpg.create_pool(
+                host=db["HOST"],
+                port=int(db["PORT"]),
+                database=db["NAME"],
+                user=db["USER"],
+                password=db["PASSWORD"],
+                ssl=db.get("OPTIONS", {}).get("sslmode", "prefer"),
+                statement_cache_size=0,
+                min_size=0,
+                max_size=settings.MCP_STATE_POOL_SIZE,
+            )
+
+    return FernetEncryptionWrapper(
+        # The table comes from mcp_server's migration, not from the store.
+        OAuthStateStore(table_name="mcp_oauth_state", auto_create=False),
+        source_material=_signing_secret(),
+        salt="geoquery-mcp-oauth-state",
+        raise_on_decryption_error=False,
+    )
+
+
+def make_request_state_security():
+    """A request-state key shared by every replica, or ``None`` without auth.
+
+    ``submit_request`` asks the user to confirm through an InputRequiredResult
+    whose ``request_state`` the client echoes back with the answer. FastMCP
+    seals that state under a key it generates per process unless told
+    otherwise, so with more than one replica the answer would usually reach a
+    pod that cannot open it. ``None`` keeps that per-process default, which is
+    fine for the single anonymous process of local development.
+    """
+    if not _auth_configured():
+        return None
+
+    from fastmcp.server.auth.jwt_issuer import derive_jwt_key
+    from mcp.server.request_state import RequestStateSecurity
+
+    key = derive_jwt_key(
+        high_entropy_material=_signing_secret(),
+        salt="geoquery-mcp-request-state",
+    )
+    return RequestStateSecurity(keys=[key])
+
+
+def _auth_configured() -> bool:
+    """Whether the server runs authenticated (see ``make_auth_provider``)."""
+    if settings.MCP_AUTH_DISABLED:
+        return False
+    return bool(settings.MCP_OIDC_CLIENT_ID and settings.MCP_OIDC_CLIENT_SECRET)
+
+
 def make_auth_provider():
     """The OAuth provider, or ``None`` when not configured.
 
@@ -72,9 +159,7 @@ def make_auth_provider():
     start that way outside DEBUG unless ``MCP_AUTH_DISABLED`` is set, which
     turns authentication off explicitly regardless of the client credentials.
     """
-    if settings.MCP_AUTH_DISABLED:
-        return None
-    if not (settings.MCP_OIDC_CLIENT_ID and settings.MCP_OIDC_CLIENT_SECRET):
+    if not _auth_configured():
         return None
 
     from fastmcp.server.auth.oauth_proxy import OAuthProxy
@@ -119,6 +204,7 @@ def make_auth_provider():
         # secret: without it, rotation invalidates every issued token and
         # every stored client registration at once.
         jwt_signing_key=settings.MCP_JWT_SIGNING_KEY or None,
+        client_storage=_oauth_state_storage(),
         # Lifetime of the token the chat client holds, not of GeoQuery's own
         # access token. FastMCP keeps validating and refreshing the upstream
         # one on each request, so this can be far longer than its hour.

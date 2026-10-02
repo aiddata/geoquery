@@ -19,7 +19,7 @@ class Command(BaseCommand):
         parser.add_argument("--path", default="/mcp", help="MCP endpoint path.")
 
     def handle(self, *args, **options):
-        from mcp_server.auth import make_auth_provider
+        from mcp_server.auth import make_auth_provider, make_request_state_security
         from mcp_server.server import build_server
 
         auth = make_auth_provider()
@@ -54,6 +54,7 @@ class Command(BaseCommand):
             # With no auth provider there is no token to resolve, so every call
             # is anonymous rather than an error.
             user_resolver=(lambda: None) if auth is None else None,
+            request_state_security=make_request_state_security(),
         )
 
         self.stdout.write(
@@ -64,7 +65,9 @@ class Command(BaseCommand):
         )
 
         # stateless_http: each request stands alone, so the service can be
-        # restarted or scaled without clients losing a session.
+        # restarted or scaled without clients losing a session. The OAuth
+        # state and the request-state key are shared through the database and
+        # MCP_JWT_SIGNING_KEY, so any replica can serve any request.
         uvicorn.run(
             mcp.http_app(path=options["path"], stateless_http=True),
             host=options["host"],

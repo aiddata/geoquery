@@ -61,6 +61,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
     "fastmcp>=4,<5",
+    "py-key-value-aio[postgresql]>=0.4.6,<0.5",
 ]
 
 [dependency-groups]

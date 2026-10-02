@@ -69,6 +69,7 @@ def build_server(
     *,
     auth=None,
     user_resolver: Callable[[], object] | None = None,
+    request_state_security=None,
 ) -> FastMCP:
     """Construct the server.
 
@@ -77,6 +78,11 @@ def build_server(
     pass a lambda returning a fixture user; unauthenticated local development
     passes one returning ``None``, which every tool treats as an anonymous
     caller -- public data only, no exports.
+
+    ``request_state_security`` is the key the confirmation round trip of
+    ``submit_request`` is sealed under; see
+    ``mcp_server.auth.make_request_state_security``. ``None`` means a key of
+    this process's own.
     """
     from .tools import register_all
 
@@ -84,6 +90,7 @@ def build_server(
         name=SERVER_NAME,
         instructions=SERVER_INSTRUCTIONS,
         auth=auth,
+        request_state_security=request_state_security,
     )
     register_all(mcp, user_resolver=user_resolver)
     return mcp

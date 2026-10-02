@@ -591,6 +591,12 @@ CELERY_BEAT_SCHEDULE = {
         "task": "visualize.tasks.sweep_export_gists",
         "schedule": 3600,
     },
+    "purge-mcp-oauth-state": {
+        "task": "mcp_server.tasks.purge_expired_oauth_state",
+        "schedule": 3600,
+        # Hourly and idempotent: a run that missed its hour is redundant.
+        "options": {"expires": 3000},
+    },
 }
 
 LOGGING = {
@@ -665,9 +671,15 @@ MCP_OIDC_CLIENT_SECRET = os.environ.get("MCP_OIDC_CLIENT_SECRET", "")
 # browser cannot, while /authorize must be a URL the browser can follow.
 MCP_OIDC_INTERNAL_URL = os.environ.get("MCP_OIDC_INTERNAL_URL", "") or FRONTEND_BASE_URL
 # Signs the tokens the proxy issues, and derives the encryption key for its
-# client-registration store. Must be stable across restarts or every client
-# has to re-register; must be shared if more than one replica runs.
+# OAuth state (the mcp_oauth_state table) and the key sealing submit_request's
+# confirmation round trip. Must be stable across restarts or every client has
+# to re-register, and the same on every replica. Falls back to the OIDC client
+# secret when unset.
 MCP_JWT_SIGNING_KEY = os.environ.get("MCP_JWT_SIGNING_KEY", "")
+# Most connections each MCP process opens for that OAuth state. Opened on
+# demand; in production they go through pgBouncer (pooler-tasks), which
+# multiplexes every replica's onto its own few server connections.
+MCP_STATE_POOL_SIZE = int(os.environ.get("MCP_STATE_POOL_SIZE", "4"))
 # Lifetime of the access token the MCP server issues to the chat client.
 # Independent of the upstream OIDC access token (one hour): FastMCP
 # re-validates and refreshes that on every request, so this only sets how
