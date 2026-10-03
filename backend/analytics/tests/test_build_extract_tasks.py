@@ -406,7 +406,8 @@ class BuildBeatScheduleTest(TransactionTestCase):
 
 
 class BuildBatchCommitModeTest(TransactionTestCase):
-    """Build batches commit asynchronously; nothing else does.
+    """Build batches commit asynchronously (as does processing, separately
+    switchable -- see test_processing.ProcessingCommitModeTest).
 
     The database is write-bandwidth bound -- backends queue on the WALWrite
     lock -- and these 5000-row batches are the largest single contributor.

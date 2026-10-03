@@ -499,6 +499,27 @@ MAX_EXTRACT_TASK_ATTEMPTS = int(os.environ.get("MAX_EXTRACT_TASK_ATTEMPTS", "5")
 # processing.py bounds -- see the bind-parameter ceiling noted there.
 EXTRACT_TASK_CLAIM_BATCH = int(os.environ.get("EXTRACT_TASK_CLAIM_BATCH", "64"))
 
+# Whether processing commits (the batch claim, each task's claim, its results
+# and its completion) wait for fsync. Off by default. Measured on production
+# on 2026-10-02 with the builder stopped: active backends sat in
+# LWLock:WALWrite, every database phase of a task rose and fell with WAL
+# fsync latency on the Ceph volume while the extract phase stayed flat, and
+# extraction itself was ~10ms of a ~60-100ms task.
+#
+# What async commit risks is small and recoverable. A primary crash loses at
+# most ~3 x wal_writer_delay (~600ms) of commits, in WAL order, so a task's
+# results and its status are lost together and it simply runs again -- ~10ms
+# of work. Any later synchronous commit (a request completing, say) flushes
+# every async commit before it, and standbys only receive flushed WAL, so
+# nothing durable or visible on a replica can depend on a lost commit. A
+# rolled-back batch claim can leave a published message for rows that are
+# pending again; the per-task claim admits one runner, and a rerun replaces
+# its results wholesale. Set to "1" to restore synchronous commits without a
+# deploy.
+EXTRACT_TASK_SYNCHRONOUS_COMMIT = (
+    os.environ.get("EXTRACT_TASK_SYNCHRONOUS_COMMIT", "0") == "1"
+)
+
 # Parallel workers one extract-task build wave fans out to. Each holds a
 # pooler connection for an 11-20s INSERT batch, so this trades build-out
 # speed against extract throughput -- see _n_extract_task_builders, which

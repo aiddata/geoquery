@@ -348,15 +348,16 @@ def _run_batch(sql, params, fetch=False):
     5000-row batches are the largest single contributor. synchronous_commit
     = off takes them out of the fsync path entirely -- the rows land in the
     WAL buffer and the walwriter flushes them behind us -- so the batch stops
-    blocking on storage that the processing path also needs.
+    waiting on storage itself. Its WAL still has to be flushed, though, and
+    the next commit that waits for fsync waits for that too: this moves the
+    builder's flush cost onto other writers rather than removing it.
 
     Safe specifically here because the work is regenerable. An unclean crash
-    can lose up to ~200ms of recently committed batches; those are
-    speculative extract_tasks rows, and completed_up_to_fm_id simply will not
-    have advanced for them, so the next pass rebuilds exactly what was lost.
-    No request data, no results, nothing user-facing. Do NOT extend this to
-    the processing path, where a lost status=1 means re-running real
-    extraction work.
+    can lose up to ~3 x wal_writer_delay (~600ms) of recently committed
+    batches; those are speculative extract_tasks rows, and
+    completed_up_to_fm_id simply will not have advanced for them, so the next
+    pass rebuilds exactly what was lost. Processing commits asynchronously as
+    well, on its own reasoning -- see EXTRACT_TASK_SYNCHRONOUS_COMMIT.
     """
     try:
         with transaction.atomic():

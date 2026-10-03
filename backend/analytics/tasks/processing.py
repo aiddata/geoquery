@@ -9,7 +9,6 @@ from warnings import catch_warnings
 import shapely
 from celery import shared_task
 from django.db import connection, transaction
-from django.db.models.functions import Now
 
 from analytics import metrics
 from analytics.models import ExtractData, ExtractTask
@@ -101,6 +100,38 @@ def _claim_batch_size():
     return max(1, getattr(settings, "EXTRACT_TASK_CLAIM_BATCH", 4))
 
 
+_ASYNC_COMMIT = "SET LOCAL synchronous_commit = off; "
+
+
+def _synchronous_commit():
+    from django.conf import settings
+
+    return getattr(settings, "EXTRACT_TASK_SYNCHRONOUS_COMMIT", False)
+
+
+def _execute_async(cursor, sql, params):
+    """Execute ``sql`` so that its transaction commits without waiting for fsync.
+
+    See EXTRACT_TASK_SYNCHRONOUS_COMMIT in settings for why this is safe here.
+
+    The SET LOCAL rides in the same execute as the statement. Django's psycopg
+    cursors bind parameters client-side and send the string in one round
+    trip, which PostgreSQL runs as a single transaction -- an implicit one
+    under autocommit -- so this costs nothing over the bare statement. SET
+    LOCAL, never SET: a session-level SET would stay on the pooled server
+    connection and make whichever workload reuses it non-durable. Enabling
+    server_side_binding would make this raise rather than silently commit
+    synchronously, since a prepared statement cannot hold two commands.
+
+    The cursor is left on the statement's own result, not the SET's.
+    """
+    if _synchronous_commit():
+        cursor.execute(sql, params)
+        return
+    cursor.execute(_ASYNC_COMMIT + sql, params)
+    cursor.nextset()
+
+
 def claim_pending_tasks(limit=1):
     """Move up to ``limit`` pending tasks (status=0) to queued (status=3).
 
@@ -158,12 +189,13 @@ def claim_pending_tasks(limit=1):
 
     Timed in two stages: waiting for the lock, and holding it through commit.
     The second is what the whole fleet queues behind, so its rate caps claims
-    per second.
+    per second -- which is also why the claim commits asynchronously: a
+    commit that waits for fsync holds the lock for the whole flush.
     """
     started = time.perf_counter()
     with transaction.atomic():
         with connection.cursor() as cursor:
-            cursor.execute("SELECT pg_advisory_xact_lock(%s)", [CLAIM_LOCK_ID])
+            _execute_async(cursor, "SELECT pg_advisory_xact_lock(%s)", [CLAIM_LOCK_ID])
             locked = time.perf_counter()
             cursor.execute(
                 """
@@ -364,7 +396,8 @@ def _claim_extract_task(task_id, dataset_id=None):
     The materialized candidate locks only the task row, skipping a competing
     worker's lock. UPDATE RETURNING commits the claim before Python decodes
     the inputs, without holding a pooler connection across a SELECT/UPDATE
-    round trip. The PostGIS geometry is returned as WKB for Shapely directly.
+    round trip, and without waiting for fsync (see _execute_async). The
+    PostGIS geometry is returned as WKB for Shapely directly.
 
     Name the partition on BOTH scans: a dataset_id join alone doesn't ensure
     the UPDATE prunes partitions. Legacy messages without dataset_id still
@@ -376,7 +409,8 @@ def _claim_extract_task(task_id, dataset_id=None):
         params.extend([dataset_id, dataset_id])
 
     with connection.cursor() as cursor:
-        cursor.execute(
+        _execute_async(
+            cursor,
             f"""
             WITH candidate AS MATERIALIZED (
                 SELECT t.id, t.dataset_id, t.resource_ids, t.kwargs,
@@ -586,8 +620,13 @@ def _extract(task_id, dataset_id, timer):
         # delete + bulk_create have to land together: a crash between them
         # would leave the task with no rows at all and nothing written back.
         # Rows are built above, outside this block, so it holds no locks while
-        # doing Python work.
+        # doing Python work. The delete and insert are ORM calls with nothing
+        # to prefix, so the async commit (see _execute_async) costs this one
+        # statement.
         with transaction.atomic():
+            if not _synchronous_commit():
+                with connection.cursor() as cursor:
+                    cursor.execute(_ASYNC_COMMIT)
             if produced:
                 ExtractData.objects.filter(
                     dataset_id=task.dataset_id, extract_task_id=task_id
@@ -615,10 +654,15 @@ def _extract(task_id, dataset_id, timer):
     if not incomplete_positions:
         # dataset_id included so this prunes to one partition. The database
         # clock, like update_time in the claim, so durations never mix a
-        # worker's clock with the primary's.
-        ExtractTask.objects.filter(id=task_id, dataset_id=task.dataset_id).update(
-            status=1, complete_time=Now()
-        )
+        # worker's clock with the primary's. Raw SQL rather than the ORM so
+        # the async commit rides in the same round trip.
+        with connection.cursor() as cursor:
+            _execute_async(
+                cursor,
+                "UPDATE extract_tasks SET status = 1, complete_time = statement_timestamp() "
+                "WHERE dataset_id = %s AND id = %s",
+                [task.dataset_id, task_id],
+            )
         timer.outcome = "completed"
         logger.info("Task %s completed", task_id)
         return {"task_id": task_id, "results": len(all_names)}

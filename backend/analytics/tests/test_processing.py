@@ -486,7 +486,7 @@ class ProcessingTestCase(TestCase):
         self.assertEqual(len(touching), 2, touching)  # claim, complete
         claim, complete = touching
         self.assertEqual(claim.count(f"t.dataset_id = {task.dataset_id}"), 2)
-        self.assertIn(f'"extract_tasks"."dataset_id" = {task.dataset_id}', complete)
+        self.assertIn(f"WHERE dataset_id = {task.dataset_id} AND id = {task.id}", complete)
         task.refresh_from_db()
         self.assertEqual(task.status, DONE)
 
@@ -499,7 +499,7 @@ class ProcessingTestCase(TestCase):
 
         claim, complete = [q for q in queries if "extract_tasks" in q]
         self.assertIn("update_time = statement_timestamp()", claim)
-        self.assertIn('"complete_time" = STATEMENT_TIMESTAMP()', complete)
+        self.assertIn("complete_time = statement_timestamp()", complete)
         task.refresh_from_db()
         self.assertLessEqual(task.update_time, task.complete_time)
 
@@ -608,7 +608,9 @@ class ProcessingTestCase(TestCase):
         )
 
         with connection.cursor() as cursor:
-            cursor.execute("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + claim["sql"])
+            # EXPLAIN accepts the claim statement, not its SET LOCAL prefix.
+            claim_sql = claim["sql"].removeprefix(processing._ASYNC_COMMIT)
+            cursor.execute("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + claim_sql)
             plan = cursor.fetchone()[0][0]["Plan"]
 
         def nodes(node):
@@ -729,3 +731,88 @@ class ExtractClaimTransactionTests(TransactionTestCase):
         self.assertEqual(results, [None])
         self.task.refresh_from_db()
         self.assertEqual(self.task.status, QUEUED)
+
+
+class ProcessingCommitModeTest(TransactionTestCase):
+    """Every processing commit skips fsync, and the setting goes no further.
+
+    Async commit is what keeps fsync latency on the database volume out of
+    each task's critical path -- see EXTRACT_TASK_SYNCHRONOUS_COMMIT. A
+    TransactionTestCase so autocommit is real: inside TestCase's wrapping
+    transaction a SET LOCAL would last for the rest of the test, hiding
+    exactly the leak these check for.
+    """
+
+    setUp = ExtractClaimTransactionTests.setUp
+
+    def run_capturing_queries(self):
+        with (
+            mock.patch.object(
+                processing, "get_func", return_value=lambda g, p, **kw: [("mean", 1.0)]
+            ),
+            CaptureQueriesContext(connection) as ctx,
+        ):
+            _run_extract_task(self.task.id, self.task.dataset_id)
+        return [q["sql"] for q in ctx.captured_queries]
+
+    def session_setting(self):
+        with connection.cursor() as cursor:
+            cursor.execute("SHOW synchronous_commit")
+            return cursor.fetchone()[0]
+
+    def test_claim_results_and_completion_all_commit_asynchronously(self):
+        queries = self.run_capturing_queries()
+
+        claim = next(q for q in queries if "FOR UPDATE" in q)
+        complete = next(q for q in queries if "complete_time" in q)
+        for query in (claim, complete):
+            self.assertTrue(query.startswith(processing._ASYNC_COMMIT), query)
+        # The results transaction is ORM calls, so it gets a statement of
+        # its own ahead of the insert.
+        insert = next(i for i, q in enumerate(queries) if 'INSERT INTO "extract_data"' in q)
+        self.assertIn(processing._ASYNC_COMMIT, queries[:insert])
+        # The claim's RETURNING row reached Python and the task finished.
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, DONE)
+        self.assertEqual(
+            ExtractData.objects.get(extract_task_id=self.task.id).float_value, 1.0
+        )
+
+    def test_the_setting_does_not_outlive_its_transaction(self):
+        # SET LOCAL, not SET: on a pooled server connection a session-level
+        # setting would make whatever workload reuses it non-durable.
+        self.run_capturing_queries()
+        self.assertEqual(self.session_setting(), "on")
+
+    def test_prefixed_statement_runs_under_the_setting_and_keeps_its_result(self):
+        with connection.cursor() as cursor:
+            processing._execute_async(
+                cursor, "SELECT current_setting('synchronous_commit'), %s", [7]
+            )
+            self.assertEqual(cursor.fetchone(), ("off", 7))
+        self.assertEqual(self.session_setting(), "on")
+
+    def test_the_batch_claim_commits_asynchronously(self):
+        # It holds the fleet-wide claim lock through its commit, so an fsync
+        # there would stall every claimer behind it.
+        ExtractTask.objects.filter(
+            dataset_id=self.task.dataset_id, id=self.task.id
+        ).update(status=PENDING)
+
+        with CaptureQueriesContext(connection) as ctx:
+            claimed = processing.claim_pending_tasks(1)
+
+        self.assertEqual(claimed, [(self.task.id, self.task.dataset_id)])
+        lock = next(
+            q["sql"] for q in ctx.captured_queries if "pg_advisory_xact_lock" in q["sql"]
+        )
+        self.assertTrue(lock.startswith(processing._ASYNC_COMMIT), lock)
+        self.assertEqual(self.session_setting(), "on")
+
+    def test_synchronous_commit_can_be_restored_without_a_deploy(self):
+        with self.settings(EXTRACT_TASK_SYNCHRONOUS_COMMIT=True):
+            queries = self.run_capturing_queries()
+
+        self.assertFalse(any("synchronous_commit" in q for q in queries), queries)
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, DONE)
