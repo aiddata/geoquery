@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from django.db.models import Count
 from django.db.models.functions import TruncDay, TruncMonth, TruncYear
 
 from analytics.models import ExtractTask, Request
+from datasets.models import Dataset
 
 # Map DB status codes → display groupings
 _STATUS_GROUPS = {
@@ -17,10 +19,9 @@ _STATUS_GROUPS = {
     "error":      [-2],
 }
 
-# Every query here is a global aggregate, and the extract_tasks ones scan all 56
-# partitions for minutes at a time. On the primary that cost ~3 cores, one rw
-# pooler slot and a stream of cold blocks through the page cache every 5
-# minutes; none of it needs read-after-write consistency, so it runs on a
+# The report reads every extract_tasks partition once per build. The former
+# four scans every five minutes cost ~3 cores and a rw pooler slot on the
+# primary; none of this needs read-after-write consistency, so it runs on a
 # standby. Only the backend and background-worker pods are given PG_RO_*;
 # anywhere else the alias falls back to the primary (see settings._pg).
 _DB = "replica"
@@ -86,32 +87,36 @@ class StatsBuilder:
                     if r["bucket"] is not None
                 ]
 
-        # Extract task completions over time
-        extract_time_series: dict[str, list] = {}
-        qs_extract = ExtractTask.objects.using(_DB).filter(status=1, complete_time__isnull=False)
-        for period, trunc_fn in trunc_fns.items():
+        # One grouped scan per dataset supplies both counts and completions.
+        # Explicit dataset filters prune partitions and bound each query's
+        # lifetime on the standby. Include inactive/private datasets too.
+        extract_raw = Counter()
+        completed_days = Counter()
+        for dataset_id in Dataset.objects.using(_DB).values_list("id", flat=True):
             rows = (
-                qs_extract.annotate(bucket=trunc_fn("complete_time"))
-                .values("bucket")
+                ExtractTask.objects.using(_DB)
+                .filter(dataset_id=dataset_id)
+                .annotate(bucket=TruncDay("complete_time"))
+                .values("status", "bucket")
                 .annotate(count=Count("id"))
-                .order_by("bucket")
+                .order_by()
             )
-            extract_time_series[period] = [
-                {"date": r["bucket"].strftime(fmt_str[period]), "count": r["count"]}
-                for r in rows
-                if r["bucket"] is not None
-            ]
+            for row in rows:
+                extract_raw[row["status"]] += row["count"]
+                # Null dates still contribute to counts, and retries/errors
+                # with old completion dates must not enter the series.
+                if row["status"] == 1 and row["bucket"] is not None:
+                    completed_days[row["bucket"]] += row["count"]
 
-        # Extract task counts, in one GROUP BY over every status. This is the
-        # expensive part of the report -- extract_tasks is ~280M rows across 56
-        # partitions and no filter can prune it, so it reads millions of blocks.
-        # It belongs here, in a task that runs every 5 minutes, rather than in a
-        # view: it was previously served live to the page and took 16s a call,
-        # which is what made the stats page 504 under any concurrency.
-        extract_raw = {
-            r["status"]: r["count"]
-            for r in ExtractTask.objects.using(_DB).values("status").annotate(count=Count("id"))
-        }
+        extract_time_series: dict[str, list] = {}
+        for period, fmt in fmt_str.items():
+            buckets = Counter()
+            for day, count in completed_days.items():
+                buckets[day.strftime(fmt)] += count
+            extract_time_series[period] = [
+                {"date": date, "count": count}
+                for date, count in sorted(buckets.items())
+            ]
         extract_counts = {
             "completed": extract_raw.get(1, 0),
             "pending": extract_raw.get(0, 0),

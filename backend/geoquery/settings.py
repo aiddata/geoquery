@@ -557,6 +557,11 @@ for _name, _minimum in (
 EXTRACT_TASK_BUILD_SYNCHRONOUS_COMMIT = (
     os.environ.get("EXTRACT_TASK_BUILD_SYNCHRONOUS_COMMIT", "0") == "1"
 )
+# Snapshot freshness is independent of the extraction/recovery schedules.
+STATS_REPORT_INTERVAL_SECONDS = int(os.environ.get("STATS_REPORT_INTERVAL_SECONDS", "3600"))
+if STATS_REPORT_INTERVAL_SECONDS < 1:
+    raise ImproperlyConfigured("STATS_REPORT_INTERVAL_SECONDS must be at least 1")
+
 CELERY_BEAT_SCHEDULE = {
     # Both sweeps used to be hourly interval schedules, for two reasons that
     # no longer hold. They each ran one unpruned UPDATE over all 57 partitions
@@ -609,14 +614,14 @@ CELERY_BEAT_SCHEDULE = {
     },
     "build-stats-report": {
         "task": "analytics.tasks.maintenance.build_stats_report",
-        "schedule": 300,
-        # A run takes ~300-400 s, so any stall on the background queue piles
-        # these up: on 2026-09-28 ~580 had queued behind a scaled-down worker,
+        "schedule": STATS_REPORT_INTERVAL_SECONDS,
+        # Runs used to take ~300-400 s on a five-minute schedule, piling up
+        # behind any queue stall: on 2026-09-28 ~580 queued behind a scaled-down worker,
         # and when it came back they drained FIFO, ran side by side and
         # saturated pooler-rw. Expiring before the next tick means at most one
         # unstarted message exists; a late one is dropped, not run. The next
         # tick replaces it anyway, and the page keeps serving the old snapshot.
-        "options": {"expires": 240},
+        "options": {"expires": STATS_REPORT_INTERVAL_SECONDS * 0.8},
     },
     "sweep-coverage-records": {
         "task": "analytics.tasks.maintenance.sweep_coverage_records",

@@ -2,14 +2,14 @@
 
 The stats page lives in the SvelteKit app at ``/stats``. This endpoint gives it
 the payload, read from a snapshot that
-``analytics.tasks.maintenance.build_stats_report`` regenerates every 5 minutes
+``analytics.tasks.maintenance.build_stats_report`` regenerates hourly by default
 at ``settings.STATS_REPORT_PATH``.
 
-Nothing here queries the database. The page used to poll a live endpoint for
+Normal requests use only the snapshot. The page used to poll a live endpoint for
 queue counts, which ran a GROUP BY over ~280M ``extract_tasks`` rows -- a global
 aggregate no filter can prune -- at ~16s and millions of block reads per call.
 That made the page 504 as soon as two requests overlapped. The counts are part
-of the 5-minute snapshot instead, so every request is a file read.
+of the snapshot instead, so normal requests are file reads.
 """
 import json
 from pathlib import Path
