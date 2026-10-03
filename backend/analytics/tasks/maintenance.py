@@ -1,12 +1,15 @@
 import logging
 
 from celery import shared_task
+
+from analytics.query_tags import tagged
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
 
 @shared_task
+@tagged("sweep.errors")
 def manage_processing_task_errors():
     """Reset errored extract tasks (status=-1) back to pending for retry."""
     from analytics.management.commands.manage_processing_task_errors import (
@@ -17,6 +20,7 @@ def manage_processing_task_errors():
 
 
 @shared_task
+@tagged("sweep.stale")
 def free_stale_processing_tasks():
     """Reset extract tasks stuck in running (status=2) back to pending (status=0)."""
     from analytics.management.commands.free_stale_processing_tasks import (
@@ -30,6 +34,7 @@ def free_stale_processing_tasks():
 
 
 @shared_task
+@tagged("sweep.requests")
 def reset_stale_requests():
     """Recover requests and output that nothing else would pick up again.
 
@@ -69,6 +74,7 @@ def reset_stale_requests():
 
 
 @shared_task
+@tagged("requests.complete")
 def process_user_requests():
     """Check request queue and advance any requests that are ready."""
     from django.conf import settings
@@ -84,6 +90,7 @@ def process_user_requests():
 
 
 @shared_task
+@tagged("stats")
 def build_stats_report():
     """Regenerate the statistics snapshot the /stats page reads."""
     from stats.builder import StatsBuilder
@@ -137,6 +144,7 @@ def _n_extract_task_builders():
 
 
 @shared_task
+@tagged("builder.launch")
 def build_extract_tasks():
     """Launch parallel global-dataset task generation, plus one pass over the
     (cheap) non-global/coverage-gated branch.
@@ -165,6 +173,7 @@ def build_extract_tasks():
 
 
 @shared_task
+@tagged("builder.worker")
 def build_extract_tasks_worker(run_id=None):
     """One parallel worker's share of the global-dataset backlog. Safe to run
     many of these concurrently -- see build_extract_tasks.py."""
@@ -178,6 +187,7 @@ def build_extract_tasks_worker(run_id=None):
 
 
 @shared_task
+@tagged("coverage.sweep")
 def sweep_coverage_records():
     """Create any missing coverage records and dispatch checks for unchecked ones."""
     from analytics.tasks.coverage import (

@@ -39,6 +39,7 @@ from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from concurrent.futures.process import BrokenProcessPool
 
 from analytics import metrics
+from analytics.query_tags import tagged
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ def _init_child(stop_event):
     _stop = stop_event
 
 
+@tagged("extract")
 def run_chunk(idle_seconds):
     """Claim one chunk, run every task in it, and return how many were claimed.
 
