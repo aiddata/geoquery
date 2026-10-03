@@ -9,7 +9,7 @@ from prometheus_client import REGISTRY
 from analytics import metrics
 from analytics.models import ExtractTask, ProcessingOption
 from analytics.tasks import processing
-from analytics.tasks.processing import _run_extract_task, claim_pending_tasks, run_extract_task
+from analytics.tasks.processing import _run_extract_task, claim_pending_tasks
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
 
@@ -48,7 +48,6 @@ def dispatch_count(stage):
     return ("geoquery_extract_dispatch_seconds_count", (("stage", stage),))
 
 
-IDLE_COUNT = ("geoquery_extract_slot_idle_seconds_count", ())
 PHASES = ("lock", "load", "extract", "write", "finalize")
 
 
@@ -70,7 +69,7 @@ class TaskMetricsTests(TestCase):
 
     _seq = 0
 
-    def make_task(self, *, status=QUEUED):
+    def make_task(self, *, status=LOCKED):
         type(self)._seq += 1
         return ExtractTask.objects.create(
             resource_ids=[self.resource.id],
@@ -142,31 +141,6 @@ class TaskMetricsTests(TestCase):
 
         self.assertEqual(delta[dispatch_count("lock_wait")], 2)
         self.assertEqual(delta[dispatch_count("claim")], 2)
-
-    def test_publishing_is_timed_only_when_something_was_claimed(self):
-        self.make_task(status=PENDING)
-        delta = Delta(dispatch_count("publish"))
-
-        with mock.patch.object(processing.run_extract_task, "delay"):
-            processing.dispatch_pending_tasks(limit=1, batch_size=1)
-            processing.dispatch_pending_tasks(limit=1, batch_size=1)
-
-        self.assertEqual(delta[dispatch_count("publish")], 1)
-
-    def test_idle_time_is_measured_between_consecutive_batches(self):
-        task = self.make_task()
-        metrics._last_batch_end = None
-        delta = Delta(IDLE_COUNT)
-
-        with mock.patch.object(processing, "dispatch_pending_tasks"), mock.patch.object(
-            processing, "get_func", return_value=lambda g, p, **kw: [("mean", 1.0)]
-        ):
-            # The first batch a process runs has nothing before it to measure from.
-            run_extract_task([[task.id, task.dataset_id]])
-            self.assertEqual(delta[IDLE_COUNT], 0)
-            run_extract_task([[task.id, task.dataset_id]])
-
-        self.assertEqual(delta[IDLE_COUNT], 1)
 
 
 class WorkerExporterTests(TestCase):

@@ -1,17 +1,15 @@
 import threading
 from datetime import timedelta
-from unittest import mock
 
 from django.contrib.gis.geos import Point
 from django.db import connection
-from django.test import TestCase, TransactionTestCase, override_settings
+from django.test import TestCase, TransactionTestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from analytics.management.commands.free_stale_processing_tasks import _free_stale_tasks
-from analytics.management.commands.run_processing_tasks import _run_processing_tasks
 from analytics.models import ExtractTask, ProcessingOption
-from analytics.tasks import maintenance, processing
-from analytics.tasks.processing import claim_pending_tasks, run_extract_task
+from analytics.tasks.processing import _release_claimed_tasks, claim_pending_tasks
 from datasets.models import Dataset, DatasetResource
 from features.models import Feature, FeatMap, FeatureCollection
 
@@ -19,7 +17,7 @@ PENDING, DONE, LOCKED, QUEUED, FAILED = 0, 1, 2, 3, -1
 
 
 class DispatchTestCase(TestCase):
-    """Claiming, chaining, and reaping of extract tasks.
+    """Claiming, releasing, and reaping of extract tasks.
 
     Real contention (two transactions claiming at once, which is what FOR
     UPDATE SKIP LOCKED exists for) needs two connections and cannot run inside
@@ -67,18 +65,18 @@ class DispatchTestCase(TestCase):
         return [ExtractTask.objects.get(id=t.id).status for t in tasks]
 
     def refs(self, *tasks):
-        """The (id, dataset_id) pairs a claim returns and a message carries."""
+        """The (id, dataset_id) pairs a claim returns."""
         return [(t.id, t.dataset_id) for t in tasks]
 
     # --- claim_pending_tasks -------------------------------------------------
 
-    def test_claim_orders_by_priority_then_age_and_marks_queued(self):
+    def test_claim_orders_by_priority_then_age_and_marks_running(self):
         old = self.make_task(age=timedelta(hours=2))
         urgent = self.make_task(priority=1, age=timedelta(minutes=1))
         new = self.make_task()
 
         self.assertEqual(claim_pending_tasks(2), self.refs(urgent, old))
-        self.assertEqual(self.statuses(urgent, old, new), [QUEUED, QUEUED, PENDING])
+        self.assertEqual(self.statuses(urgent, old, new), [LOCKED, LOCKED, PENDING])
 
     def test_claim_breaks_priority_and_submit_time_ties_by_id(self):
         # build_extract_tasks inserts in batches sharing one NOW() per
@@ -114,100 +112,47 @@ class DispatchTestCase(TestCase):
             self.make_task(status=status)
         self.assertEqual(claim_pending_tasks(10), [])
 
-    # --- run_extract_task ----------------------------------------------------
+    def test_claim_sends_the_same_parameters_however_many_rows_it_takes(self):
+        # The aligned reference arrays and distinct-dataset filter use three
+        # parameters in total, independent of the number of claimed rows.
+        for _ in range(5):
+            self.make_task()
 
-    def run_task(self, task, func):
-        """Run the task synchronously with the processor and broker stubbed."""
-        with (
-            mock.patch.object(processing, "get_func", return_value=func),
-            mock.patch.object(run_extract_task, "delay") as delay,
-        ):
-            result = run_extract_task(task.id)
-        return result, delay
+        with CaptureQueriesContext(connection) as ctx:
+            claimed = claim_pending_tasks(5)
 
-    def test_queued_row_is_run_and_chains_to_next_pending(self):
-        first = self.make_task(status=QUEUED)
-        second = self.make_task()
+        self.assertEqual(len(claimed), 5)
+        [update] = [q["sql"] for q in ctx.captured_queries if "unnest" in q["sql"]]
+        self.assertNotIn("VALUES", update)
 
-        result, delay = self.run_task(first, lambda geometry, path, **kw: [("mean", 1.5)])
+    # --- _release_claimed_tasks ------------------------------------------------
 
-        self.assertEqual(result, [{"task_id": first.id, "results": 1}])
-        self.assertEqual(self.statuses(first, second), [DONE, QUEUED])
-        delay.assert_called_once_with(self.refs(second))
+    def test_release_returns_running_tasks_to_pending(self):
+        a, b = self.make_task(), self.make_task()
+        claimed = claim_pending_tasks(2)
 
-    def test_noop_still_chains(self):
-        # The row was already finished by the time its message arrived; the
-        # chain must carry on regardless or every collision kills a worker.
-        stale = self.make_task(status=DONE)
-        pending = self.make_task()
+        self.assertEqual(_release_claimed_tasks(claimed), 2)
+        self.assertEqual(self.statuses(a, b), [PENDING, PENDING])
+        self.assertEqual(claim_pending_tasks(2), claimed)
 
-        result, delay = self.run_task(stale, mock.Mock())
+    def test_release_leaves_tasks_that_are_no_longer_running(self):
+        # Finished, failed, or already reaped: none of those are the
+        # releasing worker's to hand back.
+        tasks = [self.make_task(status=s) for s in (LOCKED, DONE, FAILED, PENDING)]
 
-        self.assertEqual(result, [None])
-        self.assertEqual(self.statuses(stale, pending), [DONE, QUEUED])
-        delay.assert_called_once_with(self.refs(pending))
+        self.assertEqual(_release_claimed_tasks(self.refs(*tasks)), 1)
+        self.assertEqual(self.statuses(*tasks), [PENDING, DONE, FAILED, PENDING])
 
-    def test_failure_marks_task_and_still_chains(self):
-        def broken(geometry, path, **kw):
-            raise RuntimeError("boom")
-
-        first = self.make_task(status=QUEUED)
-        second = self.make_task()
-
-        with self.assertRaises(RuntimeError):
-            self.run_task(first, broken)
-
-        failed = ExtractTask.objects.get(id=first.id)
-        self.assertEqual(failed.status, FAILED)
-        self.assertIn("boom", failed.error)
-        self.assertEqual(self.statuses(second), [QUEUED])
-
-    def test_dispatch_failure_does_not_mask_task_outcome(self):
-        first = self.make_task(status=QUEUED)
-        self.make_task()
-
-        with (
-            mock.patch.object(processing, "get_func", return_value=lambda g, p, **kw: []),
-            mock.patch.object(run_extract_task, "delay", side_effect=OSError("broker down")),
-        ):
-            result = run_extract_task(first.id)
-
-        self.assertEqual(result, [{"task_id": first.id, "results": 0}])
-        self.assertEqual(self.statuses(first), [DONE])
-
-    def test_no_chain_when_nothing_pending(self):
-        only = self.make_task(status=QUEUED)
-        _, delay = self.run_task(only, lambda g, p, **kw: [])
-        delay.assert_not_called()
-
-    # --- _run_processing_tasks ------------------------------------------------
-
-    def test_batch_dispatch_claims_then_moves_on(self):
-        tasks = [self.make_task() for _ in range(3)]
-
-        with mock.patch.object(run_extract_task, "delay") as delay:
-            first = _run_processing_tasks(limit=2)
-            second = _run_processing_tasks(limit=2)
-            third = _run_processing_tasks(limit=2)
-
-        self.assertEqual((first["dispatched"], second["dispatched"], third["dispatched"]), (2, 1, 0))
-        # limit counts tasks; each call fits its claim in one message.
-        self.assertEqual(delay.call_count, 2)
-        self.assertEqual(self.statuses(*tasks), [QUEUED] * 3)
-
-    def test_dry_run_claims_nothing(self):
-        tasks = [self.make_task() for _ in range(3)]
-
-        with mock.patch.object(run_extract_task, "delay") as delay:
-            result = _run_processing_tasks(limit=2, dry_run=True)
-
-        self.assertEqual(result, {"dispatched": 2, "dry_run": True})
-        delay.assert_not_called()
-        self.assertEqual(self.statuses(*tasks), [PENDING] * 3)
+    def test_releasing_nothing_issues_no_query(self):
+        with CaptureQueriesContext(connection) as ctx:
+            self.assertEqual(_release_claimed_tasks([]), 0)
+        self.assertEqual(ctx.captured_queries, [])
 
     # --- _free_stale_tasks ------------------------------------------------------
 
-    def test_reaper_frees_stale_locked_and_queued_only(self):
+    def test_reaper_frees_stale_running_and_queued_only(self):
+        # Nothing writes queued (3) any more, but rows the Celery worker left
+        # there must still drain.
         stale_locked = self.make_task(status=LOCKED, age=timedelta(hours=1))
         stale_queued = self.make_task(status=QUEUED, age=timedelta(hours=1))
         fresh_queued = self.make_task(status=QUEUED, age=timedelta(minutes=1))
@@ -292,301 +237,4 @@ class ClaimLockContentionTest(TransactionTestCase):
                 "status", flat=True
             )
         )
-        self.assertEqual(statuses, {QUEUED})
-
-
-class BeatDispatchTests(TestCase):
-    """dispatch_processing_tasks sizes its top-up from processing workers only."""
-
-    PROC, BG = "celery@processing-worker-a", "celery@background-worker-b"
-    TASK = "analytics.tasks.processing.run_extract_task"
-
-    def run_beat(self, active_queues, stats, active, reserved):
-        inspector = mock.Mock(
-            active_queues=mock.Mock(return_value=active_queues),
-            stats=mock.Mock(return_value=stats),
-            active=mock.Mock(return_value=active),
-            reserved=mock.Mock(return_value=reserved),
-        )
-        with (
-            mock.patch("celery.current_app.control.inspect", return_value=inspector) as inspect,
-            mock.patch(
-                "analytics.management.commands.run_processing_tasks._run_processing_tasks",
-                return_value={"dispatched": 0, "dry_run": False},
-            ) as run,
-        ):
-            result = maintenance.dispatch_processing_tasks()
-        return result, inspect, run
-
-    @override_settings(EXTRACT_TASK_CLAIM_BATCH=4)
-    def test_counts_slots_and_in_flight_from_processing_workers_only(self):
-        # Replies from the background worker are present in every payload and
-        # must not contribute to either side of the slot arithmetic.
-        result, inspect, run = self.run_beat(
-            active_queues={self.PROC: [{"name": "processing"}], self.BG: [{"name": "background"}]},
-            stats={self.PROC: {"pool": {"max-concurrency": 16}}, self.BG: {"pool": {"max-concurrency": 4}}},
-            active={self.PROC: [{"name": self.TASK}] * 2, self.BG: [{"name": self.TASK}]},
-            reserved={self.PROC: [{"name": self.TASK}, {"name": "other.task"}], self.BG: []},
-        )
-
-        inspect.assert_any_call(destination=[self.PROC], timeout=5.0)
-        # 13 idle slots, one message each, four tasks per message.
-        run.assert_called_once_with(limit=13 * 4)
-
-    def test_full_workers_dispatch_nothing(self):
-        result, _, run = self.run_beat(
-            active_queues={self.PROC: [{"name": "processing"}]},
-            stats={self.PROC: {"pool": {"max-concurrency": 2}}},
-            active={self.PROC: [{"name": self.TASK}] * 2},
-            reserved={},
-        )
-        run.assert_not_called()
-        self.assertEqual(result, {"dispatched": 0, "total_slots": 2, "in_flight": 2})
-
-    def test_no_processing_workers_dispatches_nothing(self):
-        result, _, run = self.run_beat(
-            active_queues={self.BG: [{"name": "background"}]},
-            stats={self.BG: {"pool": {"max-concurrency": 4}}},
-            active={},
-            reserved={},
-        )
-        run.assert_not_called()
-        self.assertEqual(result["dispatched"], 0)
-
-
-class ClaimBatchingTests(TestCase):
-    """One claim per message instead of one claim per task.
-
-    Every claim serializes on CLAIM_LOCK_ID while holding a pooler
-    connection, so the claim rate -- not the work -- was what filled the
-    connection pool. Batching divides that rate by the batch size.
-    """
-
-    @classmethod
-    def setUpTestData(cls):
-        dataset = Dataset.objects.create(name="ds", path="/data/ds", active=True)
-        cls.resource = DatasetResource.objects.create(
-            dataset=dataset, name="ds-2020", path="2020.tif"
-        )
-        cls.po = ProcessingOption.objects.create(
-            dataset=dataset,
-            short_name="mean",
-            function="rasterstats_default_mean",
-            active=True,
-        )
-        fc = FeatureCollection.objects.create(name="fc", path="/data/fc", active=True)
-        cls.fm = FeatMap.objects.create(fc=fc, geom=Feature.objects.create(shape=Point(0, 0)))
-
-    _seq = 0
-
-    def make_task(self, *, status=PENDING):
-        type(self)._seq += 1
-        return ExtractTask.objects.create(
-            resource_ids=[self.resource.id],
-            dataset_id=self.resource.dataset_id,
-            fm=self.fm,
-            po=self.po,
-            status=status,
-            kwargs={"n": self._seq},
-        )
-
-    def test_one_message_carries_a_whole_batch(self):
-        tasks = [self.make_task() for _ in range(4)]
-
-        with (
-            mock.patch.object(run_extract_task, "delay") as delay,
-            self.settings(EXTRACT_TASK_CLAIM_BATCH=4),
-        ):
-            claimed = processing.dispatch_pending_tasks()
-
-        self.assertEqual(len(claimed), 4)
-        delay.assert_called_once_with([(t.id, t.dataset_id) for t in tasks])
-
-    def test_claim_is_issued_once_per_batch_not_once_per_task(self):
-        for _ in range(4):
-            self.make_task()
-
-        with (
-            mock.patch.object(run_extract_task, "delay"),
-            mock.patch.object(
-                processing, "claim_pending_tasks", wraps=processing.claim_pending_tasks
-            ) as claim,
-            self.settings(EXTRACT_TASK_CLAIM_BATCH=4),
-        ):
-            processing.dispatch_pending_tasks()
-
-        # The whole point: one advisory lock acquisition for the batch.
-        claim.assert_called_once_with(4)
-
-    def test_finishing_a_batch_dispatches_exactly_one_batch(self):
-        # The fleet holds one in-flight message per worker slot. If a chain
-        # published one message per task it finished, each completion would
-        # fan out 4x and the queue would grow without bound.
-        running = [self.make_task(status=QUEUED) for _ in range(4)]
-        for _ in range(8):
-            self.make_task()
-
-        with (
-            mock.patch.object(processing, "get_func", return_value=lambda g, p, **kw: []),
-            mock.patch.object(run_extract_task, "delay") as delay,
-            self.settings(EXTRACT_TASK_CLAIM_BATCH=4),
-        ):
-            run_extract_task([[t.id, t.dataset_id] for t in running])
-
-        self.assertEqual(
-            delay.call_count, 1,
-            "one message in must produce exactly one message out",
-        )
-        self.assertEqual(len(delay.call_args.args[0]), 4)
-
-    def test_one_failure_does_not_strand_the_rest_of_the_batch(self):
-        # The other three are already claimed (status=3); aborting the message
-        # would leave nothing to run them until the stale reaper fires.
-        tasks = [self.make_task(status=QUEUED) for _ in range(4)]
-        seen = []
-
-        def flaky(geometry, path, **kw):
-            seen.append(path)
-            if len(seen) == 1:
-                raise RuntimeError("boom")
-            return [("mean", 1.0)]
-
-        with (
-            mock.patch.object(processing, "get_func", return_value=flaky),
-            mock.patch.object(run_extract_task, "delay"),
-            self.assertRaises(RuntimeError),
-        ):
-            run_extract_task([[t.id, t.dataset_id] for t in tasks])
-
-        statuses = [ExtractTask.objects.get(id=t.id).status for t in tasks]
-        self.assertEqual(statuses[0], FAILED)
-        self.assertEqual(
-            statuses[1:], [DONE] * 3,
-            "a failure in the first task stranded the rest of the batch",
-        )
-
-    def test_a_bare_task_id_from_an_older_pod_still_runs(self):
-        # Rolling deploys mean messages published by the previous build are
-        # still in the queue when the new one starts consuming.
-        task = self.make_task(status=QUEUED)
-
-        with (
-            mock.patch.object(processing, "get_func", return_value=lambda g, p, **kw: []),
-            mock.patch.object(run_extract_task, "delay"),
-        ):
-            result = run_extract_task(task.id)
-
-        self.assertEqual(result, [{"task_id": task.id, "results": 0}])
-        self.assertEqual(ExtractTask.objects.get(id=task.id).status, DONE)
-
-    def test_a_list_of_plain_ids_from_an_older_pod_still_runs(self):
-        # Builds before (id, dataset_id) pairs published plain ids. They still
-        # run, just without partition pruning on the lookup.
-        tasks = [self.make_task(status=QUEUED) for _ in range(2)]
-
-        with (
-            mock.patch.object(processing, "get_func", return_value=lambda g, p, **kw: []),
-            mock.patch.object(run_extract_task, "delay"),
-        ):
-            result = run_extract_task([t.id for t in tasks])
-
-        self.assertEqual(result, [{"task_id": t.id, "results": 0} for t in tasks])
-        self.assertEqual(
-            [ExtractTask.objects.get(id=t.id).status for t in tasks], [DONE, DONE]
-        )
-
-    def test_batch_size_is_configurable(self):
-        for _ in range(6):
-            self.make_task()
-
-        with (
-            mock.patch.object(run_extract_task, "delay") as delay,
-            self.settings(EXTRACT_TASK_CLAIM_BATCH=2),
-        ):
-            processing.dispatch_pending_tasks()
-
-        self.assertEqual(len(delay.call_args.args[0]), 2)
-
-    def test_a_partial_final_batch_is_still_dispatched(self):
-        # 5 tasks at batch size 4 must go out as 4 + 1, not 4 with one left
-        # claimed but never published.
-        for _ in range(5):
-            self.make_task()
-
-        with (
-            mock.patch.object(run_extract_task, "delay") as delay,
-            self.settings(EXTRACT_TASK_CLAIM_BATCH=4),
-        ):
-            claimed = processing.dispatch_pending_tasks(limit=5)
-
-        self.assertEqual(len(claimed), 5)
-        self.assertEqual([len(c.args[0]) for c in delay.call_args_list], [4, 1])
-
-    def test_a_large_limit_is_claimed_in_bounded_chunks(self):
-        # The beat's cold-start top-up asks for idle_slots x batch_size, which
-        # at 384 slots and batch 64 is 24576 tasks. One claim that size builds
-        # 49152 bind parameters (PostgreSQL's ceiling is 65535) and holds
-        # CLAIM_LOCK_ID -- which the whole fleet queues on -- while merge
-        # appending 56 partition indexes.
-        for _ in range(9):
-            self.make_task()
-
-        with (
-            mock.patch.object(run_extract_task, "delay"),
-            mock.patch.object(processing, "_MAX_CLAIM_ROWS", 4),
-            mock.patch.object(
-                processing, "claim_pending_tasks", wraps=processing.claim_pending_tasks
-            ) as claim,
-            self.settings(EXTRACT_TASK_CLAIM_BATCH=2),
-        ):
-            claimed = processing.dispatch_pending_tasks(limit=9)
-
-        self.assertEqual(len(claimed), 9)
-        # 4, 4, then only the 1 still outstanding -- never over-claiming.
-        self.assertEqual(
-            [c.args[0] for c in claim.call_args_list], [4, 4, 1],
-            "a large limit must be split into chunks of at most _MAX_CLAIM_ROWS",
-        )
-
-    def test_chunked_claiming_stops_when_the_queue_runs_dry(self):
-        # Without the empty-chunk break this would spin until `remaining` was
-        # exhausted, re-running the 56-partition claim query for nothing.
-        for _ in range(3):
-            self.make_task()
-
-        with (
-            mock.patch.object(run_extract_task, "delay"),
-            mock.patch.object(processing, "_MAX_CLAIM_ROWS", 2),
-            mock.patch.object(
-                processing, "claim_pending_tasks", wraps=processing.claim_pending_tasks
-            ) as claim,
-            self.settings(EXTRACT_TASK_CLAIM_BATCH=2),
-        ):
-            claimed = processing.dispatch_pending_tasks(limit=100)
-
-        self.assertEqual(len(claimed), 3)
-        # 2, 1, then an empty probe that ends the loop.
-        self.assertEqual(claim.call_count, 3)
-
-    def test_extract_task_results_are_not_persisted(self):
-        # run_extract_task was ~100% of django_celery_results_taskresult, which
-        # nothing reads and nothing pruned. Safe only because this task is
-        # never a chord member -- a chord counts completions via the result
-        # backend, so ignoring results there would hang it silently.
-        self.assertTrue(
-            run_extract_task.ignore_result,
-            "run_extract_task must not persist results",
-        )
-
-    def test_chord_member_tasks_still_persist_results(self):
-        # sweep_coverage_records chords test_coverage_for_dataset -> 
-        # build_extract_tasks. If either stopped recording results the chord
-        # would never fire its body.
-        from analytics.tasks.coverage import test_coverage_for_dataset
-        from analytics.tasks.maintenance import build_extract_tasks
-
-        for task in (test_coverage_for_dataset, build_extract_tasks):
-            self.assertFalse(
-                task.ignore_result,
-                f"{task.name} is part of a chord and needs its result recorded",
-            )
+        self.assertEqual(statuses, {LOCKED})

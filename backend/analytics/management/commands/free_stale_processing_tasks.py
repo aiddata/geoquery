@@ -5,10 +5,11 @@ from django.db import connection
 
 logger = logging.getLogger(__name__)
 
-# Locked (2): a worker claimed the row and died before finishing.
-# Queued (3): the row was claimed for dispatch but its message never reached a
-# worker (broker outage, worker killed mid-publish). Either way the work is
-# still owed and nothing else will pick it up until it is pending again.
+# Running (2): a worker claimed the row and died before finishing or releasing
+# it. Queued (3): no longer written -- the Celery processing worker claimed
+# rows into it for dispatch -- but rows left in it by that worker are reaped
+# here like any other. Either way the work is still owed and nothing else will
+# pick it up until it is pending again.
 # A list, not a tuple: psycopg 3 adapts lists to arrays (for = ANY(%s)) but
 # does not adapt tuples at all.
 STALE_STATUSES = [2, 3]

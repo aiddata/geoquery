@@ -39,7 +39,7 @@ class ExtractDataRoundTripTest(ReplicaReadsTestMixin, TestCase):
     def _task(self, feat):
         fm = FeatMap.objects.create(fc=self.fc, geom=feat, name="F", attr={})
         return ExtractTask.objects.create(
-            resource_ids=[self.r.id], dataset_id=self.ds.id, fm=fm, po=self.po, status=3)
+            resource_ids=[self.r.id], dataset_id=self.ds.id, fm=fm, po=self.po, status=2)
 
     def test_writer_output_is_read_correctly_by_merge_and_visualize(self):
         good_feat = Feature.objects.create(shape=Point(0, 0))

@@ -1,4 +1,3 @@
-from celery import chain
 from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -30,7 +29,9 @@ def on_request_submitted(sender, instance, created, **kwargs):
     calls. The completion sweep itself never triggers this: it transitions
     status exclusively via bulk .update() (manage_user_requests.py), which
     Django never turns into a post_save signal, so this cannot cascade off
-    the sweep's own -1->2->0/1 progression.
+    the sweep's own -1->2->0/1 progression. Its extract tasks need no
+    dispatch: idle extract workers find them on their next claim (see
+    analytics.extract_worker).
 
     Both branches defer to transaction.on_commit so a task can never start
     working on a Request before the transaction that made it visible has
@@ -46,13 +47,6 @@ def on_request_submitted(sender, instance, created, **kwargs):
         )
 
     if instance.status in (-1, 0):
-        from analytics.tasks.maintenance import (
-            dispatch_processing_tasks,
-            process_user_requests,
-        )
+        from analytics.tasks.maintenance import process_user_requests
 
-        transaction.on_commit(
-            lambda: chain(
-                process_user_requests.si(), dispatch_processing_tasks.si()
-            ).delay()
-        )
+        transaction.on_commit(lambda: process_user_requests.delay())

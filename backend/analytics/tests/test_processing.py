@@ -1,16 +1,15 @@
 import hashlib
 import json
-import threading
 from unittest import mock
 
 from django.contrib.gis.geos import Point
-from django.db import connection, transaction
+from django.db import connection
 from django.test import TestCase, TransactionTestCase
 from django.test.utils import CaptureQueriesContext
 
 from analytics.models import ExtractData, ExtractTask, ProcessingOption
 from analytics.tasks import processing
-from analytics.tasks.processing import _claim_extract_task, _run_extract_task
+from analytics.tasks.processing import _load_claimed_task, _run_extract_task
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
 
@@ -56,7 +55,7 @@ class ProcessingTestCase(TestCase):
             for i in range(n)
         ]
 
-    def make_task(self, resources, *, status=PENDING, kwargs=None):
+    def make_task(self, resources, *, status=LOCKED, kwargs=None):
         return ExtractTask.objects.create(
             resource_ids=[r.id for r in resources],
             dataset_id=self.dataset.id,
@@ -73,7 +72,7 @@ class ProcessingTestCase(TestCase):
 
     def test_standard_task_single_resource_success(self):
         resources = self.make_resources(1)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources, status=LOCKED)
 
         with mock.patch.object(
             processing, "get_func", return_value=lambda g, p, **kw: [("mean", 1.5)]
@@ -93,7 +92,7 @@ class ProcessingTestCase(TestCase):
 
     def test_grouped_task_all_resources_success_is_position_aligned(self):
         resources = self.make_resources(3)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources, status=LOCKED)
 
         def func(geometry, path, **kw):
             # value depends on which resource file this call is for, so we
@@ -117,7 +116,7 @@ class ProcessingTestCase(TestCase):
 
     def test_grouped_task_partial_failure_leaves_null_without_raising(self):
         resources = self.make_resources(3)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources, status=LOCKED)
         failing_id = resources[1].id
 
         def func(geometry, path, **kw):
@@ -140,7 +139,7 @@ class ProcessingTestCase(TestCase):
 
     def test_single_resource_total_failure_raises_and_marks_failed(self):
         resources = self.make_resources(1)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources, status=LOCKED)
 
         def broken(geometry, path, **kw):
             raise _DistinctiveProcessorError("boom")
@@ -161,7 +160,7 @@ class ProcessingTestCase(TestCase):
 
     def test_grouped_task_all_resources_fail_raises_chained_runtime_error(self):
         resources = self.make_resources(2)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources, status=LOCKED)
 
         def broken(geometry, path, **kw):
             raise ValueError(f"boom-{path.stem}")
@@ -188,7 +187,7 @@ class ProcessingTestCase(TestCase):
         # reindex and iterates the queryset directly would put r0's value at
         # position 0 instead of r2's, failing this test.
         r0, r1, r2 = self.make_resources(3)
-        task = self.make_task([r2, r0, r1], status=QUEUED)
+        task = self.make_task([r2, r0, r1], status=LOCKED)
 
         call_log = []
 
@@ -213,7 +212,7 @@ class ProcessingTestCase(TestCase):
 
     def test_rerun_recomputes_every_position(self):
         resources = self.make_resources(3)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources, status=LOCKED)
         failing_id = resources[1].id
 
         call_log = []
@@ -232,9 +231,9 @@ class ProcessingTestCase(TestCase):
         self.assertEqual(row.float_values, [0.0, None, 2.0])
         self.assertEqual(sorted(call_log), ["r0", "r1", "r2"])
 
-        # Simulate a retry: reset status to claimable, and this time every
+        # Simulate a retry: claim the task again, and this time every
         # resource succeeds.
-        ExtractTask.objects.filter(id=task.id).update(status=PENDING)
+        ExtractTask.objects.filter(id=task.id).update(status=LOCKED)
         call_log.clear()
 
         def all_succeed(geometry, path, **kw):
@@ -264,7 +263,7 @@ class ProcessingTestCase(TestCase):
         # len(existing_by_name) + len(produced) -- the latter double-counts
         # "mean" here since it appears in both dicts.
         resources = self.make_resources(3)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources, status=LOCKED)
 
         call_log = []
 
@@ -281,11 +280,11 @@ class ProcessingTestCase(TestCase):
         row = self.data_row(task, "mean")
         self.assertEqual(row.float_values, [0.0, None, 2.0])
 
-        # Simulate a retry: reset status to claimable, and this time every
+        # Simulate a retry: claim the task again, and this time every
         # resource succeeds -- "mean" is still the only name, but it now
         # exists in both existing_by_name (from the first run) and produced
         # (this run recomputes the previously-NULL position).
-        ExtractTask.objects.filter(id=task.id).update(status=PENDING)
+        ExtractTask.objects.filter(id=task.id).update(status=LOCKED)
         call_log.clear()
 
         def all_succeed(geometry, path, **kw):
@@ -310,7 +309,7 @@ class ProcessingTestCase(TestCase):
         # left retriable/NULL or treated as a failure, even though it
         # contributes no ExtractData rows.
         resources = self.make_resources(1)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources, status=LOCKED)
 
         with mock.patch.object(
             processing, "get_func", return_value=lambda g, p, **kw: []
@@ -325,9 +324,9 @@ class ProcessingTestCase(TestCase):
 
     # --- claim filtering (dataset_id__in replaces resource__dataset__active) --
 
-    def test_inactive_dataset_task_is_not_claimed(self):
+    def test_inactive_dataset_task_is_not_run(self):
         resources = self.make_resources(1)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources, status=LOCKED)
         self.dataset.active = False
         self.dataset.save(update_fields=["active"])
 
@@ -335,7 +334,7 @@ class ProcessingTestCase(TestCase):
 
         self.assertIsNone(result)
         task.refresh_from_db()
-        self.assertEqual(task.status, QUEUED)
+        self.assertEqual(task.status, LOCKED)
 
     def test_null_position_does_not_block_completion(self):
         # A run that raises nothing is complete, even where a processor
@@ -344,7 +343,7 @@ class ProcessingTestCase(TestCase):
         # scans stored arrays. (The nodata value itself is still the string
         # 'None' until _classify_value changes in a later commit.)
         resources = self.make_resources(3)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources, status=LOCKED)
 
         def sparse(geometry, path, **kw):
             if path.stem == "r1":
@@ -369,7 +368,7 @@ class ProcessingTestCase(TestCase):
 
     def test_nodata_is_stored_as_null_not_the_string_none(self):
         resources = self.make_resources(1)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources, status=LOCKED)
 
         with mock.patch.object(
             processing, "get_func", return_value=lambda g, p, **kw: [("mean", None)]
@@ -389,7 +388,7 @@ class ProcessingTestCase(TestCase):
 
     def test_single_resource_task_writes_scalar_not_array(self):
         resources = self.make_resources(1)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources, status=LOCKED)
 
         with mock.patch.object(
             processing, "get_func", return_value=lambda g, p, **kw: [("mean", 1.5)]
@@ -402,7 +401,7 @@ class ProcessingTestCase(TestCase):
 
     def test_grouped_task_writes_array_not_scalar(self):
         resources = self.make_resources(3)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources, status=LOCKED)
 
         def func(geometry, path, **kw):
             return [("mean", float(int(path.stem[-1])) * 10)]
@@ -419,7 +418,7 @@ class ProcessingTestCase(TestCase):
         # good data if a retry happened to fail on every position. A run that
         # produced nothing must leave the previous run's rows alone.
         resources = self.make_resources(1)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources, status=LOCKED)
 
         with mock.patch.object(
             processing, "get_func", return_value=lambda g, p, **kw: [("mean", 4.5)]
@@ -427,7 +426,7 @@ class ProcessingTestCase(TestCase):
             _run_extract_task(task.id)
         self.assertEqual(self.data_row(task, "mean").float_value, 4.5)
 
-        ExtractTask.objects.filter(id=task.id).update(status=PENDING)
+        ExtractTask.objects.filter(id=task.id).update(status=LOCKED)
 
         def always_fails(geometry, path, **kw):
             raise RuntimeError("boom")
@@ -445,7 +444,7 @@ class ProcessingTestCase(TestCase):
         # stringified every real value after it. Masked until now only
         # because every production array happens to have one element.
         resources = self.make_resources(3)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources, status=LOCKED)
 
         def func(geometry, path, **kw):
             if path.stem == "r0":
@@ -459,7 +458,7 @@ class ProcessingTestCase(TestCase):
         self.assertEqual(row.float_values, [None, 1.0, 2.0])
         self.assertIsNone(row.str_values)
 
-    # --- the claim prunes to one partition and fetches only what it reads ---
+    # --- the lookup prunes to one partition and fetches only what it reads --
 
     def run_capturing_queries(self, task, dataset_id):
         with (
@@ -472,10 +471,10 @@ class ProcessingTestCase(TestCase):
         return [q["sql"] for q in ctx.captured_queries]
 
     def test_every_extract_tasks_query_names_the_partition(self):
-        # Both sides of the claim need the explicit partition filter, as
-        # does the final status update. No deferred-field reads are needed.
+        # The lookup needs the explicit partition filter, as does the final
+        # status update. No deferred-field reads are needed.
         resources = self.make_resources(1)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources)
 
         queries = self.run_capturing_queries(task, task.dataset_id)
 
@@ -483,33 +482,45 @@ class ProcessingTestCase(TestCase):
             q for q in queries
             if "extract_tasks" in q
         ]
-        self.assertEqual(len(touching), 2, touching)  # claim, complete
-        claim, complete = touching
-        self.assertEqual(claim.count(f"t.dataset_id = {task.dataset_id}"), 2)
+        self.assertEqual(len(touching), 2, touching)  # lookup, complete
+        lookup, complete = touching
+        self.assertIn(f"t.dataset_id = {task.dataset_id}", lookup)
         self.assertIn(f"WHERE dataset_id = {task.dataset_id} AND id = {task.id}", complete)
         task.refresh_from_db()
         self.assertEqual(task.status, DONE)
 
-    def test_start_and_completion_times_both_come_from_the_database_clock(self):
-        # A worker's clock can be skewed against the primary's, and a
-        # duration taken across the two can even come out negative.
-        task = self.make_task(self.make_resources(1), status=QUEUED)
+    def test_the_lookup_only_reads(self):
+        # The claim already moved the row to running; a second write to
+        # extract_tasks per task is exactly what the lookup replaced.
+        task = self.make_task(self.make_resources(1))
 
         queries = self.run_capturing_queries(task, task.dataset_id)
 
-        claim, complete = [q for q in queries if "extract_tasks" in q]
-        self.assertIn("update_time = statement_timestamp()", claim)
+        lookup = next(q for q in queries if "FROM extract_tasks AS t" in q)
+        self.assertTrue(lookup.lstrip().startswith("SELECT"), lookup)
+        self.assertNotIn("FOR UPDATE", lookup)
+
+    def test_claim_and_completion_times_both_come_from_the_database_clock(self):
+        # A worker's clock can be skewed against the primary's, and a
+        # duration taken across the two can even come out negative.
+        task = self.make_task(self.make_resources(1), status=PENDING)
+        [(task_id, dataset_id)] = processing.claim_pending_tasks(1)
+
+        queries = self.run_capturing_queries(task, dataset_id)
+
+        complete = next(q for q in queries if "complete_time" in q)
         self.assertIn("complete_time = statement_timestamp()", complete)
         task.refresh_from_db()
+        self.assertEqual(task.status, DONE)
         self.assertLessEqual(task.update_time, task.complete_time)
 
     def test_lookup_does_not_fetch_columns_it_never_reads(self):
         resources = self.make_resources(1)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources)
 
         queries = self.run_capturing_queries(task, task.dataset_id)
 
-        [lookup] = [q for q in queries if "FOR UPDATE" in q]
+        [lookup] = [q for q in queries if "FROM extract_tasks AS t" in q]
         for unused in (
             "spatial_extent",
             "upload_metadata",
@@ -522,46 +533,42 @@ class ProcessingTestCase(TestCase):
         # The pair is the task's identity on the lookup: a wrong partition key
         # must not fall through to some other row or to an unpruned search.
         resources = self.make_resources(1)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources)
 
         self.assertIsNone(_run_extract_task(task.id, task.dataset_id + 1))
         task.refresh_from_db()
-        self.assertEqual(task.status, QUEUED)
+        self.assertEqual(task.status, LOCKED)
 
-    def test_claim_preserves_status_and_active_filters(self):
+    def test_lookup_finds_only_running_tasks_with_active_inputs(self):
         resources = self.make_resources(1)
-        task = self.make_task(resources, status=QUEUED)
+        task = self.make_task(resources)
         tasks = ExtractTask.objects.filter(dataset_id=task.dataset_id, id=task.id)
 
         for status in (PENDING, QUEUED, LOCKED, DONE, FAILED):
             with self.subTest(status=status):
                 tasks.update(status=status, update_time=None)
-                claimed = _claim_extract_task(task.id, task.dataset_id)
-                task.refresh_from_db()
-                if status in (PENDING, QUEUED):
-                    self.assertIsNotNone(claimed)
-                    self.assertEqual(task.status, LOCKED)
-                    self.assertIsNotNone(task.update_time)
+                loaded = _load_claimed_task(task.id, task.dataset_id)
+                if status == LOCKED:
+                    self.assertIsNotNone(loaded)
                 else:
-                    self.assertIsNone(claimed)
-                    self.assertEqual(task.status, status)
-                    self.assertIsNone(task.update_time)
+                    self.assertIsNone(loaded)
+                # Reading never changes the row.
+                task.refresh_from_db()
+                self.assertEqual(task.status, status)
+                self.assertIsNone(task.update_time)
 
-        tasks.update(status=QUEUED, update_time=None)
+        tasks.update(status=LOCKED)
         for related in (self.dataset, self.po, self.fm.fc):
             with self.subTest(inactive=type(related).__name__):
                 related.active = False
                 related.save(update_fields=["active"])
-                self.assertIsNone(_claim_extract_task(task.id, task.dataset_id))
-                task.refresh_from_db()
-                self.assertEqual(task.status, QUEUED)
-                self.assertIsNone(task.update_time)
+                self.assertIsNone(_load_claimed_task(task.id, task.dataset_id))
                 related.active = True
                 related.save(update_fields=["active"])
 
-        self.assertIsNone(_claim_extract_task(-1, task.dataset_id))
+        self.assertIsNone(_load_claimed_task(-1, task.dataset_id))
 
-    def test_claim_delivers_geometry_and_both_kwargs_to_processor(self):
+    def test_lookup_delivers_geometry_and_both_kwargs_to_processor(self):
         resources = self.make_resources(1)
         self.po.kwargs = {"shared": "option", "option_only": [1, None, "é"]}
         self.po.save(update_fields=["kwargs"])
@@ -585,10 +592,10 @@ class ProcessingTestCase(TestCase):
             "flag": True,
         })
 
-    def test_claim_plan_prunes_selection_and_update(self):
-        # Real partitions catch an UPDATE that joins on dataset_id but still
-        # plans/scans every partition. DDL and the analyzed write roll back
-        # with this TestCase, leaving the shared test schema unchanged.
+    def create_test_partitions(self):
+        # Real partitions catch a statement that joins on dataset_id but still
+        # plans/scans every partition. DDL and analyzed writes roll back with
+        # this TestCase, leaving the shared test schema unchanged.
         with connection.cursor() as cursor:
             cursor.execute(
                 "CREATE TABLE extract_tasks_claim_test PARTITION OF extract_tasks "
@@ -599,18 +606,14 @@ class ProcessingTestCase(TestCase):
                 "CREATE TABLE extract_tasks_claim_other PARTITION OF extract_tasks "
                 "FOR VALUES IN (-2147483648)"
             )
-        task = self.make_task(self.make_resources(1), status=QUEUED)
-        with CaptureQueriesContext(connection) as queries:
-            _claim_extract_task(task.id, task.dataset_id)
-        [claim] = queries.captured_queries
-        ExtractTask.objects.filter(dataset_id=task.dataset_id, id=task.id).update(
-            status=QUEUED
-        )
 
+    def explain_partitions(self, sql, *, analyze=True):
+        """Return scanned partitions, or all planned scans when analyze=False."""
         with connection.cursor() as cursor:
-            # EXPLAIN accepts the claim statement, not its SET LOCAL prefix.
-            claim_sql = claim["sql"].removeprefix(processing._ASYNC_COMMIT)
-            cursor.execute("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + claim_sql)
+            # EXPLAIN accepts the statement, not a SET LOCAL prefix.
+            sql = sql.removeprefix(processing._ASYNC_COMMIT)
+            options = "ANALYZE, BUFFERS, FORMAT JSON" if analyze else "FORMAT JSON"
+            cursor.execute(f"EXPLAIN ({options}) " + sql)
             plan = cursor.fetchone()[0][0]["Plan"]
 
         def nodes(node):
@@ -618,19 +621,83 @@ class ProcessingTestCase(TestCase):
             for child in node.get("Plans", []):
                 yield from nodes(child)
 
-        scans = [
-            node for node in nodes(plan)
+        return [
+            node["Relation Name"] for node in nodes(plan)
             if node.get("Relation Name", "").startswith("extract_tasks_")
+            and node["Node Type"] != "ModifyTable"
+            and (not analyze or node.get("Actual Loops", 0) > 0)
+        ], plan
+
+    def test_lookup_plan_prunes_to_one_partition(self):
+        self.create_test_partitions()
+        task = self.make_task(self.make_resources(1))
+        with CaptureQueriesContext(connection) as queries:
+            _load_claimed_task(task.id, task.dataset_id)
+        [lookup] = queries.captured_queries
+
+        scanned, plan = self.explain_partitions(lookup["sql"])
+        self.assertEqual(scanned, ["extract_tasks_claim_test"], plan)
+
+    def test_batch_claim_and_release_exclude_unrelated_partitions_during_planning(self):
+        # A single-row test can pass through execution-time pruning alone.
+        # Use 64 references across two populated partitions and another
+        # populated partition that must be absent from the UPDATE plans.
+        datasets = [self.dataset] + [
+            Dataset.objects.create(name=name, path=f"/data/{name}", active=True)
+            for name in ("batch-other", "batch-unrelated")
         ]
-        self.assertEqual(len(scans), 2, plan)  # candidate and update target
+        partition_names = [f"extract_tasks_batch_test_{i}" for i in range(3)]
+        expected_refs = set()
+        for i, dataset in enumerate(datasets):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"CREATE TABLE {partition_names[i]} PARTITION OF extract_tasks "
+                    "FOR VALUES IN (%s)",
+                    [dataset.id],
+                )
+            resource = DatasetResource.objects.create(
+                dataset=dataset, name=f"batch-r{i}", path="r.tif"
+            )
+            po = ProcessingOption.objects.create(
+                dataset=dataset, short_name="batch-mean",
+                function="rasterstats_default_mean", active=True,
+            )
+            tasks = ExtractTask.objects.bulk_create([
+                ExtractTask(
+                    dataset_id=dataset.id, resource_ids=[resource.id],
+                    fm=self.fm, po=po, status=PENDING,
+                    priority=1 if i < 2 else 0, kwargs={"n": n},
+                )
+                for n in range(32)
+            ])
+            if i < 2:
+                expected_refs.update((task.id, dataset.id) for task in tasks)
+
+        with CaptureQueriesContext(connection) as queries:
+            claimed = processing.claim_pending_tasks(64)
+        self.assertEqual(set(claimed), expected_refs)
+        [claim_update] = [q["sql"] for q in queries.captured_queries if "unnest" in q["sql"]]
+        targets = ExtractTask.objects.filter(dataset_id__in=[d.id for d in datasets[:2]])
+        self.assertEqual(set(targets.values_list("status", flat=True)), {LOCKED})
+
+        with CaptureQueriesContext(connection) as queries:
+            self.assertEqual(processing._release_claimed_tasks(claimed), 64)
+        [release_update] = [q["sql"] for q in queries.captured_queries if "unnest" in q["sql"]]
+        self.assertEqual(set(targets.values_list("status", flat=True)), {PENDING})
         self.assertEqual(
-            {node["Relation Name"] for node in scans}, {"extract_tasks_claim_test"}
+            set(ExtractTask.objects.filter(dataset_id=datasets[2].id).values_list("status", flat=True)),
+            {PENDING},
         )
 
+        for operation, update in (("claim", claim_update), ("release", release_update)):
+            with self.subTest(operation=operation):
+                planned, plan = self.explain_partitions(update, analyze=False)
+                self.assertEqual(set(planned), set(partition_names[:2]), plan)
 
-class ExtractClaimTransactionTests(TransactionTestCase):
-    """Exercise committed claims and competing connections without TestCase's
-    wrapping transaction hiding round trips or holding locks for the test.
+
+class _CommittedTaskFixture(TransactionTestCase):
+    """One claimed (running) task, outside TestCase's wrapping transaction,
+    so autocommit and SET LOCAL behave as they do in a worker.
     """
 
     def setUp(self):
@@ -646,94 +713,11 @@ class ExtractClaimTransactionTests(TransactionTestCase):
         fm = FeatMap.objects.create(fc=fc, geom=Feature.objects.create(shape=Point(0, 0)))
         self.task = ExtractTask.objects.create(
             dataset_id=dataset.id, resource_ids=[resource.id], po=po, fm=fm,
-            status=QUEUED,
+            status=LOCKED,
         )
 
-    def test_claim_is_one_statement_and_committed_before_processing(self):
-        def processor(geometry, path, **kwargs):
-            self.assertTrue(connection.get_autocommit())
-            observer = connection.copy()
-            try:
-                with observer.cursor() as cursor:
-                    # A separate connection can see the claim and take the
-                    # row lock immediately while extraction is running.
-                    cursor.execute(
-                        "SELECT status, update_time FROM extract_tasks "
-                        "WHERE dataset_id = %s AND id = %s FOR UPDATE NOWAIT",
-                        [self.task.dataset_id, self.task.id],
-                    )
-                    status, update_time = cursor.fetchone()
-                self.assertEqual(status, LOCKED)
-                self.assertIsNotNone(update_time)
-            finally:
-                observer.close()
-            return [("mean", 1.0)]
 
-        with (
-            mock.patch.object(processing, "get_func", return_value=processor),
-            CaptureQueriesContext(connection) as queries,
-        ):
-            _run_extract_task(self.task.id, self.task.dataset_id)
-
-        statements = [q["sql"] for q in queries.captured_queries]
-        claim_index = next(i for i, q in enumerate(statements) if "FOR UPDATE" in q)
-        self.assertEqual(claim_index, 0, statements)
-        # The very next query loads resources; there is no BEGIN, UPDATE or
-        # COMMIT exchange between claiming and loading.
-        self.assertIn('FROM "dataset_resources"', statements[1])
-
-    def claim_in_thread(self, results, errors, barrier=None):
-        try:
-            if barrier is not None:
-                barrier.wait(timeout=10)
-            results.append(_claim_extract_task(self.task.id, self.task.dataset_id))
-        except Exception as exc:
-            errors.append(exc)
-        finally:
-            connection.close()
-
-    def test_concurrent_claims_have_exactly_one_winner(self):
-        results, errors = [], []
-        barrier = threading.Barrier(4)
-        threads = [
-            threading.Thread(target=self.claim_in_thread, args=(results, errors, barrier))
-            for _ in range(4)
-        ]
-        for thread in threads:
-            thread.start()
-        for thread in threads:
-            thread.join(timeout=10)
-
-        self.assertFalse(any(thread.is_alive() for thread in threads))
-        self.assertEqual(errors, [])
-        self.assertEqual(len(results), 4)
-        self.assertEqual(sum(result is not None for result in results), 1)
-        self.task.refresh_from_db()
-        self.assertEqual(self.task.status, LOCKED)
-
-    def test_claim_skips_a_locked_task_without_waiting(self):
-        results, errors = [], []
-        thread = threading.Thread(target=self.claim_in_thread, args=(results, errors))
-        try:
-            with transaction.atomic():
-                ExtractTask.objects.select_for_update().get(
-                    dataset_id=self.task.dataset_id, id=self.task.id
-                )
-                thread.start()
-                thread.join(timeout=2)
-                finished_while_locked = not thread.is_alive()
-        finally:
-            if thread.ident is not None:
-                thread.join(timeout=10)
-
-        self.assertTrue(finished_while_locked, "claim waited for the task's row lock")
-        self.assertEqual(errors, [])
-        self.assertEqual(results, [None])
-        self.task.refresh_from_db()
-        self.assertEqual(self.task.status, QUEUED)
-
-
-class ProcessingCommitModeTest(TransactionTestCase):
+class ProcessingCommitModeTest(_CommittedTaskFixture):
     """Every processing commit skips fsync, and the setting goes no further.
 
     Async commit is what keeps fsync latency on the database volume out of
@@ -742,8 +726,6 @@ class ProcessingCommitModeTest(TransactionTestCase):
     transaction a SET LOCAL would last for the rest of the test, hiding
     exactly the leak these check for.
     """
-
-    setUp = ExtractClaimTransactionTests.setUp
 
     def run_capturing_queries(self):
         with (
@@ -760,18 +742,16 @@ class ProcessingCommitModeTest(TransactionTestCase):
             cursor.execute("SHOW synchronous_commit")
             return cursor.fetchone()[0]
 
-    def test_claim_results_and_completion_all_commit_asynchronously(self):
+    def test_results_and_completion_commit_asynchronously(self):
         queries = self.run_capturing_queries()
 
-        claim = next(q for q in queries if "FOR UPDATE" in q)
         complete = next(q for q in queries if "complete_time" in q)
-        for query in (claim, complete):
-            self.assertTrue(query.startswith(processing._ASYNC_COMMIT), query)
+        self.assertTrue(complete.startswith(processing._ASYNC_COMMIT), complete)
         # The results transaction is ORM calls, so it gets a statement of
         # its own ahead of the insert.
         insert = next(i for i, q in enumerate(queries) if 'INSERT INTO "extract_data"' in q)
         self.assertIn(processing._ASYNC_COMMIT, queries[:insert])
-        # The claim's RETURNING row reached Python and the task finished.
+        # The lookup's row reached Python and the task finished.
         self.task.refresh_from_db()
         self.assertEqual(self.task.status, DONE)
         self.assertEqual(
@@ -808,6 +788,19 @@ class ProcessingCommitModeTest(TransactionTestCase):
         )
         self.assertTrue(lock.startswith(processing._ASYNC_COMMIT), lock)
         self.assertEqual(self.session_setting(), "on")
+
+    def test_releasing_tasks_commits_asynchronously(self):
+        with CaptureQueriesContext(connection) as ctx:
+            released = processing._release_claimed_tasks(
+                [(self.task.id, self.task.dataset_id)]
+            )
+
+        self.assertEqual(released, 1)
+        [release] = [q["sql"] for q in ctx.captured_queries]
+        self.assertTrue(release.startswith(processing._ASYNC_COMMIT), release)
+        self.assertEqual(self.session_setting(), "on")
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, PENDING)
 
     def test_synchronous_commit_can_be_restored_without_a_deploy(self):
         with self.settings(EXTRACT_TASK_SYNCHRONOUS_COMMIT=True):

@@ -244,7 +244,7 @@ class SubmitRequestTests(TestCase):
         state = first.input_required.request_state
 
         with (
-            mock.patch("analytics.signals.chain"),
+            mock.patch("analytics.tasks.maintenance.process_user_requests.delay"),
             mock.patch(
                 "analytics.tasks.requests.materialize_request_tasks.delay"
             ) as materialize,
@@ -269,7 +269,7 @@ class SubmitRequestTests(TestCase):
         materialize.assert_called_once_with(str(request.id))
 
     def test_declining_creates_nothing(self):
-        with mock.patch("analytics.signals.chain"):
+        with mock.patch("analytics.tasks.maintenance.process_user_requests.delay"):
             result = self.call(
                 ctx=FakeContext(responses={"confirm": Answer(action="decline")})
             )
@@ -302,7 +302,7 @@ class SubmitRequestTests(TestCase):
         self.assertIn("4 extractions", text)
 
     def test_explicit_confirm_true_submits_without_elicitation(self):
-        with mock.patch("analytics.signals.chain"):
+        with mock.patch("analytics.tasks.maintenance.process_user_requests.delay"):
             self.call(ctx=FakeContext(supports_elicitation=False), confirm=True)
 
         self.assertEqual(Request.objects.count(), 1)

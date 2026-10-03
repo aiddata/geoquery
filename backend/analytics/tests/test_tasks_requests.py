@@ -55,17 +55,16 @@ class MaterializeRequestTasksTest(TestCase):
         self.assertEqual(ExtractTask.objects.count(), 1)
         self.assertEqual(RequestMap.objects.count(), 1)
 
-    def test_success_fires_the_dispatch_chain(self):
+    def test_success_schedules_the_completion_sweep(self):
         created = self.submit()
 
         with (
-            mock.patch("analytics.signals.chain") as mock_chain,
+            mock.patch("analytics.tasks.maintenance.process_user_requests.delay") as mock_sweep,
             self.captureOnCommitCallbacks(execute=True),
         ):
             materialize_request_tasks(str(created.request.id))
 
-        mock_chain.assert_called_once()
-        mock_chain.return_value.delay.assert_called_once()
+        mock_sweep.assert_called_once_with()
 
     def test_no_extract_tasks_sets_error_status(self):
         created = self.submit()

@@ -2,7 +2,7 @@
 
 Each processor is called as ``func(feat, dataset_path, name=..., **kwargs)`` and
 returns a list of ``(column_name, value)`` tuples. See
-``analytics.tasks.processing.run_extract_task`` for the call site.
+``analytics.tasks.processing._extract`` for the call site.
 
 REGISTRY keys are persisted in ``analytics.models.ProcessingOption.function`` and in
 the dataset ingest JSON published in aiddata/geo-datasets. Renaming a key is a data

@@ -448,7 +448,7 @@ class SubmitRequestOverTheWireTests(TransactionTestCase):
             asked.append(message)
             return {"confirm": True}
 
-        with mock.patch("analytics.signals.chain"):
+        with mock.patch("analytics.tasks.maintenance.process_user_requests.delay"):
             result = self.submit(accept)
 
         self.assertEqual(len(asked), 1)

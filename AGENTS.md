@@ -20,7 +20,7 @@ docker compose up # add --build after changing dependencies or a Containerfile
 - Django admin: http://localhost:8000/admin/
 - MCP server (streamable HTTP): http://localhost:8001/mcp
 
-Services: `db` (PostGIS), `rabbitmq` (Celery broker), `backend` (Django), `mcp` (FastMCP), `worker-processing` and `worker-background` (Celery workers, one per queue), `beat` (Celery scheduler), `frontend` (Vite).
+Services: `db` (PostGIS), `rabbitmq` (Celery broker), `backend` (Django), `mcp` (FastMCP), `worker-processing` (extract worker, claiming extract tasks from Postgres), `worker-background` (Celery worker), `beat` (Celery scheduler), `frontend` (Vite).
 
 ### Running Commands
 
@@ -43,7 +43,7 @@ Frontend commands run in the `frontend` container the same way, e.g. `docker com
 
 Only some paths are bind-mounted, so not every edit is picked up live:
 
-- `./backend` → `/app/backend` in `backend`, `mcp`, both workers, and `beat`. The Django dev server auto-reloads; the MCP server, Celery workers, and beat do not, so restart those services after changing code they load. Python edits need no rebuild, but changing `backend/pyproject.toml` does — dependencies are installed with `uv sync` at image build time.
+- `./backend` → `/app/backend` in `backend`, `mcp`, both workers, and `beat`. The Django dev server auto-reloads; the MCP server, both workers, and beat do not, so restart those services after changing code they load. Python edits need no rebuild, but changing `backend/pyproject.toml` does — dependencies are installed with `uv sync` at image build time.
 - `./frontend/src` and `./docs` are mounted; nothing else from `frontend/` is. Changes to `package.json`, `vite.config.ts`, `svelte.config.js`, or `components.json` require `docker compose up --build frontend`, as does anything that adds a dependency.
 
 ### Configuration and Data

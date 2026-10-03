@@ -148,11 +148,11 @@ if PROMETHEUS_ENABLED:
     # some systems; bind the wildcard address explicitly.
     PROMETHEUS_METRICS_EXPORT_ADDRESS = "0.0.0.0"
 
-# Celery worker metrics (analytics.metrics), served by the worker's parent
-# process on this port. Separate from PROMETHEUS_ENABLED, which is the API
-# server's middleware and DB instrumentation: the worker exporter needs
+# Extract worker metrics (analytics.metrics), served by run_extract_worker's
+# parent process on this port. Separate from PROMETHEUS_ENABLED, which is the
+# API server's middleware and DB instrumentation: the worker exporter needs
 # PROMETHEUS_MULTIPROC_DIR set in the environment as well, because its tasks
-# run in forked children whose metrics only reach the parent through files.
+# run in child processes whose metrics only reach the parent through files.
 # 0 disables it.
 WORKER_METRICS_PORT = int(os.getenv("WORKER_METRICS_PORT", "0"))
 
@@ -450,13 +450,10 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_RESULT_EXPIRES = int(os.environ.get("CELERY_RESULT_EXPIRES", str(60 * 60 * 24)))
 CELERY_TIMEZONE = TIME_ZONE
 
-# Two-queue split: only the raster extract task (which needs /data) runs on the
-# "processing" queue; everything else (coverage, docs, beat/maintenance) defaults
-# to "background". New tasks fail safe onto background unless explicitly routed.
+# Every Celery task runs on the "background" queue. Extract tasks are not
+# Celery tasks: the extract worker (analytics.extract_worker, run by the
+# run_extract_worker command) claims them from extract_tasks directly.
 CELERY_TASK_DEFAULT_QUEUE = "background"
-CELERY_TASK_ROUTES = {
-    "analytics.tasks.processing.run_extract_task": {"queue": "processing"},
-}
 
 STALE_TASK_MINUTES = int(os.environ.get("STALE_TASK_MINUTES", "30"))
 
@@ -476,7 +473,7 @@ STALE_TASK_MINUTES = int(os.environ.get("STALE_TASK_MINUTES", "30"))
 # fail silently as a request waiting forever on work it believes unfinished.
 MAX_EXTRACT_TASK_ATTEMPTS = int(os.environ.get("MAX_EXTRACT_TASK_ATTEMPTS", "5"))
 
-# Extract tasks claimed (and published) per processing message.
+# Extract tasks one claim takes: the size of an extract worker's chunk.
 #
 # The claim asks for the globally highest-priority pending task, and
 # extract_tasks is LIST partitioned on dataset_id, so the query cannot name a
@@ -492,15 +489,22 @@ MAX_EXTRACT_TASK_ATTEMPTS = int(os.environ.get("MAX_EXTRACT_TASK_ATTEMPTS", "5")
 # 384 slots there is room for ~2,560 tasks/sec before real work binds.
 #
 # 4 -> 16 scaled again, to ~14,900 tasks/min, so the claim was still the
-# limit there too. Raise it while that holds. The cost of raising it is
-# blast radius: a worker dying mid-batch strands up to this many tasks until
-# free_stale_processing_tasks reaps them (STALE_TASK_MINUTES). Note the beat
-# multiplies this by idle slots when topping up, which _MAX_CLAIM_ROWS in
-# processing.py bounds -- see the bind-parameter ceiling noted there.
+# limit there too. Raise it while that holds. The costs of raising it: the
+# claim holds the fleet-wide lock a little longer per row it takes, and a
+# worker dying abruptly mid-chunk strands up to this many tasks until
+# free_stale_processing_tasks reaps them (STALE_TASK_MINUTES). A worker that
+# is stopped normally releases the tasks it hadn't started.
 EXTRACT_TASK_CLAIM_BATCH = int(os.environ.get("EXTRACT_TASK_CLAIM_BATCH", "64"))
 
-# Whether processing commits (the batch claim, each task's claim, its results
-# and its completion) wait for fsync. Off by default. Measured on production
+# How long an extract worker slot waits after finding the queue empty (or
+# failing to reach the database) before claiming again. Each empty claim
+# still merge-sorts every partition's pending index under the claim lock, so
+# this keeps an idle fleet from polling the primary hard. It is also the
+# longest a new request's tasks wait for an idle worker to notice them.
+EXTRACT_WORKER_IDLE_SECONDS = float(os.environ.get("EXTRACT_WORKER_IDLE_SECONDS", "60"))
+
+# Whether processing commits (the batch claim, a task's results and its
+# completion) wait for fsync. Off by default. Measured on production
 # on 2026-10-02 with the builder stopped: active backends sat in
 # LWLock:WALWrite, every database phase of a task rose and fell with WAL
 # fsync latency on the Ceph volume while the extract phase stayed flat, and
@@ -511,10 +515,10 @@ EXTRACT_TASK_CLAIM_BATCH = int(os.environ.get("EXTRACT_TASK_CLAIM_BATCH", "64"))
 # results and its status are lost together and it simply runs again -- ~10ms
 # of work. Any later synchronous commit (a request completing, say) flushes
 # every async commit before it, and standbys only receive flushed WAL, so
-# nothing durable or visible on a replica can depend on a lost commit. A
-# rolled-back batch claim can leave a published message for rows that are
-# pending again; the per-task claim admits one runner, and a rerun replaces
-# its results wholesale. Set to "1" to restore synchronous commits without a
+# nothing durable or visible on a replica can depend on a lost commit. A lost
+# claim returns its rows to pending while the worker that claimed them may
+# already be running them; another worker can then claim and run them too,
+# and a rerun replaces its results wholesale. Set to "1" to restore synchronous commits without a
 # deploy.
 EXTRACT_TASK_SYNCHRONOUS_COMMIT = (
     os.environ.get("EXTRACT_TASK_SYNCHRONOUS_COMMIT", "0") == "1"
@@ -598,10 +602,6 @@ CELERY_BEAT_SCHEDULE = {
     "build-boundary-docs": {
         "task": "features.tasks.build_boundary_docs_task",
         "schedule": crontab(hour=2, minute=15),
-    },
-    "dispatch-processing-tasks": {
-        "task": "analytics.tasks.maintenance.dispatch_processing_tasks",
-        "schedule": crontab(minute="0,5,10,15,20,25,30,35,40,45,50,55"),
     },
     "process-user-requests": {
         "task": "analytics.tasks.maintenance.process_user_requests",

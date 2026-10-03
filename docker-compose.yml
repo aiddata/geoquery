@@ -125,7 +125,7 @@ services:
       dockerfile: backend/Containerfile
     image: geoquery-backend
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
-    command: uv run celery -A geoquery worker -Q processing --loglevel=info
+    command: uv run python manage.py run_extract_worker --concurrency 2
     volumes:
       - ./backend:/app/backend
       - type: bind
@@ -137,7 +137,6 @@ services:
       - ./requests:/requests
     environment:
       - DJANGO_DEBUG=true
-      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
       - DB_HOST=db
       - REQUESTS_DIR=/requests
       - DOWNLOAD_BASE_URL=${DOWNLOAD_BASE_URL:-http://localhost:8000}
@@ -147,9 +146,10 @@ services:
       - PG_RW_HOST=db
       - PG_RW_PORT=5432
       - PG_SSL_MODE=disable
+      - WORKER_METRICS_PORT=9091
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus-multiproc
     depends_on:
       - db
-      - rabbitmq
 
   worker-background:
     build:
