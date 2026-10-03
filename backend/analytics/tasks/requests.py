@@ -3,12 +3,14 @@ import logging
 from celery import shared_task
 
 from analytics.models import Request
+from analytics.query_tags import tagged
 from analytics.services import NoExtractTasksError, materialize_request
 
 logger = logging.getLogger(__name__)
 
 
 @shared_task
+@tagged("materialize")
 def materialize_request_tasks(request_id):
     """Build ExtractTasks and RequestMap rows for a Request submitted at
     status=4 (materializing), then move it to status=-1 (queued).
