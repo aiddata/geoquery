@@ -3,7 +3,7 @@ import json
 from unittest import mock
 
 from django.contrib.gis.geos import Point
-from django.db import connection
+from django.db import OperationalError, connection
 from django.test import TestCase, TransactionTestCase
 from django.test.utils import CaptureQueriesContext
 
@@ -482,10 +482,12 @@ class ProcessingTestCase(TestCase):
             q for q in queries
             if "extract_tasks" in q
         ]
-        self.assertEqual(len(touching), 2, touching)  # lookup, complete
-        lookup, complete = touching
+        self.assertEqual(len(touching), 3, touching)  # lookup, recheck claim, complete
+        lookup, recheck, complete = touching
         self.assertIn(f"t.dataset_id = {task.dataset_id}", lookup)
-        self.assertIn(f"WHERE dataset_id = {task.dataset_id} AND id = {task.id}", complete)
+        for query in (recheck, complete):
+            self.assertIn(f'"dataset_id" = {task.dataset_id}', query)
+            self.assertIn(f'"id" IN ({task.id})', query)
         task.refresh_from_db()
         self.assertEqual(task.status, DONE)
 
@@ -509,7 +511,7 @@ class ProcessingTestCase(TestCase):
         queries = self.run_capturing_queries(task, dataset_id)
 
         complete = next(q for q in queries if "complete_time" in q)
-        self.assertIn("complete_time = statement_timestamp()", complete)
+        self.assertIn('"complete_time" = STATEMENT_TIMESTAMP()', complete)
         task.refresh_from_db()
         self.assertEqual(task.status, DONE)
         self.assertLessEqual(task.update_time, task.complete_time)
@@ -638,6 +640,102 @@ class ProcessingTestCase(TestCase):
         scanned, plan = self.explain_partitions(lookup["sql"])
         self.assertEqual(scanned, ["extract_tasks_claim_test"], plan)
 
+    def test_buffered_persistence_rolls_back_results_and_status_together(self):
+        task = self.make_task(self.make_resources(1))
+        ExtractData.objects.create(
+            dataset_id=task.dataset_id, extract_task_id=task.id,
+            name="old", float_value=9.0,
+        )
+        outcomes = []
+        with mock.patch.object(processing, "get_func", return_value=lambda *a, **kw: [("mean", 1.0)]):
+            _run_extract_task(task.id, task.dataset_id, outcomes=outcomes)
+
+        def fail_after_update(execute, sql, params, many, context):
+            result = execute(sql, params, many, context)
+            if sql.startswith('UPDATE "extract_tasks"'):
+                raise OperationalError("commit failed")
+            return result
+
+        with connection.execute_wrapper(fail_after_update), self.assertRaises(OperationalError):
+            processing._persist_outcomes(outcomes)
+        task.refresh_from_db()
+        self.assertEqual(task.status, LOCKED)
+        self.assertEqual(list(ExtractData.objects.filter(
+            dataset_id=task.dataset_id, extract_task_id=task.id,
+        ).values_list("name", "float_value")), [("old", 9.0)])
+
+        # Retrying uses the same computed rows and atomically replaces them.
+        processing._persist_outcomes(outcomes)
+        task.refresh_from_db()
+        self.assertEqual(task.status, DONE)
+        self.assertEqual(list(ExtractData.objects.filter(
+            dataset_id=task.dataset_id, extract_task_id=task.id,
+        ).values_list("name", "float_value")), [("mean", 1.0)])
+
+    def test_batch_persistence_plans_prune_both_partitioned_tables(self):
+        self.create_test_partitions()
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "CREATE TABLE extract_data_flush_test PARTITION OF extract_data FOR VALUES IN (%s)",
+                [self.dataset.id],
+            )
+            cursor.execute(
+                "CREATE TABLE extract_data_flush_other PARTITION OF extract_data FOR VALUES IN (-2147483648)"
+            )
+        resources = self.make_resources(1)
+        tasks = [self.make_task(resources, kwargs={"n": i}) for i in range(32)]
+        outcomes = []
+        with mock.patch.object(processing, "get_func", return_value=lambda *a, **kw: [("mean", 1.0)]):
+            for task in tasks:
+                _run_extract_task(task.id, task.dataset_id, outcomes=outcomes)
+        with CaptureQueriesContext(connection) as queries:
+            processing._persist_outcomes(outcomes)
+        statements = [q["sql"] for q in queries if q["sql"].startswith(("SELECT", "DELETE", "UPDATE"))]
+        self.assertEqual(len(statements), 3, statements)
+        for sql in statements:
+            with connection.cursor() as cursor:
+                cursor.execute("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + sql)
+                plan = cursor.fetchone()[0][0]["Plan"]
+            serialized = json.dumps(plan)
+            self.assertNotIn("extract_tasks_claim_other", serialized)
+            self.assertNotIn("extract_data_flush_other", serialized)
+            self.assertNotIn("extract_tasks_default", serialized)
+            self.assertNotIn("extract_data_default", serialized)
+
+    def test_persistence_groups_multiple_datasets_and_distinct_errors(self):
+        resources = self.make_resources(1)
+        good = self.make_task(resources, kwargs={"n": 1})
+        bad = self.make_task(resources, kwargs={"n": 2})
+        other = Dataset.objects.create(name="other", path="/data/other", active=True)
+        resource = DatasetResource.objects.create(dataset=other, name="other", path="r.tif")
+        po = ProcessingOption.objects.create(
+            dataset=other, short_name="other", function="rasterstats_default_mean", active=True,
+        )
+        other_good = ExtractTask.objects.create(
+            dataset_id=other.id, resource_ids=[resource.id], fm=self.fm, po=po, status=LOCKED,
+        )
+        other_bad = ExtractTask.objects.create(
+            dataset_id=other.id, resource_ids=[resource.id], fm=self.fm, po=po,
+            status=LOCKED, kwargs={"n": 2},
+        )
+        outcomes = []
+        with mock.patch.object(processing, "get_func", return_value=lambda *a, **kw: [("mean", 2.0)]):
+            for task in (good, other_good):
+                _run_extract_task(task.id, task.dataset_id, outcomes=outcomes)
+        for task, error in ((bad, "first"), (other_bad, "second")):
+            with mock.patch.object(processing, "get_func", side_effect=ValueError(error)), self.assertRaises(ValueError):
+                _run_extract_task(task.id, task.dataset_id, outcomes=outcomes)
+        processing._flush_outcomes(outcomes)
+        for task in (good, other_good):
+            task.refresh_from_db()
+            self.assertEqual(task.status, DONE)
+        for task, error in ((bad, "first"), (other_bad, "second")):
+            task.refresh_from_db()
+            self.assertEqual(task.status, FAILED)
+            self.assertIn(error, task.error)
+        self.assertEqual(ExtractData.objects.filter(dataset_id=self.dataset.id).count(), 1)
+        self.assertEqual(ExtractData.objects.filter(dataset_id=other.id).count(), 1)
+
     def test_batch_claim_and_release_exclude_unrelated_partitions_during_planning(self):
         # A single-row test can pass through execution-time pruning alone.
         # Use 64 references across two populated partitions and another
@@ -745,10 +843,10 @@ class ProcessingCommitModeTest(_CommittedTaskFixture):
     def test_results_and_completion_commit_asynchronously(self):
         queries = self.run_capturing_queries()
 
-        complete = next(q for q in queries if "complete_time" in q)
-        self.assertTrue(complete.startswith(processing._ASYNC_COMMIT), complete)
-        # The results transaction is ORM calls, so it gets a statement of
-        # its own ahead of the insert.
+        # Results and completion now share one transaction and SET LOCAL.
+        self.assertEqual(queries.count("BEGIN"), 1, queries)
+        self.assertEqual(queries.count("COMMIT"), 1, queries)
+        self.assertEqual(queries.count(processing._ASYNC_COMMIT), 1, queries)
         insert = next(i for i, q in enumerate(queries) if 'INSERT INTO "extract_data"' in q)
         self.assertIn(processing._ASYNC_COMMIT, queries[:insert])
         # The lookup's row reached Python and the task finished.

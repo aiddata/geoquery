@@ -50,8 +50,9 @@ TASK_PHASE_SECONDS = Histogram(
     "geoquery_extract_task_phase_seconds",
     "Wall time one task spent in each phase. lock = fetch the claimed "
     "row's inputs; load = resource, geometry and category map lookups; extract = "
-    "processor calls (raster I/O and compute); write = build and store "
-    "extract_data rows; finalize = the terminal status update.",
+    "processor calls (raster I/O and compute); write = build rows plus an "
+    "amortized share of batch persistence; finalize = amortized status "
+    "updates and commit. Time waiting in the result buffer is excluded.",
     ["phase"],
     buckets=_PHASE_BUCKETS,
 )
@@ -103,6 +104,8 @@ class TaskTimer:
     charges its time to the phase where it happened. A phase entered more
     than once (load interleaves with extract for mapped datasets) is summed
     and observed once per task, so histogram counts stay one per task.
+    ``enter(None)`` pauses while results are buffered. Batch persistence is
+    apportioned with ``add``; ``finish`` runs only once its outcome is known.
     """
 
     def __init__(self, dataset_id=None):
@@ -115,10 +118,15 @@ class TaskTimer:
 
     def enter(self, phase):
         wall, cpu = time.perf_counter(), time.process_time()
-        self._wall[self._phase] = self._wall.get(self._phase, 0.0) + wall - self._mark[0]
-        self._cpu[self._phase] = self._cpu.get(self._phase, 0.0) + cpu - self._mark[1]
+        if self._phase is not None:
+            self.add(self._phase, wall - self._mark[0], cpu - self._mark[1])
         self._phase = phase
         self._mark = (wall, cpu)
+
+    def add(self, phase, wall, cpu):
+        """Add a task's share of batched persistence, excluding buffer residence."""
+        self._wall[phase] = self._wall.get(phase, 0.0) + wall
+        self._cpu[phase] = self._cpu.get(phase, 0.0) + cpu
 
     def finish(self):
         self.enter(None)
@@ -173,4 +181,3 @@ def start_worker_exporter(port):
     multiprocess.MultiProcessCollector(registry, path=directory)
     start_http_server(port, addr="0.0.0.0", registry=registry)
     return True
-

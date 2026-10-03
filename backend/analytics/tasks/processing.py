@@ -2,12 +2,18 @@ import hashlib
 import json
 import logging
 import time
+from collections import defaultdict
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from warnings import catch_warnings
 
 import shapely
-from django.db import connection, transaction
+from django.db import (
+    DataError, IntegrityError, InterfaceError, OperationalError, connection, transaction,
+)
+from django.db.models import Case, Value, When
+from django.db.models.functions import Now
 
 from analytics import metrics
 from analytics.models import ExtractData, ExtractTask
@@ -283,17 +289,162 @@ def _positions_needing_processing(n):
     return set(range(n))
 
 
-def _run_extract_task(task_id, dataset_id=None):
-    """Run one extract task, recording its outcome and per-phase timings.
+@dataclass
+class _TaskOutcome:
+    task_id: int
+    dataset_id: int
+    claimed_at: datetime | None
+    rows: list[ExtractData]
+    status: int
+    error: str | None
+    timer: metrics.TaskTimer
 
-    The timer is finished however _extract exits, so a raising task still
-    counts toward throughput and charges its time to the phase that raised.
+
+def _run_extract_task(task_id, dataset_id=None, *, outcomes=None):
+    """Compute a task; buffer its writes when called by the chunk worker.
+
+    Manual callers still persist immediately. Exceptions keep their original
+    types, but a loaded task's failure is buffered before it is re-raised.
+    Buffered outcomes retain no exception tracebacks or processor inputs.
     """
+    immediate = outcomes is None
+    if immediate:
+        outcomes = []
+    before = len(outcomes)
     timer = metrics.TaskTimer(dataset_id)
     try:
-        return _extract(task_id, dataset_id, timer)
+        return _extract(task_id, dataset_id, timer, outcomes)
     finally:
-        timer.finish()
+        timer.enter(None)  # time in the buffer is not active task work
+        if len(outcomes) == before:
+            timer.finish()  # unavailable, or an exception before loading
+        elif immediate:
+            _flush_outcomes(outcomes)
+
+
+def _persist_outcomes(outcomes):
+    """Atomically replace results and finalize a batch, pruning every query.
+
+    Lock and recheck the claim timestamp before replacing results: a task
+    buffered earlier in a long chunk may have been reset or reclaimed. Locks
+    last only for persistence, never extraction. Empty row sets preserve old
+    results, including when every resource failed on a retry.
+    """
+    if not outcomes:
+        return
+    by_dataset = defaultdict(list)
+    for outcome in outcomes:
+        by_dataset[outcome.dataset_id].append(outcome)
+    accepted = []
+    started = (time.perf_counter(), time.process_time())
+    writing = None
+    try:
+        with transaction.atomic():
+            if not _synchronous_commit():
+                with connection.cursor() as cursor:
+                    cursor.execute(_ASYNC_COMMIT)
+            for dataset_id, group in sorted(by_dataset.items()):
+                claims = dict(
+                    ExtractTask.objects.filter(
+                        dataset_id=dataset_id,
+                        id__in=[o.task_id for o in group], status=2,
+                    ).order_by("id").select_for_update().values_list("id", "update_time")
+                )
+                valid = [
+                    o for o in group
+                    if o.task_id in claims and claims[o.task_id] == o.claimed_at
+                ]
+                accepted.extend(valid)
+                replacing = [o.task_id for o in valid if o.rows]
+                if replacing:
+                    ExtractData.objects.filter(
+                        dataset_id=dataset_id, extract_task_id__in=replacing,
+                    ).delete()
+                    ExtractData.objects.bulk_create(
+                        [row for o in valid for row in o.rows], batch_size=1000,
+                    )
+            writing = (time.perf_counter(), time.process_time())
+            completed = defaultdict(list)
+            failed = defaultdict(list)
+            for outcome in accepted:
+                target = completed if outcome.status == 1 else failed
+                target[outcome.dataset_id].append(outcome)
+            for dataset_id, group in completed.items():
+                ExtractTask.objects.filter(
+                    dataset_id=dataset_id, id__in=[o.task_id for o in group],
+                ).update(status=1, complete_time=Now(), error=None)
+            for dataset_id, group in failed.items():
+                ExtractTask.objects.filter(
+                    dataset_id=dataset_id, id__in=[o.task_id for o in group],
+                ).update(status=-1, error=Case(*[
+                    When(id=o.task_id, then=Value(o.error)) for o in group
+                ]))
+    finally:
+        ended = (time.perf_counter(), time.process_time())
+        # Amortize actual flush work across tasks; never multiply it by the
+        # batch size or count time spent waiting in the in-memory buffer.
+        for outcome in outcomes:
+            boundary = writing or ended
+            outcome.timer.add(
+                "write", (boundary[0] - started[0]) / len(outcomes),
+                (boundary[1] - started[1]) / len(outcomes),
+            )
+            if writing:
+                outcome.timer.add(
+                    "finalize", (ended[0] - writing[0]) / len(outcomes),
+                    (ended[1] - writing[1]) / len(outcomes),
+                )
+
+    accepted_ids = {(o.dataset_id, o.task_id) for o in accepted}
+
+    def record_committed():
+        for outcome in outcomes:
+            if (outcome.dataset_id, outcome.task_id) not in accepted_ids:
+                outcome.timer.outcome = "unavailable"
+            else:
+                outcome.timer.outcome = "completed" if outcome.status == 1 else "failed"
+            outcome.timer.finish()
+
+    transaction.on_commit(record_committed)
+
+
+def _flush_outcomes(outcomes):
+    """Retry transient failures without recomputing; isolate invalid results.
+
+    An exhausted connection retry propagates to the worker, which releases
+    unresolved claims. Only data/encoding errors split the batch; a database
+    outage must not trigger a storm of single-task writes.
+    """
+    if not outcomes:
+        return
+    for attempt in range(3):
+        try:
+            _persist_outcomes(outcomes)
+            return
+        except (OperationalError, InterfaceError):
+            if attempt == 2:
+                raise
+            logger.warning("Retrying extract result flush", exc_info=True)
+            if not connection.in_atomic_block:
+                connection.close()
+            time.sleep(0.25 * 2 ** attempt)
+        except (DataError, IntegrityError, ValueError, TypeError, OverflowError) as exc:
+            if len(outcomes) > 1:
+                middle = len(outcomes) // 2
+                _flush_outcomes(outcomes[:middle])
+                _flush_outcomes(outcomes[middle:])
+            else:
+                outcome = outcomes[0]
+                logger.exception("Could not store results for task %s", outcome.task_id)
+                # The failed transaction restored any previous results.
+                # Persist only the error, leaving those results intact.
+                if not outcome.rows:
+                    raise
+                outcome.rows = []
+                outcome.status = -1
+                outcome.error = repr(exc)[:100]
+                _flush_outcomes(outcomes)
+            return
 
 
 @dataclass(frozen=True)
@@ -305,6 +456,7 @@ class _ClaimedTask:
     short_name: str
     po_kwargs: dict | None
     geometry_wkb: bytes
+    claimed_at: datetime | None
 
 
 def _load_claimed_task(task_id, dataset_id=None):
@@ -334,7 +486,7 @@ def _load_claimed_task(task_id, dataset_id=None):
             f"""
             SELECT t.dataset_id, t.resource_ids, t.kwargs::text,
                    po.function, po.short_name, po.kwargs::text,
-                   ST_AsBinary(g.shape)
+                   ST_AsBinary(g.shape), t.update_time
             FROM extract_tasks AS t
             JOIN datasets AS d ON d.id = t.dataset_id
             JOIN processing_options AS po ON po.id = t.po_id
@@ -351,7 +503,7 @@ def _load_claimed_task(task_id, dataset_id=None):
 
     if row is None:
         return None
-    dataset_id, resource_ids, kwargs, function, short_name, po_kwargs, wkb = row
+    dataset_id, resource_ids, kwargs, function, short_name, po_kwargs, wkb, claimed_at = row
     return _ClaimedTask(
         dataset_id=dataset_id,
         resource_ids=resource_ids,
@@ -360,11 +512,12 @@ def _load_claimed_task(task_id, dataset_id=None):
         short_name=short_name,
         po_kwargs=json.loads(po_kwargs) if po_kwargs is not None else None,
         geometry_wkb=bytes(wkb),
+        claimed_at=claimed_at,
     )
 
 
-def _extract(task_id, dataset_id, timer):
-    """Load a claimed task, run the processor once per resource, and store results.
+def _extract(task_id, dataset_id, timer, outcomes):
+    """Load a claimed task, run its resources, and buffer results and status.
 
     Accepts rows this worker claimed (running, 2). On success (no position raised
     this run) status is set to 1; otherwise -1 with a summary of what failed.
@@ -515,70 +668,25 @@ def _extract(task_id, dataset_id, timer):
                     setattr(row, f"{column}_values", values)
             rows.append(row)
 
-        # The delete is guarded on `produced` being non-empty: an empty one
-        # means EVERY position raised this run, and wiping a previous run's
-        # good results because of a transient failure would be strictly worse
-        # than keeping them. The task goes to status=-1 either way and is
-        # recomputed in full on retry. The old merge-based code got this for
-        # free via its `elif not values_by_pos: continue` branch. dataset_id
-        # prunes the delete to one partition.
-        #
-        # delete + bulk_create have to land together: a crash between them
-        # would leave the task with no rows at all and nothing written back.
-        # Rows are built above, outside this block, so it holds no locks while
-        # doing Python work. The delete and insert are ORM calls with nothing
-        # to prefix, so the async commit (see _execute_async) costs this one
-        # statement.
-        with transaction.atomic():
-            if not _synchronous_commit():
-                with connection.cursor() as cursor:
-                    cursor.execute(_ASYNC_COMMIT)
-            if produced:
-                ExtractData.objects.filter(
-                    dataset_id=task.dataset_id, extract_task_id=task_id
-                ).delete()
-            ExtractData.objects.bulk_create(rows)
         all_names = set(produced)
 
     except Exception as exc:
         logger.exception("Task %s failed: %s", task_id, exc)
-        timer.enter("finalize")
-        # dataset_id included so this prunes to one partition instead of
-        # scanning all of them.
-        ExtractTask.objects.filter(id=task_id, dataset_id=task.dataset_id).update(
-            status=-1, error=repr(exc)[:100]
-        )
-        timer.outcome = "failed"
+        outcomes.append(_TaskOutcome(
+            task_id, task.dataset_id, task.claimed_at, [], -1, repr(exc)[:100], timer,
+        ))
         raise
 
-    timer.enter("finalize")
-    # A run that raised nothing is complete. A NULL value means the extraction
-    # ran and found nodata -- a final answer, not an unfinished position (see
-    # _positions_needing_processing).
     incomplete_positions = {i for _, i, _ in failures}
-
-    if not incomplete_positions:
-        # dataset_id included so this prunes to one partition. The database
-        # clock, like update_time in the claim, so durations never mix a
-        # worker's clock with the primary's. Raw SQL rather than the ORM so
-        # the async commit rides in the same round trip.
-        with connection.cursor() as cursor:
-            _execute_async(
-                cursor,
-                "UPDATE extract_tasks SET status = 1, complete_time = statement_timestamp() "
-                "WHERE dataset_id = %s AND id = %s",
-                [task.dataset_id, task_id],
-            )
-        timer.outcome = "completed"
-        logger.info("Task %s completed", task_id)
+    parts = [f"resource {rid}[{i}]: {exc!r}" for rid, i, exc in failures]
+    error = "; ".join(parts)[:100] if failures else None
+    outcomes.append(_TaskOutcome(
+        task_id, task.dataset_id, task.claimed_at, rows,
+        -1 if failures else 1, error, timer,
+    ))
+    if not failures:
         return {"task_id": task_id, "results": len(all_names)}
 
-    parts = [f"resource {rid}[{i}]: {exc!r}" for rid, i, exc in failures]
-    error = "; ".join(parts)[:100]
-    ExtractTask.objects.filter(id=task_id, dataset_id=task.dataset_id).update(
-        status=-1, error=error
-    )
-    timer.outcome = "failed"
     logger.warning(
         "Task %s incomplete: positions %s still outstanding after this run",
         task_id, sorted(incomplete_positions),

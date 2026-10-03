@@ -1,8 +1,9 @@
 """The extract worker: claims chunks of extract tasks from Postgres and runs them.
 
 extract_tasks is the queue. A worker slot loops: claim a chunk of pending
-tasks straight to running (claim_pending_tasks), run them one at a time,
-claim the next. Nothing is claimed ahead of the slot that will run it, so a
+tasks straight to running (claim_pending_tasks), computes them one at a time,
+persists their results and statuses together, then claims the next chunk.
+Nothing is claimed ahead of the slot that will run it, so a
 higher-priority request is next in line for whichever slot finishes first,
 and a worker that stops can hand back exactly the tasks it hadn't started.
 
@@ -23,7 +24,8 @@ module must stay importable without Django being set up (it is imported to
 unpickle run_chunk before the initializer runs).
 
 SIGTERM or SIGINT stops the worker gracefully: each slot finishes the task it
-is on, releases the rest of its chunk back to pending, and exits. Children
+is on, persists the computed portion, releases the rest back to pending,
+and exits. Children
 ignore both signals; a Ctrl-C reaches the whole process group, and only the
 parent should act on it.
 """
@@ -58,9 +60,9 @@ def _init_child(stop_event):
 def run_chunk(idle_seconds):
     """Claim one chunk, run every task in it, and return how many were claimed.
 
-    A task that fails is logged and the chunk moves on; its outcome is
-    already recorded on its row. Tasks not started because the worker is
-    stopping, or because the chunk itself failed, are released to pending.
+    Results and outcomes stay in memory until the chunk ends, including a
+    graceful stop. They then commit together, before unstarted tasks are
+    released. If persistence fails, unresolved claims are released as well.
 
     The database connection is closed after every chunk, so a slot holds no
     pooler client connection between chunks, and a connection the pooler
@@ -74,6 +76,7 @@ def run_chunk(idle_seconds):
     from analytics.tasks import processing
 
     claimed = []
+    outcomes = []
     started = 0
     failed = False
     metrics.batch_started()
@@ -85,18 +88,23 @@ def run_chunk(idle_seconds):
                 break
             started += 1
             try:
-                processing._run_extract_task(task_id, dataset_id)
+                processing._run_extract_task(task_id, dataset_id, outcomes=outcomes)
             except Exception:
                 logger.exception("Extract task %s failed", task_id)
     except Exception:
         logger.exception("Extract chunk failed after %d of %d tasks", started, len(claimed))
         failed = True
     finally:
-        unstarted = claimed[started:]
+        try:
+            processing._flush_outcomes(outcomes)
+        except Exception:
+            logger.exception("Could not persist extract chunk outcomes")
+            failed = True
+        unstarted = claimed if failed else claimed[started:]
         if unstarted:
             try:
                 released = processing._release_claimed_tasks(unstarted)
-                logger.info("Released %d of %d unstarted tasks", released, len(unstarted))
+                logger.info("Released %d of %d unresolved tasks", released, len(unstarted))
             except Exception:
                 logger.exception("Could not release %d unstarted tasks", len(unstarted))
         connections.close_all()

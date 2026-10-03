@@ -4,13 +4,15 @@ from concurrent.futures.process import BrokenProcessPool
 from unittest import mock
 
 from django.contrib.gis.geos import Point
-from django.db import connections
+from django.db import OperationalError, connection, connections
 from django.test import SimpleTestCase, TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 
 from analytics import extract_worker, metrics
-from analytics.models import ExtractTask, ProcessingOption
+from analytics.models import ExtractData, ExtractTask, ProcessingOption
 from analytics.tasks import processing
-from analytics.tests.test_metrics import Delta
+from analytics.tests.test_metrics import Delta, tasks_total
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
 
@@ -82,6 +84,112 @@ class RunChunkTests(TestCase):
         self.wait.assert_not_called()
         self.close_all.assert_called_once()
 
+    def test_results_are_buffered_and_written_in_one_batch(self):
+        tasks = self.make_tasks(3)
+        completed = tasks_total(self.resource.dataset_id, "completed")
+        delta = Delta(completed)
+
+        def compute(geometry, path, **kw):
+            self.assertEqual(self.statuses(tasks), [LOCKED] * 3)
+            self.assertFalse(ExtractData.objects.filter(dataset_id=self.resource.dataset_id).exists())
+            self.assertEqual(delta[completed], 0)
+            return [("mean", 1.0)]
+
+        with self.captureOnCommitCallbacks(execute=True), CaptureQueriesContext(connection) as queries:
+            self.run_chunk(compute)
+            self.assertEqual(delta[completed], 0)  # outer test transaction not committed
+
+        inserts = [q for q in queries if 'INSERT INTO "extract_data"' in q["sql"]]
+        completions = [q for q in queries if 'SET "status" = 1' in q["sql"]]
+        self.assertEqual(len(inserts), 1)
+        self.assertEqual(len(completions), 1)
+        self.assertEqual(delta[completed], 3)
+        self.assertEqual(self.statuses(tasks), [DONE] * 3)
+
+    def test_transient_flush_failure_retries_without_recomputing(self):
+        tasks = self.make_tasks(3)
+        processor = mock.Mock(return_value=[("mean", 1.0)])
+        persist = processing._persist_outcomes
+        attempts = []
+
+        def fail_once(outcomes):
+            attempts.append(outcomes)
+            if len(attempts) == 1:
+                raise OperationalError("connection lost")
+            return persist(outcomes)
+
+        with mock.patch.object(processing, "_persist_outcomes", side_effect=fail_once), \
+                mock.patch.object(processing.time, "sleep"), \
+                self.assertLogs("analytics.tasks.processing", "WARNING"):
+            self.run_chunk(processor)
+        self.assertEqual(processor.call_count, 3)
+        self.assertEqual(len(attempts), 2)
+        self.assertIs(attempts[0], attempts[1])
+        self.assertEqual(self.statuses(tasks), [DONE] * 3)
+
+    def test_exhausted_flush_retries_release_tasks_without_counting_completion(self):
+        tasks = self.make_tasks(3)
+        completed = tasks_total(self.resource.dataset_id, "completed")
+        delta = Delta(completed)
+        with mock.patch.object(processing, "_persist_outcomes", side_effect=OperationalError("offline")) as persist, \
+                mock.patch.object(processing.time, "sleep"), self.assertLogs(level="WARNING"):
+            self.run_chunk()
+        self.assertEqual(persist.call_count, 3)
+        self.assertEqual(self.statuses(tasks), [PENDING] * 3)
+        self.assertEqual(delta[completed], 0)
+        self.wait.assert_called_once()
+
+    def test_invalid_result_isolated_and_previous_results_preserved(self):
+        tasks = self.make_tasks(3)
+        completed = tasks_total(self.resource.dataset_id, "completed")
+        failed = tasks_total(self.resource.dataset_id, "failed")
+        delta = Delta(completed, failed)
+        ExtractData.objects.create(
+            dataset_id=tasks[1].dataset_id, extract_task_id=tasks[1].id,
+            name="mean", float_value=9.0,
+        )
+        calls = 0
+
+        def compute(geometry, path, **kw):
+            nonlocal calls
+            calls += 1
+            return [("mean", "x" * 101 if calls == 2 else 1.0)]
+
+        with self.captureOnCommitCallbacks(execute=True), self.assertLogs(level="ERROR"):
+            self.run_chunk(compute)
+        self.assertEqual(calls, 3)
+        self.assertEqual(self.statuses(tasks), [DONE, FAILED, DONE])
+        self.assertEqual(delta[completed], 2)
+        self.assertEqual(delta[failed], 1)
+        self.assertEqual(ExtractData.objects.get(
+            dataset_id=tasks[1].dataset_id, extract_task_id=tasks[1].id, name="mean",
+        ).float_value, 9.0)
+
+    def test_reclaimed_task_is_not_overwritten_by_buffered_results(self):
+        tasks = self.make_tasks(2)
+        calls = 0
+
+        def compute(geometry, path, **kw):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                # Simulate a reaper and another claim after the first task
+                # was computed. Status alone cannot detect this case.
+                ExtractTask.objects.filter(
+                    dataset_id=tasks[0].dataset_id, id=tasks[0].id,
+                ).update(update_time=timezone.now())
+                ExtractData.objects.create(
+                    dataset_id=tasks[0].dataset_id, extract_task_id=tasks[0].id,
+                    name="mean", float_value=9.0,
+                )
+            return [("mean", 1.0)]
+
+        self.run_chunk(compute)
+        self.assertEqual(self.statuses(tasks), [LOCKED, DONE])
+        self.assertEqual(ExtractData.objects.get(
+            dataset_id=tasks[0].dataset_id, extract_task_id=tasks[0].id, name="mean",
+        ).float_value, 9.0)
+
     def test_a_failing_task_does_not_stop_the_chunk(self):
         tasks = self.make_tasks(3)
         calls = []
@@ -116,6 +224,9 @@ class RunChunkTests(TestCase):
         self.assertEqual(self.run_chunk(stop_after_first), 3)
 
         self.assertEqual(self.statuses(tasks), [DONE, PENDING, PENDING])
+        self.assertEqual(ExtractData.objects.get(
+            dataset_id=tasks[0].dataset_id, extract_task_id=tasks[0].id, name="mean",
+        ).float_value, 1.0)
 
     def test_a_failed_claim_backs_off(self):
         with mock.patch.object(

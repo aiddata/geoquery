@@ -3,7 +3,7 @@ import tempfile
 from unittest import mock
 
 from django.contrib.gis.geos import Point
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from prometheus_client import REGISTRY
 
 from analytics import metrics
@@ -51,6 +51,20 @@ def dispatch_count(stage):
 PHASES = ("lock", "load", "extract", "write", "finalize")
 
 
+class BufferedTimerTests(SimpleTestCase):
+    def test_buffer_residence_is_excluded_from_phase_metrics(self):
+        wall = ("geoquery_extract_task_phase_seconds_sum", (("phase", "lock"),))
+        cpu = ("geoquery_extract_task_phase_cpu_seconds_total", (("phase", "lock"),))
+        delta = Delta(wall, cpu)
+        with mock.patch.object(metrics.time, "perf_counter", side_effect=[0, 2, 1002]), \
+                mock.patch.object(metrics.time, "process_time", side_effect=[0, 1, 100]):
+            timer = metrics.TaskTimer("timer-test")
+            timer.enter(None)
+            timer.finish()
+        self.assertEqual(delta[wall], 2)
+        self.assertEqual(delta[cpu], 1)
+
+
 class TaskMetricsTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -81,7 +95,9 @@ class TaskMetricsTests(TestCase):
         )
 
     def run_with(self, task, func, dataset_id=None):
-        with mock.patch.object(processing, "get_func", return_value=func):
+        with self.captureOnCommitCallbacks(execute=True), mock.patch.object(
+            processing, "get_func", return_value=func
+        ):
             return _run_extract_task(task.id, dataset_id)
 
     def test_a_completed_task_is_counted_once_with_every_phase_timed(self):
