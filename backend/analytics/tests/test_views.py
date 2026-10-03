@@ -14,11 +14,11 @@ from features.models import Feature, FeatMap, FeatureCollection
 class RequestViewStandardSubmissionTest(TestCase):
     """RequestView.post's standard (non-custom-boundary) submission path.
 
-    Covers the on-demand ExtractTask get-or-create against the migration
-    0022 unique indexes (rebuilt by migration 0024 to key on
-    resource_ids_hash instead of raw resource_ids) on (dataset_id, fm_id,
-    po_id, resource_ids_hash[, kwargs hash]), and RequestMap rows carrying
-    the matching dataset_id.
+    Covers on-demand ExtractTask materialization against the migration 0022
+    unique indexes (rebuilt by migration 0024 to key on resource_ids_hash
+    instead of raw resource_ids) on (dataset_id, fm_id, po_id,
+    resource_ids_hash[, kwargs hash]), and RequestMap rows carrying the
+    matching dataset_id.
     """
 
     def setUp(self):
@@ -125,23 +125,19 @@ class RequestViewStandardSubmissionTest(TestCase):
         task.refresh_from_db()
         self.assertEqual(task.priority, 1)
 
-    def test_integrity_error_on_create_falls_back_to_get(self):
+    def test_concurrent_insert_is_adopted_and_bumped(self):
         # Simulates the race migration 0022's index exists for: two
-        # concurrent materializations both miss the initial .get()
-        # (DoesNotExist), one wins .create(), the other must hit
-        # IntegrityError and recover by re-fetching the winner's row rather
-        # than crashing.
+        # concurrent materializations both miss _build_tasks' prefetch, and
+        # the other one inserts the row first. This one's bulk insert must
+        # skip it (ON CONFLICT DO NOTHING), and the re-read must adopt the
+        # winner's row rather than crash or create a second one.
         #
-        # The winner's row has to appear *after* _build_tasks' bulk prefetch,
-        # or the prefetch finds it and the get-or-create fallback never runs.
-        # So .create() stands in for the collision: it inserts the "other
-        # request's" winning row, then raises as the unique index would. The
-        # IntegrityError is raised in Python rather than by Postgres because a
-        # real one would abort the TestCase's enclosing transaction; in
-        # production _build_tasks runs in autocommit, outside
-        # materialize_request's atomic block.
+        # The winner's row is inserted just before this one's bulk insert,
+        # after the prefetch has already missed. Unlike a unique violation,
+        # a skipped conflict doesn't abort the TestCase's enclosing
+        # transaction, so Postgres resolves the collision for real.
+        from analytics import services
         from analytics.models import Request
-        from analytics.services import materialize_request
 
         payload = {
             "email": "a@example.com",
@@ -153,6 +149,60 @@ class RequestViewStandardSubmissionTest(TestCase):
         )
         req = Request.objects.get(id=resp.json()["id"])
 
+        real_bulk_create = ExtractTask.objects.bulk_create
+        winner = {}
+
+        def insert_winner_first(objs, **kwargs):
+            # The other writer creates its task at the default priority.
+            winner["task"] = ExtractTask.objects.create(
+                dataset_id=self.dataset.id,
+                resource_ids=[self.resource.id],
+                fm=self.fm,
+                po=self.po,
+            )
+            return real_bulk_create(objs, **kwargs)
+
+        with (
+            mock.patch.object(
+                ExtractTask.objects, "bulk_create", side_effect=insert_winner_first
+            ) as mock_bulk_create,
+            mock.patch.object(
+                services, "_get_or_create_task", wraps=services._get_or_create_task
+            ) as mock_get_or_create,
+        ):
+            materialize_request(req)
+
+        mock_bulk_create.assert_called_once()
+        self.assertTrue(mock_bulk_create.call_args.kwargs["ignore_conflicts"])
+        # The re-read resolved it; the collision fallback never ran.
+        mock_get_or_create.assert_not_called()
+
+        task = ExtractTask.objects.get()
+        self.assertEqual(task.id, winner["task"].id)
+        # A request is waiting on it, so the winner's default priority is
+        # raised as if this submission had created it.
+        self.assertEqual(task.priority, 1)
+
+        rm = RequestMap.objects.get(request_id=req.id)
+        self.assertEqual(rm.task_id, task.id)
+        self.assertEqual(rm.dataset_id, self.dataset.id)
+
+    def test_get_or_create_task_falls_back_to_get_on_integrity_error(self):
+        # _build_tasks reaches _get_or_create_task only on a resource_ids_hash
+        # collision, which can't be staged here, so call it directly: the
+        # initial .get() misses, another writer wins .create(), and the
+        # IntegrityError must be recovered by re-fetching the winner's row.
+        #
+        # .create() stands in for the collision: it inserts the winner's
+        # row, then raises as the unique index would. The IntegrityError is
+        # raised in Python rather than by Postgres because a real one would
+        # abort the TestCase's enclosing transaction; in production
+        # _build_tasks runs in autocommit.
+        from types import SimpleNamespace
+
+        from analytics.services import _get_or_create_task
+
+        resolved = SimpleNamespace(dataset=self.dataset, task_kwargs=None)
         winner = {}
 
         def insert_winner_then_collide(**fields):
@@ -176,8 +226,9 @@ class RequestViewStandardSubmissionTest(TestCase):
                 side_effect=insert_winner_then_collide,
             ) as mock_create,
         ):
-            materialize_request(req)
+            task = _get_or_create_task(resolved, self.fm, self.resource, self.po)
 
+        self.assertEqual(task, winner["task"])
         mock_create.assert_called_once_with(
             dataset_id=self.dataset.id,
             resource_ids=[self.resource.id],
@@ -199,7 +250,3 @@ class RequestViewStandardSubmissionTest(TestCase):
         self.assertEqual(mock_get.call_count, 2)
         for call in mock_get.call_args_list:
             self.assertEqual(call.kwargs, expected_get_kwargs)
-
-        rm = RequestMap.objects.get(request_id=req.id)
-        self.assertEqual(rm.task_id, winner["task"].id)
-        self.assertEqual(rm.dataset_id, self.dataset.id)
