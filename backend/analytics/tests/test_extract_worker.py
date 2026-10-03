@@ -99,10 +99,11 @@ class RunChunkTests(TestCase):
             self.run_chunk(compute)
             self.assertEqual(delta[completed], 0)  # outer test transaction not committed
 
-        inserts = [q for q in queries if 'INSERT INTO "extract_data"' in q["sql"]]
-        completions = [q for q in queries if 'SET "status" = 1' in q["sql"]]
-        self.assertEqual(len(inserts), 1)
-        self.assertEqual(len(completions), 1)
+        copies = [q for q in queries if q["sql"].startswith("COPY extract_data")]
+        finalizes = [q for q in queries if "UPDATE extract_tasks AS t\n" in q["sql"] and "RETURNING" in q["sql"]]
+        self.assertEqual(len(copies), 1)
+        self.assertEqual(len(finalizes), 1)
+        self.assertEqual(ExtractData.objects.filter(dataset_id=self.resource.dataset_id).count(), 3)
         self.assertEqual(delta[completed], 3)
         self.assertEqual(self.statuses(tasks), [DONE] * 3)
 

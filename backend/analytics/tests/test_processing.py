@@ -413,6 +413,62 @@ class ProcessingTestCase(TestCase):
         self.assertEqual(row.float_values, [0.0, 10.0, 20.0])
         self.assertIsNone(row.float_value)
 
+    def test_grouped_values_are_coerced_to_the_selected_column_type(self):
+        # The first non-null value selects the column. Match the ORM's
+        # element coercion so COPY receives homogeneous lists, even when
+        # later resources return another compatible type.
+        resources = self.make_resources(3)
+        task = self.make_task(resources)
+        results = {
+            "mean": [None, 1.5, 0],
+            "count": [None, 2, 3.9],
+            "label": [None, "one", 2],
+        }
+
+        def func(geometry, path, **kw):
+            position = int(path.stem[-1])
+            return [(name, values[position]) for name, values in results.items()]
+
+        with mock.patch.object(processing, "get_func", return_value=func):
+            _run_extract_task(task.id, task.dataset_id)
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, DONE)
+        self.assertIsNone(task.error)
+        rows = {
+            row.name: row for row in ExtractData.objects.filter(
+                dataset_id=task.dataset_id, extract_task_id=task.id,
+            )
+        }
+        self.assertEqual(rows["mean"].float_values, [None, 1.5, 0.0])
+        self.assertEqual(rows["count"].int_values, [None, 2, 3])
+        self.assertEqual(rows["label"].str_values, [None, "one", "2"])
+
+    def test_result_columns_cover_every_extract_data_column(self):
+        # COPY names its columns by hand; a column added to the model must
+        # reach the flush, and a dropped one must leave it.
+        self.assertCountEqual(
+            processing._RESULT_COLUMNS,
+            [field.column for field in ExtractData._meta.concrete_fields],
+        )
+
+    def test_number_subclasses_are_stored_as_plain_numbers(self):
+        # Processors return numpy scalars. COPY dumps by Python type, so
+        # classification must hand it the built-in number.
+        import numpy as np
+
+        resources = self.make_resources(1)
+        task = self.make_task(resources, status=LOCKED)
+
+        with mock.patch.object(
+            processing, "get_func",
+            return_value=lambda g, p, **kw: [("mean", np.float64(1.5)), ("flag", True)],
+        ):
+            _run_extract_task(task.id)
+
+        self.assertEqual(self.data_row(task, "mean").float_value, 1.5)
+        self.assertEqual(self.data_row(task, "flag").int_value, 1)
+
     def test_total_failure_does_not_wipe_a_previous_runs_results(self):
         # The row set is replaced wholesale on each run, which would destroy
         # good data if a retry happened to fail on every position. A run that
@@ -482,12 +538,11 @@ class ProcessingTestCase(TestCase):
             q for q in queries
             if "extract_tasks" in q
         ]
-        self.assertEqual(len(touching), 3, touching)  # lookup, recheck claim, complete
-        lookup, recheck, complete = touching
+        self.assertEqual(len(touching), 2, touching)  # lookup, recheck-and-complete
+        lookup, complete = touching
         self.assertIn(f"t.dataset_id = {task.dataset_id}", lookup)
-        for query in (recheck, complete):
-            self.assertIn(f'"dataset_id" = {task.dataset_id}', query)
-            self.assertIn(f'"id" IN ({task.id})', query)
+        self.assertIn("t.dataset_id = v.dataset_id AND t.id = v.id", complete)
+        self.assertIn("t.dataset_id = ANY(", complete)
         task.refresh_from_db()
         self.assertEqual(task.status, DONE)
 
@@ -511,7 +566,7 @@ class ProcessingTestCase(TestCase):
         queries = self.run_capturing_queries(task, dataset_id)
 
         complete = next(q for q in queries if "complete_time" in q)
-        self.assertIn('"complete_time" = STATEMENT_TIMESTAMP()', complete)
+        self.assertIn("THEN STATEMENT_TIMESTAMP()", complete)
         task.refresh_from_db()
         self.assertEqual(task.status, DONE)
         self.assertLessEqual(task.update_time, task.complete_time)
@@ -650,13 +705,14 @@ class ProcessingTestCase(TestCase):
         with mock.patch.object(processing, "get_func", return_value=lambda *a, **kw: [("mean", 1.0)]):
             _run_extract_task(task.id, task.dataset_id, outcomes=outcomes)
 
-        def fail_after_update(execute, sql, params, many, context):
+        # By the DELETE, the status is already final and the old row gone.
+        def fail_after_delete(execute, sql, params, many, context):
             result = execute(sql, params, many, context)
-            if sql.startswith('UPDATE "extract_tasks"'):
+            if sql.lstrip().startswith("DELETE FROM extract_data"):
                 raise OperationalError("commit failed")
             return result
 
-        with connection.execute_wrapper(fail_after_update), self.assertRaises(OperationalError):
+        with connection.execute_wrapper(fail_after_delete), self.assertRaises(OperationalError):
             processing._persist_outcomes(outcomes)
         task.refresh_from_db()
         self.assertEqual(task.status, LOCKED)
@@ -690,8 +746,15 @@ class ProcessingTestCase(TestCase):
                 _run_extract_task(task.id, task.dataset_id, outcomes=outcomes)
         with CaptureQueriesContext(connection) as queries:
             processing._persist_outcomes(outcomes)
-        statements = [q["sql"] for q in queries if q["sql"].startswith(("SELECT", "DELETE", "UPDATE"))]
-        self.assertEqual(len(statements), 3, statements)
+        # EXPLAIN accepts the statement, not a SET LOCAL prefix.
+        statements = [
+            sql for q in queries
+            if (sql := q["sql"].removeprefix(processing._ASYNC_COMMIT).strip())
+            .startswith(("SELECT", "DELETE", "UPDATE"))
+        ]
+        # The claim recheck rides in the status UPDATE; no separate lock pass.
+        self.assertEqual(len(statements), 2, statements)
+        self.assertFalse(any("FOR UPDATE" in sql for sql in statements), statements)
         for sql in statements:
             with connection.cursor() as cursor:
                 cursor.execute("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + sql)
@@ -843,12 +906,14 @@ class ProcessingCommitModeTest(_CommittedTaskFixture):
     def test_results_and_completion_commit_asynchronously(self):
         queries = self.run_capturing_queries()
 
-        # Results and completion now share one transaction and SET LOCAL.
+        # Results and completion share one transaction, and its first
+        # statement carries the SET LOCAL, so it covers the COPY too.
         self.assertEqual(queries.count("BEGIN"), 1, queries)
         self.assertEqual(queries.count("COMMIT"), 1, queries)
-        self.assertEqual(queries.count(processing._ASYNC_COMMIT), 1, queries)
-        insert = next(i for i, q in enumerate(queries) if 'INSERT INTO "extract_data"' in q)
-        self.assertIn(processing._ASYNC_COMMIT, queries[:insert])
+        prefixed = [i for i, q in enumerate(queries) if q.startswith(processing._ASYNC_COMMIT)]
+        self.assertEqual(prefixed, [queries.index("BEGIN") + 1], queries)
+        copy = next(i for i, q in enumerate(queries) if q.startswith("COPY extract_data"))
+        self.assertLess(prefixed[0], copy)
         # The lookup's row reached Python and the task finished.
         self.task.refresh_from_db()
         self.assertEqual(self.task.status, DONE)

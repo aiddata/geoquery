@@ -51,8 +51,9 @@ TASK_PHASE_SECONDS = Histogram(
     "Wall time one task spent in each phase. lock = fetch the claimed "
     "row's inputs; load = resource, geometry and category map lookups; extract = "
     "processor calls (raster I/O and compute); write = build rows plus an "
-    "amortized share of batch persistence; finalize = amortized status "
-    "updates and commit. Time waiting in the result buffer is excluded.",
+    "amortized share of replacing the batch's results; finalize = amortized "
+    "claim recheck and status update, and commit. Time waiting in the result "
+    "buffer is excluded.",
     ["phase"],
     buckets=_PHASE_BUCKETS,
 )
