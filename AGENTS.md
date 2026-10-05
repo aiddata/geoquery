@@ -2,6 +2,14 @@
 
 GeoQuery is a web application for geospatial data extraction. Users select geographic boundaries, choose datasets, and submit extraction requests.
 
+## Permission to Commit, Push, and Deploy
+
+**Do not commit, push, merge, or deploy without the user's explicit permission for that action and the current changes.** Permission to edit code, fix a bug, run tests, or assess a proposal does not authorize any of these actions. Statements such as "this needs a deploy" describe a requirement; they are not instructions to deploy.
+
+- Treat committing, pushing/merging, and deploying as separate permissions. Approval for one does not imply approval for the others. A single explicit request may authorize multiple actions, but only within its stated scope; approval for a previous task does not carry over to new work.
+- Deployment includes indirect triggers: pushing a commit with a `[DEPLOY-X.Y.Z]` marker, dispatching or rerunning a release workflow, changing deployment repositories or image tags, and mutating a live cluster. Do not use an indirect trigger to bypass deployment approval.
+- Complete authorized local edits and relevant checks first. Then present the concrete changes and validation results, and request any missing permission before committing, pushing, merging, or deploying. Leave changes uncommitted until committing is explicitly authorized.
+
 ## Project Structure
 
 - `frontend/` — SvelteKit app (Svelte 5, TypeScript, Tailwind CSS, shadcn-svelte)
