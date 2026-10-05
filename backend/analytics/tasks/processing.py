@@ -454,7 +454,9 @@ def _flush_outcomes(outcomes):
             return
         except (OperationalError, InterfaceError):
             if attempt == 2:
+                metrics.FLUSH_FAILURES.inc()
                 raise
+            metrics.FLUSH_RETRIES.inc()
             logger.warning("Retrying extract result flush", exc_info=True)
             if not connection.in_atomic_block:
                 connection.close()

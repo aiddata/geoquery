@@ -1,7 +1,9 @@
 import logging
 
 from celery import shared_task
+from django.db import transaction
 
+from analytics.background_metrics import observe_job, record_request_outcome
 from analytics.models import Request
 from analytics.query_tags import tagged
 from analytics.services import NoExtractTasksError, materialize_request
@@ -11,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task
 @tagged("materialize")
+@observe_job("materialize")
 def materialize_request_tasks(request_id):
     """Build ExtractTasks and RequestMap rows for a Request submitted at
     status=4 (materializing), then move it to status=-1 (queued).
@@ -40,14 +43,20 @@ def materialize_request_tasks(request_id):
             "time: %s",
             request_id, exc.warnings,
         )
-        Request.objects.filter(id=request_id).update(
-            status=-2,
-            data={**req.data, "error": str(exc), "error_detail": exc.warnings},
-        )
+        with transaction.atomic():
+            updated = Request.objects.filter(id=request_id).update(
+                status=-2,
+                data={**req.data, "error": str(exc), "error_detail": exc.warnings},
+            )
+            if updated and req.status != -2:
+                record_request_outcome(req.submit_time, "failed")
         return
     except Exception as exc:
         logger.exception("Unexpected error materializing request %s", request_id)
-        Request.objects.filter(id=request_id).update(
-            status=-2, data={**req.data, "error": str(exc)}
-        )
+        with transaction.atomic():
+            updated = Request.objects.filter(id=request_id).update(
+                status=-2, data={**req.data, "error": str(exc)}
+            )
+            if updated and req.status != -2:
+                record_request_outcome(req.submit_time, "failed")
         raise

@@ -5,11 +5,13 @@ from django.contrib.auth import get_user_model
 
 from analytics.ingest import ingest_custom_boundary
 from analytics.models import Request
+from analytics.background_metrics import observe_job, record_request_outcome
 
 logger = logging.getLogger(__name__)
 
 
 @shared_task
+@observe_job("boundary_ingest")
 def ingest_custom_boundary_task(req_id, geojson_fc, datasets, user_id=None):
     """
     Ingest a custom boundary GeoJSON for an existing Request (status=3 on entry).
@@ -43,9 +45,11 @@ def ingest_custom_boundary_task(req_id, geojson_fc, datasets, user_id=None):
         req.status = -2
         req.data = {**req.data, "error": str(exc)}
         req.save(update_fields=["status", "data"])
+        record_request_outcome(req.submit_time, "failed")
     except Exception as exc:
         logger.exception("Unexpected error ingesting custom boundary for request %s", req_id)
         req.status = -2
         req.data = {**req.data, "error": str(exc)}
         req.save(update_fields=["status", "data"])
+        record_request_outcome(req.submit_time, "failed")
         raise

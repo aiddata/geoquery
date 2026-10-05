@@ -9,6 +9,7 @@ from django.db.models import Case, F, When
 from django.db.models.functions import Now
 
 from analytics.models import ExtractTaskBuildProgress, ExtractTaskBuildRun
+from analytics.background_metrics import record_work
 
 
 logger = getLogger(__name__)
@@ -368,6 +369,7 @@ def _run_batch(sql, params, fetch=False):
                 cursor.execute(sql, params)
                 return cursor.fetchone() if fetch else cursor.rowcount
     except DatabaseError:
+        record_work("builder_batch_errors", 1)
         logger.exception("build_extract_tasks batch failed/timed out")
         return None
 
@@ -525,6 +527,7 @@ def _build_global_tasks(batch_size=None, max_tasks=None, run_id=None):
                 added, _max_fm_id = result
                 made_progress = True
                 total_added += added
+                record_work("tasks_created", added)
                 _heartbeat_build_run(run_id)
                 logger.info(
                     "build_extract_tasks global batch: progress_id=%s resources=%s po=%s added %d (total %d)",
@@ -560,6 +563,7 @@ def _build_non_global_tasks(batch_size=None, max_tasks=None):
         if added is None:
             break
         total_added += added
+        record_work("tasks_created", added)
         logger.info("build_extract_tasks non-global batch: added %d (total %d)", added, total_added)
         if added < insert_limit:
             break

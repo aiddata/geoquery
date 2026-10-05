@@ -45,10 +45,11 @@ logger = logging.getLogger(__name__)
 
 # The parent's stop event, set in each child by _init_child.
 _stop = None
+_chunk_starts = None
 
 
-def _init_child(stop_event):
-    global _stop
+def _init_child(stop_event, chunk_starts):
+    global _stop, _chunk_starts
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     signal.signal(signal.SIGTERM, signal.SIG_IGN)
 
@@ -56,10 +57,11 @@ def _init_child(stop_event):
 
     django.setup()
     _stop = stop_event
+    _chunk_starts = chunk_starts
 
 
 @tagged("extract")
-def run_chunk(idle_seconds):
+def run_chunk(idle_seconds, slot=0):
     """Claim one chunk, run every task in it, and return how many were claimed.
 
     Results and outcomes stay in memory until the chunk ends, including a
@@ -85,6 +87,8 @@ def run_chunk(idle_seconds):
     try:
         claimed = processing.claim_pending_tasks(processing._claim_batch_size())
         chunk_started = time.perf_counter()
+        if claimed and _chunk_starts is not None:
+            _chunk_starts[slot] = time.monotonic()
         for task_id, dataset_id in claimed:
             if _stop.is_set():
                 break
@@ -113,6 +117,8 @@ def run_chunk(idle_seconds):
         metrics.batch_finished()
         if claimed:
             metrics.CHUNK_SECONDS.observe(time.perf_counter() - chunk_started)
+        if _chunk_starts is not None:
+            _chunk_starts[slot] = 0
 
     if failed or not claimed:
         _stop.wait(idle_seconds * random.uniform(0.75, 1.25))
@@ -127,12 +133,13 @@ class ExtractWorker:
         self.concurrency = concurrency
         self.idle_seconds = idle_seconds
         self.stop_event = context.Event()
+        self.chunk_starts = context.Array("d", concurrency, lock=False)
         self._executor_factory = executor_factory or (
             lambda: ProcessPoolExecutor(
                 max_workers=1,
                 mp_context=context,
                 initializer=_init_child,
-                initargs=(self.stop_event,),
+                initargs=(self.stop_event, self.chunk_starts),
                 max_tasks_per_child=max_chunks_per_child,
             )
         )
@@ -154,6 +161,7 @@ class ExtractWorker:
                 done, _ = wait(futures, return_when=FIRST_COMPLETED)
                 for future in done:
                     i = futures.pop(future)
+                    self.chunk_starts[i] = 0
                     try:
                         future.result()
                     except BrokenProcessPool:
@@ -179,13 +187,14 @@ class ExtractWorker:
         broken.
         """
         try:
-            return slots[i].submit(run_chunk, self.idle_seconds)
+            return slots[i].submit(run_chunk, self.idle_seconds, i)
         except BrokenProcessPool:
             self._replace(slots, i)
-            return slots[i].submit(run_chunk, self.idle_seconds)
+            return slots[i].submit(run_chunk, self.idle_seconds, i)
 
     def _replace(self, slots, i):
         logger.error("Slot %d's worker process died; replacing it", i)
         metrics.POOL_BREAKS.inc()
+        self.chunk_starts[i] = 0
         slots[i].shutdown(wait=False, cancel_futures=True)
         slots[i] = self._executor_factory()

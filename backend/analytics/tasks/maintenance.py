@@ -5,6 +5,8 @@ from celery import shared_task
 from analytics.query_tags import tagged
 from django.conf import settings
 
+from analytics.background_metrics import observe_job
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,6 +23,7 @@ def manage_processing_task_errors():
 
 @shared_task
 @tagged("sweep.stale")
+@observe_job("task_reaper")
 def free_stale_processing_tasks():
     """Reset extract tasks stuck in running (status=2) back to pending (status=0)."""
     from analytics.management.commands.free_stale_processing_tasks import (
@@ -35,6 +38,7 @@ def free_stale_processing_tasks():
 
 @shared_task
 @tagged("sweep.requests")
+@observe_job("request_reaper")
 def reset_stale_requests():
     """Recover requests and output that nothing else would pick up again.
 
@@ -75,6 +79,7 @@ def reset_stale_requests():
 
 @shared_task
 @tagged("requests.complete")
+@observe_job("request_sweep")
 def process_user_requests():
     """Check request queue and advance any requests that are ready."""
     from django.conf import settings
@@ -145,6 +150,7 @@ def _n_extract_task_builders():
 
 @shared_task
 @tagged("builder.launch")
+@observe_job("builder_dispatch")
 def build_extract_tasks():
     """Launch parallel global-dataset task generation, plus one pass over the
     (cheap) non-global/coverage-gated branch.
@@ -174,6 +180,7 @@ def build_extract_tasks():
 
 @shared_task
 @tagged("builder.worker")
+@observe_job("builder")
 def build_extract_tasks_worker(run_id=None):
     """One parallel worker's share of the global-dataset backlog. Safe to run
     many of these concurrently -- see build_extract_tasks.py."""

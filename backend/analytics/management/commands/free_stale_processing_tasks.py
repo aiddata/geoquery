@@ -3,6 +3,8 @@ import logging
 from django.core.management.base import BaseCommand
 from django.db import connection
 
+from analytics.background_metrics import record_work
+
 logger = logging.getLogger(__name__)
 
 # Running (2): a worker claimed the row and died before finishing or releasing
@@ -67,4 +69,5 @@ def _free_stale_tasks(minutes):
             [STALE_STATUSES, minutes],
         )
         freed = cursor.rowcount
+        record_work("tasks_reclaimed", freed or 0)
         return freed if freed is not None else 0

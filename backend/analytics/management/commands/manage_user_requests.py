@@ -25,6 +25,7 @@ from django.db import connection, transaction
 from django.utils import timezone
 from features.models import FeatMap, Feature, FeatureCollection
 
+from analytics.background_metrics import record_request_outcome
 from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
 from analytics.tasks.documentation import DocBuilder
 from analytics.tasks.email import GeoEmail
@@ -433,6 +434,8 @@ def _manage_user_requests(
                         updated = Request.objects.filter(
                             id=request_id, status=2, process_time=claim.claim_time
                         ).update(status=1, complete_time=timezone.now())
+                        if updated:
+                            record_request_outcome(request_obj.submit_time, "completed")
                     if not updated:
                         logger.warning(
                             "Lost claim on request (id: %s) before finalize "
@@ -535,12 +538,18 @@ def _request_error(request_id, message, claim=None):
     logger.error("Error with request (id: %s): %s", request_id, message)
 
     if claim is None:
-        Request.objects.filter(id=request_id).update(status=-2)
+        with transaction.atomic():
+            updated = Request.objects.filter(id=request_id).exclude(status=-2).update(status=-2)
+            if updated:
+                record_request_outcome(None, "failed")
         return
 
-    updated = Request.objects.filter(
-        id=request_id, status=2, process_time=claim.claim_time
-    ).update(status=-2)
+    with transaction.atomic():
+        updated = Request.objects.filter(
+            id=request_id, status=2, process_time=claim.claim_time
+        ).update(status=-2)
+        if updated:
+            record_request_outcome(None, "failed")
     if not updated:
         logger.warning(
             "Lost claim on request (id: %s) (reaped or taken over by another "

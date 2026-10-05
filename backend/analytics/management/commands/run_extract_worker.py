@@ -33,14 +33,20 @@ class Command(BaseCommand):
         if idle_seconds is None:
             idle_seconds = settings.EXTRACT_WORKER_IDLE_SECONDS
 
-        metrics.start_worker_exporter(settings.WORKER_METRICS_PORT)
+        worker = ExtractWorker(
+            concurrency=options["concurrency"],
+            max_chunks_per_child=options["max_chunks_per_child"],
+            idle_seconds=idle_seconds,
+        )
+        metrics.start_worker_exporter(
+            settings.WORKER_METRICS_PORT,
+            collectors=[metrics.WorkerStateCollector(
+                worker.chunk_starts, settings.STALE_TASK_MINUTES * 60,
+            )],
+        )
         self.stdout.write(
             f"Extract worker: {options['concurrency']} processes, "
             f"{options['max_chunks_per_child']} chunks per process, "
             f"{idle_seconds}s idle wait"
         )
-        ExtractWorker(
-            concurrency=options["concurrency"],
-            max_chunks_per_child=options["max_chunks_per_child"],
-            idle_seconds=idle_seconds,
-        ).run()
+        worker.run()

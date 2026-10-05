@@ -108,6 +108,8 @@ class RunChunkTests(TestCase):
         self.assertEqual(self.statuses(tasks), [DONE] * 3)
 
     def test_transient_flush_failure_retries_without_recomputing(self):
+        retries = ("geoquery_extract_flush_retries_total", ())
+        delta = Delta(retries)
         tasks = self.make_tasks(3)
         processor = mock.Mock(return_value=[("mean", 1.0)])
         persist = processing._persist_outcomes
@@ -127,11 +129,14 @@ class RunChunkTests(TestCase):
         self.assertEqual(len(attempts), 2)
         self.assertIs(attempts[0], attempts[1])
         self.assertEqual(self.statuses(tasks), [DONE] * 3)
+        self.assertEqual(delta[retries], 1)
 
     def test_exhausted_flush_retries_release_tasks_without_counting_completion(self):
         tasks = self.make_tasks(3)
         completed = tasks_total(self.resource.dataset_id, "completed")
-        delta = Delta(completed)
+        retries = ("geoquery_extract_flush_retries_total", ())
+        failures = ("geoquery_extract_flush_failures_total", ())
+        delta = Delta(completed, retries, failures)
         with mock.patch.object(processing, "_persist_outcomes", side_effect=OperationalError("offline")) as persist, \
                 mock.patch.object(processing.time, "sleep"), self.assertLogs(level="WARNING"):
             self.run_chunk()
@@ -139,6 +144,20 @@ class RunChunkTests(TestCase):
         self.assertEqual(self.statuses(tasks), [PENDING] * 3)
         self.assertEqual(delta[completed], 0)
         self.wait.assert_called_once()
+        self.assertEqual(delta[retries], 2)
+        self.assertEqual(delta[failures], 1)
+
+    def test_active_chunk_is_visible_during_work_and_cleared_after_flush(self):
+        self.make_tasks(1)
+        starts = [0.0]
+
+        def compute(*args, **kwargs):
+            self.assertGreater(starts[0], 0)
+            return [("mean", 1.0)]
+
+        with mock.patch.object(extract_worker, "_chunk_starts", starts):
+            self.run_chunk(compute)
+        self.assertEqual(starts, [0])
 
     def test_invalid_result_isolated_and_previous_results_preserved(self):
         tasks = self.make_tasks(3)
@@ -349,6 +368,14 @@ class ExtractWorkerTests(SimpleTestCase):
         self.assertEqual(healthy.shutdowns, [(True, False)])
         self.assertEqual(replacement.shutdowns, [(True, False)])
         self.assertEqual(delta[BREAKS], 1)
+
+    def test_replacing_a_dead_child_clears_its_active_chunk_only(self):
+        worker, _ = self.make_worker(2, Script(stop_after=1))
+        slots = [worker._executor_factory(), worker._executor_factory()]
+        worker.chunk_starts[:] = [100, 200]
+        with self.assertLogs("analytics.extract_worker", "ERROR"):
+            worker._replace(slots, 0)
+        self.assertEqual(list(worker.chunk_starts), [0, 200])
 
     def test_a_slot_whose_process_died_after_returning_is_replaced(self):
         # The chunk's future succeeds, so the break only shows up when the

@@ -96,6 +96,44 @@ POOL_BREAKS = Counter(
     "replaced. Their unfinished tasks wait for free_stale_processing_tasks.",
 )
 
+FLUSH_RETRIES = Counter(
+    "geoquery_extract_flush_retries",
+    "Additional persistence attempts after transient connection failures.",
+)
+
+FLUSH_FAILURES = Counter(
+    "geoquery_extract_flush_failures",
+    "Persistence batches that exhausted their connection retries.",
+)
+
+
+class WorkerStateCollector:
+    """Read slot state shared with children, including chunks still running.
+
+    A slot has one writer while its future is running. The parent clears it
+    once that future resolves, including abrupt process death. No PID labels
+    or stale multiprocess gauge files accumulate as children are recycled.
+    """
+
+    def __init__(self, starts, stale_seconds):
+        self.starts = starts
+        self.stale_seconds = stale_seconds
+
+    def collect(self):
+        from prometheus_client.core import GaugeMetricFamily
+
+        starts = [value for value in self.starts if value > 0]
+        values = (
+            ("slots", "Configured extract-worker slots in this pod", len(self.starts)),
+            ("active_chunks", "Slots currently holding a chunk", len(starts)),
+            ("oldest_active_chunk_seconds", "Age of the oldest unfinished chunk in this pod",
+             max(0, time.monotonic() - min(starts)) if starts else 0),
+            ("stale_task_seconds", "Configured age at which the reaper can reclaim tasks",
+             self.stale_seconds),
+        )
+        for name, help_text, value in values:
+            yield GaugeMetricFamily(f"geoquery_extract_{name}", help_text, value=value)
+
 
 class TaskTimer:
     """Attributes one task's wall and CPU time to the phase it is in.
@@ -153,7 +191,7 @@ def batch_finished():
     _last_batch_end = time.monotonic()
 
 
-def start_worker_exporter(port):
+def start_worker_exporter(port, collectors=()):
     """Serve every worker process's metrics, summed, on ``port``.
 
     Call once, in the extract worker's parent process, before it starts any
@@ -180,5 +218,7 @@ def start_worker_exporter(port):
 
     registry = CollectorRegistry()
     multiprocess.MultiProcessCollector(registry, path=directory)
+    for collector in collectors:
+        registry.register(collector)
     start_http_server(port, addr="0.0.0.0", registry=registry)
     return True
