@@ -8,9 +8,11 @@ marked failed (status -2) rather than either completing with silently missing
 columns or being re-queued by the completion sweep forever.
 """
 
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from analytics.management.commands.manage_processing_task_errors import (
+    _LOG_SAMPLE,
+    _exception_class,
     _manage_processing_task_errors,
 )
 from analytics.management.commands.manage_user_requests import (
@@ -20,6 +22,7 @@ from analytics.management.commands.manage_user_requests import (
 from analytics.models import ExtractTask, ProcessingOption, RequestMap
 from analytics.services import create_request, materialize_request
 from datasets.models import Dataset, DatasetResource
+from analytics.tests.test_metrics import Delta, sample
 from features.models import Feature, FeatMap, FeatureCollection
 
 
@@ -215,3 +218,157 @@ class ExhaustedTaskFailsItsRequestTests(ErrorSweepFixture):
         self.assertEqual(
             self.request.status, -1, "dry run must not write status"
         )
+
+
+class ExceptionClassTests(SimpleTestCase):
+    """The metric label is derived from error text, so it must stay bounded.
+
+    extract_tasks.error is repr(exc)[:100], which leads with the class name and
+    then carries a message full of file paths and coordinates. Labelling with
+    the whole thing would give the counter unbounded cardinality.
+    """
+
+    def test_reads_the_class_name_from_a_repr(self):
+        self.assertEqual(
+            _exception_class("RasterioIOError('/data/ds/r1.tif: No such file')"),
+            "RasterioIOError",
+        )
+
+    def test_keeps_a_dotted_class_path(self):
+        self.assertEqual(
+            _exception_class("rasterio.errors.RasterioIOError('x')"),
+            "rasterio.errors.RasterioIOError",
+        )
+
+    def test_handles_an_exception_with_no_arguments(self):
+        self.assertEqual(_exception_class("MemoryError()"), "MemoryError")
+
+    def test_a_missing_error_is_still_countable(self):
+        # A failure with no recorded text must not vanish from the metric.
+        for empty in (None, "", "   "):
+            self.assertEqual(_exception_class(empty), "unrecorded")
+
+    def test_unparseable_text_is_still_countable(self):
+        self.assertEqual(_exception_class("???"), "unparsed")
+
+    def test_label_length_is_capped(self):
+        self.assertLessEqual(len(_exception_class("A" * 200 + "('x')")), 60)
+
+
+def failures(exception):
+    return ("geoquery_extract_task_failures_total", (("exception", exception),))
+
+
+def work(operation):
+    return ("geoquery_background_work_total", (("operation", operation),))
+
+
+@override_settings(MAX_EXTRACT_TASK_ATTEMPTS=3)
+class FailureRecordingTests(ErrorSweepFixture):
+    """What the sweep records as it clears the evidence.
+
+    A successful retry overwrites `error` with NULL, so the sweep is the last
+    moment anything can see why a task failed -- and it is also the only path
+    out of the error status, so it sees every failure exactly once.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._resource_seq = 0
+
+    def errored_task_with(self, error, attempts=0):
+        # A distinct resource per task: (dataset, fm, po, resource_ids) is
+        # uniquely indexed for dedup, so two identical tasks cannot coexist.
+        self._resource_seq += 1
+        resource = DatasetResource.objects.create(
+            dataset=self.dataset,
+            name=f"ds-r{self._resource_seq}-err",
+            path=f"r{self._resource_seq}-err.tif",
+        )
+        task = self.errored_task(attempts, resource=resource)
+        ExtractTask.objects.filter(pk=task.pk).update(error=error)
+        return task
+
+    def test_counts_each_failure_by_exception_class(self):
+        self.errored_task_with("RasterioIOError('/data/a.tif: No such file')")
+        self.errored_task_with("RasterioIOError('/data/b.tif: No such file')")
+        self.errored_task_with("MemoryError()")
+        delta = Delta(failures("RasterioIOError"), failures("MemoryError"))
+
+        with self.captureOnCommitCallbacks(execute=True):
+            _manage_processing_task_errors(error_values=-1)
+
+        # Two different files, one label: the message is not part of the label.
+        self.assertEqual(delta[failures("RasterioIOError")], 2)
+        self.assertEqual(delta[failures("MemoryError")], 1)
+
+    def test_records_how_many_were_returned_to_pending(self):
+        self.errored_task_with("MemoryError()")
+        self.errored_task_with("MemoryError()")
+        delta = Delta(work("tasks_retried"))
+
+        with self.captureOnCommitCallbacks(execute=True):
+            _manage_processing_task_errors(error_values=-1)
+
+        self.assertEqual(delta[work("tasks_retried")], 2)
+
+    def test_nothing_is_counted_until_the_reset_commits(self):
+        # The count means "these tasks were returned to pending", so a sweep
+        # that rolls back must not report them.
+        self.errored_task_with("MemoryError()")
+        delta = Delta(failures("MemoryError"), work("tasks_retried"))
+
+        with self.captureOnCommitCallbacks(execute=False):
+            _manage_processing_task_errors(error_values=-1)
+
+        self.assertEqual(delta[failures("MemoryError")], 0)
+        self.assertEqual(delta[work("tasks_retried")], 0)
+
+    def test_dry_run_records_no_failures(self):
+        self.errored_task_with("MemoryError()")
+        delta = Delta(failures("MemoryError"), work("tasks_retried"))
+
+        with self.captureOnCommitCallbacks(execute=True):
+            _manage_processing_task_errors(error_values=-1, dry_run=True)
+
+        self.assertEqual(delta[failures("MemoryError")], 0)
+        self.assertEqual(delta[work("tasks_retried")], 0)
+
+    def test_a_task_at_the_cap_is_counted_as_exhausted_not_retried(self):
+        self.errored_task_with("MemoryError()", attempts=3)  # at the cap
+        delta = Delta(failures("MemoryError"), work("tasks_retried"))
+
+        with self.captureOnCommitCallbacks(execute=True):
+            _manage_processing_task_errors(error_values=-1)
+
+        self.assertEqual(delta[failures("MemoryError")], 0)
+        self.assertEqual(delta[work("tasks_retried")], 0)
+        self.assertEqual(sample(("geoquery_extract_tasks_exhausted", ())), 1)
+
+    def test_exhausted_count_is_published_on_the_dry_run_path_too(self):
+        self.errored_task_with("MemoryError()", attempts=3)
+
+        _manage_processing_task_errors(error_values=-1, dry_run=True)
+
+        self.assertEqual(sample(("geoquery_extract_tasks_exhausted", ())), 1)
+
+    def test_exhausted_count_returns_to_zero_when_nothing_is_stuck(self):
+        # Published even when the sweep changes nothing, so the gauge cannot
+        # stay stuck at an old non-zero reading.
+        self.errored_task_with("MemoryError()", attempts=3)
+        _manage_processing_task_errors(error_values=-1)
+        self.assertEqual(sample(("geoquery_extract_tasks_exhausted", ())), 1)
+
+        ExtractTask.objects.all().delete()
+        _manage_processing_task_errors(error_values=-1)
+        self.assertEqual(sample(("geoquery_extract_tasks_exhausted", ())), 0)
+
+    def test_every_failure_is_counted_even_when_logging_is_sampled(self):
+        for _ in range(_LOG_SAMPLE + 5):
+            self.errored_task_with("MemoryError()")
+        delta = Delta(failures("MemoryError"))
+
+        with self.captureOnCommitCallbacks(execute=True):
+            _manage_processing_task_errors(error_values=-1)
+
+        self.assertEqual(delta[failures("MemoryError")], _LOG_SAMPLE + 5)
