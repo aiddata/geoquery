@@ -1,0 +1,15 @@
+# Global Sample of 200 Cities - Urban Extents 2000
+Urban extents of sample cities in 2000. Additional details at atlasofurbanexpansion.org
+Over 100 additional columns of information on each city are included, as provided by the Atlas of Urban Expansion. For additional information about this supplemental data, as well as a full list of the 200 cities in the sample please visit http://www.atlasofurbanexpansion.org/cities
+## Details
+| | |
+|---|---|
+| Features | 200 |
+| Group | Atlas of Urban Expansion |
+| Class | sub |
+| Tags | atlasofurbanexpansion, cities, city, urban, Accra, Addis Ababa, Ahmedabad, Ahvaz, Alexandria, Algiers, Anqing, Anhui, Antwerp, Arusha, Astrakhan, Auckland, Bacolod, Baghdad, Baku, Bamako, Bangkok, Beijing, Beijing, Beira, Belgaum, Belgrade, Belo Horizonte, Berezniki, Berlin, Bicheng, Chongqing, Bogota, Budapest, Buenos Aires, Bukhara, Busan, Cabimas, Cairo, Caracas, Cebu City, Changzhi, Hunan, Changzhou, Jingsu, Chengdu, Sichuan, Chengguan, Guizhou, Cheonan, Chicago, Cirebon, Cleveland, Cochabamba, Coimbatore, Cordoba, Culiacan, Curitiba, Dhaka, Dzerzhinsk, Florianopolis, Fukuoka, Gainesville, FL, Gaoyou, Jiangsu, Gombe, Gomel, Gorgan, Guadalajara, Guangzhou, Guangdong, Guatemala City, Guixi, Chongqing, Gwangju, Haikou, Hainan, Halle, Hangzhou, Zhejiang, Hindupur, Ho Chi Minh City, Holguin, Hong Kong, Hong Kong, Houston, Hyderabad, Ibadan, Ilheus, Ipoh, Istanbul, Jaipur, Jalna, Jequie, Jinan, Shandong, Jinju, Johannesburg, Kabul, Kaiping, Guangdong, Kairouan, Kampala, Kanpur, Karachi, Kaunas, Kayseri, Khartoum, Kigali, Killeen, Kinshasa, Kolkata, Kozhikode, Lagos, Lahore, Lausanne, Le Mans, Leon, Leshan, Sichuan, London, Los Angeles, Luanda, Lubumbashi, Madrid, Malatya, Malegaon, Manchester, Manila, Marrakesh, Medan, Mexico City, Milan, Minneapolis, Modesto, Montreal, Moscow, Mumbai, Myeik, Nakuru, Ndola, New York, Nikolaev, Okayama, Oldenburg, Osaka, Oyo, Palembang, Palermo, Palmas, Parbhani, Parepare, Paris, Pematangsiantar, Philadelphia, Pingxiang, Jiangxi, Pokhara, Port Elizabeth, Portland, OR, Pune, Pyongyang, Qingdao, Shandong, Qom, Quito, Rajshahi, Raleigh, Rawang, Reynosa, Ribeirao Preto, Riyadh, Rovno, Saidpur, Saint Petersburg, San Salvador, Sana, Santiago, Sao Paulo, Seoul, Shanghai, Shanghai, Sheffield, Shenzhen, Guangdong, Shymkent, Sialkot, Singapore, Singrauli, Sitapur, Springfield, MA, Suining, Sichuan, Suva, Sydney, Taipei, Taiwan, Tangshan, Hebei, Tashkent, Tebessa, Tehran, Tel Aviv, Thessaloniki, Tianjin, Tianjin, Tijuana, Tokyo, Toledo, Tyumen, Ulaanbaatar, Valledupar, Victoria, Vienna, Vijayawada, Vinh Long, Warsaw, Wuhan, Hubei, Xingping, Shaanxi, Xucheng, Jiangsu, Yamaguchi, Yanggu, Shandong, Yiyang, Hunan, Yucheng, Zhejiang, Yulin, Guangxi, Zhengzhou, Henan, Zhuji, Zhejiang, Zunyi, Guizhou, Zwolle |
+| Source | [Atlas of Urban Expansion (NYU, UN-Habitat, Lincoln Institute of Land Policy)](http://www.atlasofurbanexpansion.org) |
+| License | Not recorded — see the source link |
+
+## Citation
+Angel et al., Atlas of Urban Expansion-2016 Edition, New York: New York University, Nairobi: UN-Habitat, and Cambridge, MA: Lincoln Institute of Land Policy, 2016.
