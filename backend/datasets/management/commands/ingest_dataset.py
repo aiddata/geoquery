@@ -8,7 +8,7 @@ from pathlib import Path
 from django.core.management.base import CommandError
 
 from analytics.management.commands.base import BaseIngestCommand
-from datasets.ingest import ingest_dataset
+from datasets.ingest import ingest_dataset, update_dataset_metadata
 
 GEO_DATASETS_REPO = "aiddata/geo-datasets"
 GEO_DATASETS_BRANCH = "master"
@@ -50,8 +50,35 @@ class Command(BaseIngestCommand):
             action="store_true",
             help="Try to update the dataset, inserting it if it doesn't exist",
         )
+        parser.add_argument(
+            "--metadata-only",
+            action="store_true",
+            help=(
+                "Update only the descriptive metadata of an existing dataset "
+                "(license, source, citation, title, tags, ...). Does not read "
+                "the data files, so it needs no data volume, and leaves "
+                "resources, mappings, processing options and the derived "
+                "spatial/temporal fields untouched."
+            ),
+        )
 
     def handle(self, *args, **options):
+        if options["metadata_only"]:
+            conflicting = [
+                flag
+                for flag, key in (("--update", "update"),
+                                  ("--update-or-insert", "update_or_insert"))
+                if options[key]
+            ]
+            if conflicting:
+                raise CommandError(
+                    f"--metadata-only cannot be combined with {', '.join(conflicting)}: "
+                    "it is already an update, and applies only metadata."
+                )
+            # Metadata changes affect neither resources nor spatial/temporal
+            # extent, so there is nothing for coverage or extract to redo.
+            self.skip_post_ingest_hooks = True
+
         if options["edit"]:
             json_path = self._edit_tempfile(options["json_path"])
             self._ingest_path(json_path, options)
@@ -80,6 +107,12 @@ class Command(BaseIngestCommand):
         self._ingest_dataset_name(src, options)
 
     def _ingest_path(self, json_path: Path, options: dict):
+        if options["metadata_only"]:
+            self.stdout.write(f"Updating metadata from {json_path}")
+            update_dataset_metadata(json_data=json_path)
+            self.stdout.write(self.style.SUCCESS("Metadata update complete."))
+            return
+
         self.stdout.write(f"Ingesting dataset from {json_path}")
         ingest_dataset(
             json_data=json_path,
