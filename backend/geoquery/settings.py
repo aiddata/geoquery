@@ -600,14 +600,43 @@ CELERY_BEAT_SCHEDULE = {
         "task": "analytics.tasks.maintenance.reset_stale_requests",
         "schedule": 3600,
     },
-    "build-dataset-docs": {
-        "task": "datasets.tasks.build_dataset_docs_task",
-        "schedule": crontab(hour=2, minute=0),
-    },
-    "build-boundary-docs": {
-        "task": "features.tasks.build_boundary_docs_task",
-        "schedule": crontab(hour=2, minute=15),
-    },
+    # Both docs builders are deliberately unscheduled. They never once
+    # succeeded in the cluster: DOCS_DIR is unset there, so it falls back to
+    # BASE_DIR.parent / "docs" == /app/docs, and /app is a read-only
+    # filesystem with no docs directory in the image and no volume mounted
+    # over it, so out_dir.mkdir() cannot work. Every night both raised
+    #
+    #     OSError: [Errno 30] Read-only file system: '/app/docs'
+    #
+    # and because neither task is in background_metrics.JOBS, there was no
+    # JOB_RUNS counter and nothing reported it. The pages went stale at the 2
+    # datasets and 6 collections they were first generated with, against 56
+    # and 719 in production.
+    #
+    # Scheduling them is the wrong fix even with a writable path, because the
+    # generated pages are tracked in git and the docs site builds from the
+    # repo -- output written into a pod filesystem has no consumer. This is a
+    # generate-and-commit workflow instead:
+    #
+    #     DOCS_DIR=<writable> python manage.py build_dataset_docs
+    #     DOCS_DIR=<writable> python manage.py build_boundary_docs
+    #
+    # then commit the result (see the regeneration in PR #48, which also
+    # explains why entries can disappear: a renamed dataset or collection
+    # changes its slug, so the directories are replaced wholesale rather than
+    # merged).
+    #
+    # To bring the nightly path back, give the worker a writable volume and
+    # set DOCS_DIR to it -- and add both tasks to background_metrics.JOBS, so
+    # the next failure is visible rather than silent.
+    # "build-dataset-docs": {
+    #     "task": "datasets.tasks.build_dataset_docs_task",
+    #     "schedule": crontab(hour=2, minute=0),
+    # },
+    # "build-boundary-docs": {
+    #     "task": "features.tasks.build_boundary_docs_task",
+    #     "schedule": crontab(hour=2, minute=15),
+    # },
     "process-user-requests": {
         "task": "analytics.tasks.maintenance.process_user_requests",
         "schedule": crontab(minute="2,7,12,17,22,27,32,37,42,47,52,57"),
