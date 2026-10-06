@@ -17,7 +17,7 @@ from collections.abc import Callable
 
 from fastmcp.dependencies import Depends
 
-from . import catalog, explore, map, requests, resources
+from . import catalog, explore, guides, map, requests, resources
 
 
 def register_all(mcp, user_resolver: Callable[[], object] | None = None) -> None:
@@ -31,7 +31,7 @@ def register_all(mcp, user_resolver: Callable[[], object] | None = None) -> None
     # up once per tool call no matter how many parameters reference it.
     user_dep = Depends(user_resolver)
 
-    for module in (catalog, explore, map, requests, resources):
+    for module in (catalog, explore, guides, map, requests, resources):
         module.register(mcp, user_dep)
 
     from mcp_server import prompts
