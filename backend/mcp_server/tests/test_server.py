@@ -64,13 +64,13 @@ class ServerIntegrationTests(TransactionTestCase):
 
         self.assertEqual(
             {t.name for t in tools},
-            DATA_BEARING_TOOLS | {"list_my_requests", "submit_request"},
+            DATA_BEARING_TOOLS | {"list_my_requests", "submit_request", "get_guide"},
         )
 
     def test_read_only_tools_say_so_and_submit_does_not(self):
         tools = {t.name: t for t in self.run_client(lambda c: c.list_tools())}
 
-        for name in DATA_BEARING_TOOLS | {"list_my_requests"}:
+        for name in DATA_BEARING_TOOLS | {"list_my_requests", "get_guide"}:
             self.assertTrue(
                 tools[name].annotations.read_only_hint, f"{name} should be read-only"
             )
@@ -144,6 +144,31 @@ class ServerIntegrationTests(TransactionTestCase):
             {p.name for p in prompts},
             {"explore_place", "summarize_request", "cite_sources"},
         )
+
+    def test_the_instructions_advertise_each_guide_and_get_guide_serves_it(self):
+        """The index and the tool have to agree: a guide named in the
+        instructions that get_guide cannot return is worse than no guide."""
+        async def read(client):
+            return client.instructions
+
+        instructions = self.run_client(read) or ""
+        self.assertIn("get_guide", instructions)
+        self.assertIn("style_guide", instructions)
+
+        result = self.run_client(
+            lambda c: c.call_tool("get_guide", {"name": "style_guide"})
+        )
+        text = result.content[0].text
+        # The body reaches the model as text, not only as structured content.
+        self.assertIn("sentence case", text.lower())
+        self.assertNotIn("when: before you build", text)
+        self.assertEqual(result.structured_content["name"], "style_guide")
+
+    def test_get_guide_rejects_an_unknown_name_readably(self):
+        with self.assertRaises(ToolError) as caught:
+            self.run_client(lambda c: c.call_tool("get_guide", {"name": "nope"}))
+
+        self.assertIn("style_guide", str(caught.exception))
 
     def test_the_server_instructions_state_the_attribution_duty(self):
         # client.instructions rather than initialize_result.instructions:
