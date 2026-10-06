@@ -56,6 +56,11 @@ QUERIES = [
     ("dataset details extract types years", "get_dataset"),
     ("boundary set details feature count source license", "get_boundary"),
     ("cite sources references license", "get_citations"),
+    # Guides. Their bodies are pulled on demand rather than carried in the
+    # prompt, so the model has to be able to find the tool from the trigger
+    # alone -- a guide nobody can locate is the same as no guide.
+    ("read the GeoQuery style guide", "get_guide"),
+    ("which guides are available to read", "get_guide"),
     # Export path.
     ("preview export what would be built", "preview_request"),
     ("submit export request download zip", "submit_request"),
