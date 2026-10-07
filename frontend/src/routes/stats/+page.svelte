@@ -10,8 +10,9 @@
 	let loading = $state(true);
 	let error = $state('');
 
-	// Nothing here polls. The payload is a snapshot the backend rebuilds every 5
-	// minutes; computing these counts per request meant aggregating ~280M rows.
+	// Nothing here polls. The payload is a snapshot the backend rebuilds on a
+	// schedule (hourly by default); computing these counts per request meant
+	// aggregating ~280M rows.
 	async function load() {
 		loading = true;
 		error = '';

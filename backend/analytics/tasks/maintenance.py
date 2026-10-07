@@ -100,6 +100,12 @@ def build_stats_report():
     """Regenerate the statistics snapshot the /stats page reads."""
     from stats.builder import StatsBuilder
 
+    # Disabling drops the beat entry, but a message queued before the restart
+    # could still arrive.
+    if not settings.STATS_REPORT_ENABLED:
+        logger.info("Stats report build: disabled")
+        return {"status": "Disabled"}
+
     output = getattr(
         settings,
         "STATS_REPORT_PATH",

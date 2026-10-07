@@ -558,9 +558,15 @@ EXTRACT_TASK_BUILD_SYNCHRONOUS_COMMIT = (
     os.environ.get("EXTRACT_TASK_BUILD_SYNCHRONOUS_COMMIT", "0") == "1"
 )
 # Snapshot freshness is independent of the extraction/recovery schedules.
+#
+# 0 disables the report: beat drops the entry and the stats view serves the
+# last snapshot without ever rebuilding it. Each build reads every
+# extract_tasks partition, and with no standby that read lands on the primary
+# and evicts the claim's index pages from the page cache.
 STATS_REPORT_INTERVAL_SECONDS = int(os.environ.get("STATS_REPORT_INTERVAL_SECONDS", "3600"))
-if STATS_REPORT_INTERVAL_SECONDS < 1:
-    raise ImproperlyConfigured("STATS_REPORT_INTERVAL_SECONDS must be at least 1")
+if STATS_REPORT_INTERVAL_SECONDS < 0:
+    raise ImproperlyConfigured("STATS_REPORT_INTERVAL_SECONDS must be 0 (disabled) or positive")
+STATS_REPORT_ENABLED = STATS_REPORT_INTERVAL_SECONDS > 0
 
 CELERY_BEAT_SCHEDULE = {
     # Both sweeps used to be hourly interval schedules, for two reasons that
@@ -707,6 +713,10 @@ CELERY_BEAT_SCHEDULE = {
         "options": {"expires": 3000},
     },
 }
+# Beat's default PersistentScheduler drops stored entries that are missing
+# from this dict on startup, so disabling takes effect on the next beat restart.
+if not STATS_REPORT_ENABLED:
+    del CELERY_BEAT_SCHEDULE["build-stats-report"]
 
 LOGGING = {
     "version": 1,

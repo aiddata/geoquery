@@ -194,8 +194,51 @@ class StatsScheduleTests(SimpleTestCase):
                 self.assertGreater(entry["options"]["expires"], 0)
                 self.assertLess(entry["options"]["expires"], interval)
 
-    def test_nonpositive_interval_is_rejected(self):
-        for interval in (0, -1):
-            with self.subTest(interval=interval):
-                with self.assertRaisesMessage(ImproperlyConfigured, "STATS_REPORT_INTERVAL_SECONDS"):
-                    self.load_settings(interval)
+    def test_zero_interval_disables_the_report(self):
+        loaded = self.load_settings(0)
+        self.assertFalse(loaded["STATS_REPORT_ENABLED"])
+        self.assertNotIn("build-stats-report", loaded["CELERY_BEAT_SCHEDULE"])
+        # Only the stats entry goes; the rest of the schedule is untouched.
+        self.assertIn("build-extract-tasks", loaded["CELERY_BEAT_SCHEDULE"])
+
+    def test_negative_interval_is_rejected(self):
+        with self.assertRaisesMessage(ImproperlyConfigured, "STATS_REPORT_INTERVAL_SECONDS"):
+            self.load_settings(-1)
+
+
+@override_settings(STATS_REPORT_ENABLED=False)
+class StatsDisabledTests(ReplicaReadsTestMixin, TestCase):
+    """With the report disabled nothing may run the extract_tasks aggregate."""
+
+    def test_existing_snapshot_is_still_served(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "geoquery_stats.json"
+            path.write_text(json.dumps({"total": 7}), encoding="utf-8")
+            with override_settings(STATS_REPORT_PATH=str(path)):
+                with self.assertNumQueries(0):
+                    response = self.client.get(reverse("stats-data"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["total"], 7)
+
+    def test_missing_snapshot_is_not_built_live(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with override_settings(STATS_REPORT_PATH=str(Path(tmp) / "absent.json")):
+                with mock.patch.object(StatsBuilder, "collect") as collect:
+                    response = self.client.get(reverse("stats-data"))
+
+        collect.assert_not_called()
+        self.assertEqual(response.status_code, 503)
+
+    def test_queued_task_does_not_build(self):
+        from analytics.tasks.maintenance import build_stats_report
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "geoquery_stats.json"
+            with override_settings(STATS_REPORT_PATH=str(out)):
+                with mock.patch.object(StatsBuilder, "build") as build:
+                    result = build_stats_report()
+
+        build.assert_not_called()
+        self.assertEqual(result, {"status": "Disabled"})
+        self.assertFalse(out.exists())

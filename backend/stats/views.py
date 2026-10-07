@@ -3,7 +3,8 @@
 The stats page lives in the SvelteKit app at ``/stats``. This endpoint gives it
 the payload, read from a snapshot that
 ``analytics.tasks.maintenance.build_stats_report`` regenerates hourly by default
-at ``settings.STATS_REPORT_PATH``.
+at ``settings.STATS_REPORT_PATH``. Setting ``STATS_REPORT_INTERVAL_SECONDS=0``
+disables the rebuild. The endpoint then keeps serving the last snapshot.
 
 Normal requests use only the snapshot. The page used to poll a live endpoint for
 queue counts, which ran a GROUP BY over ~280M ``extract_tasks`` rows -- a global
@@ -36,7 +37,9 @@ def stats_data(request):
     Falls back to collecting live only when the snapshot does not exist yet
     (first boot, before the beat task has run). That path is slow by nature --
     it is the same aggregate the snapshot exists to avoid -- so it is a
-    cold-start convenience, not a normal code path.
+    cold-start convenience, not a normal code path. With the report disabled
+    there is no live build at all: it would run that aggregate on every page
+    load, which is worse than the schedule that was turned off.
     """
     path = _report_path()
     if path.exists():
@@ -44,4 +47,8 @@ def stats_data(request):
             return JsonResponse(json.loads(path.read_text(encoding="utf-8")))
         except (ValueError, OSError):
             pass  # corrupt or unreadable snapshot: fall through to a live build
+    if not settings.STATS_REPORT_ENABLED:
+        return JsonResponse(
+            {"error": "Statistics reporting is disabled."}, status=503
+        )
     return JsonResponse(StatsBuilder().collect())
