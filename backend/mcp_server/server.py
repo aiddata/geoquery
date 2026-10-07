@@ -49,9 +49,13 @@ Offer an export when the user wants a file, a shareable permanent link, or a
 reproducible record -- not merely to answer a question. A finished export can
 be read back through get_data and show_map with request_id=.
 
-ATTRIBUTION. GeoQuery redistributes open data under its original licenses.
+ATTRIBUTION. GeoQuery redistributes agggregate versions of open data, requiring
+attribution and providing information (when possible) on the original licenses.
 Every result that carries data includes an `attribution` object. When you
-present GeoQuery data, name each dataset and boundary source, the raw data license, and its academic citation from `attribution`, and cite for GeoQuery itself. Do not summarise data while dropping its attribution. Use get_citations for a formatted reference list, and tell the user when a license or citation is
+present GeoQuery data, name each dataset and boundary source, the academic
+citation from `attribution`, the raw data license, and cite for GeoQuery itself.
+Do not summarise data while dropping its attribution. Use get_citations for a
+formatted reference list, and tell the user when a license or citation is
 recorded as missing -- that means they must check the source themselves
 before publishing.
 
