@@ -10,7 +10,7 @@
     {
       "id": 1,
       "subject": "Task 2: Download links and LEGACY_DOWNLOAD_BASE_URL",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** legacy_request_links() returns a zip URL when the base URL is configured and nothing when it is not, so the feature ships before the archive is hosted.\n\n**Files:**\n- Modify: `backend/geoquery/settings.py:322` (beside DOWNLOAD_BASE_URL)\n- Modify: `backend/analytics/services.py` (after request_links, ~line 598)\n- Modify: `backend/analytics/tests/test_legacy_requests.py`\n\n**Acceptance Criteria:**\n- [ ] Unset or empty LEGACY_DOWNLOAD_BASE_URL yields {} with no download_url key\n- [ ] A configured base yields {\"download_url\": \"<base>/<id>.zip\"}\n- [ ] A trailing slash on the base does not produce a double slash\n\n**Verify:** `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2` -> OK\n\n**Steps:**\n1. Write 3 failing link tests with override_settings\n2. Run - expect ImportError\n3. Add LEGACY_DOWNLOAD_BASE_URL setting\n4. Add legacy_request_links() to services.py\n5. Rerun (7 tests pass)\n6. Commit\n\n```json:metadata\n{\"files\": [\"backend/geoquery/settings.py\", \"backend/analytics/services.py\", \"backend/analytics/tests/test_legacy_requests.py\"], \"verifyCommand\": \"docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2\", \"acceptanceCriteria\": [\"Unset or empty LEGACY_DOWNLOAD_BASE_URL yields {} with no download_url key\", \"A configured base yields {\\\"download_url\\\": \\\"<base>/<id>.zip\\\"}\", \"A trailing slash on the base does not produce a double slash\"], \"modelTier\": \"mechanical\"}\n```",
       "blockedBy": [
         0
@@ -28,7 +28,7 @@
     {
       "id": 3,
       "subject": "Task 4: Claim legacy requests on email verification",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Verifying an email address attaches matching legacy rows to the account, with the same unclaimed-only semantics as Request.\n\n**Files:**\n- Modify: `backend/accounts/claims.py:10-27`\n- Modify: `backend/accounts/tests.py`\n\n**Acceptance Criteria:**\n- [ ] claim_requests_for_email claims matching legacy rows case-insensitively\n- [ ] Legacy rows already owned by another user are not re-claimed\n- [ ] The returned count is the sum of current and legacy rows claimed\n- [ ] Existing Request claim tests still pass unchanged\n\n**Verify:** `docker compose exec backend uv run python manage.py test accounts -v 2` -> OK\n\n**Steps:**\n1. Write 3 failing legacy claim tests\n2. Run - expect claim count 0\n3. Extend claim_requests_for_email to cover both tables; update module docstring\n4. Run whole accounts suite - pre-existing exact-count tests must still pass\n5. Commit\n\n```json:metadata\n{\"files\": [\"backend/accounts/claims.py\", \"backend/accounts/tests.py\"], \"verifyCommand\": \"docker compose exec backend uv run python manage.py test accounts -v 2\", \"acceptanceCriteria\": [\"claim_requests_for_email claims matching legacy rows case-insensitively\", \"Legacy rows already owned by another user are not re-claimed\", \"The returned count is the sum of current and legacy rows claimed\", \"Existing Request claim tests still pass unchanged\"], \"modelTier\": \"standard\"}\n```",
       "blockedBy": [
         0
@@ -92,5 +92,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-07T21:03:58.157591+00:00"
+  "lastUpdated": "2026-10-07T21:11:28.484883+00:00"
 }
