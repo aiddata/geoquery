@@ -112,6 +112,7 @@ Task order follows the dependency chain: model → services → claims → comma
 Create `backend/analytics/tests/test_legacy_requests.py`:
 
 ```python
+import secrets
 from datetime import datetime, timezone as dt_timezone
 
 from django.contrib.auth import get_user_model
@@ -125,9 +126,14 @@ OID = "58c9be24c15e00b8f9fadc1c"
 
 
 def make_legacy(**overrides):
-    """A valid LegacyRequest, overridable per test."""
+    """A valid LegacyRequest, overridable per test.
+
+    The id defaults to a fresh ObjectId-shaped value so a test can create
+    several rows without having to invent ids; pass `id=` when the test
+    asserts on the value itself.
+    """
     fields = {
-        "id": OID,
+        "id": secrets.token_hex(12),
         "contact": "alice@example.com",
         "custom_name": "Request 03-15-17 18:20",
         "submit_time": datetime(2017, 3, 15, 18, 20, tzinfo=dt_timezone.utc),
@@ -145,7 +151,7 @@ def make_legacy(**overrides):
 
 class LegacyRequestModelTests(TestCase):
     def test_creates_with_objectid_primary_key(self):
-        obj = make_legacy()
+        obj = make_legacy(id=OID)
         obj.refresh_from_db()
         self.assertEqual(obj.pk, OID)
         self.assertEqual(obj.dataset_count, 2)
@@ -231,7 +237,9 @@ class LegacyRequest(models.Model):
             # Ownership lookups match contact case-insensitively, mirroring
             # requests_contact_lower_idx on Request.
             models.Index(Lower("contact"), name="legacy_contact_lower_idx"),
-            models.Index("-submit_time", name="legacy_submit_time_idx"),
+            # fields= is required here: Index's positional args are
+            # *expressions, so a bare "-submit_time" raises models.E012.
+            models.Index(fields=["-submit_time"], name="legacy_submit_time_idx"),
         ]
 
     def __str__(self):
@@ -870,7 +878,10 @@ class ImportLegacyRequestsTests(TestCase):
         again = LegacyRequest.objects.get(pk="a" * 24)
         self.assertEqual(again.custom_name, first.custom_name)
         self.assertEqual(again.dataset_titles, first.dataset_titles)
-        self.assertGreaterEqual(again.imported_at, before)
+        # Strictly greater: imported_at is in UPDATE_FIELDS precisely so a
+        # re-import records that it ran. assertGreaterEqual would pass even if
+        # the field were never written.
+        self.assertGreater(again.imported_at, before)
 
     def test_later_cutoff_adds_only_newer_rows(self):
         records = [record("a" * 24, submitted=TS_2017), record("b" * 24, submitted=TS_2021)]
@@ -949,8 +960,11 @@ COLUMNS = [
 
 COMPLETED = 1
 
-# Fields written on conflict. `id` is the conflict target and `imported_at`
-# is auto_now, so neither is listed.
+# Fields written on conflict. `id` is the conflict target, so it is not
+# listed. `imported_at` IS listed: with update_conflicts, Django writes only
+# the fields named here, so leaving it out would keep the original timestamp
+# and the column would mean "first imported" rather than "last run that
+# touched this row", which is what the model documents.
 UPDATE_FIELDS = [
     "contact",
     "custom_name",
@@ -962,6 +976,7 @@ UPDATE_FIELDS = [
     "dataset_titles",
     "dataset_count",
     "data",
+    "imported_at",
 ]
 
 MAX_LENGTHS = {
@@ -1121,6 +1136,10 @@ class Command(BaseCommand):
 
         releases = [r for r in (rec.get("release_data") or []) if r]
         rasters = [d for d in (rec.get("raster_data") or []) if d]
+        # `count` counts entries; `titles` holds only those that carry a
+        # display name. The two can legitimately differ -- the export has
+        # entries with a null title -- so dataset_count is the number of
+        # datasets requested, not the length of dataset_titles.
         titles = [r["custom_name"] for r in releases if r.get("custom_name")]
         titles += [d["title"] for d in rasters if d.get("title")]
         count = len(releases) + len(rasters)
@@ -1136,15 +1155,14 @@ class Command(BaseCommand):
             "boundary_group": (boundary.get("group") or "").strip(),
         }
         for field, limit in MAX_LENGTHS.items():
-            if len(values[field]) > limit:
-                values[field] = values[field][:limit]
-                truncated[field] += 1
+            values[field] = self._trunc(values[field], limit, field, truncated)
 
         return LegacyRequest(
             id=rec["request_id"],
             submit_time=submit_time,
             complete_time=complete_time,
-            dataset_titles=[t[:200] for t in titles],
+            dataset_titles=[self._trunc(t, 200, "dataset_titles", truncated)
+                            for t in titles],
             dataset_count=count,
             data={
                 "release_data": _plain(releases),
@@ -1152,6 +1170,20 @@ class Command(BaseCommand):
             },
             **values,
         )
+
+    @staticmethod
+    def _trunc(value, limit, field, truncated):
+        """Cut `value` to `limit`, counting the cut.
+
+        Array elements go through this too. A too-long element of
+        `dataset_titles` is silently truncated by Postgres rather than
+        raising the way an over-long scalar column does, so without this the
+        import would report a clean run while quietly losing characters.
+        """
+        if value is not None and len(value) > limit:
+            truncated[field] += 1
+            return value[:limit]
+        return value
 
     def _flush(self, batch, dry_run):
         if not batch or dry_run:
