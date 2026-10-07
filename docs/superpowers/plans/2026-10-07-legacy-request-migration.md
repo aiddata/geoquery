@@ -25,18 +25,23 @@
 
 ## Execution environment
 
-Per `AGENTS.md`, the `db` service publishes no port to the host, so every `manage.py` command — including tests — must run inside the `backend` container:
+Per `AGENTS.md`, the `db` service publishes no port to the host, so every `manage.py` command — including tests — must run inside the `backend` container.
+
+**Docker on this machine requires `sudo`.** The invoking user is not in the `docker` group, so an unprefixed `docker compose` fails with `permission denied while trying to connect to the docker API at unix:///var/run/docker.sock`. Every command below is therefore `sudo docker compose ...`, and `sudo` is passwordless here.
+
+Bring the stack up first — it is not running by default:
 
 ```bash
-docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2
+sudo docker compose up -d
+sudo docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2
 ```
 
-There is no CI workflow that runs the test suite (`.github/workflows/` holds only build, deploy and docs). These verify commands therefore need a running Docker stack. The plan author does not have Docker access on this host; whoever executes must either have the stack up or run the suite where it is available. Do not substitute host-only `uv run` invocations for the DB-backed tests — they cannot reach the database and will error on connection, not on logic.
+There is no CI workflow that runs the test suite (`.github/workflows/` holds only build, deploy and docs), so these verify commands are the only gate. Do not substitute host-only `uv run` invocations for the DB-backed tests — they cannot reach the database and will error on connection, not on logic.
 
 Frontend checks run in the `frontend` container:
 
 ```bash
-docker compose exec frontend bun run check
+sudo docker compose exec frontend bun run check
 ```
 
 ## File structure
@@ -98,7 +103,7 @@ Task order follows the dependency chain: model → services → claims → comma
 - [ ] The functional index on `Lower("contact")` exists in the migration
 - [ ] `makemigrations --check` reports no further changes
 
-**Verify:** `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2` → OK
+**Verify:** `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2` → OK
 
 **Steps:**
 
@@ -166,7 +171,7 @@ class LegacyRequestModelTests(TestCase):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2`
+Run: `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2`
 Expected: FAIL — `ImportError: cannot import name 'LegacyRequest' from 'analytics.models'`
 
 - [ ] **Step 3: Add the model**
@@ -235,16 +240,16 @@ class LegacyRequest(models.Model):
 
 - [ ] **Step 4: Generate the migration**
 
-Run: `docker compose exec backend uv run python manage.py makemigrations analytics`
+Run: `sudo docker compose exec backend uv run python manage.py makemigrations analytics`
 Expected: `Create model LegacyRequest` plus the two indexes.
 
 - [ ] **Step 5: Apply and confirm the test passes**
 
 Run:
 ```bash
-docker compose exec backend uv run python manage.py migrate analytics
-docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2
-docker compose exec backend uv run python manage.py makemigrations --check --dry-run
+sudo docker compose exec backend uv run python manage.py migrate analytics
+sudo docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2
+sudo docker compose exec backend uv run python manage.py makemigrations --check --dry-run
 ```
 Expected: migrate OK; 4 tests pass; `makemigrations --check` reports no changes.
 
@@ -271,7 +276,7 @@ git commit -m "Add LegacyRequest model for pre-2026 request import"
 - [ ] A configured base yields `{"download_url": "<base>/<id>.zip"}`
 - [ ] A trailing slash on the base does not produce a double slash
 
-**Verify:** `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2` → OK
+**Verify:** `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2` → OK
 
 **Steps:**
 
@@ -307,7 +312,7 @@ class LegacyRequestLinksTests(TestCase):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests.LegacyRequestLinksTests -v 2`
+Run: `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests.LegacyRequestLinksTests -v 2`
 Expected: FAIL — `ImportError: cannot import name 'legacy_request_links'`
 
 - [ ] **Step 3: Add the setting**
@@ -343,7 +348,7 @@ def legacy_request_links(legacy_request) -> dict:
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2`
+Run: `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2`
 Expected: 7 tests pass.
 
 - [ ] **Step 6: Commit**
@@ -370,7 +375,7 @@ git commit -m "Add legacy_request_links and LEGACY_DOWNLOAD_BASE_URL setting"
 - [ ] Another user's rows are never returned
 - [ ] Results are ordered newest-submitted first
 
-**Verify:** `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2` → OK
+**Verify:** `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2` → OK
 
 **Steps:**
 
@@ -428,7 +433,7 @@ class LegacyRequestsForUserTests(TestCase):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests.LegacyRequestsForUserTests -v 2`
+Run: `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests.LegacyRequestsForUserTests -v 2`
 Expected: FAIL — `ImportError: cannot import name 'legacy_requests_for_user'`
 
 - [ ] **Step 3: Add the function**
@@ -471,7 +476,7 @@ The `EmailAddress` import stays local, matching how `requests_for_user` defers i
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2`
+Run: `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2`
 Expected: 12 tests pass.
 
 - [ ] **Step 5: Commit**
@@ -497,7 +502,7 @@ git commit -m "Add legacy_requests_for_user ownership resolution"
 - [ ] The returned count is the sum of current and legacy rows claimed
 - [ ] Existing `Request` claim tests still pass unchanged
 
-**Verify:** `docker compose exec backend uv run python manage.py test accounts -v 2` → OK
+**Verify:** `sudo docker compose exec backend uv run python manage.py test accounts -v 2` → OK
 
 **Steps:**
 
@@ -560,7 +565,7 @@ class LegacyClaimTests(TestCase):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `docker compose exec backend uv run python manage.py test accounts.tests.LegacyClaimTests -v 2`
+Run: `sudo docker compose exec backend uv run python manage.py test accounts.tests.LegacyClaimTests -v 2`
 Expected: FAIL — the claim count is 0, because `claim_requests_for_email` only touches `Request`.
 
 - [ ] **Step 3: Extend the claim helper**
@@ -613,7 +618,7 @@ address in either table becomes theirs.
 
 - [ ] **Step 4: Run the whole accounts suite**
 
-Run: `docker compose exec backend uv run python manage.py test accounts -v 2`
+Run: `sudo docker compose exec backend uv run python manage.py test accounts -v 2`
 Expected: the three new tests pass and every pre-existing claim test still passes. The existing tests assert exact counts (e.g. `assertEqual(claimed, 2)`) but create no legacy rows, so the summed return value is unchanged for them.
 
 - [ ] **Step 5: Commit**
@@ -644,7 +649,7 @@ git commit -m "Claim legacy requests alongside current ones on email verificatio
 - [ ] `dataset_titles` is release `custom_name` entries followed by raster `title` entries
 - [ ] Verified-email owners are claimed after import
 
-**Verify:** `docker compose exec backend uv run python manage.py test analytics.tests.test_import_legacy_requests -v 2` → OK
+**Verify:** `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_import_legacy_requests -v 2` → OK
 
 **Steps:**
 
@@ -894,7 +899,7 @@ class ImportLegacyRequestsTests(TestCase):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `docker compose exec backend uv run python manage.py test analytics.tests.test_import_legacy_requests -v 2`
+Run: `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_import_legacy_requests -v 2`
 Expected: FAIL — `CommandError: Unknown command: 'import_legacy_requests'`
 
 - [ ] **Step 3: Write the command**
@@ -1200,7 +1205,7 @@ class Command(BaseCommand):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `docker compose exec backend uv run python manage.py test analytics.tests.test_import_legacy_requests -v 2`
+Run: `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_import_legacy_requests -v 2`
 Expected: 10 tests pass.
 
 - [ ] **Step 5: Smoke-test against the real export**
@@ -1208,7 +1213,7 @@ Expected: 10 tests pass.
 The Parquet is gitignored and lives at `request_migration/requests.parquet`. Mount or copy it into the container, then:
 
 ```bash
-docker compose exec backend uv run python manage.py import_legacy_requests \
+sudo docker compose exec backend uv run python manage.py import_legacy_requests \
   --parquet /path/to/requests.parquet --submitted-before 2026-10-06 --dry-run
 ```
 
@@ -1240,7 +1245,7 @@ git commit -m "Add import_legacy_requests management command"
 - [ ] Detail includes `download_url` only when `LEGACY_DOWNLOAD_BASE_URL` is set
 - [ ] One user never sees another's rows
 
-**Verify:** `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_api -v 2` → OK
+**Verify:** `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_api -v 2` → OK
 
 **Steps:**
 
@@ -1368,7 +1373,7 @@ class LegacyDetailTests(TestCase):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_api -v 2`
+Run: `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_api -v 2`
 Expected: FAIL — 404s on every URL, because no routes exist yet.
 
 - [ ] **Step 3: Add the views**
@@ -1525,7 +1530,7 @@ urlpatterns = [
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_api -v 2`
+Run: `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_api -v 2`
 Expected: 9 tests pass.
 
 - [ ] **Step 6: Commit**
@@ -1550,7 +1555,7 @@ git commit -m "Add legacy request list, history and detail endpoints"
 - [ ] The token fetcher throws `'expired'` on 410, matching `fetchRequestsByToken`
 - [ ] `bun run check` passes
 
-**Verify:** `docker compose exec frontend bun run check` → 0 errors
+**Verify:** `sudo docker compose exec frontend bun run check` → 0 errors
 
 **Steps:**
 
@@ -1623,7 +1628,7 @@ export async function fetchLegacyRequestDetail(
 
 - [ ] **Step 3: Verify**
 
-Run: `docker compose exec frontend bun run check`
+Run: `sudo docker compose exec frontend bun run check`
 Expected: 0 errors, 0 warnings.
 
 - [ ] **Step 4: Commit**
@@ -1650,7 +1655,7 @@ git commit -m "Add frontend types and fetchers for legacy requests"
 - [ ] A legacy fetch failure does not break the current-requests list
 - [ ] `bun run check` passes
 
-**Verify:** `docker compose exec frontend bun run check` → 0 errors, then load `http://localhost:5173/requests` signed in and confirm the section
+**Verify:** `sudo docker compose exec frontend bun run check` → 0 errors, then load `http://localhost:5173/requests` signed in and confirm the section
 
 **Steps:**
 
@@ -1823,7 +1828,7 @@ on line 223, insert:
 
 - [ ] **Step 4: Verify**
 
-Run: `docker compose exec frontend bun run check`
+Run: `sudo docker compose exec frontend bun run check`
 Expected: 0 errors.
 
 Then with the stack up, sign in at `http://localhost:5173/requests` as a user whose
@@ -1854,7 +1859,7 @@ git commit -m "Add collapsed archived requests section to past requests page"
 - [ ] An unknown id renders a not-found message rather than a blank page
 - [ ] `bun run check` passes
 
-**Verify:** `docker compose exec frontend bun run check` → 0 errors, then open `/requests/legacy/<id>`
+**Verify:** `sudo docker compose exec frontend bun run check` → 0 errors, then open `/requests/legacy/<id>`
 
 **Steps:**
 
@@ -1978,7 +1983,7 @@ Create `frontend/src/routes/requests/legacy/[id]/+page.svelte`:
 
 - [ ] **Step 2: Verify**
 
-Run: `docker compose exec frontend bun run check`
+Run: `sudo docker compose exec frontend bun run check`
 Expected: 0 errors.
 
 Then open `http://localhost:5173/requests/legacy/<an imported id>` and confirm the
@@ -2010,7 +2015,7 @@ git commit -m "Add legacy request detail page"
 - [ ] The stats page renders it as a distinct, labelled figure
 - [ ] `bun run check` passes
 
-**Verify:** `docker compose exec backend uv run python manage.py test stats -v 2` → OK, and `docker compose exec frontend bun run check` → 0 errors
+**Verify:** `sudo docker compose exec backend uv run python manage.py test stats -v 2` → OK, and `sudo docker compose exec frontend bun run check` → 0 errors
 
 **Steps:**
 
@@ -2055,7 +2060,7 @@ class LegacyCountInSnapshotTests(ReplicaReadsTestMixin, TestCase):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `docker compose exec backend uv run python manage.py test stats -v 2`
+Run: `sudo docker compose exec backend uv run python manage.py test stats -v 2`
 Expected: FAIL — `KeyError: 'legacy_request_count'`
 
 The `datetime` import and `timezone as dt_timezone` alias may already exist at the top of `stats/tests.py` (it imports `datetime, timezone`); use the existing names rather than adding a duplicate import.
@@ -2117,8 +2122,8 @@ tab-indented; match it.
 
 Run:
 ```bash
-docker compose exec backend uv run python manage.py test stats -v 2
-docker compose exec frontend bun run check
+sudo docker compose exec backend uv run python manage.py test stats -v 2
+sudo docker compose exec frontend bun run check
 ```
 Expected: tests pass; 0 frontend errors.
 
@@ -2136,9 +2141,9 @@ git commit -m "Report legacy request count separately in stats"
 After all tasks, run the full affected suites and the frontend check:
 
 ```bash
-docker compose exec backend uv run python manage.py test analytics accounts stats -v 2
-docker compose exec backend uv run python manage.py makemigrations --check --dry-run
-docker compose exec frontend bun run check
+sudo docker compose exec backend uv run python manage.py test analytics accounts stats -v 2
+sudo docker compose exec backend uv run python manage.py makemigrations --check --dry-run
+sudo docker compose exec frontend bun run check
 ```
 
 Expected: all tests pass, no pending migrations, no frontend errors.
@@ -2146,9 +2151,9 @@ Expected: all tests pass, no pending migrations, no frontend errors.
 Then the real import, against the fixed date:
 
 ```bash
-docker compose exec backend uv run python manage.py import_legacy_requests \
+sudo docker compose exec backend uv run python manage.py import_legacy_requests \
   --parquet /path/to/requests.parquet --submitted-before <fixed date> --dry-run
-docker compose exec backend uv run python manage.py import_legacy_requests \
+sudo docker compose exec backend uv run python manage.py import_legacy_requests \
   --parquet /path/to/requests.parquet --submitted-before <fixed date>
 ```
 
