@@ -385,6 +385,65 @@ class RequestMap(models.Model):
         return f"RequestMap: Request {self.request_id} - Task {self.task_id}"
 
 
+class LegacyRequest(models.Model):
+    """A completed request from the previous version of GeoQuery.
+
+    Imported read-only by ``import_legacy_requests``. Deliberately a separate
+    table rather than a flag on ``Request``: legacy rows must never reach the
+    completion sweep, priority bumping, task materialization, ``RequestMap`` or
+    the extract workers, and a separate table makes that true by construction
+    instead of by a filter every one of those paths has to remember.
+
+    Only completed requests are imported, so there is no status column -- the
+    API reports "completed" for every row. ``prepare_time`` and
+    ``process_time`` are not carried over: in 9,716 of the exported completed
+    rows they precede ``submit_time``, so importing them would publish a
+    timeline that contradicts itself.
+    """
+
+    # Mongo ObjectId hex from the old system, preserved so old references and
+    # the copied zip filenames keep resolving.
+    id = models.CharField(max_length=24, primary_key=True)
+    contact = models.CharField(max_length=100)
+    custom_name = models.CharField(max_length=100)
+    submit_time = models.DateTimeField()
+    complete_time = models.DateTimeField()
+
+    boundary_title = models.CharField(max_length=100)
+    boundary_name = models.CharField(max_length=64)
+    boundary_group = models.CharField(max_length=32)
+
+    # Denormalized for display so neither the list nor the detail endpoint has
+    # to parse `data`. Release entries first, then raster.
+    dataset_titles = ArrayField(models.CharField(max_length=200), default=list)
+    dataset_count = models.SmallIntegerField(default=0)
+
+    # release_data + raster_data verbatim, for provenance.
+    data = models.JSONField()
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="legacy_requests",
+        db_column="user_id",
+    )
+    imported_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "legacy_requests"
+        indexes = [
+            # Ownership lookups match contact case-insensitively, mirroring
+            # requests_contact_lower_idx on Request.
+            models.Index(Lower("contact"), name="legacy_contact_lower_idx"),
+            models.Index(fields=["-submit_time"], name="legacy_submit_time_idx"),
+        ]
+
+    def __str__(self):
+        return f"LegacyRequest {self.id}: {self.custom_name or 'unnamed'}"
+
+
 class RequestToken(models.Model):
     """Magic-link tokens for email-based request history access."""
 
