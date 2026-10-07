@@ -596,3 +596,18 @@ def request_links(request: Request) -> dict:
     if frontend_base:
         links["visualization_url"] = f"{frontend_base}/viz/{request.id}"
     return links
+
+
+def legacy_request_links(legacy_request) -> dict:
+    """Download URL for an imported legacy request.
+
+    Only a zip: the old system produced no equivalent of the documentation
+    page or the visualization, and every imported row is already complete, so
+    there is no "not ready yet" state. Empty when the base URL is unset, so
+    this ships before the archive is hosted -- the same independent check
+    ``request_links`` makes for each of its base URLs.
+    """
+    base = getattr(settings, "LEGACY_DOWNLOAD_BASE_URL", "").rstrip("/")
+    if not base:
+        return {}
+    return {"download_url": f"{base}/{legacy_request.id}.zip"}

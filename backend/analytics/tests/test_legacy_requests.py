@@ -2,9 +2,10 @@ import secrets
 from datetime import datetime, timezone as dt_timezone
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from analytics.models import LegacyRequest
+from analytics.services import legacy_request_links
 
 User = get_user_model()
 
@@ -59,3 +60,23 @@ class LegacyRequestModelTests(TestCase):
 
     def test_str_includes_name(self):
         self.assertIn("Request 03-15-17 18:20", str(make_legacy()))
+
+
+class LegacyRequestLinksTests(TestCase):
+    @override_settings(LEGACY_DOWNLOAD_BASE_URL="")
+    def test_no_links_when_base_url_unset(self):
+        self.assertEqual(legacy_request_links(make_legacy()), {})
+
+    @override_settings(LEGACY_DOWNLOAD_BASE_URL="https://archive.example.com/legacy")
+    def test_download_url_when_configured(self):
+        self.assertEqual(
+            legacy_request_links(make_legacy(id=OID)),
+            {"download_url": f"https://archive.example.com/legacy/{OID}.zip"},
+        )
+
+    @override_settings(LEGACY_DOWNLOAD_BASE_URL="https://archive.example.com/legacy/")
+    def test_trailing_slash_does_not_double(self):
+        links = legacy_request_links(make_legacy(id=OID))
+        self.assertEqual(
+            links["download_url"], f"https://archive.example.com/legacy/{OID}.zip"
+        )

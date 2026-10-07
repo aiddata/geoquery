@@ -320,6 +320,10 @@ REQUESTS_DIR = Path(os.environ.get("REQUESTS_DIR", str(BASE_DIR.parent / "reques
 ASSETS_DIR = Path(os.environ.get("ASSETS_DIR", str(BASE_DIR.parent / "assets")))
 DOCS_DIR = Path(os.environ.get("DOCS_DIR", str(BASE_DIR.parent / "docs")))
 DOWNLOAD_BASE_URL = os.environ.get("DOWNLOAD_BASE_URL", "http://localhost:8000")
+# Base URL for the copied archive of pre-2026 GeoQuery result zips, named
+# <request_id>.zip. Empty until the archive is hosted; legacy requests then
+# simply render no download link rather than a broken one.
+LEGACY_DOWNLOAD_BASE_URL = os.environ.get("LEGACY_DOWNLOAD_BASE_URL", "")
 FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173")
 TOKEN_EXPIRY_MONTHS = int(os.environ.get("TOKEN_EXPIRY_MONTHS", "6"))
 
