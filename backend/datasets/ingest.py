@@ -187,6 +187,17 @@ def _sync_mappings(dataset: Dataset, mappings: dict[str, int] | None):
         )
 
 
+def _load_json(json_data: dict | Path) -> dict:
+    """Return the ingest metadata as a dict, reading from disk if needed."""
+    if isinstance(json_data, Path):
+        logger.info(f"Reading JSON from {json_data}")
+        return json.loads(json_data.read_text())
+    if isinstance(json_data, dict):
+        logger.info("Reading JSON from dict")
+        return json_data
+    raise TypeError("json_data must be a dict or Path")
+
+
 # JSON keys that don't map directly to Dataset model fields
 _NON_MODEL_KEYS = {"mappings", "processing_options"}
 
@@ -216,6 +227,106 @@ def _dataset_fields_from_json(data: dict) -> dict:
     return fields
 
 
+# Fields describing where the data lives. A metadata-only update never writes
+# these: without a resource rescan, a new path would leave DatasetResource rows
+# pointing at the old location.
+_STRUCTURAL_KEYS = frozenset({"path", "type", "file_extension", "file_mask"})
+
+# Fields derived by reading the data files themselves.
+_DERIVED_KEYS = frozenset(
+    {
+        "spatial_extent",
+        "temporal_start",
+        "temporal_end",
+        "temporal_name",
+        "temporal_type",
+    }
+)
+
+# Derived from mappings, which a metadata-only update does not sync; writing it
+# would let the flag contradict the Mapping rows.
+_COMPUTATION_KEYS = frozenset({"mapped"})
+
+
+def _metadata_update_plan(
+    data: dict, existing: dict
+) -> tuple[dict, dict[str, tuple]]:
+    """Decide what a metadata-only update applies, and what it refuses to.
+
+    Pure: takes the parsed ingest JSON and a mapping of the stored row's
+    structural values, and touches neither models nor the database.
+
+    Returns ``(fields, drift)`` -- the descriptive metadata to write, and any
+    structural field the JSON changed, as ``{key: (stored, incoming)}``. Drift
+    is reported rather than applied; the metadata update still proceeds.
+    """
+    fields = _dataset_fields_from_json(data)
+
+    drift = {
+        key: (existing.get(key), data[key])
+        for key in sorted(_STRUCTURAL_KEYS)
+        if key in data and data[key] != existing.get(key)
+    }
+
+    # name identifies the row being updated rather than being updated itself
+    for key in _STRUCTURAL_KEYS | _DERIVED_KEYS | _COMPUTATION_KEYS | {"name"}:
+        fields.pop(key, None)
+
+    return fields, drift
+
+
+@transaction.atomic
+def update_dataset_metadata(json_data: dict | Path) -> Dataset:
+    """Apply only the descriptive metadata an ingest JSON declares.
+
+    Reads no data files, so it needs no data volume, and leaves resources,
+    mappings, processing options and the derived spatial/temporal fields
+    untouched. Structural fields are never written; any that the JSON has
+    changed are logged as drift, since correcting them needs a full ingest.
+
+    Raises ``ValueError`` if the dataset does not exist -- a metadata-only
+    insert would create a row with no resources.
+    """
+    data = _load_json(json_data)
+
+    name = data.get("name")
+    if not name:
+        raise ValueError("Ingest JSON has no 'name' to identify the dataset")
+
+    existing = (
+        Dataset.objects.filter(name=name).values(*sorted(_STRUCTURAL_KEYS)).first()
+    )
+    if existing is None:
+        raise ValueError(f"Dataset {name!r} not found for metadata update")
+
+    fields, drift = _metadata_update_plan(data, existing)
+
+    for key, (stored, incoming) in drift.items():
+        logger.warning(
+            f"{name!r}: {key} differs from the stored row and was NOT applied "
+            f"({stored!r} -> {incoming!r}); run a full ingest to change it"
+        )
+
+    if not fields:
+        logger.info(f"No metadata fields to apply for {name!r}")
+        return Dataset.objects.get(name=name)
+
+    before = Dataset.objects.filter(name=name).values(*fields).first()
+    Dataset.objects.filter(name=name).update(**fields)
+
+    changed = {k: (before[k], v) for k, v in fields.items() if before[k] != v}
+    if changed:
+        for key, (old, new) in changed.items():
+            logger.info(f"  {key}: {old!r} -> {new!r}")
+        logger.success(
+            f"Updated {len(changed)} metadata field(s) for dataset {name!r}"
+        )
+    else:
+        logger.info(f"Metadata for dataset {name!r} already up to date")
+
+    return Dataset.objects.get(name=name)
+
+
 @transaction.atomic
 def ingest_dataset(
     json_data: dict | Path,
@@ -233,14 +344,7 @@ def ingest_dataset(
     update_or_insert:
         Try to update, falling back to insert.
     """
-    if isinstance(json_data, Path):
-        logger.info(f"Reading JSON from {json_data}")
-        data = json.loads(json_data.read_text())
-    elif isinstance(json_data, dict):
-        logger.info("Reading JSON from dict")
-        data = json_data
-    else:
-        raise TypeError("json_data must be a dict or Path")
+    data = _load_json(json_data)
 
     fields = _dataset_fields_from_json(data)
     name = fields["name"]
