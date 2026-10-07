@@ -1,11 +1,12 @@
 import secrets
 from datetime import datetime, timezone as dt_timezone
 
+from allauth.account.models import EmailAddress
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
 from analytics.models import LegacyRequest
-from analytics.services import legacy_request_links
+from analytics.services import legacy_request_links, legacy_requests_for_user
 
 User = get_user_model()
 
@@ -80,3 +81,43 @@ class LegacyRequestLinksTests(TestCase):
         self.assertEqual(
             links["download_url"], f"https://archive.example.com/legacy/{OID}.zip"
         )
+
+
+class LegacyRequestsForUserTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="alice", email="alice@example.com")
+        EmailAddress.objects.create(
+            user=self.user, email="alice@example.com", verified=True, primary=True
+        )
+
+    def test_returns_fk_claimed_rows(self):
+        obj = make_legacy(contact="someone-else@example.com", user=self.user)
+        self.assertEqual(list(legacy_requests_for_user(self.user)), [obj])
+
+    def test_returns_verified_email_matches_without_fk(self):
+        obj = make_legacy(contact="Alice@Example.com")
+        self.assertEqual(list(legacy_requests_for_user(self.user)), [obj])
+
+    def test_ignores_unverified_email_matches(self):
+        EmailAddress.objects.create(
+            user=self.user, email="alias@example.com", verified=False
+        )
+        make_legacy(contact="alias@example.com")
+        self.assertEqual(list(legacy_requests_for_user(self.user)), [])
+
+    def test_never_returns_another_users_rows(self):
+        bob = User.objects.create_user(username="bob", email="bob@example.com")
+        EmailAddress.objects.create(user=bob, email="bob@example.com", verified=True)
+        make_legacy(contact="bob@example.com")
+        self.assertEqual(list(legacy_requests_for_user(self.user)), [])
+
+    def test_orders_newest_first(self):
+        older = make_legacy(
+            contact="alice@example.com",
+            submit_time=datetime(2017, 1, 1, tzinfo=dt_timezone.utc),
+        )
+        newer = make_legacy(
+            contact="alice@example.com",
+            submit_time=datetime(2020, 1, 1, tzinfo=dt_timezone.utc),
+        )
+        self.assertEqual(list(legacy_requests_for_user(self.user)), [newer, older])
