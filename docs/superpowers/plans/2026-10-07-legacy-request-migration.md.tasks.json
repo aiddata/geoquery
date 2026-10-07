@@ -4,7 +4,7 @@
     {
       "id": 0,
       "subject": "Task 1: LegacyRequest model and migration",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** The `legacy_requests` table exists with the fields, indexes and constraints the spec defines.\n\n**Files:**\n- Modify: `backend/analytics/models.py` (append after `RequestMap`, ~line 386)\n- Create: `backend/analytics/migrations/0031_legacyrequest.py` (generated)\n- Create: `backend/analytics/tests/test_legacy_requests.py`\n\n**Acceptance Criteria:**\n- [ ] LegacyRequest is creatable with a 24-character ObjectId primary key\n- [ ] dataset_titles round-trips a list of strings\n- [ ] user is nullable and set to NULL when the user is deleted\n- [ ] The functional index on Lower(\"contact\") exists in the migration\n- [ ] makemigrations --check reports no further changes\n\n**Verify:** `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2` -> OK\n\n**Steps:**\n1. Write failing model tests (4 cases)\n2. Run - expect ImportError on LegacyRequest\n3. Add the model (ArrayField/Lower already imported in models.py)\n4. makemigrations analytics\n5. migrate + rerun tests + makemigrations --check\n6. Commit\n\n```json:metadata\n{\"files\": [\"backend/analytics/models.py\", \"backend/analytics/migrations/0031_legacyrequest.py\", \"backend/analytics/tests/test_legacy_requests.py\"], \"verifyCommand\": \"docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2\", \"acceptanceCriteria\": [\"LegacyRequest is creatable with a 24-character ObjectId primary key\", \"dataset_titles round-trips a list of strings\", \"user is nullable and set to NULL when the user is deleted\", \"The functional index on Lower(\\\"contact\\\") exists in the migration\", \"makemigrations --check reports no further changes\"], \"modelTier\": \"standard\"}\n```"
     },
     {
@@ -92,5 +92,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-07T20:26:17.888144+00:00"
+  "lastUpdated": "2026-10-07T21:03:58.157591+00:00"
 }
