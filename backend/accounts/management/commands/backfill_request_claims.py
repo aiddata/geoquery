@@ -2,13 +2,14 @@ from allauth.account.models import EmailAddress
 from django.core.management.base import BaseCommand
 
 from accounts.claims import claim_requests_for_email
-from analytics.models import Request
+from analytics.models import LegacyRequest, Request
 
 
 class Command(BaseCommand):
     help = (
-        "Attach unclaimed historical requests to accounts by matching "
-        "Request.contact against every verified email address. Safe to re-run."
+        "Attach unclaimed historical requests to accounts by matching the "
+        "contact address of Request and LegacyRequest rows against every "
+        "verified email address. Safe to re-run."
     )
 
     def add_arguments(self, parser):
@@ -24,9 +25,15 @@ class Command(BaseCommand):
         qs = EmailAddress.objects.filter(verified=True).select_related("user")
         for email_address in qs.iterator():
             if dry_run:
-                count = Request.objects.filter(
-                    contact__iexact=email_address.email, user__isnull=True
-                ).count()
+                # Must count both tables, because the real branch claims both.
+                # Counting only Request here would make --dry-run report a
+                # smaller total than the run it is previewing.
+                count = sum(
+                    model.objects.filter(
+                        contact__iexact=email_address.email, user__isnull=True
+                    ).count()
+                    for model in (Request, LegacyRequest)
+                )
             else:
                 count = claim_requests_for_email(
                     email_address.user, email_address.email

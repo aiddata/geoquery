@@ -80,8 +80,26 @@ Nothing is added to `Request`, and no existing query changes.
 | `imported_at` | `DateTimeField(auto_now=True)` | which run last touched the row |
 
 `Meta.indexes`: `Lower("contact")` and `-submit_time`. The functional index on
-`contact` rather than `db_index=True` matches `requests_contact_lower_idx` and
-is what the `iexact` ownership lookups actually use.
+`contact` rather than `db_index=True` mirrors `requests_contact_lower_idx` on
+`Request`.
+
+**Known defect, deferred pending a decision.** That index does *not* in fact
+serve the `contact__iexact` ownership lookups. Django renders `iexact` as
+`UPPER(contact::text) = UPPER(%s)`, which cannot use a `btree(lower(contact))`
+index. Confirmed by EXPLAIN with `enable_seqscan=off`: the `UPPER` form plans a
+Seq Scan, the `LOWER` form an Index Scan. Since the index was specified to
+mirror `Request`'s, the same defect applies there -- `requests_for_user`,
+`legacy_requests_for_user` and `claim_requests_for_email` all sequentially
+scan, and the comment at `accounts/signals.py:10-11` claiming the lookup is
+"cheap thanks to the functional index on LOWER(requests.contact)" is wrong
+today.
+
+Fixing it means reshaping the query in both ownership functions together
+(`.annotate(c=Lower("contact")).filter(c__in=[e.lower() for e in emails])`) or
+adding `Upper` indexes to both tables. Either touches the existing production
+read path, so it is raised for decision rather than changed under this spec.
+The index is left in place: it is correct for the query shape the fix would
+introduce, and harmless meanwhile.
 
 `dataset_titles` takes `custom_name` from each `release_data` entry and `title`
 from each `raster_data` entry, release entries first — the two fields the old UI

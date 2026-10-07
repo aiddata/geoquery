@@ -19,7 +19,7 @@
     {
       "id": 2,
       "subject": "Task 3: legacy_requests_for_user",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Ownership resolution for legacy rows mirrors requests_for_user exactly - FK-claimed rows unioned with live matches on verified addresses.\n\n**Files:**\n- Modify: `backend/analytics/services.py` (after requests_for_user ~line 558; add LegacyRequest to the module import at line 39)\n- Modify: `backend/analytics/tests/test_legacy_requests.py`\n\n**Acceptance Criteria:**\n- [ ] Rows claimed by FK are returned\n- [ ] Rows matching a verified email are returned even with no FK set\n- [ ] Rows matching an unverified email are NOT returned\n- [ ] Another user's rows are never returned\n- [ ] Results are ordered newest-submitted first\n\n**Verify:** `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2` -> OK\n\n**Steps:**\n1. Write 5 failing ownership tests\n2. Run - expect ImportError\n3. Add legacy_requests_for_user() + extend module import at services.py:39\n4. Rerun (12 tests pass)\n5. Commit\n\n```json:metadata\n{\"files\": [\"backend/analytics/services.py\", \"backend/analytics/tests/test_legacy_requests.py\"], \"verifyCommand\": \"docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2\", \"acceptanceCriteria\": [\"Rows claimed by FK are returned\", \"Rows matching a verified email are returned even with no FK set\", \"Rows matching an unverified email are NOT returned\", \"Another user's rows are never returned\", \"Results are ordered newest-submitted first\"], \"modelTier\": \"standard\"}\n```",
       "blockedBy": [
         0
@@ -37,7 +37,7 @@
     {
       "id": 4,
       "subject": "Task 5: import_legacy_requests management command",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** A re-runnable command that upserts completed, in-window legacy requests from the Parquet export, skipping incomplete records and reporting what it did.\n\n**Files:**\n- Create: `backend/analytics/management/commands/import_legacy_requests.py`\n- Create: `backend/analytics/tests/test_import_legacy_requests.py`\n\n**Acceptance Criteria:**\n- [ ] --submitted-before excludes rows submitted at or after the cutoff\n- [ ] Rows with status != 1 are excluded\n- [ ] Rows with empty contact, empty boundary, or zero datasets are skipped and counted by reason\n- [ ] Re-running the same import creates nothing and changes no field except imported_at\n- [ ] A later cutoff adds only the newer rows\n- [ ] --dry-run writes nothing\n- [ ] Over-long CharField values are truncated rather than raising\n- [ ] dataset_titles is release custom_name entries followed by raster title entries\n- [ ] Verified-email owners are claimed after import\n\n**Verify:** `docker compose exec backend uv run python manage.py test analytics.tests.test_import_legacy_requests -v 2` -> OK\n\n**Steps:**\n1. Write 10 failing tests; fixture writes a real Parquet via pyarrow matching the reader's columns\n2. Run - expect CommandError unknown command\n3. Write the command (_plain, _stage_times, _build, _flush, _claim, _report)\n4. Rerun (10 tests pass)\n5. Smoke-test --dry-run against the real export: expect 48666 imported, 8 not completed, 1 no datasets\n6. Commit\n\n```json:metadata\n{\"files\": [\"backend/analytics/management/commands/import_legacy_requests.py\", \"backend/analytics/tests/test_import_legacy_requests.py\"], \"verifyCommand\": \"docker compose exec backend uv run python manage.py test analytics.tests.test_import_legacy_requests -v 2\", \"acceptanceCriteria\": [\"--submitted-before excludes rows submitted at or after the cutoff\", \"Rows with status != 1 are excluded\", \"Rows with empty contact, empty boundary, or zero datasets are skipped and counted by reason\", \"Re-running the same import creates nothing and changes no field except imported_at\", \"A later cutoff adds only the newer rows\", \"--dry-run writes nothing\", \"Over-long CharField values are truncated rather than raising\", \"dataset_titles is release custom_name entries followed by raster title entries\", \"Verified-email owners are claimed after import\"], \"modelTier\": \"complex\"}\n```",
       "blockedBy": [
         0,
@@ -92,5 +92,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-07T21:11:28.484883+00:00"
+  "lastUpdated": "2026-10-07T21:25:59.466136+00:00"
 }
