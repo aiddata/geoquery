@@ -429,6 +429,9 @@ class LegacyRequest(models.Model):
         related_name="legacy_requests",
         db_column="user_id",
     )
+    # auto_now, so this is the last run that wrote this row, not the first
+    # import. The import command lists it in its update_fields precisely so a
+    # re-import records that it ran.
     imported_at = models.DateTimeField(auto_now=True)
 
     class Meta:

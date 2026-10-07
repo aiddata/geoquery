@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timezone as dt_timezone
 
 from django.contrib.auth import get_user_model
@@ -11,9 +12,14 @@ OID = "58c9be24c15e00b8f9fadc1c"
 
 
 def make_legacy(**overrides):
-    """A valid LegacyRequest, overridable per test."""
+    """A valid LegacyRequest, overridable per test.
+
+    The id defaults to a fresh ObjectId-shaped value so a test can create
+    several rows without having to invent ids; pass `id=` when the test
+    asserts on the value itself.
+    """
     fields = {
-        "id": OID,
+        "id": secrets.token_hex(12),
         "contact": "alice@example.com",
         "custom_name": "Request 03-15-17 18:20",
         "submit_time": datetime(2017, 3, 15, 18, 20, tzinfo=dt_timezone.utc),
@@ -31,7 +37,7 @@ def make_legacy(**overrides):
 
 class LegacyRequestModelTests(TestCase):
     def test_creates_with_objectid_primary_key(self):
-        obj = make_legacy()
+        obj = make_legacy(id=OID)
         obj.refresh_from_db()
         self.assertEqual(obj.pk, OID)
         self.assertEqual(obj.dataset_count, 2)
