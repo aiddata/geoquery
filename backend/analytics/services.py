@@ -36,7 +36,7 @@ from catalog.access import (
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap
 
-from .models import ExtractTask, ProcessingOption, Request, RequestMap
+from .models import ExtractTask, LegacyRequest, ProcessingOption, Request, RequestMap
 
 # Request.status as a word. Also imported by analytics.views, which exposed
 # this mapping long before the service existed.
@@ -556,6 +556,25 @@ def requests_for_user(user) -> QuerySet[Request]:
         q |= Q(contact__iexact=email)
 
     return Request.objects.filter(q).order_by("-submit_time")
+
+
+def legacy_requests_for_user(user) -> QuerySet[LegacyRequest]:
+    """Every legacy request belonging to ``user``, newest first.
+
+    Deliberately mirrors ``requests_for_user`` rather than generalizing it:
+    the two read side by side, so if ownership semantics ever drift apart the
+    difference is visible in a diff.
+    """
+    from allauth.account.models import EmailAddress
+
+    q = Q(user=user)
+    emails = EmailAddress.objects.filter(user=user, verified=True).values_list(
+        "email", flat=True
+    )
+    for email in emails:
+        q |= Q(contact__iexact=email)
+
+    return LegacyRequest.objects.filter(q).order_by("-submit_time")
 
 
 def request_progress(request: Request) -> tuple[int, int]:
