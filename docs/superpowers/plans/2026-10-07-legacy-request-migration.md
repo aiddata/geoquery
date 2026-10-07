@@ -68,6 +68,7 @@ sudo docker compose exec frontend bun run check
 | `backend/accounts/tests.py` | Claim coverage for legacy rows |
 | `backend/geoquery/settings.py` | `LEGACY_DOWNLOAD_BASE_URL` |
 | `backend/stats/builder.py` | `legacy_request_count` in the snapshot |
+| `docker-compose.yml` | Pass `LEGACY_DOWNLOAD_BASE_URL` into the `backend` service |
 
 **Frontend — created:**
 
@@ -278,6 +279,7 @@ git commit -m "Add LegacyRequest model for pre-2026 request import"
 - Modify: `backend/geoquery/settings.py:322` (beside `DOWNLOAD_BASE_URL`)
 - Modify: `backend/analytics/services.py` (after `request_links`, ~line 598)
 - Modify: `backend/analytics/tests/test_legacy_requests.py`
+- Modify: `docker-compose.yml` (the `backend` service's `environment` block)
 
 **Acceptance Criteria:**
 - [ ] Unset or empty `LEGACY_DOWNLOAD_BASE_URL` yields `{}` — no `download_url` key at all
