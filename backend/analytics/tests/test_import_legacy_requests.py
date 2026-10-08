@@ -252,3 +252,25 @@ class ImportLegacyRequestsTests(TestCase):
         titles = LegacyRequest.objects.get(pk="a" * 24).dataset_titles
         self.assertEqual(len(titles[0]), 200)
         self.assertIn("truncated 1: dataset_titles", out.getvalue())
+
+    def test_does_not_claim_current_requests(self):
+        """The import must not touch the live requests table.
+
+        _claim deliberately avoids claim_requests_for_email, which claims
+        Request rows too: an archive import quietly mutating requests.user_id
+        is outside what this command documents, and it would make the reported
+        claim count cover two tables.
+        """
+        from analytics.models import Request
+
+        user = User.objects.create_user(username="alice", email="alice@example.com")
+        EmailAddress.objects.create(
+            user=user, email="alice@example.com", verified=True, primary=True
+        )
+        current = Request.objects.create(contact="alice@example.com", status=1)
+
+        self.run_import([record("a" * 24)])
+
+        current.refresh_from_db()
+        self.assertIsNone(current.user)
+        self.assertEqual(LegacyRequest.objects.get(pk="a" * 24).user, user)

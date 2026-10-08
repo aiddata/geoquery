@@ -74,12 +74,17 @@ class RequestAdmin(admin.ModelAdmin):
 
 @admin.register(LegacyRequest)
 class LegacyRequestAdmin(admin.ModelAdmin):
-    """Read-only view over the imported pre-2026 archive.
+    """Non-editable view over the imported pre-2026 archive.
 
     Everything here is written by ``import_legacy_requests`` and keyed on the
     original Mongo ObjectId, so hand-editing a row would be silently undone by
-    the next import run. Exposed for support lookups -- answering "where is my
-    old request" -- not for editing.
+    the next import run, and a save would also move ``imported_at`` and
+    misrepresent which run wrote it. Exposed for support lookups -- answering
+    "where is my old request" -- not for editing.
+
+    Add and change are blocked; **delete is deliberately left permitted**, so a
+    wrongly imported row can be removed without a code change. Note a deleted
+    row comes back on the next import unless the export is fixed too.
     """
 
     list_display = (
