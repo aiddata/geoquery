@@ -320,10 +320,11 @@ REQUESTS_DIR = Path(os.environ.get("REQUESTS_DIR", str(BASE_DIR.parent / "reques
 ASSETS_DIR = Path(os.environ.get("ASSETS_DIR", str(BASE_DIR.parent / "assets")))
 DOCS_DIR = Path(os.environ.get("DOCS_DIR", str(BASE_DIR.parent / "docs")))
 DOWNLOAD_BASE_URL = os.environ.get("DOWNLOAD_BASE_URL", "http://localhost:8000")
-# Base URL for the copied archive of pre-2026 GeoQuery result zips, named
-# <request_id>.zip. Defaults to DOWNLOAD_BASE_URL, since the archive is
-# expected to be served from the same host -- kept as its own setting so the
-# two can be pointed at different hosts later without touching code.
+# Base URL for the copied archive of pre-2026 GeoQuery result zips, served at
+# <base>/legacy/<request_id>.zip. Defaults to DOWNLOAD_BASE_URL, since the
+# archive sits on the same host -- kept as its own setting so the two can be
+# pointed at different hosts later without touching code. Do NOT include the
+# /legacy segment here; legacy_request_links adds it, so it cannot be missed.
 #
 # `or` rather than a get() default: compose passes the variable through as an
 # empty string when it is unset in .env, so os.environ.get would return ""

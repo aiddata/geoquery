@@ -2296,8 +2296,10 @@ the cheapest place to catch a wrong `--parquet` or a mistyped date.
 ## Deferred to the operator
 
 - **`LEGACY_DOWNLOAD_BASE_URL` defaults to `DOWNLOAD_BASE_URL`**, so the download
-  button is live as soon as this deploys. The zips must be copied to that host,
-  named `<request_id>.zip`, before deploying — otherwise the button 404s. Set the
-  variable explicitly only if the archive ends up on a different host.
+  button is live as soon as this deploys. The zips must be copied to that host
+  under `legacy/`, named `<request_id>.zip`, before deploying — otherwise the
+  button 404s. Set the variable to an explicitly empty value to keep the button
+  dark, or to a URL if the archive ends up on a different host (without a
+  trailing `/legacy`, which the code adds).
 - **The cutover re-run.** Re-run the import command with a later `--submitted-before`
   once the old system stops accepting submissions.
