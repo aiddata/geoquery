@@ -14,11 +14,13 @@ from rest_framework.views import APIView
 from analytics.tasks.ingest import ingest_custom_boundary_task
 from analytics.tasks.email import GeoEmail
 from analytics.throttles import RequestSubmitThrottle, RequestTokenThrottle
-from .models import Request, RequestToken
+from .models import LegacyRequest, Request, RequestToken
 from .services import (
     STATUS_LABELS as _STATUS_LABELS,
     NoExtractTasksError,
     create_request,
+    legacy_request_links,
+    legacy_requests_for_user,
     request_links,
     requests_for_user,
 )
@@ -359,4 +361,94 @@ class MyRequestsView(APIView):
             }
             for r in qs
         ]
+        return Response(data)
+
+
+def _legacy_row(obj):
+    """List representation of a legacy request.
+
+    ``status_label`` is hardcoded because only completed requests are
+    imported, and ``is_legacy`` is the flag the UI keys its treatment off.
+    """
+    return {
+        "id": obj.id,
+        "name": obj.custom_name,
+        "submit_time": obj.submit_time,
+        "complete_time": obj.complete_time,
+        "dataset_count": obj.dataset_count,
+        "status_label": "completed",
+        "is_legacy": True,
+    }
+
+
+class LegacyMyRequestsView(APIView):
+    """
+    GET /api/analytics/legacy-requests/ — legacy history for the logged-in user
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(
+            [_legacy_row(r) for r in legacy_requests_for_user(request.user)]
+        )
+
+
+class LegacyRequestHistoryView(APIView):
+    """
+    GET /api/analytics/legacy-history/<token>/ — legacy history for a valid token
+
+    Shares RequestToken with the current-request history view, so a single
+    magic link covers both halves of a user's history.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        try:
+            token_obj = RequestToken.objects.get(token=RequestToken.hash_token(token))
+        except RequestToken.DoesNotExist:
+            return Response(
+                {"error": "Invalid or expired link."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        if token_obj.is_expired:
+            return Response(
+                {"error": "This link has expired. Please request a new one."},
+                status=status.HTTP_410_GONE,
+            )
+
+        qs = LegacyRequest.objects.filter(contact__iexact=token_obj.email).order_by(
+            "-submit_time"
+        )
+        return Response([_legacy_row(r) for r in qs])
+
+
+class LegacyRequestDetailView(APIView):
+    """
+    GET /api/analytics/legacy-requests/<id>/ — one legacy request by ObjectId
+
+    AllowAny, matching RequestDetailView: holding the id is the capability.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk):
+        try:
+            obj = LegacyRequest.objects.get(pk=pk)
+        except LegacyRequest.DoesNotExist:
+            return Response({"error": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        data = _legacy_row(obj)
+        data.update(
+            {
+                "boundary_title": obj.boundary_title,
+                "boundary_name": obj.boundary_name,
+                "boundary_group": obj.boundary_group,
+                "dataset_titles": obj.dataset_titles,
+            }
+        )
+        data.update(legacy_request_links(obj))
         return Response(data)
