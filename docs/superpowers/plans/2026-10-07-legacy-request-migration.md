@@ -69,6 +69,7 @@ sudo docker compose exec frontend bun run check
 | `backend/geoquery/settings.py` | `LEGACY_DOWNLOAD_BASE_URL` |
 | `backend/stats/builder.py` | `legacy_request_count` in the snapshot |
 | `docker-compose.yml` | Pass `LEGACY_DOWNLOAD_BASE_URL` into the `backend` service |
+| `backend/analytics/admin.py` | Register `LegacyRequest` for support lookups |
 
 **Frontend — created:**
 
@@ -2168,6 +2169,81 @@ Expected: tests pass; 0 frontend errors.
 ```bash
 git add backend/stats/builder.py backend/stats/tests.py frontend/src/lib/api.ts frontend/src/routes/stats/+page.svelte
 git commit -m "Report legacy request count separately in stats"
+```
+
+---
+
+### Task 11: Register LegacyRequest in the admin
+
+**Goal:** Support staff can find and inspect an imported legacy request in the Django admin, as they can a current one.
+
+**Files:**
+- Modify: `backend/analytics/admin.py` (after `RequestAdmin`, ~line 72)
+
+**Acceptance Criteria:**
+- [ ] `LegacyRequest` appears in the admin index
+- [ ] The changelist shows id, contact, name, dates and dataset count
+- [ ] `contact` and `id` are searchable
+- [ ] Every field is read-only -- the table is an import artifact, not something to hand-edit
+- [ ] `django.contrib.admin` checks pass
+
+**Verify:** `sudo docker compose exec -T backend uv run python manage.py check` -> no issues, and the changelist loads at `/admin/analytics/legacyrequest/`
+
+**Steps:**
+
+- [ ] **Step 1: Add the ModelAdmin**
+
+In `backend/analytics/admin.py`, extend the existing model import to include `LegacyRequest`, then add after `RequestAdmin`:
+
+```python
+@admin.register(LegacyRequest)
+class LegacyRequestAdmin(admin.ModelAdmin):
+    """Read-only view over the imported pre-2026 archive.
+
+    Everything here is written by ``import_legacy_requests`` and keyed on the
+    original Mongo ObjectId, so hand-editing a row would be silently undone by
+    the next import run. Exposed for support lookups -- answering "where is my
+    old request" -- not for editing.
+    """
+
+    list_display = (
+        "id",
+        "contact",
+        "custom_name",
+        "submit_time",
+        "complete_time",
+        "dataset_count",
+    )
+    list_filter = ("submit_time",)
+    search_fields = ("id", "contact", "custom_name")
+    ordering = ("-submit_time",)
+    readonly_fields = tuple(f.name for f in LegacyRequest._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+```
+
+`has_delete_permission` is deliberately left at its default: a wrongly imported
+row should be removable without a code change.
+
+- [ ] **Step 2: Verify**
+
+```bash
+sudo docker compose exec -T backend uv run python manage.py check
+```
+Expected: `System check identified no issues`.
+
+Then load `http://localhost:8000/admin/analytics/legacyrequest/` as a superuser
+and confirm the changelist renders, search works, and no row offers an edit form.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add backend/analytics/admin.py
+git commit -m "Register LegacyRequest in the Django admin"
 ```
 
 ---

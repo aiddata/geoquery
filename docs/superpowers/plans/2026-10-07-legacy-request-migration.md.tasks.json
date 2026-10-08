@@ -90,7 +90,16 @@
         0,
         6
       ]
+    },
+    {
+      "id": 10,
+      "subject": "Task 11: Register LegacyRequest in the admin",
+      "status": "pending",
+      "blockedBy": [
+        0
+      ],
+      "description": "**Goal:** Support staff can find and inspect an imported legacy request in the Django admin, as they can a current one.\n\n**Files:**\n- Modify: `backend/analytics/admin.py` (after RequestAdmin, ~line 72)\n\n**Acceptance Criteria:**\n- [ ] LegacyRequest appears in the admin index\n- [ ] Changelist shows id, contact, name, dates and dataset count\n- [ ] contact and id are searchable\n- [ ] Every field is read-only\n- [ ] admin checks pass\n\n**Verify:** `sudo docker compose exec -T backend uv run python manage.py check` -> no issues\n\n**Steps:**\n1. Add LegacyRequestAdmin with readonly_fields and has_add/change_permission False\n2. Run manage.py check; load the changelist\n3. Commit\n\n```json:metadata\n{\"files\": [\"backend/analytics/admin.py\"], \"verifyCommand\": \"sudo docker compose exec -T backend uv run python manage.py check\", \"acceptanceCriteria\": [\"LegacyRequest appears in the admin index\", \"changelist shows id, contact, name, dates, dataset count\", \"contact and id searchable\", \"all fields read-only\", \"admin checks pass\"], \"modelTier\": \"mechanical\"}\n```"
     }
   ],
-  "lastUpdated": "2026-10-07T21:25:59.466136+00:00"
+  "lastUpdated": "2026-10-08T14:17:50.411259+00:00"
 }
