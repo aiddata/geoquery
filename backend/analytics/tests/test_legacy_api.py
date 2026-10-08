@@ -100,7 +100,9 @@ class LegacyDetailTests(TestCase):
         self.assertTrue(body["is_legacy"])
 
     def test_unknown_id_is_404(self):
-        response = self.client.get(f"/api/analytics/legacy-requests/{'z' * 24}/")
+        # Hex, so the route still matches and the VIEW answers -- a non-hex id
+        # is now rejected by the resolver, which would not exercise the view.
+        response = self.client.get(f"/api/analytics/legacy-requests/{'f' * 24}/")
 
         self.assertEqual(response.status_code, 404)
         # As above: proves the view answered, not the resolver.
@@ -111,6 +113,9 @@ class LegacyDetailTests(TestCase):
     def test_no_download_url_when_unconfigured(self):
         make_legacy("a" * 24)
         body = self.client.get(f"/api/analytics/legacy-requests/{'a' * 24}/").json()
+        # Positive anchor first: asserting only the absence of a key would
+        # pass against a view stubbed to return {}.
+        self.assertEqual(body["id"], "a" * 24)
         self.assertNotIn("download_url", body)
 
     @override_settings(LEGACY_DOWNLOAD_BASE_URL="https://archive.example.com")
@@ -120,3 +125,19 @@ class LegacyDetailTests(TestCase):
         self.assertEqual(
             body["download_url"], f"https://archive.example.com/{'a' * 24}.zip"
         )
+
+    def test_detail_never_exposes_submitter_or_raw_data(self):
+        """The payload is enumerated, not filtered -- keep it that way.
+
+        This endpoint is AllowAny, and the model carries the submitter's email
+        in ``contact``, the full release/raster JSON in ``data``, and the
+        owning account in ``user``. Nothing currently fails if someone adds one
+        of those to the payload while building the frontend, so this does.
+        """
+        make_legacy("a" * 24)
+
+        body = self.client.get(f"/api/analytics/legacy-requests/{'a' * 24}/").json()
+
+        self.assertEqual(body["id"], "a" * 24)
+        for leaked in ("contact", "data", "user"):
+            self.assertNotIn(leaked, body)
