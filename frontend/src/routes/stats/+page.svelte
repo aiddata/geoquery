@@ -126,6 +126,13 @@
 			{/each}
 		</div>
 
+		{#if stats.legacy_request_count}
+			<p class="-mt-4 mb-6 text-xs text-muted-foreground">
+				Plus {fmt(stats.legacy_request_count)} archived requests from previous versions of
+				GeoQuery, not included in the figures above.
+			</p>
+		{/if}
+
 		<!-- Queue status -->
 		<Card class="mb-6">
 			<CardHeader>
