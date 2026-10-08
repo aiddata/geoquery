@@ -131,10 +131,19 @@ the JSON blob; `data` retains full provenance.
 
 ### Downloads
 
-Zip files are being copied to the download host, named `<request_id>.zip`. A
-`LEGACY_DOWNLOAD_BASE_URL` setting plus a `legacy_request_links()` in
-`analytics/services.py`, mirroring the existing `request_links()`, yields
-`{base}/{id}.zip`.
+Zip files are being copied to the download host under their own directory,
+served at `{base}/legacy/{id}.zip`. A `LEGACY_DOWNLOAD_BASE_URL` setting plus a
+`legacy_request_links()` in `analytics/services.py`, mirroring the existing
+`request_links()`, builds that URL.
+
+The `legacy/` segment lives in the code path, not in the configured base URL,
+so it cannot be omitted by a misconfiguration — `LEGACY_DOWNLOAD_BASE_URL`
+must therefore not itself end in `/legacy`. Keeping the archive out of the
+download host's document root matters because the filenames are not the secret
+they appear to be: Mongo ObjectIds are derivable from one another (for a third
+of the archive, a known id yields a neighbour's, 27% of the time another
+submitter's), so a directory listing at the root would expose all 48,666 at
+once. Directory listing should be off for the `legacy/` directory too.
 
 The setting **defaults to `DOWNLOAD_BASE_URL`**, since the archive is served
 from the same host. It stays a separate setting so the two can be pointed at

@@ -68,14 +68,14 @@ class LegacyRequestLinksTests(TestCase):
     def test_no_links_when_base_url_unset(self):
         self.assertEqual(legacy_request_links(make_legacy()), {})
 
-    @override_settings(LEGACY_DOWNLOAD_BASE_URL="https://archive.example.com/legacy")
+    @override_settings(LEGACY_DOWNLOAD_BASE_URL="https://archive.example.com")
     def test_download_url_when_configured(self):
         self.assertEqual(
             legacy_request_links(make_legacy(id=OID)),
             {"download_url": f"https://archive.example.com/legacy/{OID}.zip"},
         )
 
-    @override_settings(LEGACY_DOWNLOAD_BASE_URL="https://archive.example.com/legacy/")
+    @override_settings(LEGACY_DOWNLOAD_BASE_URL="https://archive.example.com/")
     def test_trailing_slash_does_not_double(self):
         links = legacy_request_links(make_legacy(id=OID))
         self.assertEqual(
