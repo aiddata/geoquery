@@ -68,9 +68,14 @@ class LegacyHistoryTests(TestCase):
         self.assertEqual([r["id"] for r in body], ["a" * 24])
 
     def test_unknown_token_is_404(self):
-        self.assertEqual(
-            self.client.get("/api/analytics/legacy-history/nope/").status_code, 404
-        )
+        response = self.client.get("/api/analytics/legacy-history/nope/")
+
+        self.assertEqual(response.status_code, 404)
+        # Assert the 404 came from the view, not from the URL resolver: a
+        # missing route also returns 404, so a bare status check would pass
+        # even with the endpoint deleted.
+        self.assertEqual(response["Content-Type"], "application/json")
+        self.assertEqual(response.json(), {"error": "Invalid or expired link."})
 
     def test_expired_token_is_410(self):
         _, raw = RequestToken.create_for_email(
@@ -95,10 +100,12 @@ class LegacyDetailTests(TestCase):
         self.assertTrue(body["is_legacy"])
 
     def test_unknown_id_is_404(self):
-        self.assertEqual(
-            self.client.get(f"/api/analytics/legacy-requests/{'z' * 24}/").status_code,
-            404,
-        )
+        response = self.client.get(f"/api/analytics/legacy-requests/{'z' * 24}/")
+
+        self.assertEqual(response.status_code, 404)
+        # As above: proves the view answered, not the resolver.
+        self.assertEqual(response["Content-Type"], "application/json")
+        self.assertEqual(response.json(), {"error": "Not found"})
 
     @override_settings(LEGACY_DOWNLOAD_BASE_URL="")
     def test_no_download_url_when_unconfigured(self):
