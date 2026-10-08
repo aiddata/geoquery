@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, re_path
 
 from . import views
 
@@ -22,8 +22,13 @@ urlpatterns = [
         views.LegacyMyRequestsView.as_view(),
         name="legacy-my-requests",
     ),
-    path(
-        "legacy-requests/<str:pk>/",
+    # re_path, not <str:pk>: a str converter matches anything, so a percent-
+    # encoded NUL reached psycopg and raised DataError -- an uncaught 500 on
+    # every scanner hit. Constraining to the ObjectId shape turns every
+    # wrong-shape id into a resolver 404 before it can touch the database.
+    # RequestDetailView is immune only because <uuid:pk> happens to validate.
+    re_path(
+        r"^legacy-requests/(?P<pk>[0-9a-fA-F]{24})/$",
         views.LegacyRequestDetailView.as_view(),
         name="legacy-request-detail",
     ),

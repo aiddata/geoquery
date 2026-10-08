@@ -390,7 +390,16 @@ class LegacyMyRequestsView(APIView):
 
     def get(self, request):
         return Response(
-            [_legacy_row(r) for r in legacy_requests_for_user(request.user)]
+            # defer("data"): _legacy_row reads five columns, but the model
+            # carries the full release+raster JSON. Without this, a user with
+            # hundreds of archived requests drags hundreds of JSON blobs out
+            # of Postgres per page load, all discarded. defer rather than only
+            # so adding a key to _legacy_row cannot silently cause per-row
+            # queries instead.
+            [
+                _legacy_row(r)
+                for r in legacy_requests_for_user(request.user).defer("data")
+            ]
         )
 
 
@@ -419,8 +428,14 @@ class LegacyRequestHistoryView(APIView):
                 status=status.HTTP_410_GONE,
             )
 
-        qs = LegacyRequest.objects.filter(contact__iexact=token_obj.email).order_by(
-            "-submit_time"
+        # iexact, mirroring RequestHistoryView: contact is whatever the
+        # submitter typed, so an exact match would hide a user's own requests
+        # from their own history link. defer("data") for the reason given in
+        # LegacyMyRequestsView.
+        qs = (
+            LegacyRequest.objects.filter(contact__iexact=token_obj.email)
+            .defer("data")
+            .order_by("-submit_time")
         )
         return Response([_legacy_row(r) for r in qs])
 
