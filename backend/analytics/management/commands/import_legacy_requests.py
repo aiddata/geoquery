@@ -160,6 +160,10 @@ class Command(BaseCommand):
         except Exception as exc:
             raise CommandError(f"Could not open {options['parquet']}: {exc}") from exc
 
+        # Row count before, so created-vs-updated is a measured delta rather
+        # than a guess: bulk_create(update_conflicts=True) cannot report it.
+        before = 0 if dry_run else LegacyRequest.objects.count()
+
         skipped = Counter()
         truncated = Counter()
         contacts = set()
@@ -179,12 +183,16 @@ class Command(BaseCommand):
 
         written += self._flush(batch, dry_run)
 
+        created = 0 if dry_run else LegacyRequest.objects.count() - before
+
         claimed = 0
         if not dry_run and contacts:
             claimed = self._claim(contacts)
 
         if verbosity:
-            self._report(written, skipped, truncated, claimed, dry_run)
+            self._report(
+                written, created, skipped, truncated, claimed, dry_run
+            )
 
     # ── internals ────────────────────────────────────────────────────────────
 
@@ -284,15 +292,18 @@ class Command(BaseCommand):
         """Attach imported rows to accounts that already verified the address.
 
         Without this, a user who signed in before the import would see nothing
-        until they re-verified. Reuses the tested claim helper rather than
-        reimplementing its unclaimed-only semantics.
+        until they next logged in and the login sweep ran.
+
+        Deliberately does NOT call ``claim_requests_for_email``, even though it
+        implements exactly these semantics: that helper claims ``Request`` rows
+        too, so an archive import would quietly mutate the live requests table
+        and report a figure covering both. Those rows get claimed by the login
+        sweep anyway. The unclaimed-only filter is duplicated here instead, so
+        the count this command prints means what it says.
         """
         from allauth.account.models import EmailAddress
         from django.contrib.auth import get_user_model
 
-        from accounts.claims import claim_requests_for_email
-
-        claimed = 0
         owners = (
             EmailAddress.objects.filter(verified=True)
             .annotate(lowered=Lower("email"))
@@ -300,15 +311,24 @@ class Command(BaseCommand):
             .values_list("user_id", "email")
         )
         users = get_user_model().objects.in_bulk([uid for uid, _ in owners])
+        claimed = 0
         for user_id, email in owners:
             user = users.get(user_id)
             if user is not None:
-                claimed += claim_requests_for_email(user, email)
+                claimed += LegacyRequest.objects.filter(
+                    contact__iexact=email, user__isnull=True
+                ).update(user=user)
         return claimed
 
-    def _report(self, written, skipped, truncated, claimed, dry_run):
+    def _report(self, written, created, skipped, truncated, claimed, dry_run):
         verb = "would import" if dry_run else "imported"
         self.stdout.write(self.style.SUCCESS(f"{verb} {written} legacy requests"))
+        if not dry_run:
+            # The split is what tells a cutover run apart from a re-run: an
+            # upsert reports the same total either way.
+            self.stdout.write(
+                f"  created {created}, updated {written - created}"
+            )
         for reason, n in sorted(skipped.items()):
             self.stdout.write(f"  skipped {n}: {reason}")
         for field, n in sorted(truncated.items()):

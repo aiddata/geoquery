@@ -79,9 +79,9 @@ Nothing is added to `Request`, and no existing query changes.
 | `user` | FK to `AUTH_USER_MODEL`, null, `SET_NULL` | `related_name="legacy_requests"` |
 | `imported_at` | `DateTimeField(auto_now=True)` | which run last touched the row |
 
-`Meta.indexes`: `Lower("contact")` and `-submit_time`. The functional index on
-`contact` rather than `db_index=True` mirrors `requests_contact_lower_idx` on
-`Request`.
+`Meta.indexes`: `Upper("contact")` and `-submit_time`. A functional index on
+`contact` rather than `db_index=True`, because every ownership lookup matches
+case-insensitively.
 
 **Why `Upper` and not `Lower`.** Django renders `__iexact` as
 `UPPER(x) = UPPER(y)` on PostgreSQL -- hardcoded in the backend's
@@ -114,11 +114,20 @@ the JSON blob; `data` retains full provenance.
   column and a changed filter.
 - `priority`, `contact_flag`, `comments_requested`, `attempts` — operational
   state of a retired scheduler.
-- `prepare_time`, `process_time` — **unreliable.** In 9,716 of the completed
-  rows these precede `submit_time`, and 22 rows carry epoch-0 stage times. This
-  is in the source data, not an artifact of the Parquet conversion. Importing
-  them would publish a timeline that contradicts itself; submit and complete
-  are the two the UI needs and the two that are sound.
+- `prepare_time`, `process_time` — **unreliable.** Of the 48,667 completed
+  rows, `prepared` precedes `submitted` in 11,467 and `processed` precedes it
+  in 9,963; 8 rows carry an epoch-0 stage time. This is in the source data, not
+  an artifact of the Parquet conversion: the old system appears to have written
+  `submitted` last.
+
+  **`complete_time` is inverted too, in 9,708 rows (20%)**, and is imported
+  anyway because the UI needs *a* completion date and day-granularity display
+  hides all but 46 of them. Those 46 — where the inversion crosses a UTC
+  calendar date — are suppressed on the detail page rather than rendered as a
+  completion preceding a submission. An earlier version of this spec claimed
+  submit and complete were "the two that are sound"; that was wrong, and the
+  9,716 figure it cited was in fact measuring `complete_time`, not the two
+  fields it was offered as evidence against.
 
 ### Downloads
 
@@ -270,8 +279,10 @@ Ownership:
 
 Links:
 
-- Unset `LEGACY_DOWNLOAD_BASE_URL` produces no `download_url` key.
-- Set, it produces `{base}/{id}.zip`.
+- `LEGACY_DOWNLOAD_BASE_URL` set to an explicitly empty value produces no
+  `download_url` key. Leaving it unset inherits `DOWNLOAD_BASE_URL` and does
+  produce one, which is the default.
+- Set to a URL, it produces `{base}/{id}.zip`.
 
 Frontend: `bun run check` passes; a user with no legacy requests renders no
 archived section.

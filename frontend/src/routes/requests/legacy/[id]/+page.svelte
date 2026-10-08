@@ -27,6 +27,17 @@
 			});
 	});
 
+	/* The old system wrote its stage times out of order: complete_time precedes
+	   submit_time in about a fifth of the archive. Day-granularity display hides
+	   almost all of it, but a few dozen rows straddle a UTC date boundary and
+	   would render a completion before its own submission. Show nothing rather
+	   than a contradiction. */
+	const completedIsSound = $derived(
+		!!request &&
+			new Date(request.complete_time).getTime() >=
+				new Date(request.submit_time).getTime()
+	);
+
 	const fmt = (iso: string | null) =>
 		iso
 			? new Date(iso).toLocaleDateString(undefined, {
@@ -77,7 +88,7 @@
 				</div>
 				<div class="flex justify-between gap-4 border-b pb-2">
 					<dt class="text-muted-foreground">Completed</dt>
-					<dd class="text-right">{fmt(request.complete_time)}</dd>
+					<dd class="text-right">{completedIsSound ? fmt(request.complete_time) : "—"}</dd>
 				</div>
 				<div class="flex justify-between gap-4 border-b pb-2">
 					<dt class="text-muted-foreground">Boundary</dt>
