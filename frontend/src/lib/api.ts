@@ -487,7 +487,10 @@ export interface Stats {
 	time_series: Record<'submit_time' | 'complete_time', Record<string, StatsPoint[]>>;
 	extract_time_series: Record<string, StatsPoint[]>;
 	/** Requests imported from the previous version of GeoQuery. */
-	legacy_request_count: number;
+	/** Absent from snapshots written before this field shipped: the endpoint
+	 * serves a file, and STATS_REPORT_INTERVAL_SECONDS=0 disables the rebuild
+	 * entirely, so a stale snapshot can persist indefinitely. */
+	legacy_request_count?: number;
 	generated_at: string;
 }
 
