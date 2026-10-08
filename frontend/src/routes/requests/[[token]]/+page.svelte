@@ -2,8 +2,17 @@
     import { page } from "$app/state";
     import { goto } from "$app/navigation";
     import { Button } from "$lib/components/ui/button";
-    import { ArrowLeft, Search, Mail, BarChart2, LogIn } from "@lucide/svelte";
-    import { requestHistoryLink, fetchRequestsByToken, fetchMyRequests, type PastRequest } from "$lib/api";
+    import { ArrowLeft, Search, Mail, BarChart2, LogIn, Archive, ChevronDown } from "@lucide/svelte";
+    import {
+        requestHistoryLink,
+        fetchRequestsByToken,
+        fetchMyRequests,
+        fetchLegacyRequestsByToken,
+        fetchMyLegacyRequests,
+        type PastRequest,
+        type LegacyPastRequest
+    } from "$lib/api";
+    import * as Collapsible from "$lib/components/ui/collapsible";
     import { auth } from "$lib/stores/auth";
     import { loginWithGitHub } from "$lib/allauth";
 
@@ -13,6 +22,7 @@
     let isValidEmail = $derived(/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(email));
 
     let requests = $state<PastRequest[]>([]);
+    let legacyRequests = $state<LegacyPastRequest[]>([]);
     let loading = $state(false);
     let sending = $state(false);
     let sent = $state(false);
@@ -38,7 +48,12 @@
         error = "";
         expired = false;
         try {
-            requests = await fetchRequestsByToken(t);
+            const [current, legacy] = await Promise.all([
+                fetchRequestsByToken(t),
+                fetchLegacyRequestsByToken(t).catch(() => [])
+            ]);
+            requests = current;
+            legacyRequests = legacy;
         } catch (e: any) {
             if (e.message === "expired") {
                 expired = true;
@@ -56,7 +71,12 @@
         loading = true;
         error = "";
         try {
-            requests = await fetchMyRequests();
+            const [current, legacy] = await Promise.all([
+                fetchMyRequests(),
+                fetchMyLegacyRequests().catch(() => [])
+            ]);
+            requests = current;
+            legacyRequests = legacy;
             showingMine = true;
         } catch {
             error = "Failed to load your requests. Please try again.";
@@ -181,14 +201,16 @@
         {:else}
             <h1 class="mb-2 text-2xl font-semibold">Your Requests</h1>
             <p class="mb-6 text-muted-foreground">
-                {requests.length} request{requests.length === 1 ? "" : "s"} found.
+                {requests.length} request{requests.length === 1 ? "" : "s"} found{legacyRequests.length
+                    ? `, plus ${legacyRequests.length} archived`
+                    : ""}.
                 {#if showingMine}
                     Missing older requests? <a href="/account" class="underline">Verify another
                     email address</a> to link them to your account.
                 {/if}
             </p>
 
-            {#if requests.length === 0}
+            {#if requests.length === 0 && legacyRequests.length === 0}
                 <p class="text-center text-muted-foreground">No requests found for this account.</p>
             {:else}
                 <div class="space-y-3">
@@ -220,6 +242,56 @@
                         </button>
                     {/each}
                 </div>
+            {#if legacyRequests.length > 0}
+                <Collapsible.Root class="mt-6 border-t pt-4">
+                    <Collapsible.Trigger
+                        class="group flex w-full items-center justify-between rounded-md px-1 py-2 text-left hover:bg-muted/50"
+                    >
+                        <span class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                            <Archive class="h-4 w-4" />
+                            Archived requests (2016–2026)
+                            <span class="rounded-full bg-muted px-2 py-0.5 text-xs">
+                                {legacyRequests.length}
+                            </span>
+                        </span>
+                        <ChevronDown
+                            class="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
+                        />
+                    </Collapsible.Trigger>
+                    <Collapsible.Content>
+                        <p class="px-1 py-2 text-xs text-muted-foreground">
+                            Requests from the previous version of GeoQuery. Results remain
+                            downloadable, but these cannot be re-run or visualized.
+                        </p>
+                        <div class="space-y-3">
+                            {#each legacyRequests as request}
+                                <button
+                                    class="block w-full rounded-md border border-dashed bg-muted/20 p-4 text-left transition-colors hover:bg-muted/50"
+                                    onclick={() => goto(`/requests/legacy/${request.id}`)}
+                                >
+                                    <div class="flex items-center justify-between gap-2">
+                                        <div class="font-medium text-muted-foreground">
+                                            {request.name || "Unnamed Request"}
+                                        </div>
+                                        <span
+                                            class="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                                        >
+                                            <Archive class="h-3 w-3" />
+                                            archived
+                                        </span>
+                                    </div>
+                                    <div class="mt-1 text-sm text-muted-foreground">
+                                        {new Date(request.submit_time).toLocaleDateString()}
+                                        · {request.dataset_count} dataset{request.dataset_count === 1
+                                            ? ""
+                                            : "s"}
+                                    </div>
+                                </button>
+                            {/each}
+                        </div>
+                    </Collapsible.Content>
+                </Collapsible.Root>
+            {/if}
             {/if}
         {/if}
 
