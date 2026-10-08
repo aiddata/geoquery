@@ -47,7 +47,7 @@
     {
       "id": 5,
       "subject": "Task 6: Legacy API endpoints",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Three endpoints mirroring the current list, history and detail views, each marking its payload is_legacy.\n\n**Files:**\n- Modify: `backend/analytics/views.py` (append after MyRequestsView, ~line 360)\n- Modify: `backend/analytics/urls.py`\n- Create: `backend/analytics/tests/test_legacy_api.py`\n\n**Acceptance Criteria:**\n- [ ] GET /api/analytics/legacy-requests/ returns the signed-in user's rows and 403s anonymously\n- [ ] GET /api/analytics/legacy-history/<token>/ returns rows for the token email, 404s unknown, 410s expired\n- [ ] GET /api/analytics/legacy-requests/<id>/ returns detail with dataset_titles and boundary_title, 404s unknown id\n- [ ] Every payload carries is_legacy: true and status_label: \"completed\"\n- [ ] Detail includes download_url only when LEGACY_DOWNLOAD_BASE_URL is set\n- [ ] One user never sees another's rows\n\n**Verify:** `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_api -v 2` -> OK\n\n**Steps:**\n1. Write 9 failing API tests\n2. Run - expect 404s, no routes\n3. Add _legacy_row + three views, extend the .models and .services imports\n4. Add three routes to urls.py\n5. Rerun (9 tests pass)\n6. Commit\n\n```json:metadata\n{\"files\": [\"backend/analytics/views.py\", \"backend/analytics/urls.py\", \"backend/analytics/tests/test_legacy_api.py\"], \"verifyCommand\": \"docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_api -v 2\", \"acceptanceCriteria\": [\"GET /api/analytics/legacy-requests/ returns the signed-in user's rows and 403s anonymously\", \"GET /api/analytics/legacy-history/<token>/ returns rows for the token email, 404s unknown, 410s expired\", \"GET /api/analytics/legacy-requests/<id>/ returns detail with dataset_titles and boundary_title, 404s unknown id\", \"Every payload carries is_legacy: true and status_label: \\\"completed\\\"\", \"Detail includes download_url only when LEGACY_DOWNLOAD_BASE_URL is set\", \"One user never sees another's rows\"], \"modelTier\": \"standard\"}\n```",
       "blockedBy": [
         1,
@@ -57,7 +57,7 @@
     {
       "id": 6,
       "subject": "Task 7: Frontend API types and fetchers",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Typed client functions for the three legacy endpoints.\n\n**Files:**\n- Modify: `frontend/src/lib/api.ts` (types after PastRequest line 261; fetchers after fetchRequestsByToken line 420)\n\n**Acceptance Criteria:**\n- [ ] LegacyPastRequest and LegacyRequestDetail types exist and match the endpoint payloads\n- [ ] fetchMyLegacyRequests, fetchLegacyRequestsByToken, fetchLegacyRequestDetail exist\n- [ ] The token fetcher throws 'expired' on 410, matching fetchRequestsByToken\n- [ ] bun run check passes\n\n**Verify:** `docker compose exec frontend bun run check` -> 0 errors\n\n**Steps:**\n1. Add the two interfaces\n2. Add the three fetchers\n3. Run bun run check\n4. Commit\n\n```json:metadata\n{\"files\": [\"frontend/src/lib/api.ts\"], \"verifyCommand\": \"docker compose exec frontend bun run check\", \"acceptanceCriteria\": [\"LegacyPastRequest and LegacyRequestDetail types exist and match the endpoint payloads\", \"fetchMyLegacyRequests, fetchLegacyRequestsByToken, fetchLegacyRequestDetail exist\", \"The token fetcher throws 'expired' on 410, matching fetchRequestsByToken\", \"bun run check passes\"], \"modelTier\": \"mechanical\"}\n```",
       "blockedBy": [
         5
@@ -101,5 +101,5 @@
       "description": "**Goal:** Support staff can find and inspect an imported legacy request in the Django admin, as they can a current one.\n\n**Files:**\n- Modify: `backend/analytics/admin.py` (after RequestAdmin, ~line 72)\n\n**Acceptance Criteria:**\n- [ ] LegacyRequest appears in the admin index\n- [ ] Changelist shows id, contact, name, dates and dataset count\n- [ ] contact and id are searchable\n- [ ] Every field is read-only\n- [ ] admin checks pass\n\n**Verify:** `sudo docker compose exec -T backend uv run python manage.py check` -> no issues\n\n**Steps:**\n1. Add LegacyRequestAdmin with readonly_fields and has_add/change_permission False\n2. Run manage.py check; load the changelist\n3. Commit\n\n```json:metadata\n{\"files\": [\"backend/analytics/admin.py\"], \"verifyCommand\": \"sudo docker compose exec -T backend uv run python manage.py check\", \"acceptanceCriteria\": [\"LegacyRequest appears in the admin index\", \"changelist shows id, contact, name, dates, dataset count\", \"contact and id searchable\", \"all fields read-only\", \"admin checks pass\"], \"modelTier\": \"mechanical\"}\n```"
     }
   ],
-  "lastUpdated": "2026-10-08T14:24:20.590067+00:00"
+  "lastUpdated": "2026-10-08T14:30:54.328350+00:00"
 }

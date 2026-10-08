@@ -41,8 +41,26 @@ There is no CI workflow that runs the test suite (`.github/workflows/` holds onl
 Frontend checks run in the `frontend` container:
 
 ```bash
-sudo docker compose exec frontend bun run check
+sudo docker compose exec -T frontend bun run check
 ```
+
+**`bun run check` does not start clean on this branch.** The baseline is
+`svelte-check found 12 errors and 19 warnings in 11 files`, all pre-existing and
+in files this work does not touch (the `viz` routes and charts, several dataset
+components, `CartPanel`, `CustomBoundaryOperations`, and
+`routes/requests/[id=uuid]`). Verified against `origin/main`: the only frontend
+file this branch changes is `src/lib/api.ts`, and it contributes none of them.
+
+So the frontend criterion for every task below is **no new errors in the files
+that task touches**, not a zero total. Check by grepping the output for your own
+filenames:
+
+```bash
+sudo docker compose exec -T frontend bun run check 2>&1 | grep -E "api\.ts|legacy|\[\[token\]\]|stats"
+```
+
+An empty result is a pass. If the total rises above 12/19, something new was
+introduced -- find it.
 
 ## File structure
 
@@ -1590,7 +1608,7 @@ git commit -m "Add legacy request list, history and detail endpoints"
 - [ ] `LegacyPastRequest` and `LegacyRequestDetail` types exist and match the endpoint payloads
 - [ ] `fetchMyLegacyRequests`, `fetchLegacyRequestsByToken`, `fetchLegacyRequestDetail` exist
 - [ ] The token fetcher throws `'expired'` on 410, matching `fetchRequestsByToken`
-- [ ] `bun run check` passes
+- [ ] `bun run check` reports no errors in this task's files (baseline is 12 errors/19 warnings in unrelated files)
 
 **Verify:** `sudo docker compose exec frontend bun run check` → 0 errors
 
@@ -1690,7 +1708,7 @@ git commit -m "Add frontend types and fetchers for legacy requests"
 - [ ] Rows are muted, carry an `Archive` badge, and link to `/requests/legacy/<id>`
 - [ ] No section renders when the user has no legacy requests
 - [ ] A legacy fetch failure does not break the current-requests list
-- [ ] `bun run check` passes
+- [ ] `bun run check` reports no errors in this task's files (baseline is 12 errors/19 warnings in unrelated files)
 
 **Verify:** `sudo docker compose exec frontend bun run check` → 0 errors, then load `http://localhost:5173/requests` signed in and confirm the section
 
@@ -1894,7 +1912,7 @@ git commit -m "Add collapsed archived requests section to past requests page"
 - [ ] Shows a download button only when `download_url` is present
 - [ ] Shows an explanatory note that the request cannot be re-run or visualized
 - [ ] An unknown id renders a not-found message rather than a blank page
-- [ ] `bun run check` passes
+- [ ] `bun run check` reports no errors in this task's files (baseline is 12 errors/19 warnings in unrelated files)
 
 **Verify:** `sudo docker compose exec frontend bun run check` → 0 errors, then open `/requests/legacy/<id>`
 
@@ -2050,7 +2068,7 @@ git commit -m "Add legacy request detail page"
 - [ ] The snapshot includes `legacy_request_count`
 - [ ] The count is not folded into `total`, `status_counts` or either time series
 - [ ] The stats page renders it as a distinct, labelled figure
-- [ ] `bun run check` passes
+- [ ] `bun run check` reports no errors in this task's files (baseline is 12 errors/19 warnings in unrelated files)
 
 **Verify:** `sudo docker compose exec backend uv run python manage.py test stats -v 2` → OK, and `sudo docker compose exec frontend bun run check` → 0 errors
 
