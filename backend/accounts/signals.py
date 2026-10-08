@@ -8,7 +8,8 @@ Three triggers cover the ways an email becomes verifiably owned:
   ``EmailAddress(verified=True)`` without ever firing ``email_confirmed``.
 - ``user_logged_in``: idempotent sweep so requests submitted anonymously under
   an already-verified address get picked up next session. Cheap thanks to the
-  functional index on LOWER(requests.contact).
+  functional index on UPPER(requests.contact), which is the expression
+  Django's __iexact lookup actually emits.
 """
 
 from allauth.account.signals import email_confirmed, user_logged_in, user_signed_up
