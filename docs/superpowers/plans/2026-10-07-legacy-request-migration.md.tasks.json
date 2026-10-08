@@ -84,7 +84,7 @@
     {
       "id": 9,
       "subject": "Task 10: Report legacy request count in stats",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** The stats snapshot carries a legacy count, reported separately from current-system figures.\n\n**Files:**\n- Modify: `backend/stats/builder.py:11` (import) and _collect's return dict (~line 129)\n- Modify: `backend/stats/tests.py`\n- Modify: `frontend/src/lib/api.ts` (StatsData, ~line 428)\n- Modify: `frontend/src/routes/stats/+page.svelte` (after the cards grid closing </div> at line 127)\n\n**Acceptance Criteria:**\n- [ ] The snapshot includes legacy_request_count\n- [ ] The count is not folded into total, status_counts or either time series\n- [ ] The stats page renders it as a distinct, labelled figure\n- [ ] bun run check passes\n\n**Verify:** `docker compose exec backend uv run python manage.py test stats -v 2` -> OK and `docker compose exec frontend bun run check` -> 0 errors\n\n**Steps:**\n1. Write failing test using ReplicaReadsTestMixin + StatsBuilder().collect()\n2. Run - expect KeyError\n3. Add LegacyRequest to the builder import and legacy_request_count to the snapshot (reads via _DB replica alias)\n4. Add the StatsData field and the stats page paragraph\n5. Run both verifies\n6. Commit\n\n```json:metadata\n{\"files\": [\"backend/stats/builder.py\", \"backend/stats/tests.py\", \"frontend/src/lib/api.ts\", \"frontend/src/routes/stats/+page.svelte\"], \"verifyCommand\": \"docker compose exec backend uv run python manage.py test stats -v 2\", \"acceptanceCriteria\": [\"The snapshot includes legacy_request_count\", \"The count is not folded into total, status_counts or either time series\", \"The stats page renders it as a distinct, labelled figure\", \"bun run check passes\"], \"modelTier\": \"standard\"}\n```",
       "blockedBy": [
         0,
@@ -101,5 +101,5 @@
       "description": "**Goal:** Support staff can find and inspect an imported legacy request in the Django admin, as they can a current one.\n\n**Files:**\n- Modify: `backend/analytics/admin.py` (after RequestAdmin, ~line 72)\n\n**Acceptance Criteria:**\n- [ ] LegacyRequest appears in the admin index\n- [ ] Changelist shows id, contact, name, dates and dataset count\n- [ ] contact and id are searchable\n- [ ] Every field is read-only\n- [ ] admin checks pass\n\n**Verify:** `sudo docker compose exec -T backend uv run python manage.py check` -> no issues\n\n**Steps:**\n1. Add LegacyRequestAdmin with readonly_fields and has_add/change_permission False\n2. Run manage.py check; load the changelist\n3. Commit\n\n```json:metadata\n{\"files\": [\"backend/analytics/admin.py\"], \"verifyCommand\": \"sudo docker compose exec -T backend uv run python manage.py check\", \"acceptanceCriteria\": [\"LegacyRequest appears in the admin index\", \"changelist shows id, contact, name, dates, dataset count\", \"contact and id searchable\", \"all fields read-only\", \"admin checks pass\"], \"modelTier\": \"mechanical\"}\n```"
     }
   ],
-  "lastUpdated": "2026-10-08T14:39:47.069362+00:00"
+  "lastUpdated": "2026-10-08T14:48:18.900618+00:00"
 }
