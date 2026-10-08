@@ -19,9 +19,19 @@ submitter typed it.
 
 Runs CONCURRENTLY because ``requests`` is populated in production and a plain
 CREATE INDEX holds ACCESS EXCLUSIVE for the whole build, blocking reads and
-writes. That requires ``atomic = False``, so a failure part-way leaves the
-completed operations applied. Re-running is safe, but if it does fail, check
-``\\d requests`` and drop any INVALID index CONCURRENTLY before retrying.
+writes. CREATE INDEX CONCURRENTLY takes only SHARE UPDATE EXCLUSIVE, so the
+live system keeps reading and writing throughout -- though the build waits for
+any long-running transaction to finish first.
+
+``atomic = False`` is required for that, which means a failure part-way leaves
+the completed operations applied and the migration unrecorded. **Re-running is
+NOT automatically safe:** Django's sql_create_index_concurrently is a bare
+CREATE INDEX CONCURRENTLY with no IF NOT EXISTS, so a retry after a partial
+run fails with "relation already exists" -- there is no invalid index to clean
+up, because the failure leaves a valid one. Recovery is to drop whichever of
+requests_contact_upper_idx and legacy_contact_upper_idx exist, valid or
+invalid, with DROP INDEX CONCURRENTLY, then re-run; or to finish the remaining
+SQL by hand and run migrate --fake analytics 0032.
 
 The new indexes are added before the old ones are dropped. Neither can serve
 the queries while both exist, so the order costs nothing and avoids a window

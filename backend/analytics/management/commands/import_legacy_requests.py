@@ -256,10 +256,12 @@ class Command(BaseCommand):
     def _trunc(value, limit, field, truncated):
         """Cut `value` to `limit`, counting the cut.
 
-        Array elements go through this too. A too-long element of
-        `dataset_titles` is silently truncated by Postgres rather than
-        raising the way an over-long scalar column does, so without this the
-        import would report a clean run while quietly losing characters.
+        Array elements go through this too. Postgres raises
+        `value too long for type character varying(200)` on an over-long
+        element of `dataset_titles` -- it does NOT silently truncate -- so
+        without this a single long title would abort the whole batch rather
+        than lose characters. Truncating here keeps the import running and
+        counts what it cut.
         """
         if value is not None and len(value) > limit:
             truncated[field] += 1

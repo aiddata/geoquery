@@ -452,7 +452,10 @@ class LegacyRequestDetailView(APIView):
 
     def get(self, request, pk):
         try:
-            obj = LegacyRequest.objects.get(pk=pk)
+            # defer("data") for the reason given in LegacyMyRequestsView: the
+            # payload never returns it, and rows carry up to 252 datasets of
+            # file lists.
+            obj = LegacyRequest.objects.defer("data").get(pk=pk)
         except LegacyRequest.DoesNotExist:
             return Response({"error": "Not found"}, status=status.HTTP_404_NOT_FOUND)
 

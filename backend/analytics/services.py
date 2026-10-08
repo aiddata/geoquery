@@ -622,9 +622,12 @@ def legacy_request_links(legacy_request) -> dict:
 
     Only a zip: the old system produced no equivalent of the documentation
     page or the visualization, and every imported row is already complete, so
-    there is no "not ready yet" state. Empty when the base URL is unset, so
-    this ships before the archive is hosted -- the same independent check
-    ``request_links`` makes for each of its base URLs.
+    there is no "not ready yet" state.
+
+    Empty only when ``LEGACY_DOWNLOAD_BASE_URL`` is explicitly set to an empty
+    value. Leaving it unset inherits ``DOWNLOAD_BASE_URL``, so the link is live
+    by default -- the empty value is the deliberate switch for deploying before
+    the zips are copied.
     """
     base = getattr(settings, "LEGACY_DOWNLOAD_BASE_URL", "").rstrip("/")
     if not base:
