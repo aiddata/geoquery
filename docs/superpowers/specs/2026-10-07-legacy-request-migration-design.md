@@ -122,14 +122,22 @@ the JSON blob; `data` retains full provenance.
 
 ### Downloads
 
-Zip files are being copied to a location supplied later, named
-`<request_id>.zip`. A `LEGACY_DOWNLOAD_BASE_URL` setting plus a
-`legacy_request_links()` in `analytics/services.py`, mirroring the existing
-`request_links()`, yields `{base}/{id}.zip`.
+Zip files are being copied to the download host, named `<request_id>.zip`. A
+`LEGACY_DOWNLOAD_BASE_URL` setting plus a `legacy_request_links()` in
+`analytics/services.py`, mirroring the existing `request_links()`, yields
+`{base}/{id}.zip`.
 
-When the setting is unset the function returns an empty dict and no link
-renders, so this ships before the zips land. That mirrors how `request_links()`
-already checks each base URL independently.
+The setting **defaults to `DOWNLOAD_BASE_URL`**, since the archive is served
+from the same host. It stays a separate setting so the two can be pointed at
+different hosts later without a code change. The fallback is expressed as
+`os.environ.get(...) or DOWNLOAD_BASE_URL` rather than a `get()` default,
+because compose passes the variable through as an empty string when it is
+unset in `.env`, which would otherwise shadow the fallback.
+
+`legacy_request_links()` still returns an empty dict when the resolved base is
+empty, so setting both to empty renders no link at all -- but with the shared
+default the download button goes live as soon as this deploys. The zips need
+to be in place first, or the button 404s.
 
 Zip only. The old system produced no equivalent of the new documentation HTML
 or the visualization page, and no `status != 1` row is imported, so there is no
