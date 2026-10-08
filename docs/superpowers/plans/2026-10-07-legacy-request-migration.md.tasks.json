@@ -66,7 +66,7 @@
     {
       "id": 7,
       "subject": "Task 8: Archived requests section on past-requests page",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Legacy requests render in a collapsed, visually-distinct section below current requests, and are absent entirely when there are none.\n\n**Files:**\n- Modify: `frontend/src/routes/requests/[[token]]/+page.svelte` (script block; markup lines 191-223)\n\n**Acceptance Criteria:**\n- [ ] Legacy requests load in parallel with current ones, for both the token and signed-in paths\n- [ ] The section is collapsed by default and shows a count\n- [ ] Rows are muted, carry an Archive badge, and link to /requests/legacy/<id>\n- [ ] No section renders when the user has no legacy requests\n- [ ] A legacy fetch failure does not break the current-requests list\n- [ ] bun run check passes\n\n**Verify:** `docker compose exec frontend bun run check` -> 0 errors, then load http://localhost:5173/requests signed in and confirm the section\n\n**Steps:**\n1. Extend imports (Archive, ChevronDown, Collapsible, two fetchers) and add legacyRequests state\n2. Rewrite loadHistory/loadMine to Promise.all with .catch(() => []) on the legacy side\n3. Update the count paragraph\n4. Change empty-state condition at line 191; insert the Collapsible between lines 222 and 223\n5. bun run check + manual check\n6. Commit\n\n```json:metadata\n{\"files\": [\"frontend/src/routes/requests/[[token]]/+page.svelte\"], \"verifyCommand\": \"docker compose exec frontend bun run check\", \"acceptanceCriteria\": [\"Legacy requests load in parallel with current ones, for both the token and signed-in paths\", \"The section is collapsed by default and shows a count\", \"Rows are muted, carry an Archive badge, and link to /requests/legacy/<id>\", \"No section renders when the user has no legacy requests\", \"A legacy fetch failure does not break the current-requests list\", \"bun run check passes\"], \"modelTier\": \"standard\"}\n```",
       "blockedBy": [
         6
@@ -75,7 +75,7 @@
     {
       "id": 8,
       "subject": "Task 9: Legacy request detail page",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** A dedicated page showing a legacy request's summary, boundary, datasets and download link.\n\n**Files:**\n- Create: `frontend/src/routes/requests/legacy/[id]/+page.svelte`\n\n**Acceptance Criteria:**\n- [ ] Renders name, submitted and completed dates, boundary title, and dataset titles\n- [ ] Shows a download button only when download_url is present\n- [ ] Shows an explanatory note that the request cannot be re-run or visualized\n- [ ] An unknown id renders a not-found message rather than a blank page\n- [ ] bun run check passes\n\n**Verify:** `docker compose exec frontend bun run check` -> 0 errors, then open /requests/legacy/<id>\n\n**Steps:**\n1. Create the page component\n2. bun run check\n3. Manually confirm a real id and a bogus 24-char id\n4. Commit\n\n```json:metadata\n{\"files\": [\"frontend/src/routes/requests/legacy/[id]/+page.svelte\"], \"verifyCommand\": \"docker compose exec frontend bun run check\", \"acceptanceCriteria\": [\"Renders name, submitted and completed dates, boundary title, and dataset titles\", \"Shows a download button only when download_url is present\", \"Shows an explanatory note that the request cannot be re-run or visualized\", \"An unknown id renders a not-found message rather than a blank page\", \"bun run check passes\"], \"modelTier\": \"standard\"}\n```",
       "blockedBy": [
         6
@@ -101,5 +101,5 @@
       "description": "**Goal:** Support staff can find and inspect an imported legacy request in the Django admin, as they can a current one.\n\n**Files:**\n- Modify: `backend/analytics/admin.py` (after RequestAdmin, ~line 72)\n\n**Acceptance Criteria:**\n- [ ] LegacyRequest appears in the admin index\n- [ ] Changelist shows id, contact, name, dates and dataset count\n- [ ] contact and id are searchable\n- [ ] Every field is read-only\n- [ ] admin checks pass\n\n**Verify:** `sudo docker compose exec -T backend uv run python manage.py check` -> no issues\n\n**Steps:**\n1. Add LegacyRequestAdmin with readonly_fields and has_add/change_permission False\n2. Run manage.py check; load the changelist\n3. Commit\n\n```json:metadata\n{\"files\": [\"backend/analytics/admin.py\"], \"verifyCommand\": \"sudo docker compose exec -T backend uv run python manage.py check\", \"acceptanceCriteria\": [\"LegacyRequest appears in the admin index\", \"changelist shows id, contact, name, dates, dataset count\", \"contact and id searchable\", \"all fields read-only\", \"admin checks pass\"], \"modelTier\": \"mechanical\"}\n```"
     }
   ],
-  "lastUpdated": "2026-10-08T14:30:54.328350+00:00"
+  "lastUpdated": "2026-10-08T14:39:47.069362+00:00"
 }
