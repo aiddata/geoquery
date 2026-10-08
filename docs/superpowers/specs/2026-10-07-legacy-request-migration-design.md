@@ -35,8 +35,9 @@ a given run actually imports also depends on its `--submitted-before` date; the
 figures below are for the whole 2026-10-05 export. The filters:
 
 - `status == 1` (completed). Drops 8 rows: seven at `-2`, one at `-3`.
-- `submit_time < --submitted-before`. The operator's fixed date, so each run is
-  reproducible and the cutover run picks up exactly the remainder.
+- `submit_time < --submitted-before`. A fixed date, so each run is reproducible
+  and the cutover run picks up exactly the remainder. **The first run uses
+  2026-09-01**, which imports 48,397 of the eligible rows and defers 269.
 - Non-empty contact, boundary, and at least one dataset. Drops 1 row in the
   current export (a request with no datasets). Contact and boundary are
   populated on every completed row today, but the old system is still accepting

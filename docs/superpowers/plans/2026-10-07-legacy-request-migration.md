@@ -2301,5 +2301,11 @@ the cheapest place to catch a wrong `--parquet` or a mistyped date.
   button 404s. Set the variable to an explicitly empty value to keep the button
   dark, or to a URL if the archive ends up on a different host (without a
   trailing `/legacy`, which the code adds).
-- **The cutover re-run.** Re-run the import command with a later `--submitted-before`
-  once the old system stops accepting submissions.
+- **The first run's cutoff is 2026-09-01.** Against the 2026-10-05 export that
+  imports 48,397 rows and defers 269, with the usual 8 non-completed and 1
+  no-datasets skips — 48,675 in total. Verify the dry-run prints exactly those
+  numbers before writing.
+- **The cutover re-run.** Re-run the import against a fresh export with a later
+  `--submitted-before` once the old system stops accepting submissions. That run
+  picks up the 269 deferred rows plus anything submitted since the export;
+  `created` in its output is the number that confirms it.
