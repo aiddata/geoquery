@@ -321,9 +321,17 @@ ASSETS_DIR = Path(os.environ.get("ASSETS_DIR", str(BASE_DIR.parent / "assets")))
 DOCS_DIR = Path(os.environ.get("DOCS_DIR", str(BASE_DIR.parent / "docs")))
 DOWNLOAD_BASE_URL = os.environ.get("DOWNLOAD_BASE_URL", "http://localhost:8000")
 # Base URL for the copied archive of pre-2026 GeoQuery result zips, named
-# <request_id>.zip. Empty until the archive is hosted; legacy requests then
-# simply render no download link rather than a broken one.
-LEGACY_DOWNLOAD_BASE_URL = os.environ.get("LEGACY_DOWNLOAD_BASE_URL", "")
+# <request_id>.zip. Defaults to DOWNLOAD_BASE_URL, since the archive is
+# expected to be served from the same host -- kept as its own setting so the
+# two can be pointed at different hosts later without touching code.
+#
+# `or` rather than a get() default: compose passes the variable through as an
+# empty string when it is unset in .env, so os.environ.get would return ""
+# and never reach the fallback. Setting BOTH to empty still yields no download
+# link, which is the guard legacy_request_links relies on.
+LEGACY_DOWNLOAD_BASE_URL = (
+    os.environ.get("LEGACY_DOWNLOAD_BASE_URL") or DOWNLOAD_BASE_URL
+)
 FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173")
 TOKEN_EXPIRY_MONTHS = int(os.environ.get("TOKEN_EXPIRY_MONTHS", "6"))
 

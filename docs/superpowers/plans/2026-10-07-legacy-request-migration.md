@@ -352,9 +352,12 @@ In `backend/geoquery/settings.py`, directly below the existing `DOWNLOAD_BASE_UR
 
 ```python
 # Base URL for the copied archive of pre-2026 GeoQuery result zips, named
-# <request_id>.zip. Empty until the archive is hosted; legacy requests then
-# simply render no download link rather than a broken one.
-LEGACY_DOWNLOAD_BASE_URL = os.environ.get("LEGACY_DOWNLOAD_BASE_URL", "")
+# <request_id>.zip. Defaults to DOWNLOAD_BASE_URL (same host), kept separate
+# so the two can diverge later. `or` rather than a get() default because
+# compose passes an empty string through when the variable is unset.
+LEGACY_DOWNLOAD_BASE_URL = (
+    os.environ.get("LEGACY_DOWNLOAD_BASE_URL") or DOWNLOAD_BASE_URL
+)
 ```
 
 - [ ] **Step 4: Add the function**
@@ -2292,8 +2295,9 @@ the cheapest place to catch a wrong `--parquet` or a mistyped date.
 
 ## Deferred to the operator
 
-- **`LEGACY_DOWNLOAD_BASE_URL` is left unset** by this plan. Until the zip archive is
-  hosted, legacy detail pages render without a download button. Set the environment
-  variable when the archive location is known — no code change needed.
+- **`LEGACY_DOWNLOAD_BASE_URL` defaults to `DOWNLOAD_BASE_URL`**, so the download
+  button is live as soon as this deploys. The zips must be copied to that host,
+  named `<request_id>.zip`, before deploying — otherwise the button 404s. Set the
+  variable explicitly only if the archive ends up on a different host.
 - **The cutover re-run.** Re-run the import command with a later `--submitted-before`
   once the old system stops accepting submissions.
