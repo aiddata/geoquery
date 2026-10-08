@@ -320,7 +320,13 @@ class RequestHistoryView(APIView):
                 status=status.HTTP_410_GONE,
             )
 
-        qs = Request.objects.filter(contact=token_obj.email).order_by("-submit_time")
+        # iexact, not an exact match: contact is whatever the submitter typed,
+        # so a case difference would hide a user's own requests from their own
+        # history link while requests_for_user (which matches case-insensitively)
+        # still showed them.
+        qs = Request.objects.filter(contact__iexact=token_obj.email).order_by(
+            "-submit_time"
+        )
         data = [
             {
                 "id": str(r.id),

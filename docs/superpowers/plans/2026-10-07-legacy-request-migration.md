@@ -101,7 +101,7 @@ Task order follows the dependency chain: model → services → claims → comma
 - [ ] `LegacyRequest` is creatable with a 24-character ObjectId primary key
 - [ ] `dataset_titles` round-trips a list of strings
 - [ ] `user` is nullable and set to NULL when the user is deleted
-- [ ] The functional index on `Lower("contact")` exists in the migration
+- [ ] The functional index on `Upper("contact")` exists in the migration
 - [ ] `makemigrations --check` reports no further changes
 
 **Verify:** `sudo docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2` → OK
@@ -236,8 +236,10 @@ class LegacyRequest(models.Model):
         db_table = "legacy_requests"
         indexes = [
             # Ownership lookups match contact case-insensitively, mirroring
-            # requests_contact_lower_idx on Request.
-            models.Index(Lower("contact"), name="legacy_contact_lower_idx"),
+            # requests_contact_upper_idx on Request. Upper, not Lower: Django
+            # renders __iexact as UPPER(x) = UPPER(y) on PostgreSQL, and an
+            # expression index only applies when its expression matches.
+            models.Index(Upper("contact"), name="legacy_contact_upper_idx"),
             # fields= is required here: Index's positional args are
             # *expressions, so a bare "-submit_time" raises models.E012.
             models.Index(fields=["-submit_time"], name="legacy_submit_time_idx"),

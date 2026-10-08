@@ -7,7 +7,7 @@ from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.db.models import F, Func
-from django.db.models.functions import Lower
+from django.db.models.functions import Upper
 from django.utils import timezone
 
 from datasets.models import Dataset, DatasetResource
@@ -311,7 +311,13 @@ class Request(models.Model):
         db_table = "requests"
         indexes = [
             # Claims and history lookups match contact case-insensitively.
-            models.Index(Lower("contact"), name="requests_contact_lower_idx"),
+            # Upper rather than Lower: Django renders __iexact as
+            # UPPER(x) = UPPER(y) on PostgreSQL (hardcoded in its postgresql
+            # backend's lookup_cast), and an expression index is only eligible
+            # when its expression matches the predicate's exactly. The former
+            # lower(contact) index could never serve these lookups, so every
+            # claim and history read sequentially scanned.
+            models.Index(Upper("contact"), name="requests_contact_upper_idx"),
         ]
 
     def featmap_ids(self, using="default"):
@@ -438,8 +444,9 @@ class LegacyRequest(models.Model):
         db_table = "legacy_requests"
         indexes = [
             # Ownership lookups match contact case-insensitively, mirroring
-            # requests_contact_lower_idx on Request.
-            models.Index(Lower("contact"), name="legacy_contact_lower_idx"),
+            # requests_contact_upper_idx on Request. See the note there for
+            # why the expression is Upper.
+            models.Index(Upper("contact"), name="legacy_contact_upper_idx"),
             models.Index(fields=["-submit_time"], name="legacy_submit_time_idx"),
         ]
 

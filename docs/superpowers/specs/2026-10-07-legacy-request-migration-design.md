@@ -83,23 +83,21 @@ Nothing is added to `Request`, and no existing query changes.
 `contact` rather than `db_index=True` mirrors `requests_contact_lower_idx` on
 `Request`.
 
-**Known defect, deferred pending a decision.** That index does *not* in fact
-serve the `contact__iexact` ownership lookups. Django renders `iexact` as
-`UPPER(contact::text) = UPPER(%s)`, which cannot use a `btree(lower(contact))`
-index. Confirmed by EXPLAIN with `enable_seqscan=off`: the `UPPER` form plans a
-Seq Scan, the `LOWER` form an Index Scan. Since the index was specified to
-mirror `Request`'s, the same defect applies there -- `requests_for_user`,
-`legacy_requests_for_user` and `claim_requests_for_email` all sequentially
-scan, and the comment at `accounts/signals.py:10-11` claiming the lookup is
-"cheap thanks to the functional index on LOWER(requests.contact)" is wrong
-today.
+**Why `Upper` and not `Lower`.** Django renders `__iexact` as
+`UPPER(x) = UPPER(y)` on PostgreSQL -- hardcoded in the backend's
+`lookup_cast`, with no setting to change it -- and an expression index is only
+eligible when its expression matches the predicate's exactly. A
+`btree(lower(contact))` index therefore cannot serve a `contact__iexact`
+lookup. The original design specified `Lower`, mirroring the pre-existing
+`requests_contact_lower_idx`, and so inherited its defect: every ownership read
+on both tables was sequentially scanning. Migration
+`0032_contact_upper_indexes` swaps both tables to `Upper`, which fixes all the
+call sites without changing a single query, and the mirroring between
+`requests_for_user` and `legacy_requests_for_user` is preserved for free.
 
-Fixing it means reshaping the query in both ownership functions together
-(`.annotate(c=Lower("contact")).filter(c__in=[e.lower() for e in emails])`) or
-adding `Upper` indexes to both tables. Either touches the existing production
-read path, so it is raised for decision rather than changed under this spec.
-The index is left in place: it is correct for the query shape the fix would
-introduce, and harmless meanwhile.
+This changes nothing users see. An expression index keeps `upper(contact)` only
+inside its own B-tree keys; the column is never rewritten and `SELECT contact`
+still returns the address as the submitter typed it.
 
 `dataset_titles` takes `custom_name` from each `release_data` entry and `title`
 from each `raster_data` entry, release entries first — the two fields the old UI
