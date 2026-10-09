@@ -99,9 +99,14 @@ class ExtractTask(models.Model):
     hashtext($1::text). Func() below calls that function directly rather
     than reconstructing the cast+hashtext expression in Python, so this
     declaration matches what's actually in the database.
+
+    id is bigint. It was an int4 AutoField until extract_tasks_id_seq ran out
+    at 2,147,483,647 with ~483M tasks still to build; migration 0031 converts
+    it (see database.md section 11). Ids already start above int4's range, so
+    SQL that carries them must cast to bigint[], never int[].
     """
 
-    id = models.AutoField(primary_key=True)
+    id = models.BigAutoField(primary_key=True)
     resource_ids = ArrayField(models.IntegerField())
     resource_ids_hash = models.GeneratedField(
         expression=Func(
