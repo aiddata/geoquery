@@ -233,7 +233,7 @@ def claim_pending_tasks(limit=1):
                     """
                     UPDATE extract_tasks AS t
                     SET status = 2, update_time = NOW()
-                    FROM unnest(%s::int[], %s::int[]) AS v(dataset_id, id)
+                    FROM unnest(%s::int[], %s::bigint[]) AS v(dataset_id, id)
                     WHERE t.dataset_id = v.dataset_id AND t.id = v.id
                       AND t.dataset_id = ANY(%s::int[])
                     """,
@@ -245,7 +245,16 @@ def claim_pending_tasks(limit=1):
 
 
 def _ref_arrays(refs):
-    """Return aligned dataset/id arrays and distinct datasets for pruning."""
+    """Return aligned dataset/id arrays and distinct datasets for pruning.
+
+    Every statement that unnests these casts the id array to bigint[], never
+    int[]: task ids passed int4's range when extract_tasks_id_seq ran out at
+    2,147,483,647, and an int[] cast would overflow on the first id above it.
+    bigint[] is also correct against the old int4 column -- int4 = int8 is a
+    cross-type btree operator, so the (dataset_id, id) primary key still
+    serves the join either way -- which is what lets this ship before the
+    column conversion rather than with it.
+    """
     dataset_ids = [dataset_id for _, dataset_id in refs]
     return [dataset_ids, [task_id for task_id, _ in refs], sorted(set(dataset_ids))]
 
@@ -268,7 +277,7 @@ def _release_claimed_tasks(refs):
             """
             UPDATE extract_tasks AS t
             SET status = 0, update_time = NOW()
-            FROM unnest(%s::int[], %s::int[]) AS v(dataset_id, id)
+            FROM unnest(%s::int[], %s::bigint[]) AS v(dataset_id, id)
             WHERE t.dataset_id = v.dataset_id AND t.id = v.id AND t.status = 2
               AND t.dataset_id = ANY(%s::int[])
             """,
@@ -381,7 +390,7 @@ def _persist_outcomes(outcomes):
                     SET status = v.status, error = v.error,
                         complete_time = CASE WHEN v.status = 1
                             THEN STATEMENT_TIMESTAMP() ELSE t.complete_time END
-                    FROM unnest(%s::int[], %s::int[], %s::timestamptz[], %s::int[], %s::text[])
+                    FROM unnest(%s::int[], %s::bigint[], %s::timestamptz[], %s::int[], %s::text[])
                         AS v(dataset_id, id, claimed_at, status, error)
                     WHERE t.dataset_id = v.dataset_id AND t.id = v.id
                       AND t.status = 2 AND t.update_time IS NOT DISTINCT FROM v.claimed_at
@@ -402,7 +411,7 @@ def _persist_outcomes(outcomes):
                     cursor.execute(
                         """
                         DELETE FROM extract_data AS d
-                        USING unnest(%s::int[], %s::int[]) AS v(dataset_id, id)
+                        USING unnest(%s::int[], %s::bigint[]) AS v(dataset_id, id)
                         WHERE d.dataset_id = v.dataset_id AND d.extract_task_id = v.id
                           AND d.dataset_id = ANY(%s::int[])
                         """,

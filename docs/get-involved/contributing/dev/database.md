@@ -26,6 +26,13 @@ The short version. Each rule links to the section that justifies it.
 - Never issue queries in a loop over tasks or features. Prefetch by chunk and
   look up from a dict — the cost is round trips, not query time (§7).
 
+**Passing task ids to SQL**
+
+- Cast id arrays to `bigint[]`, never `int[]`. `extract_tasks_id_seq` passed
+  int4's 2,147,483,647 in October 2026, so every new task id overflows an
+  `int[]` cast. `bigint[]` also works against an int4 column, so it is never
+  the wrong choice.
+
 **Adding or changing an index**
 
 - Check what it does to HOT updates. Any index mentioning a frequently-updated
