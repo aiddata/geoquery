@@ -1,6 +1,17 @@
+import type { FilterSpecification, PropertyValueSpecification } from 'maplibre-gl';
 import type { VizPayload } from '$lib/api';
 
 // Shared utilities for the /viz/[id] and /viz/explore map renderers.
+
+// Below the backend's FEATURE_TILE_POINT_MAX_ZOOM, boundary tiles carry each
+// feature's representative point instead of its polygon. Every boundary
+// source gets a circle layer for those points next to its fill and line
+// layers; the filter keeps it from drawing a dot at every polygon vertex.
+export const fcPointId = (name: string) => `fc-point-${name}`;
+export const FC_POINT_FILTER: FilterSpecification = ['==', ['geometry-type'], 'Point'];
+export const FC_POINT_RADIUS: PropertyValueSpecification<number> = [
+	'interpolate', ['linear'], ['zoom'], 0, 2, 6, 4
+];
 
 export const PALETTES: Record<string, { label: string; colors: string[] }> = {
 	YlOrRd:  { label: 'Yellow → Orange → Red',  colors: ['#ffffb2','#fecc5c','#fd8d3c','#f03b20','#bd0026'] },

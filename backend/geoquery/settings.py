@@ -428,6 +428,11 @@ DEFAULT_FROM_EMAIL = "AidData GeoQuery <geoquery@aiddata.wm.edu>"
 # Protomaps
 PROTOMAPS_API_KEY = os.environ.get("PROTOMAPS_API_KEY", "")
 
+# Boundary vector tiles at or below this zoom carry each feature's
+# representative point instead of its polygon, so large collections load fast
+# when zoomed out. -1 (the default) disables it.
+FEATURE_TILE_POINT_MAX_ZOOM = int(os.environ.get("FEATURE_TILE_POINT_MAX_ZOOM", "-1"))
+
 # Notebook export (GitHub token scoped to `gist` only)
 GITHUB_GIST_TOKEN = os.environ.get("GITHUB_GIST_TOKEN", "")
 # How long a Colab export gist lives before the cleanup sweep removes it.

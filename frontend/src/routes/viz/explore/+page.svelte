@@ -14,6 +14,7 @@
 	import {
 		PALETTES, quantileBreaks, equalBreaks, buildColorExpression,
 		fmt, prettyColumn, escapeHtml, computeStats,
+		FC_POINT_FILTER, FC_POINT_RADIUS, fcPointId,
 	} from '$lib/viz';
 	import { parseFormula, evaluateFormula, formulaColumns } from '$lib/formula';
 	import { GripVertical, AlertCircle, Plus, X, Search, ChevronDown, Download, ChartColumn, Map as MapIcon } from '@lucide/svelte';
@@ -332,10 +333,20 @@
 			source: `fc-${fc.name}`, 'source-layer': fc.name,
 			paint: { 'line-color': '#334155', 'line-width': 0.75 }
 		});
+		map.addLayer({
+			id: fcPointId(fc.name), type: 'circle',
+			source: `fc-${fc.name}`, 'source-layer': fc.name, filter: FC_POINT_FILTER,
+			paint: {
+				'circle-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#fff', '#cbd5e1'],
+				'circle-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.9, 0.75],
+				'circle-radius': FC_POINT_RADIUS,
+				'circle-stroke-color': '#334155', 'circle-stroke-width': 0.75
+			}
+		});
 
 		const fcName = fc.name;
 		let hoveredId: number | null = null;
-		map.on('mousemove', `fc-fill-${fcName}`, (e) => {
+		map.on('mousemove', [`fc-fill-${fcName}`, fcPointId(fcName)], (e) => {
 			if (!e.features?.length) return;
 			const fid = e.features[0].id as number;
 			if (hoveredId !== null && hoveredId !== fid)
@@ -347,7 +358,7 @@
 				popup.setLngLat(e.lngLat).setHTML(renderPopupHtml(data.features[String(fid)], String(fid))).addTo(map!);
 			}
 		});
-		map.on('mouseleave', `fc-fill-${fcName}`, () => {
+		map.on('mouseleave', [`fc-fill-${fcName}`, fcPointId(fcName)], () => {
 			if (hoveredId !== null) {
 				map!.setFeatureState({ source: `fc-${fcName}`, sourceLayer: fcName, id: hoveredId }, { hover: false });
 				hoveredId = null;
@@ -360,6 +371,7 @@
 
 	function removeFCFromMap(fcName: string) {
 		if (!map) return;
+		if (map.getLayer(fcPointId(fcName))) map.removeLayer(fcPointId(fcName));
 		if (map.getLayer(`fc-fill-${fcName}`)) map.removeLayer(`fc-fill-${fcName}`);
 		if (map.getLayer(`fc-line-${fcName}`)) map.removeLayer(`fc-line-${fcName}`);
 		if (map.getSource(`fc-${fcName}`)) map.removeSource(`fc-${fcName}`);
@@ -375,12 +387,18 @@
 		map.fitBounds([[w, s], [e, n]], { padding: 40, maxZoom: 10 });
 	}
 
+	// Points (served at low zoom) and polygons of one FC share a color.
+	function setFCColor(fc: string, color: unknown) {
+		map!.setPaintProperty(`fc-fill-${fc}`, 'fill-color', color);
+		map!.setPaintProperty(fcPointId(fc), 'circle-color', color);
+	}
+
 	// ── Colors ────────────────────────────────────────────────────────────────
 	async function applyColors() {
 		if (!map || !mapReady) return;
 		if (!data || !activeColumn) {
 			for (const fc of fcOrder) {
-				if (map.getLayer(`fc-fill-${fc}`)) map.setPaintProperty(`fc-fill-${fc}`, 'fill-color', '#cbd5e1');
+				if (map.getLayer(`fc-fill-${fc}`)) setFCColor(fc, '#cbd5e1');
 			}
 			return;
 		}
@@ -395,7 +413,7 @@
 		if (!values.length) {
 			stats = null; currentBreaks = null;
 			for (const fc of fcOrder) {
-				if (map.getLayer(`fc-fill-${fc}`)) map.setPaintProperty(`fc-fill-${fc}`, 'fill-color', '#cbd5e1');
+				if (map.getLayer(`fc-fill-${fc}`)) setFCColor(fc, '#cbd5e1');
 			}
 			return;
 		}
@@ -407,7 +425,7 @@
 		for (const fc of fcOrder) {
 			if (!map.getLayer(`fc-fill-${fc}`)) continue;
 			const expr = buildColorExpression(fc, activeColumn, breaks, palette, data.features, overrides);
-			map.setPaintProperty(`fc-fill-${fc}`, 'fill-color', [
+			setFCColor(fc, [
 				'case', ['boolean', ['feature-state', 'hover'], false], '#fff', expr
 			]);
 		}
@@ -428,6 +446,7 @@
 		const vis = visible ? 'visible' : 'none';
 		if (map.getLayer(`fc-fill-${fcName}`)) map.setLayoutProperty(`fc-fill-${fcName}`, 'visibility', vis);
 		if (map.getLayer(`fc-line-${fcName}`)) map.setLayoutProperty(`fc-line-${fcName}`, 'visibility', vis);
+		if (map.getLayer(fcPointId(fcName))) map.setLayoutProperty(fcPointId(fcName), 'visibility', vis);
 	}
 
 	$effect(() => {
@@ -437,6 +456,7 @@
 			const fc = order[i];
 			if (m.getLayer(`fc-fill-${fc}`)) m.moveLayer(`fc-fill-${fc}`);
 			if (m.getLayer(`fc-line-${fc}`)) m.moveLayer(`fc-line-${fc}`);
+			if (m.getLayer(fcPointId(fc))) m.moveLayer(fcPointId(fc));
 		}
 	});
 

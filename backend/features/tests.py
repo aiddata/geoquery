@@ -1,9 +1,10 @@
 from django.contrib.gis.geos import Point, Polygon
 from django.db import connection
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from features.models import Feature, FeatureCollection
+from features.matviews import update_simplified_geometries
+from features.models import FeatMap, Feature, FeatureCollection
 from geoquery.testing import ReplicaReadsTestMixin
 
 
@@ -181,3 +182,60 @@ class FeatureRepresentativePointTests(TestCase):
 
         feature = Feature.objects.get(pk=feature_id)
         self.assertEqual(feature.representative_point, Point(1, 1, srid=4326))
+
+
+class PointTileTests(ReplicaReadsTestMixin, TestCase):
+    """Tiles at or below FEATURE_TILE_POINT_MAX_ZOOM carry representative points.
+
+    The feature's polygon lies in the north-east quadrant, but its point is in
+    the south-west one. Whether a tile is empty therefore shows which geometry
+    it was built from, without needing an MVT decoder.
+    """
+
+    polygon = Polygon(((10, 10), (10, 60), (170, 60), (170, 10), (10, 10)), srid=4326)
+    point = Point(-100, -40, srid=4326)
+
+    # z/x/y of tiles containing the polygon but not the point, and vice versa.
+    POLYGON_TILE_Z1 = (1, 1, 0)
+    POINT_TILE_Z1 = (1, 0, 1)
+    POLYGON_TILE_Z2 = (2, 2, 1)
+
+    def setUp(self):
+        self.fc = make_feature_collection(name="tile-fc", path="tile-fc")
+        self.upload_fc = make_feature_collection(
+            name="user_upload_tiles", path="user_upload_tiles", is_user_upload=True
+        )
+        for fc in (self.fc, self.upload_fc):
+            feature = Feature.objects.create(
+                shape=self.polygon, representative_point=self.point
+            )
+            FeatMap.objects.create(fc=fc, geom=feature, name="Somewhere")
+        update_simplified_geometries(self.fc.id)
+
+    def get_tile(self, fc, z, x, y):
+        response = self.client.get(
+            reverse("features:feature-collection-tiles", args=[fc.name, z, x, y])
+        )
+        self.assertEqual(response.status_code, 200)
+        return response.content
+
+    def test_disabled_by_default_serves_polygons(self):
+        self.assertNotEqual(self.get_tile(self.fc, *self.POLYGON_TILE_Z1), b"")
+        self.assertEqual(self.get_tile(self.fc, *self.POINT_TILE_Z1), b"")
+
+    @override_settings(FEATURE_TILE_POINT_MAX_ZOOM=1)
+    def test_serves_points_at_or_below_threshold(self):
+        for fc in (self.fc, self.upload_fc):
+            with self.subTest(fc=fc.name):
+                self.assertEqual(self.get_tile(fc, *self.POLYGON_TILE_Z1), b"")
+                self.assertNotEqual(self.get_tile(fc, *self.POINT_TILE_Z1), b"")
+
+    @override_settings(FEATURE_TILE_POINT_MAX_ZOOM=1)
+    def test_serves_polygons_above_threshold(self):
+        for fc in (self.fc, self.upload_fc):
+            with self.subTest(fc=fc.name):
+                self.assertNotEqual(self.get_tile(fc, *self.POLYGON_TILE_Z2), b"")
+
+    @override_settings(FEATURE_TILE_POINT_MAX_ZOOM=2)
+    def test_threshold_is_inclusive(self):
+        self.assertEqual(self.get_tile(self.fc, *self.POLYGON_TILE_Z2), b"")

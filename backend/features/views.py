@@ -1,5 +1,6 @@
 from pathlib import Path
 import yaml
+from django.conf import settings
 from django.db import connections
 from django.db.models import Q
 from django.http import HttpResponse
@@ -95,7 +96,8 @@ def feature_collection_vector_tiles(request, fc_name, z, x, y):
     - z, x, y: Tile coordinates (zoom, x, y)
 
     Returns Mapbox Vector Tile (MVT) format for use with MapLibre GL JS.
-    Standard FCs use pre-simplified matviews. User-upload FCs use per-request
+    At or below settings.FEATURE_TILE_POINT_MAX_ZOOM every FC is served as
+    representative points rather than polygons. Above it, standard FCs use pre-simplified matviews. User-upload FCs use per-request
     dynamic simplification to avoid rebuilding shared matviews for unknown geometry.
 
     Visibility is resolved in Python (see catalog.access) rather than in the
@@ -109,6 +111,12 @@ def feature_collection_vector_tiles(request, fc_name, z, x, y):
         # name produced before this change, and it keeps MapLibre from logging
         # an error for every tile in the viewport.
         return HttpResponse(b"", content_type=_MVT_CONTENT_TYPE)
+
+    if z <= settings.FEATURE_TILE_POINT_MAX_ZOOM:
+        # Points need no ST_Intersects, so this builder takes one fewer z/x/y.
+        sql = _mvt_sql_points()
+        params = [fc_name, z, x, y, fc.id, z, x, y]
+        return _tile_response(fc, sql, params)
 
     if fc.is_user_upload:
         # Dynamic simplify at request time. The z<=5 tier uses a finer
@@ -137,7 +145,10 @@ def feature_collection_vector_tiles(request, fc_name, z, x, y):
     # The first param stays the *name*: it is the MVT layer name, which the
     # frontend matches on via `source-layer`. Only the WHERE param is an id.
     params = [fc_name, z, x, y, fc.id, z, x, y, z, x, y]
+    return _tile_response(fc, sql, params)
 
+
+def _tile_response(fc, sql, params):
     # The visibility resolution above deliberately stays on the primary so a
     # freshly revoked catalog grant takes effect immediately; only the bulk
     # geometry read -- by far the hottest query in the app -- goes to a standby.
@@ -292,6 +303,36 @@ def _mvt_sql_raw():
                 AND ST_Intersects(
                     f.shape,
                     ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
+                )
+        ) mvtgeoms
+        WHERE mvtgeoms.geom IS NOT NULL
+    """
+
+
+def _mvt_sql_points():
+    """SQL for low-zoom tiles: each feature's representative point in place of
+    its geometry, for standard and user-upload FCs alike.
+
+    The && test is against the 4326 envelope so it can use
+    idx_features_repr_point, and is exact for points, so no ST_Intersects. The
+    envelope's margin matches the MVT buffer: points just past the tile edge
+    are included so their circles are not clipped there.
+    """
+    return """
+        SELECT ST_AsMVT(mvtgeoms.*, %s) AS mvt FROM (
+            SELECT
+                ST_AsMVTGeom(
+                    ST_Transform(f.representative_point, 3857),
+                    ST_TileEnvelope(%s, %s, %s),
+                    4096, 256, true
+                ) AS geom,
+                f.id,
+                fm.name
+            FROM feat_map fm
+            JOIN features f ON fm.geom_id = f.id
+            WHERE fm.fc_id = %s
+                AND f.representative_point && ST_Transform(
+                    ST_TileEnvelope(%s, %s, %s, margin => 256.0 / 4096), 4326
                 )
         ) mvtgeoms
         WHERE mvtgeoms.geom IS NOT NULL

@@ -4,7 +4,7 @@
 	import 'maplibre-gl/dist/maplibre-gl.css';
 	import { layers, namedFlavor } from '@protomaps/basemaps';
 	import { boundaryTileUrl, fetchConfig } from '$lib/api';
-	import { escapeHtml } from '$lib/viz';
+	import { escapeHtml, FC_POINT_FILTER, FC_POINT_RADIUS, fcPointId } from '$lib/viz';
 	import type { FeatureCollection } from 'geojson';
 
 	export interface FcStyle {
@@ -111,6 +111,7 @@
 
 		for (const name of existingFcNames) {
 			if (!names.includes(name)) {
+				if (m.getLayer(fcPointId(name))) m.removeLayer(fcPointId(name));
 				if (m.getLayer(fcLineId(name))) m.removeLayer(fcLineId(name));
 				if (m.getLayer(fcFillId(name))) m.removeLayer(fcFillId(name));
 				if (m.getSource(fcSourceId(name))) m.removeSource(fcSourceId(name));
@@ -157,6 +158,30 @@
 					'line-width': lineWidth
 				}
 			});
+
+			m.addLayer({
+				id: fcPointId(name),
+				type: 'circle',
+				source: fcSourceId(name),
+				'source-layer': name,
+				filter: FC_POINT_FILTER,
+				paint: {
+					'circle-color': color,
+					'circle-radius': FC_POINT_RADIUS,
+					// Higher than the fill's opacities: a small dot at 0.15 is
+					// nearly invisible.
+					'circle-opacity': [
+						'case',
+						['boolean', ['feature-state', 'selected'], false],
+						0.9,
+						['boolean', ['feature-state', 'hover'], false],
+						0.6,
+						0.3
+					],
+					'circle-stroke-color': color,
+					'circle-stroke-width': lineWidth
+				}
+			});
 		}
 	});
 
@@ -167,12 +192,18 @@
 		for (const style of fcStyles) {
 			const fillId = fcFillId(style.name);
 			const lineId = fcLineId(style.name);
+			const pointId = fcPointId(style.name);
 			if (m.getLayer(fillId)) {
 				m.setPaintProperty(fillId, 'fill-color', style.color);
 			}
 			if (m.getLayer(lineId)) {
 				m.setPaintProperty(lineId, 'line-color', style.color);
 				m.setPaintProperty(lineId, 'line-width', style.lineWidth);
+			}
+			if (m.getLayer(pointId)) {
+				m.setPaintProperty(pointId, 'circle-color', style.color);
+				m.setPaintProperty(pointId, 'circle-stroke-color', style.color);
+				m.setPaintProperty(pointId, 'circle-stroke-width', style.lineWidth);
 			}
 		}
 	});
@@ -186,7 +217,7 @@
 
 		if (!name || !fcNames.includes(name)) return;
 
-		const fillLayer = fcFillId(name);
+		const hitLayers = [fcFillId(name), fcPointId(name)];
 		const src = fcSourceId(name);
 
 		const onMouseMove = (e: maplibregl.MapLayerMouseEvent) => {
@@ -230,14 +261,14 @@
 			onFeatureClick(e.features[0].id as number);
 		};
 
-		m.on('mousemove', fillLayer, onMouseMove);
-		m.on('mouseleave', fillLayer, onMouseLeave);
-		m.on('click', fillLayer, onClick);
+		m.on('mousemove', hitLayers, onMouseMove);
+		m.on('mouseleave', hitLayers, onMouseLeave);
+		m.on('click', hitLayers, onClick);
 
 		return () => {
-			m.off('mousemove', fillLayer, onMouseMove);
-			m.off('mouseleave', fillLayer, onMouseLeave);
-			m.off('click', fillLayer, onClick);
+			m.off('mousemove', hitLayers, onMouseMove);
+			m.off('mouseleave', hitLayers, onMouseLeave);
+			m.off('click', hitLayers, onClick);
 			if (hoveredFeatureId !== null) {
 				m.setFeatureState(
 					{ source: src, sourceLayer: name, id: hoveredFeatureId },

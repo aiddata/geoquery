@@ -8,6 +8,7 @@
 	import {
 		PALETTES, quantileBreaks, equalBreaks, buildColorExpression,
 		fmt, prettyColumn, escapeHtml, computeStats,
+		FC_POINT_FILTER, FC_POINT_RADIUS, fcPointId,
 	} from '$lib/viz';
 	import { parseFormula, evaluateFormula, formulaColumns } from '$lib/formula';
 	import { GripVertical, AlertCircle, Plus, X, Download, ChartColumn, Map as MapIcon } from '@lucide/svelte';
@@ -213,7 +214,23 @@
 				source: `fc-${fc}`, 'source-layer': fc,
 				paint: { 'line-color': '#334155', 'line-width': 0.75 }
 			});
+			map.addLayer({
+				id: fcPointId(fc), type: 'circle',
+				source: `fc-${fc}`, 'source-layer': fc, filter: FC_POINT_FILTER,
+				paint: {
+					'circle-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#fff', '#cbd5e1'],
+					'circle-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.9, 0.75],
+					'circle-radius': FC_POINT_RADIUS,
+					'circle-stroke-color': '#334155', 'circle-stroke-width': 0.75
+				}
+			});
 		}
+	}
+
+	// Points (served at low zoom) and polygons of one FC share a color.
+	function setFCColor(fc: string, color: unknown) {
+		map!.setPaintProperty(`fc-fill-${fc}`, 'fill-color', color);
+		map!.setPaintProperty(fcPointId(fc), 'circle-color', color);
 	}
 
 	function fitToBbox() {
@@ -239,7 +256,7 @@
 		if (values.length === 0) {
 			stats = null; currentBreaks = null;
 			for (const fc of data.fc_names) {
-				map.setPaintProperty(`fc-fill-${fc}`, 'fill-color', '#cbd5e1');
+				setFCColor(fc, '#cbd5e1');
 			}
 			return;
 		}
@@ -252,7 +269,7 @@
 		const palette = PALETTES[currentPalette].colors;
 		for (const fc of data.fc_names) {
 			const expr = buildColorExpression(fc, activeColumn, breaks, palette, data.features, overrides);
-			map.setPaintProperty(`fc-fill-${fc}`, 'fill-color', [
+			setFCColor(fc, [
 				'case', ['boolean', ['feature-state', 'hover'], false], '#fff', expr
 			]);
 		}
@@ -282,6 +299,7 @@
 		const vis = visible ? 'visible' : 'none';
 		map.setLayoutProperty(`fc-fill-${fc}`, 'visibility', vis);
 		map.setLayoutProperty(`fc-line-${fc}`, 'visibility', vis);
+		map.setLayoutProperty(fcPointId(fc), 'visibility', vis);
 	}
 
 	$effect(() => {
@@ -291,6 +309,7 @@
 			const fc = order[i];
 			if (m.getLayer(`fc-fill-${fc}`)) m.moveLayer(`fc-fill-${fc}`);
 			if (m.getLayer(`fc-line-${fc}`)) m.moveLayer(`fc-line-${fc}`);
+			if (m.getLayer(fcPointId(fc))) m.moveLayer(fcPointId(fc));
 		}
 	});
 
@@ -322,9 +341,9 @@
 		if (!map || !data) return;
 		const m = map;
 		for (const fc of data.fc_names) {
-			const fillId = `fc-fill-${fc}`;
+			const hitLayers = [`fc-fill-${fc}`, fcPointId(fc)];
 			let hoveredId: number | null = null;
-			m.on('mousemove', fillId, (e) => {
+			m.on('mousemove', hitLayers, (e) => {
 				if (!e.features?.length) return;
 				const f = e.features[0]; const fid = f.id as number;
 				if (hoveredId !== null && hoveredId !== fid)
@@ -337,7 +356,7 @@
 					popup.setLngLat(e.lngLat).setHTML(renderPopupHtml(record, String(fid))).addTo(m);
 				}
 			});
-			m.on('mouseleave', fillId, () => {
+			m.on('mouseleave', hitLayers, () => {
 				if (hoveredId !== null) {
 					m.setFeatureState({ source: `fc-${fc}`, sourceLayer: fc, id: hoveredId }, { hover: false });
 					hoveredId = null;
