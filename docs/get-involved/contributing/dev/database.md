@@ -34,6 +34,8 @@ The short version. Each rule links to the section that justifies it.
 - Prefer partial indexes whose covered set *shrinks* over time to ones that grow
   with the table. Ask what the index costs when the table is at its final size,
   not today's (§3).
+- Don't hand-set autovacuum reloptions on `extract_tasks` partitions: the
+  reconciler owns them and puts each on the active or drained profile (§3).
 
 **Adding a background task**
 
@@ -195,6 +197,42 @@ does anything — and at `fillfactor=50` you get 97.8% HOT.
 
 No index involving `status` — predicate or column — permits HOT on status
 changes. There is no clever index that gets both.
+
+### Vacuuming it: two autovacuum profiles, set per partition
+
+The price of that decision is paid in vacuum. Autovacuum fires on dead *heap*
+tuples (`threshold + scale_factor × reltuples`, 0.2 globally), but the cost of
+not vacuuming lands on the partial indexes, which every task leaves on its first
+update. Measured in October 2026:
+
+| partition | state | what happened at the global 0.2 |
+|---|---|---|
+| `ds_24` | active, 7,340 dead tuples/s | 141 min between vacuums; pending index 14 GB for ~1.2 GB of live entries |
+| `ds_23` | drained, 36M dead / 70M threshold | never vacuumed again; every claim walked 704 MB of dead entries — 277 ms, inside the claim lock, for zero rows |
+
+No single setting serves both. Lowering the trigger for an active partition costs
+vacuum I/O forever, because each run scans every index on the partition however
+few tuples it removes: on `ds_24`, 0.05 meant ~20 MB/s and 0.01 ~126 MB/s. A
+drained partition needs exactly one more vacuum, after which it costs nothing.
+
+So `analytics.partition_vacuum` reconciles every `extract_tasks` partition onto
+one of two profiles, every ten minutes (beat: `reconcile-partition-autovacuum`):
+
+| profile | when | reloptions |
+|---|---|---|
+| active | any row at status 0, 2 or 3 | `autovacuum_vacuum_scale_factor = 0.05` |
+| drained | none | `autovacuum_vacuum_scale_factor = 0`, `autovacuum_vacuum_threshold = 0` |
+
+A reconciler rather than a migration because `CREATE TABLE … PARTITION OF` does
+not inherit reloptions, and because a partition's state changes: it fills, drains,
+and fills again when its dataset gains resources or processing options. It also
+removes hand-set `autovacuum_vacuum_cost_limit` overrides. `extract_data` stays on
+the global settings — written once per task and deleted only on a rerun, it has no
+partial index churning under an unreachable trigger.
+
+To see or apply it on demand: `manage.py reconcile_partition_autovacuum
+[--dry-run]`. Don't set autovacuum reloptions on an `extract_tasks` partition by
+hand; the next run replaces them.
 
 ---
 

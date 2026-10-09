@@ -16,7 +16,7 @@ from analytics.metrics import start_worker_exporter
 from prometheus_client import Counter, Gauge, Histogram
 
 JOBS = ("builder", "builder_dispatch", "request_sweep", "task_reaper",
-        "request_reaper", "materialize", "boundary_ingest")
+        "request_reaper", "materialize", "boundary_ingest", "autovacuum_reconcile")
 JOB_RUNS = Counter("geoquery_background_job_runs", "Finished job invocations", ["job_name", "outcome"])
 JOB_SECONDS = Histogram(
     "geoquery_background_job_seconds", "Wall time per finished job invocation", ["job_name"],

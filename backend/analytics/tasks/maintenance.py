@@ -37,6 +37,23 @@ def free_stale_processing_tasks():
 
 
 @shared_task
+@tagged("sweep.autovacuum")
+@observe_job("autovacuum_reconcile")
+def reconcile_partition_autovacuum():
+    """Keep each extract_tasks partition on the autovacuum profile its state needs.
+
+    See analytics.partition_vacuum for the two profiles and why one setting
+    cannot serve both.
+    """
+    from analytics.partition_vacuum import reconcile_partition_autovacuum as reconcile
+
+    result = reconcile()
+    result.pop("changes")  # each change is logged as it is made
+    logger.info("Partition autovacuum: %s", result)
+    return result
+
+
+@shared_task
 @tagged("sweep.requests")
 @observe_job("request_reaper")
 def reset_stale_requests():
