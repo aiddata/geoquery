@@ -85,18 +85,28 @@ def run_chunk(idle_seconds, slot=0):
     failed = False
     metrics.batch_started()
     try:
-        claimed = processing.claim_pending_tasks(processing._claim_batch_size())
+        claimed = processing.claim_pending_tasks(
+            processing._claim_batch_size(), include_inputs=True,
+        )
         chunk_started = time.perf_counter()
         if claimed and _chunk_starts is not None:
             _chunk_starts[slot] = time.monotonic()
-        for task_id, dataset_id in claimed:
+        for offset in range(0, len(claimed), processing.INPUT_BATCH_SIZE):
             if _stop.is_set():
                 break
-            started += 1
-            try:
-                processing._run_extract_task(task_id, dataset_id, outcomes=outcomes)
-            except Exception:
-                logger.exception("Extract task %s failed", task_id)
+            batch = claimed[offset:offset + processing.INPUT_BATCH_SIZE]
+            inputs = processing.load_input_batch(batch)
+            for claim, task_inputs in zip(batch, inputs, strict=True):
+                if _stop.is_set():
+                    break
+                started += 1
+                try:
+                    processing._run_extract_task(
+                        claim.task_id, claim.dataset_id, outcomes=outcomes,
+                        inputs=task_inputs,
+                    )
+                except Exception:
+                    logger.exception("Extract task %s failed", claim.task_id)
     except Exception:
         logger.exception("Extract chunk failed after %d of %d tasks", started, len(claimed))
         failed = True
@@ -109,7 +119,9 @@ def run_chunk(idle_seconds, slot=0):
         unstarted = claimed if failed else claimed[started:]
         if unstarted:
             try:
-                released = processing._release_claimed_tasks(unstarted)
+                released = processing._release_claimed_tasks(
+                    [(claim.task_id, claim.dataset_id) for claim in unstarted],
+                )
                 logger.info("Released %d of %d unresolved tasks", released, len(unstarted))
             except Exception:
                 logger.exception("Could not release %d unstarted tasks", len(unstarted))

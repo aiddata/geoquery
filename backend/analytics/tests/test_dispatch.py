@@ -96,6 +96,21 @@ class DispatchTestCase(TestCase):
             claim_pending_tasks(3), self.refs(first, second, third)
         )
 
+    def test_claim_tokens_match_database_and_preserve_priority_order(self):
+        ordinary = self.make_task()
+        urgent = self.make_task(priority=10)
+        claimed = claim_pending_tasks(2, include_inputs=True)
+        self.assertEqual([(claim.task_id, claim.dataset_id) for claim in claimed],
+                         self.refs(urgent, ordinary))
+        for task, claim in zip((urgent, ordinary), claimed):
+            task.refresh_from_db()
+            self.assertIsNotNone(claim.claimed_at)
+            self.assertEqual(task.update_time, claim.claimed_at)
+            self.assertEqual(task.resource_ids, claim.resource_ids)
+            self.assertEqual(task.kwargs, claim.kwargs)
+            self.assertEqual(task.po_id, claim.po_id)
+            self.assertEqual(task.fm_id, claim.fm_id)
+
     def test_successive_claims_are_disjoint(self):
         a, b, c = self.make_task(), self.make_task(), self.make_task()
 

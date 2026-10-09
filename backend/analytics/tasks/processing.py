@@ -10,11 +10,13 @@ from warnings import catch_warnings
 
 import shapely
 from django.db import (
-    DataError, IntegrityError, InterfaceError, OperationalError, connection, transaction,
+    DataError, IntegrityError, InterfaceError, OperationalError, connection, connections,
+    transaction,
 )
 
 from analytics import metrics
-from datasets.models import DatasetResource
+from analytics.query_tags import tag_queries
+from datasets.models import Dataset, DatasetResource, Mapping
 
 logger = logging.getLogger(__name__)
 
@@ -143,8 +145,23 @@ def _execute_async(cursor, sql, params):
     cursor.nextset()
 
 
-def claim_pending_tasks(limit=1):
+@dataclass(frozen=True)
+class TaskClaim:
+    task_id: int
+    dataset_id: int
+    claimed_at: datetime
+    resource_ids: list[int]
+    kwargs: dict | None
+    po_id: int
+    fm_id: int
+
+
+def claim_pending_tasks(limit=1, *, include_inputs=False):
     """Move up to ``limit`` pending tasks (status=0) straight to running (status=2).
+
+    With ``include_inputs``, return TaskClaim descriptors from UPDATE RETURNING.
+    These carry task-owned inputs and the ownership token, avoiding subsequent
+    task-table reads. Related metadata is fetched after this transaction ends.
 
     Returns the claimed ``(id, dataset_id)`` pairs, highest priority then
     oldest first (ties broken by id). The caller -- a worker about to run them
@@ -236,11 +253,24 @@ def claim_pending_tasks(limit=1):
                     FROM unnest(%s::int[], %s::int[]) AS v(dataset_id, id)
                     WHERE t.dataset_id = v.dataset_id AND t.id = v.id
                       AND t.dataset_id = ANY(%s::int[])
+                    RETURNING t.id, t.dataset_id, t.update_time, t.resource_ids,
+                              t.kwargs::text, t.po_id, t.fm_id
                     """,
                     _ref_arrays(rows),
                 )
+                returned = cursor.fetchall()
     metrics.DISPATCH_SECONDS.labels("lock_wait").observe(locked - started)
     metrics.DISPATCH_SECONDS.labels("claim").observe(time.perf_counter() - locked)
+    if rows and include_inputs:
+        # Decode after commit. UPDATE RETURNING has no order; retain priority.
+        claims = {
+            (task_id, dataset_id): TaskClaim(
+                task_id, dataset_id, stamp, resource_ids,
+                json.loads(kwargs) if kwargs is not None else None, po_id, fm_id,
+            )
+            for task_id, dataset_id, stamp, resource_ids, kwargs, po_id, fm_id in returned
+        }
+        rows = [claims[ref] for ref in rows]
     return rows
 
 
@@ -318,7 +348,7 @@ class _TaskOutcome:
     timer: metrics.TaskTimer
 
 
-def _run_extract_task(task_id, dataset_id=None, *, outcomes=None):
+def _run_extract_task(task_id, dataset_id=None, *, outcomes=None, inputs=None):
     """Compute a task; buffer its writes when called by the chunk worker.
 
     Manual callers still persist immediately. Exceptions keep their original
@@ -331,7 +361,9 @@ def _run_extract_task(task_id, dataset_id=None, *, outcomes=None):
     before = len(outcomes)
     timer = metrics.TaskTimer(dataset_id)
     try:
-        return _extract(task_id, dataset_id, timer, outcomes)
+        if inputs is not None:
+            timer.add("load", inputs.load_wall, inputs.load_cpu)
+        return _extract(task_id, dataset_id, timer, outcomes, inputs=inputs)
     finally:
         timer.enter(None)  # time in the buffer is not active task work
         if len(outcomes) == before:
@@ -492,8 +524,131 @@ class _ClaimedTask:
     claimed_at: datetime | None
 
 
+_replica_retry_after = 0.0
+INPUT_BATCH_SIZE = 128
+
+
+@dataclass
+class _TaskInputs:
+    task: _ClaimedTask | None
+    resources: dict
+    category_map: dict
+    load_wall: float = 0.0
+    load_cpu: float = 0.0
+    resources_complete: bool = True
+
+
+def _fetch_input_batch(claims, using):
+    """Load related metadata only; ownership came from the primary claim."""
+    from analytics.models import ProcessingOption
+
+    fm_ids = sorted({claim.fm_id for claim in claims})
+    po_ids = sorted({claim.po_id for claim in claims})
+    resource_ids = sorted({rid for claim in claims for rid in claim.resource_ids})
+    with tag_queries("extract", using=using), transaction.atomic(using=using):
+        with connections[using].cursor() as cursor:
+            if using == "replica":
+                cursor.execute("SET LOCAL statement_timeout = '5s'")
+            cursor.execute(
+                """/* gq:extract */
+                SELECT fm.id, ST_AsBinary(g.shape)
+                FROM feat_map fm
+                JOIN feature_collections fc ON fc.id = fm.fc_id
+                JOIN features g ON g.id = fm.geom_id
+                WHERE fm.id = ANY(%s::int[]) AND fc.active
+                """,
+                [fm_ids],
+            )
+            geometries = {fm_id: bytes(wkb) for fm_id, wkb in cursor.fetchall()}
+        options = {
+            po.id: po for po in ProcessingOption.objects.using(using).filter(
+                id__in=po_ids, active=True,
+            )
+        }
+        resources = {
+            resource.id: resource
+            for resource in DatasetResource.objects.using(using).filter(
+                id__in=resource_ids, dataset__active=True,
+            ).select_related("dataset")
+        }
+        active_dataset_ids = {resource.dataset_id for resource in resources.values()}
+        unresolved_dataset_ids = {claim.dataset_id for claim in claims} - active_dataset_ids
+        if unresolved_dataset_ids:
+            # Missing resources must not make an active dataset look inactive.
+            # Only this exceptional case needs a separate dataset lookup.
+            active_dataset_ids.update(
+                Dataset.objects.using(using).filter(
+                    id__in=unresolved_dataset_ids, active=True,
+                ).values_list("id", flat=True)
+            )
+        mapped_ids = {r.dataset_id for r in resources.values() if r.dataset.mapped}
+        mappings = {dataset_id: {} for dataset_id in mapped_ids}
+        if mapped_ids:
+            for dataset_id, value, name in Mapping.objects.using(using).filter(
+                dataset_id__in=mapped_ids,
+            ).values_list("dataset_id", "map_val", "map_name"):
+                mappings[dataset_id][value] = name
+
+    prepared = []
+    for claim in claims:
+        po = options.get(claim.po_id)
+        geometry = geometries.get(claim.fm_id)
+        available = (
+            po is not None and geometry is not None
+            and claim.dataset_id in active_dataset_ids
+        )
+        resources_complete = bool(claim.resource_ids) and all(
+            rid in resources and resources[rid].dataset_id == claim.dataset_id
+            for rid in claim.resource_ids
+        )
+        task = _ClaimedTask(
+            claim.dataset_id, claim.resource_ids, claim.kwargs,
+            po.function, po.short_name, po.kwargs, geometry, claim.claimed_at,
+        ) if available else None
+        prepared.append(_TaskInputs(
+            task, resources, mappings.get(claim.dataset_id, {}),
+            resources_complete=resources_complete,
+        ))
+    return prepared
+
+
+def load_input_batch(claims):
+    """Fetch a bounded batch after claiming, with one fallback per batch.
+
+    Replicas need the referenced metadata, not the freshly updated task rows.
+    Missing/inactive metadata gets a primary check in case the replica lags.
+    Existing metadata may be slightly stale; the final primary write still
+    fences results against the ownership token returned by the claim.
+    """
+    from django.conf import settings
+
+    global _replica_retry_after
+    if not claims:
+        return []
+    wall, cpu = time.perf_counter(), time.process_time()
+    prepared = None
+    if settings.EXTRACT_TASK_READ_REPLICA and time.monotonic() >= _replica_retry_after:
+        try:
+            prepared = _fetch_input_batch(claims, "replica")
+        except (OperationalError, InterfaceError):
+            connections["replica"].close()
+            _replica_retry_after = time.monotonic() + 30
+            logger.warning("Replica input batch failed; using primary for 30s", exc_info=True)
+        if prepared is not None and any(
+            item.task is None or not item.resources_complete for item in prepared
+        ):
+            prepared = None
+    if prepared is None:
+        prepared = _fetch_input_batch(claims, "default")
+    wall = (time.perf_counter() - wall) / len(claims)
+    cpu = (time.process_time() - cpu) / len(claims)
+    for item in prepared:
+        item.load_wall, item.load_cpu = wall, cpu
+    return prepared
+
+
 def _load_claimed_task(task_id, dataset_id=None):
-    """Return the inputs of a task this worker claimed, in one statement.
+    """Primary lookup for manual callers that did not claim a chunk.
 
     The task is already running (status=2): claim_pending_tasks moved it there
     under the claim lock, so this only reads. It used to be the claim itself
@@ -514,26 +669,32 @@ def _load_claimed_task(task_id, dataset_id=None):
     if dataset_id is not None:
         params.append(dataset_id)
 
-    with connection.cursor() as cursor:
-        cursor.execute(
-            f"""
+    # The running-status index can look empty to the planner even while it
+    # contains hundreds of thousands of claims. Fence the identity lookup
+    # from status filtering so this remains a primary-key seek.
+    sql = f"""
+            WITH task AS MATERIALIZED (
+                SELECT t.id, t.dataset_id, t.resource_ids, t.kwargs,
+                       t.po_id, t.fm_id, t.update_time, t.status
+                FROM extract_tasks AS t
+                WHERE t.id = %s {partition_filter}
+            )
             SELECT t.dataset_id, t.resource_ids, t.kwargs::text,
                    po.function, po.short_name, po.kwargs::text,
                    ST_AsBinary(g.shape), t.update_time
-            FROM extract_tasks AS t
+            FROM task AS t
             JOIN datasets AS d ON d.id = t.dataset_id
             JOIN processing_options AS po ON po.id = t.po_id
             JOIN feat_map AS fm ON fm.id = t.fm_id
             JOIN feature_collections AS fc ON fc.id = fm.fc_id
             JOIN features AS g ON g.id = fm.geom_id
-            WHERE t.id = %s {partition_filter}
-              AND t.status = 2
+            WHERE t.status = 2
               AND d.active AND po.active AND fc.active
-            """,
-            params,
-        )
-        row = cursor.fetchone()
+            """
 
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        row = cursor.fetchone()
     if row is None:
         return None
     dataset_id, resource_ids, kwargs, function, short_name, po_kwargs, wkb, claimed_at = row
@@ -549,7 +710,7 @@ def _load_claimed_task(task_id, dataset_id=None):
     )
 
 
-def _extract(task_id, dataset_id, timer, outcomes):
+def _extract(task_id, dataset_id, timer, outcomes, *, inputs=None):
     """Load a claimed task, run its resources, and buffer results and status.
 
     Accepts rows this worker claimed (running, 2). On success (no position raised
@@ -566,7 +727,7 @@ def _extract(task_id, dataset_id, timer, outcomes):
     """
     logger.info("Running extract task %s", task_id)
 
-    task = _load_claimed_task(task_id, dataset_id)
+    task = inputs.task if inputs is not None else _load_claimed_task(task_id, dataset_id)
     if task is None:
         logger.info(
             "Task %s is not available (no longer running, or filtered out)",
@@ -587,13 +748,15 @@ def _extract(task_id, dataset_id, timer, outcomes):
         # re-ordered against task.resource_ids by dict lookup: position i
         # here has to line up with position i in every ExtractData row's
         # value arrays for this task (see ExtractTask/ExtractData docstrings).
-        by_id = {
+        by_id = inputs.resources if inputs is not None else {
             r.id: r
             for r in DatasetResource.objects.filter(
                 id__in=task.resource_ids
             ).select_related("dataset")
         }
         resources = [by_id[rid] for rid in task.resource_ids]
+        if any(resource.dataset_id != task.dataset_id for resource in resources):
+            raise ValueError("Task resources belong to a different dataset")
         # Every resource in one task's resource_ids belongs to the same
         # dataset by construction (see build_extract_tasks.py's equivalent
         # resource_ids[1] comment), so any one of them stands in for it.
@@ -630,7 +793,7 @@ def _extract(task_id, dataset_id, timer, outcomes):
             if dataset.mapped:
                 # A query per resource, so it counts as load, not extract.
                 timer.enter("load")
-                op_kwargs["category_map"] = dict(
+                op_kwargs["category_map"] = dict(inputs.category_map) if inputs is not None else dict(
                     dataset.mappings.values_list("map_val", "map_name")
                 )
                 timer.enter("extract")

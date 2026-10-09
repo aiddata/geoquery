@@ -1,10 +1,11 @@
 import hashlib
 import json
+from datetime import timedelta
 from unittest import mock
 
 from django.contrib.gis.geos import Point
-from django.db import OperationalError, connection
-from django.test import TestCase, TransactionTestCase
+from django.db import OperationalError, connection, connections
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 
 from analytics.models import ExtractData, ExtractTask, ProcessingOption
@@ -554,7 +555,7 @@ class ProcessingTestCase(TestCase):
         queries = self.run_capturing_queries(task, task.dataset_id)
 
         lookup = next(q for q in queries if "FROM extract_tasks AS t" in q)
-        self.assertTrue(lookup.lstrip().startswith("SELECT"), lookup)
+        self.assertTrue(lookup.lstrip().startswith("WITH task AS MATERIALIZED"), lookup)
         self.assertNotIn("FOR UPDATE", lookup)
 
     def test_claim_and_completion_times_both_come_from_the_database_clock(self):
@@ -694,6 +695,32 @@ class ProcessingTestCase(TestCase):
 
         scanned, plan = self.explain_partitions(lookup["sql"])
         self.assertEqual(scanned, ["extract_tasks_claim_test"], plan)
+
+    def test_stale_running_index_estimate_does_not_replace_identity_lookup(self):
+        self.create_test_partitions()
+        resources = self.make_resources(1)
+        ExtractTask.objects.bulk_create([
+            ExtractTask(dataset_id=self.dataset.id, resource_ids=[resources[0].id],
+                        fm=self.fm, po=self.po, status=PENDING, kwargs={"i": i})
+            for i in range(2000)
+        ])
+        with connection.cursor() as cursor:
+            cursor.execute("ANALYZE extract_tasks_claim_test")
+        task = self.make_task(resources)
+        with CaptureQueriesContext(connection) as queries:
+            _load_claimed_task(task.id, task.dataset_id)
+        _, plan = self.explain_partitions(queries[0]["sql"])
+
+        def scans(node):
+            if node.get("Relation Name") == "extract_tasks_claim_test":
+                yield node
+            for child in node.get("Plans", []):
+                yield from scans(child)
+
+        [scan] = list(scans(plan))
+        self.assertIn("pkey", scan["Index Name"], plan)
+        self.assertIn("dataset_id", scan["Index Cond"])
+        self.assertIn("id =", scan["Index Cond"])
 
     def test_buffered_persistence_rolls_back_results_and_status_together(self):
         task = self.make_task(self.make_resources(1))
@@ -876,6 +903,180 @@ class _CommittedTaskFixture(TransactionTestCase):
             dataset_id=dataset.id, resource_ids=[resource.id], po=po, fm=fm,
             status=LOCKED,
         )
+
+
+@override_settings(EXTRACT_TASK_READ_REPLICA=True)
+class BatchInputTests(_CommittedTaskFixture):
+    databases = {"default", "replica"}
+
+    def setUp(self):
+        super().setUp()
+        self.retry = mock.patch.object(processing, "_replica_retry_after", 0)
+        self.retry.start()
+        self.addCleanup(self.retry.stop)
+        ExtractTask.objects.filter(dataset_id=self.task.dataset_id, id=self.task.id).update(status=PENDING)
+        self.claims = processing.claim_pending_tasks(1, include_inputs=True)
+
+    def test_metadata_uses_replica_without_reading_tasks_or_leaking_timeout(self):
+        replica = connections["replica"]
+        with replica.cursor() as cursor:
+            cursor.execute("SHOW statement_timeout")
+            before = cursor.fetchone()[0]
+        with CaptureQueriesContext(connection) as primary, CaptureQueriesContext(replica) as reads:
+            [inputs] = processing.load_input_batch(self.claims)
+        self.assertEqual(inputs.task.claimed_at, self.claims[0].claimed_at)
+        self.assertEqual(inputs.task.resource_ids, self.task.resource_ids)
+        self.assertEqual(len(primary), 0)
+        self.assertTrue(reads)
+        self.assertFalse(any("extract_tasks" in q["sql"] for q in reads))
+        with replica.cursor() as cursor:
+            cursor.execute("SHOW statement_timeout")
+            self.assertEqual(cursor.fetchone()[0], before)
+
+    def test_prepared_task_does_no_reads_during_computation(self):
+        from datasets.models import Mapping
+        Dataset.objects.filter(id=self.task.dataset_id).update(mapped=True)
+        Mapping.objects.create(dataset_id=self.task.dataset_id, map_val=1, map_name="forest")
+        [inputs] = processing.load_input_batch(self.claims)
+        processor = mock.Mock(return_value=[("mean", 1.0)])
+        outcomes = []
+        with mock.patch.object(processing, "get_func", return_value=processor), \
+                CaptureQueriesContext(connection) as primary, \
+                CaptureQueriesContext(connections["replica"]) as replica:
+            _run_extract_task(self.task.id, self.task.dataset_id, outcomes=outcomes, inputs=inputs)
+        self.assertEqual(len(primary), 0)
+        self.assertEqual(len(replica), 0)
+        self.assertEqual(processor.call_args.kwargs["category_map"], {1: "forest"})
+        self.assertEqual(outcomes[0].claimed_at, self.claims[0].claimed_at)
+
+    def test_batch_query_count_does_not_grow_with_tasks(self):
+        replica = connections["replica"]
+        with CaptureQueriesContext(replica) as one:
+            processing.load_input_batch(self.claims)
+        with CaptureQueriesContext(replica) as many:
+            loaded = processing.load_input_batch(self.claims * 100)
+        self.assertEqual(len(one), len(many))
+        self.assertEqual(len(loaded), 100)
+
+    def test_batch_preserves_resource_order_geometry_and_task_arguments(self):
+        second = DatasetResource.objects.create(
+            dataset_id=self.task.dataset_id, name="r1", path="r1.tif",
+        )
+        ExtractTask.objects.filter(dataset_id=self.task.dataset_id, id=self.task.id).update(
+            status=PENDING, resource_ids=[second.id, *self.task.resource_ids],
+            kwargs={"custom": "task"},
+        )
+        ProcessingOption.objects.filter(id=self.task.po_id).update(kwargs={"custom": "option"})
+        claims = processing.claim_pending_tasks(1, include_inputs=True)
+        [inputs] = processing.load_input_batch(claims)
+
+        def compute(geometry, path, **kwargs):
+            self.assertEqual(geometry.wkt, "POINT (0 0)")
+            self.assertEqual(kwargs["custom"], "task")
+            return [("mean", 2.0 if path.stem == "r1" else 1.0)]
+
+        with mock.patch.object(processing, "get_func", return_value=compute):
+            _run_extract_task(self.task.id, self.task.dataset_id, inputs=inputs)
+        result = ExtractData.objects.get(dataset_id=self.task.dataset_id, extract_task_id=self.task.id)
+        self.assertEqual(result.float_values, [2.0, 1.0])
+
+    def test_missing_replica_metadata_falls_back_once_for_batch(self):
+        fetch = processing._fetch_input_batch
+        def lagged(claims, using):
+            if using == "replica":
+                return [processing._TaskInputs(None, {}, {}) for _ in claims]
+            return fetch(claims, using)
+        with mock.patch.object(processing, "_fetch_input_batch", side_effect=lagged) as reader:
+            loaded = processing.load_input_batch(self.claims * 5)
+        self.assertTrue(all(item.task is not None for item in loaded))
+        self.assertEqual([call.args[1] for call in reader.call_args_list], ["replica", "default"])
+
+    def test_replica_error_backs_off_and_recovers(self):
+        fetch = processing._fetch_input_batch
+        def failing(claims, using):
+            if using == "replica":
+                raise OperationalError("replica down")
+            return fetch(claims, using)
+        with mock.patch.object(processing.time, "monotonic", return_value=100) as clock, \
+                mock.patch.object(processing, "_fetch_input_batch", side_effect=failing) as reader:
+            with self.assertLogs(processing.logger, "WARNING"):
+                self.assertIsNotNone(processing.load_input_batch(self.claims)[0].task)
+            processing.load_input_batch(self.claims)
+            self.assertEqual([call.args[1] for call in reader.call_args_list],
+                             ["replica", "default", "default"])
+            clock.return_value = 131
+            reader.side_effect = fetch
+            with CaptureQueriesContext(connection) as primary:
+                processing.load_input_batch(self.claims)
+            self.assertEqual(len(primary), 0)
+
+    def test_missing_replica_resource_falls_back_and_completes(self):
+        using = DatasetResource.objects.using
+
+        def lagged_resources(alias):
+            queryset = using(alias)
+            return queryset.none() if alias == "replica" else queryset
+
+        with (
+            mock.patch.object(DatasetResource.objects, "using", side_effect=lagged_resources),
+            mock.patch.object(processing, "_fetch_input_batch", wraps=processing._fetch_input_batch) as reader,
+        ):
+            [inputs] = processing.load_input_batch(self.claims)
+        self.assertEqual([call.args[1] for call in reader.call_args_list], ["replica", "default"])
+        with mock.patch.object(processing, "get_func", return_value=lambda *a, **kw: [("mean", 1.0)]):
+            _run_extract_task(self.task.id, self.task.dataset_id, inputs=inputs)
+        task = ExtractTask.objects.get(dataset_id=self.task.dataset_id, id=self.task.id)
+        self.assertEqual(task.status, DONE)
+
+    def test_missing_primary_resource_records_failure(self):
+        resource_id = self.task.resource_ids[0]
+        DatasetResource.objects.filter(id=resource_id).delete()
+        with mock.patch.object(processing, "_fetch_input_batch", wraps=processing._fetch_input_batch) as reader:
+            [inputs] = processing.load_input_batch(self.claims)
+        self.assertEqual([call.args[1] for call in reader.call_args_list], ["replica", "default"])
+        with self.assertLogs(processing.logger, "ERROR"), self.assertRaises(KeyError):
+            _run_extract_task(self.task.id, self.task.dataset_id, inputs=inputs)
+        task = ExtractTask.objects.get(dataset_id=self.task.dataset_id, id=self.task.id)
+        self.assertEqual(task.status, FAILED)
+        self.assertEqual(task.error, repr(KeyError(resource_id)))
+
+    def test_missing_resource_failure_cannot_overwrite_new_claim(self):
+        DatasetResource.objects.filter(id__in=self.task.resource_ids).delete()
+        [inputs] = processing.load_input_batch(self.claims)
+        new_claimed_at = self.claims[0].claimed_at + timedelta(seconds=1)
+        ExtractTask.objects.filter(dataset_id=self.task.dataset_id, id=self.task.id).update(
+            update_time=new_claimed_at,
+        )
+        with self.assertLogs(processing.logger, "ERROR"), self.assertRaises(KeyError):
+            _run_extract_task(self.task.id, self.task.dataset_id, inputs=inputs)
+        task = ExtractTask.objects.get(dataset_id=self.task.dataset_id, id=self.task.id)
+        self.assertEqual(task.status, LOCKED)
+        self.assertEqual(task.update_time, new_claimed_at)
+        self.assertIsNone(task.error)
+
+    def test_inactive_dataset_remains_unavailable_when_resources_are_missing(self):
+        DatasetResource.objects.filter(id__in=self.task.resource_ids).delete()
+        Dataset.objects.filter(id=self.task.dataset_id).update(active=False)
+        [inputs] = processing.load_input_batch(self.claims)
+        self.assertIsNone(inputs.task)
+
+    def test_ownership_change_after_claim_cannot_overwrite_results(self):
+        # Loading related metadata does not depend on the task's replica state.
+        ExtractTask.objects.filter(dataset_id=self.task.dataset_id, id=self.task.id).update(
+            update_time=self.claims[0].claimed_at + timedelta(seconds=1),
+        )
+        [inputs] = processing.load_input_batch(self.claims)
+        with mock.patch.object(processing, "get_func", return_value=lambda *a, **kw: [("mean", 1.0)]):
+            _run_extract_task(self.task.id, self.task.dataset_id, inputs=inputs)
+        self.assertFalse(ExtractData.objects.filter(dataset_id=self.task.dataset_id, extract_task_id=self.task.id).exists())
+        self.assertEqual(ExtractTask.objects.get(dataset_id=self.task.dataset_id, id=self.task.id).status, LOCKED)
+
+    @override_settings(EXTRACT_TASK_READ_REPLICA=False)
+    def test_disabled_mode_still_batches_reads_on_primary(self):
+        with CaptureQueriesContext(connections["replica"]) as replica:
+            [inputs] = processing.load_input_batch(self.claims)
+        self.assertIsNotNone(inputs.task)
+        self.assertEqual(len(replica), 0)
 
 
 class ProcessingCommitModeTest(_CommittedTaskFixture):

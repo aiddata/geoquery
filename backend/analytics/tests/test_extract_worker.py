@@ -84,6 +84,64 @@ class RunChunkTests(TestCase):
         self.wait.assert_not_called()
         self.close_all.assert_called_once()
 
+    def test_metadata_reads_are_bounded_batches_without_task_rereads(self):
+        tasks = self.make_tasks(5)
+        with (
+            mock.patch.object(processing, "INPUT_BATCH_SIZE", 2),
+            mock.patch.object(processing, "load_input_batch", wraps=processing.load_input_batch) as load,
+            CaptureQueriesContext(connection) as queries,
+        ):
+            self.assertEqual(self.run_chunk(), 5)
+        self.assertEqual([len(call.args[0]) for call in load.call_args_list], [2, 2, 1])
+        reads = [q["sql"] for q in queries if "SELECT" in q["sql"] and "FROM extract_tasks" in q["sql"]]
+        self.assertEqual(len(reads), 1, reads)  # The chunk claim only.
+        self.assertEqual(self.statuses(tasks), [DONE] * 5)
+
+    def test_metadata_batch_failure_flushes_work_and_releases_remainder(self):
+        tasks = self.make_tasks(5)
+        fetch = processing.load_input_batch
+        calls = 0
+
+        def fail_second_batch(claims):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise OperationalError("metadata unavailable on both databases")
+            return fetch(claims)
+
+        with (
+            mock.patch.object(processing, "INPUT_BATCH_SIZE", 2),
+            mock.patch.object(processing, "load_input_batch", side_effect=fail_second_batch),
+            self.assertLogs("analytics.extract_worker", "ERROR"),
+        ):
+            self.run_chunk()
+        self.assertEqual(self.statuses(tasks), [DONE, DONE, PENDING, PENDING, PENDING])
+        self.wait.assert_called_once()
+
+    def test_missing_resource_fails_task_and_other_tasks_complete(self):
+        tasks = self.make_tasks(3)
+        missing = DatasetResource.objects.create(
+            dataset_id=self.resource.dataset_id, name="deleted", path="deleted.tif",
+        )
+        resource_id = missing.id
+        ExtractTask.objects.filter(dataset_id=tasks[1].dataset_id, id=tasks[1].id).update(
+            resource_ids=[resource_id],
+        )
+        missing.delete()
+
+        with self.assertLogs(level="ERROR"):
+            self.assertEqual(self.run_chunk(), 3)
+
+        self.assertEqual(self.statuses(tasks), [DONE, FAILED, DONE])
+        failed = ExtractTask.objects.get(dataset_id=tasks[1].dataset_id, id=tasks[1].id)
+        self.assertEqual(failed.error, repr(KeyError(resource_id)))
+        self.assertEqual(
+            set(ExtractData.objects.filter(dataset_id=self.resource.dataset_id)
+                .values_list("extract_task_id", flat=True)),
+            {tasks[0].id, tasks[2].id},
+        )
+        self.wait.assert_not_called()
+
     def test_results_are_buffered_and_written_in_one_batch(self):
         tasks = self.make_tasks(3)
         completed = tasks_total(self.resource.dataset_id, "completed")
@@ -100,7 +158,7 @@ class RunChunkTests(TestCase):
             self.assertEqual(delta[completed], 0)  # outer test transaction not committed
 
         copies = [q for q in queries if q["sql"].startswith("COPY extract_data")]
-        finalizes = [q for q in queries if "UPDATE extract_tasks AS t\n" in q["sql"] and "RETURNING" in q["sql"]]
+        finalizes = [q for q in queries if "UPDATE extract_tasks AS t\n" in q["sql"] and "SET status = v.status" in q["sql"]]
         self.assertEqual(len(copies), 1)
         self.assertEqual(len(finalizes), 1)
         self.assertEqual(ExtractData.objects.filter(dataset_id=self.resource.dataset_id).count(), 3)

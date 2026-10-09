@@ -49,7 +49,8 @@ TASKS = Counter(
 TASK_PHASE_SECONDS = Histogram(
     "geoquery_extract_task_phase_seconds",
     "Wall time one task spent in each phase. lock = fetch the claimed "
-    "row's inputs; load = resource, geometry and category map lookups; extract = "
+    "row's inputs for manual calls; load = resource, geometry and category map "
+    "lookups, including amortized batch reads in the chunk worker; extract = "
     "processor calls (raster I/O and compute); write = build rows plus an "
     "amortized share of replacing the batch's results; finalize = amortized "
     "claim recheck and status update, and commit. Time waiting in the result "
@@ -163,7 +164,7 @@ class TaskTimer:
         self._mark = (wall, cpu)
 
     def add(self, phase, wall, cpu):
-        """Add a task's share of batched persistence, excluding buffer residence."""
+        """Add a task's share of batch reads/writes, excluding buffer residence."""
         self._wall[phase] = self._wall.get(phase, 0.0) + wall
         self._cpu[phase] = self._cpu.get(phase, 0.0) + cpu
 

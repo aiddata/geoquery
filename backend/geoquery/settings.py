@@ -184,9 +184,8 @@ def _pg(prefix, fallback=None):
 
     Two prefixes are in play in the cluster: ``PG_RW_*`` points at the
     read/write pgBouncer, ``PG_RO_*`` at the read-only one in front of the
-    standbys. Only the backend and background-worker pods are given
-    ``PG_RO_*``; processing workers, beat, ingest and the migration Job get
-    ``PG_RW_*`` alone, so ``fallback`` is what
+    standbys. Processing workers receive ``PG_RO_*`` when replica task reads
+    are enabled. Processes with ``PG_RW_*`` alone use ``fallback``, which
     keeps a stray ``.using("replica")`` in those processes pointing at the
     primary instead of crashing on startup.
     """
@@ -502,6 +501,12 @@ EXTRACT_TASK_CLAIM_BATCH = int(os.environ.get("EXTRACT_TASK_CLAIM_BATCH", "64"))
 # this keeps an idle fleet from polling the primary hard. It is also the
 # longest a new request's tasks wait for an idle worker to notice them.
 EXTRACT_WORKER_IDLE_SECONDS = float(os.environ.get("EXTRACT_WORKER_IDLE_SECONDS", "60"))
+
+# Batched related metadata reads use replicas; task inputs and ownership come
+# from the primary claim. Missing metadata and replica errors fall back in batches.
+EXTRACT_TASK_READ_REPLICA = os.environ.get("EXTRACT_TASK_READ_REPLICA", "0") == "1"
+if EXTRACT_TASK_READ_REPLICA:
+    DATABASES["replica"]["OPTIONS"]["connect_timeout"] = 5
 
 # Whether processing commits (the batch claim, a task's results and its
 # completion) wait for fsync. Off by default. Measured on production

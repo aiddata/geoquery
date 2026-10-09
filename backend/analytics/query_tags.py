@@ -27,7 +27,7 @@ import logging
 import re
 from contextlib import contextmanager
 
-from django.db import connection
+from django.db import connections
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def _sanitize(tag):
 
 
 @contextmanager
-def tag_queries(workload):
+def tag_queries(workload, *, using="default"):
     """Prefix every statement issued in this block with ``/* gq:<workload> */``.
 
     Wraps Django's documented execute_wrapper hook, which applies to the
@@ -72,7 +72,7 @@ def tag_queries(workload):
             logger.warning("query tagging failed for %s", name, exc_info=True)
         return execute(sql, params, many, context)
 
-    with connection.execute_wrapper(wrapper):
+    with connections[using].execute_wrapper(wrapper):
         yield
 
 
