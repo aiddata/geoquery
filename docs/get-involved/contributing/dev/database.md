@@ -520,8 +520,10 @@ multi-hour rewrite inside a deploy.
 6. Restore `max_slot_wal_keep_size`, un-pause, then deploy the second PR. The
    builder resumes on its own schedule.
 
-If the command reports a slot past `max_slot_wal_keep_size`, it stops before
-the next partition; finish the conversion, then rebuild that standby.
+If a slot is lost — its standby fell more than `max_slot_wal_keep_size`
+behind — the command says so and carries on, still waiting on the standbys
+that can recover. Rebuild the lost one after the conversion; stopping would
+not bring it back.
 
 ---
 

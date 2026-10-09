@@ -339,22 +339,31 @@ class Command(BaseCommand):
     # ---- replication ---------------------------------------------------------
 
     def _wait_for_replicas(self, cursor):
-        """Block until every physical slot is within --max-slot-lag-gb.
+        """Block until every recoverable physical slot is within --max-slot-lag-gb.
 
         Reads pg_replication_slots rather than pg_stat_replication: the app
         role can see a slot's restart_lsn and wal_status, but not a
         walsender's replay_lsn.
+
+        A 'lost' slot is past saving -- its standby needs rebuilding whatever
+        happens next -- so it is reported and then left out, and the wait
+        keeps protecting the standbys that are still recoverable rather than
+        refusing to finish. An 'unreserved' slot is still recoverable: nothing
+        is written between partitions, so its standby can catch up, and that is
+        exactly what waiting is for. Inactive slots count too -- a standby that
+        is restarting still needs the WAL it has not replayed.
         """
         limit = self.opts["max_slot_lag_gb"] * 2**30
         deadline = time.monotonic() + self.opts["lag_timeout_minutes"] * 60
         while True:
             slots = self._slots(cursor)
-            lost = [s for s in slots if s[2] in ("unreserved", "lost")]
-            if lost:
-                raise CommandError(
-                    f"replication slot(s) past max_slot_wal_keep_size: {[s[0] for s in lost]}. "
-                    "Those standbys will need rebuilding; stopping before making it worse.")
-            behind = max((s[3] or 0 for s in slots if s[1]), default=0)
+            lost = sorted(s[0] for s in slots if s[2] == "lost")
+            if lost and lost != getattr(self, "_reported_lost", None):
+                self._reported_lost = lost
+                self.stdout.write(self.style.ERROR(
+                    f"  replication slot(s) lost: {lost}. Those standbys must be rebuilt once the "
+                    "conversion finishes; continuing to protect the rest."))
+            behind = max((s[3] or 0 for s in slots if s[2] != "lost"), default=0)
             if behind <= limit:
                 return
             if time.monotonic() > deadline:
