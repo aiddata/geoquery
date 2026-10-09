@@ -26,6 +26,11 @@ The short version. Each rule links to the section that justifies it.
 - Never issue queries in a loop over tasks or features. Prefetch by chunk and
   look up from a dict — the cost is round trips, not query time (§7).
 
+**Passing task ids to SQL**
+
+- Cast id arrays to `bigint[]`, never `int[]`. Task ids are past int4's range
+  (§11).
+
 **Adding or changing an index**
 
 - Check what it does to HOT updates. Any index mentioning a frequently-updated
@@ -427,6 +432,96 @@ of the three instances retains its own `pg_wal` on its own PVC, so a WAL delta
 costs three times that in pool space, and prod shares `ceph-blockpool` with
 staging. That three-times multiplier is why the chart default stays at 8GB rather
 than matching prod.
+
+---
+
+## 11. Task ids: int4 to bigint
+
+`extract_tasks.id` was an int4 identity column. Its sequence ran out at
+2,147,483,647 with ~483M grouped tasks still to build, at which point every
+builder insert failed with `SequenceGeneratorLimitExceeded` — logged as
+"batch failed/timed out", which it was not. `extract_tasks.id`,
+`extract_data.extract_task_id` and `request_map.task_id` must become bigint.
+Processing is unaffected meanwhile: it only updates existing rows.
+
+**Why not one `ALTER ... TYPE bigint`.** On a partitioned table it rewrites
+every partition in a single transaction and frees the old files only at
+commit. With `extract_tasks` at 662 GB that meant ~470 GB of new copy plus
+the WAL the standbys had not replayed yet, against 526 GB free — and hours of
+`ACCESS EXCLUSIVE` with no way to pause and nothing kept if it failed late.
+
+**How it is done instead** — `manage.py convert_task_ids_to_bigint`:
+
+- Build an empty bigint twin of each parent (`<table>__i8`), cloned from the
+  live one with `LIKE ... INCLUDING DEFAULTS IDENTITY CONSTRAINTS GENERATED`,
+  plus its primary key and indexes.
+- Move partitions one transaction at a time: `DETACH`, then **one** `ALTER`
+  that both widens the column and adds a `CHECK` matching the partition bound,
+  then `ATTACH` to the twin. The single rewrite validates the `CHECK`, which
+  lets `ATTACH` skip its own scan ("partition constraint ... is implied by
+  existing constraints"); the rebuilt indexes match the twin's definitions, so
+  they are adopted, not rebuilt. Peak extra space is one partition.
+- Drop the empty old parent and rename the twin and its indexes, constraints
+  and sequence back to the original names.
+
+Every step commits on its own, so an interruption leaves each partition under
+exactly one parent; re-running resumes from the catalog.
+
+Traps, all hit while verifying on PostgreSQL 17:
+
+- `DETACH` is refused while a foreign key references the parent
+  (`extract_data`, `request_map`), so both are dropped for the conversion.
+- PostgreSQL 17 cannot add a `NOT VALID` foreign key to a partitioned table, so
+  restoring `extract_data`'s FK is a full validation scan that blocks writes to
+  both tables. It is a separate phase (`--phase fks`) for that reason.
+- `LIKE ... INCLUDING IDENTITY` copies the sequence's `MAXVALUE`, and widening
+  the column does not raise it. Without an explicit `SET MAXVALUE` the new
+  table would have stopped at the same 2,147,483,647. The same applies to the
+  in-place path in migration 0031.
+- A detached partition loses its identity default and takes the new parent's
+  on `ATTACH`, so inserts must go through the parent — which they always do.
+
+**Replication is the binding constraint, not disk.** A standby replays at
+~54 MB/s; a rewrite writes several times faster. A physical slot that falls
+more than `max_slot_wal_keep_size` (100 GB in prod) behind is invalidated and
+that standby has to be rebuilt from scratch. The command waits for every slot
+to catch up between partitions, but cannot pause inside one `ALTER`, and the
+largest partitions emit ~100 GB of WAL each. Raise the limit for the window,
+and size it against **all three** instances: CNPG synchronizes slots to the
+standbys, so they retain WAL too.
+
+The command reads lag from `pg_replication_slots` because the `app` role can
+see a slot's `restart_lsn` and `wal_status` but not `pg_stat_replication`'s
+`replay_lsn`.
+
+### Running it
+
+Two deploys. The first ships the command and the `bigint[]` casts in
+`processing.py` (correct against int4 too — `int4 = int8` is a cross-type
+btree operator and the primary key still serves the join). The second ships
+the model change and migration 0031, which is a no-op after the conversion and
+**refuses** on an unconverted production-sized table rather than starting a
+multi-hour rewrite inside a deploy.
+
+1. Deploy the first. Dry run: `manage.py convert_task_ids_to_bigint` prints
+   column types, foreign keys, partitions left, the largest one, and slot lag.
+2. Stop writers: pause the processing ScaledObject
+   (`autoscaling.keda.sh/paused-replicas: "0"`), scale `celery-beat` and
+   `background-worker` to 0, and put the data endpoints in maintenance — reads
+   wait behind each partition's `ACCESS EXCLUSIVE` and see partitions missing
+   between steps.
+3. Raise `max_slot_wal_keep_size` (e.g. 250GB; sighup) after checking free
+   space on all three instances covers it plus the largest partition.
+4. Run `--execute` from a one-off pod on the deployed image, connected straight
+   to `geoquery-db-rw` rather than pgBouncer. Partitions go smallest first, so
+   the per-partition MB/s readout calibrates the rest; `--max-partitions N`
+   stages it.
+5. `--phase fks` to restore the foreign keys, or leave them off deliberately.
+6. Restore `max_slot_wal_keep_size`, un-pause, then deploy the second PR. The
+   builder resumes on its own schedule.
+
+If the command reports a slot past `max_slot_wal_keep_size`, it stops before
+the next partition; finish the conversion, then rebuild that standby.
 
 ---
 
