@@ -3,7 +3,14 @@ import rasterstats as rs
 
 
 def _rasterstats_default(feat, raster, stat, **kwargs):
-    kwargs["nodata"] = kwargs["nodata"] if "nodata" in kwargs else None
+    default_kwargs = {
+        "all_touched": True,
+        "nodata": None,
+    }
+    # create actual kwargs by merging default_kwargs with kwargs
+    for k, v in default_kwargs.items():
+        if k not in kwargs:
+            kwargs[k] = v
     stats = rs.zonal_stats(feat, raster, stats=stat, **kwargs)
     output = stats[0][stat]
     return [(kwargs["name"], output)]
