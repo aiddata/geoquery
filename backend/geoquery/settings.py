@@ -602,6 +602,16 @@ CELERY_BEAT_SCHEDULE = {
         "task": "analytics.tasks.maintenance.manage_processing_task_errors",
         "schedule": crontab(minute="5-59/10"),
     },
+    # Every partition is checked each run with two partial-index EXISTS
+    # probes, and only a partition whose state changed is altered, so a run
+    # is cheap. Ten minutes bounds how long a newly drained partition waits
+    # for its final vacuum, and how long a refilling one runs on the drained
+    # profile (vacuuming every naptime) before going back to active. Offset
+    # from the two recovery sweeps at :00 and :05.
+    "reconcile-partition-autovacuum": {
+        "task": "analytics.tasks.maintenance.reconcile_partition_autovacuum",
+        "schedule": crontab(minute="3-59/10"),
+    },
     "reset-stale-requests": {
         "task": "analytics.tasks.maintenance.reset_stale_requests",
         "schedule": 3600,
