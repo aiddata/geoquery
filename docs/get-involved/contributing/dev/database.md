@@ -430,6 +430,41 @@ than matching prod.
 
 ---
 
+## 11. Task ids: int4 to bigint
+
+`extract_tasks.id` was an int4 identity. In October 2026 `extract_tasks_id_seq`
+reached 2,147,483,647 with ~483M grouped tasks still to build, and every builder
+insert failed with `SequenceGeneratorLimitExceeded`. `extract_tasks.id`,
+`extract_data.extract_task_id` and `request_map.task_id` are now bigint
+(migration 0031).
+
+**How production was converted: by emptying the tables first.** At ~1 TB, an
+in-place `ALTER … TYPE bigint` rewrites every partition in one transaction under
+`ACCESS EXCLUSIVE` and frees the old files only at commit, so it needed more free
+space than the volume had. A partition-by-partition conversion (detach, rewrite,
+reattach to a bigint twin) was built and tested against a clone of the schema,
+but production was truncated and rebuilt instead. That made the in-place
+`ALTER` instant. The sequence was not restarted, so new ids begin at
+2,147,483,648.
+
+**0031 refuses rather than rewriting a large table.** It converts in place below
+1 GB across `extract_tasks` + `extract_data` and raises otherwise. A deploy's
+migration Job must never start a multi-hour rewrite. It also waits at most 30 s
+for its locks, so a long read fails the deploy instead of stalling everything
+queued behind it.
+
+Two traps worth knowing if this ever has to be done again on a full table:
+
+- **Widening an identity column doesn't raise its sequence's `MAXVALUE`.**
+  Without `ALTER COLUMN id SET MAXVALUE 9223372036854775807` the column is bigint
+  but ids still stop at 2,147,483,647.
+- **SQL that carries ids must not narrow them.** The claim, release, persist and
+  `extract_data`-delete statements unnest id arrays. They cast to `bigint[]`,
+  which is also correct against an int4 column, so the casts can ship before the
+  column change (§0).
+
+---
+
 ## Appendix A — HOT update experiment
 
 Controlled 2×2, 20,000 rows each, running the real `status 0 → 3` transition:
