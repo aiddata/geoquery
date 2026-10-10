@@ -260,6 +260,26 @@ export interface PastRequest {
 	submit_time: string;
 }
 
+/** A completed request imported from the previous version of GeoQuery. */
+export interface LegacyPastRequest {
+	id: string;
+	name: string | null;
+	submit_time: string;
+	complete_time: string;
+	dataset_count: number;
+	status_label: 'completed';
+	is_legacy: true;
+}
+
+export interface LegacyRequestDetail extends LegacyPastRequest {
+	boundary_title: string;
+	boundary_name: string;
+	boundary_group: string;
+	dataset_titles: string[];
+	/** Absent until the archive base URL is configured. */
+	download_url?: string;
+}
+
 export interface StoredDataset {
 	dataset_name: string;
 	dataset_type: string | null;
@@ -419,6 +439,33 @@ export async function fetchRequestsByToken(token: string): Promise<PastRequest[]
 	return response.json();
 }
 
+export async function fetchMyLegacyRequests(): Promise<LegacyPastRequest[]> {
+	const response = await apiFetch('/api/analytics/legacy-requests/');
+	if (!response.ok) {
+		throw new Error(`Failed to fetch legacy requests: ${response.status}`);
+	}
+	return response.json();
+}
+
+export async function fetchLegacyRequestsByToken(token: string): Promise<LegacyPastRequest[]> {
+	const response = await fetch(`/api/analytics/legacy-history/${encodeURIComponent(token)}/`);
+	if (response.status === 410) {
+		throw new Error('expired');
+	}
+	if (!response.ok) {
+		throw new Error('invalid');
+	}
+	return response.json();
+}
+
+export async function fetchLegacyRequestDetail(id: string): Promise<LegacyRequestDetail> {
+	const response = await fetch(`/api/analytics/legacy-requests/${encodeURIComponent(id)}/`);
+	if (!response.ok) {
+		throw new Error(`Failed to fetch legacy request: ${response.status}`);
+	}
+	return response.json();
+}
+
 // ── Stats ───────────────────────────────────────────────────────
 
 export interface StatsPoint {
@@ -439,6 +486,11 @@ export interface Stats {
 	};
 	time_series: Record<'submit_time' | 'complete_time', Record<string, StatsPoint[]>>;
 	extract_time_series: Record<string, StatsPoint[]>;
+	/** Requests imported from the previous version of GeoQuery. */
+	/** Absent from snapshots written before this field shipped: the endpoint
+	 * serves a file, and STATS_REPORT_INTERVAL_SECONDS=0 disables the rebuild
+	 * entirely, so a stale snapshot can persist indefinitely. */
+	legacy_request_count?: number;
 	generated_at: string;
 }
 

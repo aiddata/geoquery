@@ -6,6 +6,7 @@ from .models import (
     Coverage,
     ProcessingOption,
     ExtractTask,
+    LegacyRequest,
     Request,
     RequestMap,
 )
@@ -69,6 +70,41 @@ class RequestAdmin(admin.ModelAdmin):
     )
     list_filter = ("status", "submit_time")
     search_fields = ("id", "contact")
+
+
+@admin.register(LegacyRequest)
+class LegacyRequestAdmin(admin.ModelAdmin):
+    """Non-editable view over the imported pre-2026 archive.
+
+    Everything here is written by ``import_legacy_requests`` and keyed on the
+    original Mongo ObjectId, so hand-editing a row would be silently undone by
+    the next import run, and a save would also move ``imported_at`` and
+    misrepresent which run wrote it. Exposed for support lookups -- answering
+    "where is my old request" -- not for editing.
+
+    Add and change are blocked; **delete is deliberately left permitted**, so a
+    wrongly imported row can be removed without a code change. Note a deleted
+    row comes back on the next import unless the export is fixed too.
+    """
+
+    list_display = (
+        "id",
+        "contact",
+        "custom_name",
+        "submit_time",
+        "complete_time",
+        "dataset_count",
+    )
+    list_filter = ("submit_time",)
+    search_fields = ("id", "contact", "custom_name")
+    ordering = ("-submit_time",)
+    readonly_fields = tuple(f.name for f in LegacyRequest._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 # @admin.register(RequestMap)

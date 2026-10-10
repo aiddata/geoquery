@@ -7,7 +7,7 @@ from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.db.models import F, Func
-from django.db.models.functions import Lower
+from django.db.models.functions import Upper
 from django.utils import timezone
 
 from datasets.models import Dataset, DatasetResource
@@ -311,7 +311,13 @@ class Request(models.Model):
         db_table = "requests"
         indexes = [
             # Claims and history lookups match contact case-insensitively.
-            models.Index(Lower("contact"), name="requests_contact_lower_idx"),
+            # Upper rather than Lower: Django renders __iexact as
+            # UPPER(x) = UPPER(y) on PostgreSQL (hardcoded in its postgresql
+            # backend's lookup_cast), and an expression index is only eligible
+            # when its expression matches the predicate's exactly. The former
+            # lower(contact) index could never serve these lookups, so every
+            # claim and history read sequentially scanned.
+            models.Index(Upper("contact"), name="requests_contact_upper_idx"),
         ]
 
     def featmap_ids(self, using="default"):
@@ -383,6 +389,69 @@ class RequestMap(models.Model):
 
     def __str__(self):
         return f"RequestMap: Request {self.request_id} - Task {self.task_id}"
+
+
+class LegacyRequest(models.Model):
+    """A completed request from the previous version of GeoQuery.
+
+    Imported read-only by ``import_legacy_requests``. Deliberately a separate
+    table rather than a flag on ``Request``: legacy rows must never reach the
+    completion sweep, priority bumping, task materialization, ``RequestMap`` or
+    the extract workers, and a separate table makes that true by construction
+    instead of by a filter every one of those paths has to remember.
+
+    Only completed requests are imported, so there is no status column -- the
+    API reports "completed" for every row. ``prepare_time`` and
+    ``process_time`` are not carried over: in 9,716 of the exported completed
+    rows they precede ``submit_time``, so importing them would publish a
+    timeline that contradicts itself.
+    """
+
+    # Mongo ObjectId hex from the old system, preserved so old references and
+    # the copied zip filenames keep resolving.
+    id = models.CharField(max_length=24, primary_key=True)
+    contact = models.CharField(max_length=100)
+    custom_name = models.CharField(max_length=100)
+    submit_time = models.DateTimeField()
+    complete_time = models.DateTimeField()
+
+    boundary_title = models.CharField(max_length=100)
+    boundary_name = models.CharField(max_length=64)
+    boundary_group = models.CharField(max_length=32)
+
+    # Denormalized for display so neither the list nor the detail endpoint has
+    # to parse `data`. Release entries first, then raster.
+    dataset_titles = ArrayField(models.CharField(max_length=200), default=list)
+    dataset_count = models.SmallIntegerField(default=0)
+
+    # release_data + raster_data verbatim, for provenance.
+    data = models.JSONField()
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="legacy_requests",
+        db_column="user_id",
+    )
+    # auto_now, so this is the last run that wrote this row, not the first
+    # import. The import command lists it in its update_fields precisely so a
+    # re-import records that it ran.
+    imported_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "legacy_requests"
+        indexes = [
+            # Ownership lookups match contact case-insensitively, mirroring
+            # requests_contact_upper_idx on Request. See the note there for
+            # why the expression is Upper.
+            models.Index(Upper("contact"), name="legacy_contact_upper_idx"),
+            models.Index(fields=["-submit_time"], name="legacy_submit_time_idx"),
+        ]
+
+    def __str__(self):
+        return f"LegacyRequest {self.id}: {self.custom_name or 'unnamed'}"
 
 
 class RequestToken(models.Model):

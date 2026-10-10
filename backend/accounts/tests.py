@@ -1,3 +1,5 @@
+from datetime import datetime, timezone as dt_timezone
+
 from allauth.account.models import EmailAddress
 from allauth.account.signals import email_confirmed, user_signed_up
 from django.contrib.auth import get_user_model
@@ -5,7 +7,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from accounts.claims import claim_requests_for_email, claim_requests_for_user
-from analytics.models import Request
+from analytics.models import LegacyRequest, Request
 
 User = get_user_model()
 
@@ -136,3 +138,50 @@ class MyRequestsViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), [])
+
+
+def make_legacy_request(oid, contact, **overrides):
+    fields = {
+        "id": oid,
+        "contact": contact,
+        "custom_name": "Legacy request",
+        "submit_time": datetime(2018, 5, 1, tzinfo=dt_timezone.utc),
+        "complete_time": datetime(2018, 5, 1, 1, tzinfo=dt_timezone.utc),
+        "boundary_title": "Kenya ADM1",
+        "boundary_name": "ken_adm1_gadm28",
+        "boundary_group": "ken_gadm28",
+        "dataset_titles": ["Population"],
+        "dataset_count": 1,
+        "data": {},
+    }
+    fields.update(overrides)
+    return LegacyRequest.objects.create(**fields)
+
+
+class LegacyClaimTests(TestCase):
+    def setUp(self):
+        self.user = make_user("alice", "alice@example.com")
+
+    def test_claims_legacy_requests_case_insensitively(self):
+        legacy = make_legacy_request("a" * 24, "Alice@Example.com")
+        other = make_legacy_request("b" * 24, "bob@example.com")
+
+        claimed = claim_requests_for_email(self.user, "alice@example.com")
+
+        self.assertEqual(claimed, 1)
+        legacy.refresh_from_db()
+        other.refresh_from_db()
+        self.assertEqual(legacy.user, self.user)
+        self.assertIsNone(other.user)
+
+    def test_does_not_reclaim_owned_legacy_requests(self):
+        bob = make_user("bob", "bob@example.com")
+        make_legacy_request("c" * 24, "alice@example.com", user=bob)
+
+        self.assertEqual(claim_requests_for_email(self.user, "alice@example.com"), 0)
+
+    def test_count_sums_current_and_legacy(self):
+        Request.objects.create(contact="alice@example.com", status=1)
+        make_legacy_request("d" * 24, "alice@example.com")
+
+        self.assertEqual(claim_requests_for_email(self.user, "alice@example.com"), 2)

@@ -1,0 +1,105 @@
+{
+  "planPath": "docs/superpowers/plans/2026-10-07-legacy-request-migration.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: LegacyRequest model and migration",
+      "status": "completed",
+      "description": "**Goal:** The `legacy_requests` table exists with the fields, indexes and constraints the spec defines.\n\n**Files:**\n- Modify: `backend/analytics/models.py` (append after `RequestMap`, ~line 386)\n- Create: `backend/analytics/migrations/0031_legacyrequest.py` (generated)\n- Create: `backend/analytics/tests/test_legacy_requests.py`\n\n**Acceptance Criteria:**\n- [ ] LegacyRequest is creatable with a 24-character ObjectId primary key\n- [ ] dataset_titles round-trips a list of strings\n- [ ] user is nullable and set to NULL when the user is deleted\n- [ ] The functional index on Lower(\"contact\") exists in the migration\n- [ ] makemigrations --check reports no further changes\n\n**Verify:** `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2` -> OK\n\n**Steps:**\n1. Write failing model tests (4 cases)\n2. Run - expect ImportError on LegacyRequest\n3. Add the model (ArrayField/Lower already imported in models.py)\n4. makemigrations analytics\n5. migrate + rerun tests + makemigrations --check\n6. Commit\n\n```json:metadata\n{\"files\": [\"backend/analytics/models.py\", \"backend/analytics/migrations/0031_legacyrequest.py\", \"backend/analytics/tests/test_legacy_requests.py\"], \"verifyCommand\": \"docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2\", \"acceptanceCriteria\": [\"LegacyRequest is creatable with a 24-character ObjectId primary key\", \"dataset_titles round-trips a list of strings\", \"user is nullable and set to NULL when the user is deleted\", \"The functional index on Lower(\\\"contact\\\") exists in the migration\", \"makemigrations --check reports no further changes\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: Download links and LEGACY_DOWNLOAD_BASE_URL",
+      "status": "completed",
+      "description": "**Goal:** legacy_request_links() returns a zip URL when the base URL is configured and nothing when it is not, so the feature ships before the archive is hosted.\n\n**Files:**\n- Modify: `backend/geoquery/settings.py:322` (beside DOWNLOAD_BASE_URL)\n- Modify: `backend/analytics/services.py` (after request_links, ~line 598)\n- Modify: `backend/analytics/tests/test_legacy_requests.py`\n\n**Acceptance Criteria:**\n- [ ] Unset or empty LEGACY_DOWNLOAD_BASE_URL yields {} with no download_url key\n- [ ] A configured base yields {\"download_url\": \"<base>/<id>.zip\"}\n- [ ] A trailing slash on the base does not produce a double slash\n\n**Verify:** `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2` -> OK\n\n**Steps:**\n1. Write 3 failing link tests with override_settings\n2. Run - expect ImportError\n3. Add LEGACY_DOWNLOAD_BASE_URL setting\n4. Add legacy_request_links() to services.py\n5. Rerun (7 tests pass)\n6. Commit\n\n```json:metadata\n{\"files\": [\"backend/geoquery/settings.py\", \"backend/analytics/services.py\", \"backend/analytics/tests/test_legacy_requests.py\"], \"verifyCommand\": \"docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2\", \"acceptanceCriteria\": [\"Unset or empty LEGACY_DOWNLOAD_BASE_URL yields {} with no download_url key\", \"A configured base yields {\\\"download_url\\\": \\\"<base>/<id>.zip\\\"}\", \"A trailing slash on the base does not produce a double slash\"], \"modelTier\": \"mechanical\"}\n```",
+      "blockedBy": [
+        0
+      ]
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: legacy_requests_for_user",
+      "status": "completed",
+      "description": "**Goal:** Ownership resolution for legacy rows mirrors requests_for_user exactly - FK-claimed rows unioned with live matches on verified addresses.\n\n**Files:**\n- Modify: `backend/analytics/services.py` (after requests_for_user ~line 558; add LegacyRequest to the module import at line 39)\n- Modify: `backend/analytics/tests/test_legacy_requests.py`\n\n**Acceptance Criteria:**\n- [ ] Rows claimed by FK are returned\n- [ ] Rows matching a verified email are returned even with no FK set\n- [ ] Rows matching an unverified email are NOT returned\n- [ ] Another user's rows are never returned\n- [ ] Results are ordered newest-submitted first\n\n**Verify:** `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2` -> OK\n\n**Steps:**\n1. Write 5 failing ownership tests\n2. Run - expect ImportError\n3. Add legacy_requests_for_user() + extend module import at services.py:39\n4. Rerun (12 tests pass)\n5. Commit\n\n```json:metadata\n{\"files\": [\"backend/analytics/services.py\", \"backend/analytics/tests/test_legacy_requests.py\"], \"verifyCommand\": \"docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_requests -v 2\", \"acceptanceCriteria\": [\"Rows claimed by FK are returned\", \"Rows matching a verified email are returned even with no FK set\", \"Rows matching an unverified email are NOT returned\", \"Another user's rows are never returned\", \"Results are ordered newest-submitted first\"], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        0
+      ]
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: Claim legacy requests on email verification",
+      "status": "completed",
+      "description": "**Goal:** Verifying an email address attaches matching legacy rows to the account, with the same unclaimed-only semantics as Request.\n\n**Files:**\n- Modify: `backend/accounts/claims.py:10-27`\n- Modify: `backend/accounts/tests.py`\n\n**Acceptance Criteria:**\n- [ ] claim_requests_for_email claims matching legacy rows case-insensitively\n- [ ] Legacy rows already owned by another user are not re-claimed\n- [ ] The returned count is the sum of current and legacy rows claimed\n- [ ] Existing Request claim tests still pass unchanged\n\n**Verify:** `docker compose exec backend uv run python manage.py test accounts -v 2` -> OK\n\n**Steps:**\n1. Write 3 failing legacy claim tests\n2. Run - expect claim count 0\n3. Extend claim_requests_for_email to cover both tables; update module docstring\n4. Run whole accounts suite - pre-existing exact-count tests must still pass\n5. Commit\n\n```json:metadata\n{\"files\": [\"backend/accounts/claims.py\", \"backend/accounts/tests.py\"], \"verifyCommand\": \"docker compose exec backend uv run python manage.py test accounts -v 2\", \"acceptanceCriteria\": [\"claim_requests_for_email claims matching legacy rows case-insensitively\", \"Legacy rows already owned by another user are not re-claimed\", \"The returned count is the sum of current and legacy rows claimed\", \"Existing Request claim tests still pass unchanged\"], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        0
+      ]
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: import_legacy_requests management command",
+      "status": "completed",
+      "description": "**Goal:** A re-runnable command that upserts completed, in-window legacy requests from the Parquet export, skipping incomplete records and reporting what it did.\n\n**Files:**\n- Create: `backend/analytics/management/commands/import_legacy_requests.py`\n- Create: `backend/analytics/tests/test_import_legacy_requests.py`\n\n**Acceptance Criteria:**\n- [ ] --submitted-before excludes rows submitted at or after the cutoff\n- [ ] Rows with status != 1 are excluded\n- [ ] Rows with empty contact, empty boundary, or zero datasets are skipped and counted by reason\n- [ ] Re-running the same import creates nothing and changes no field except imported_at\n- [ ] A later cutoff adds only the newer rows\n- [ ] --dry-run writes nothing\n- [ ] Over-long CharField values are truncated rather than raising\n- [ ] dataset_titles is release custom_name entries followed by raster title entries\n- [ ] Verified-email owners are claimed after import\n\n**Verify:** `docker compose exec backend uv run python manage.py test analytics.tests.test_import_legacy_requests -v 2` -> OK\n\n**Steps:**\n1. Write 10 failing tests; fixture writes a real Parquet via pyarrow matching the reader's columns\n2. Run - expect CommandError unknown command\n3. Write the command (_plain, _stage_times, _build, _flush, _claim, _report)\n4. Rerun (10 tests pass)\n5. Smoke-test --dry-run against the real export: expect 48666 imported, 8 not completed, 1 no datasets\n6. Commit\n\n```json:metadata\n{\"files\": [\"backend/analytics/management/commands/import_legacy_requests.py\", \"backend/analytics/tests/test_import_legacy_requests.py\"], \"verifyCommand\": \"docker compose exec backend uv run python manage.py test analytics.tests.test_import_legacy_requests -v 2\", \"acceptanceCriteria\": [\"--submitted-before excludes rows submitted at or after the cutoff\", \"Rows with status != 1 are excluded\", \"Rows with empty contact, empty boundary, or zero datasets are skipped and counted by reason\", \"Re-running the same import creates nothing and changes no field except imported_at\", \"A later cutoff adds only the newer rows\", \"--dry-run writes nothing\", \"Over-long CharField values are truncated rather than raising\", \"dataset_titles is release custom_name entries followed by raster title entries\", \"Verified-email owners are claimed after import\"], \"modelTier\": \"complex\"}\n```",
+      "blockedBy": [
+        0,
+        3
+      ]
+    },
+    {
+      "id": 5,
+      "subject": "Task 6: Legacy API endpoints",
+      "status": "completed",
+      "description": "**Goal:** Three endpoints mirroring the current list, history and detail views, each marking its payload is_legacy.\n\n**Files:**\n- Modify: `backend/analytics/views.py` (append after MyRequestsView, ~line 360)\n- Modify: `backend/analytics/urls.py`\n- Create: `backend/analytics/tests/test_legacy_api.py`\n\n**Acceptance Criteria:**\n- [ ] GET /api/analytics/legacy-requests/ returns the signed-in user's rows and 403s anonymously\n- [ ] GET /api/analytics/legacy-history/<token>/ returns rows for the token email, 404s unknown, 410s expired\n- [ ] GET /api/analytics/legacy-requests/<id>/ returns detail with dataset_titles and boundary_title, 404s unknown id\n- [ ] Every payload carries is_legacy: true and status_label: \"completed\"\n- [ ] Detail includes download_url only when LEGACY_DOWNLOAD_BASE_URL is set\n- [ ] One user never sees another's rows\n\n**Verify:** `docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_api -v 2` -> OK\n\n**Steps:**\n1. Write 9 failing API tests\n2. Run - expect 404s, no routes\n3. Add _legacy_row + three views, extend the .models and .services imports\n4. Add three routes to urls.py\n5. Rerun (9 tests pass)\n6. Commit\n\n```json:metadata\n{\"files\": [\"backend/analytics/views.py\", \"backend/analytics/urls.py\", \"backend/analytics/tests/test_legacy_api.py\"], \"verifyCommand\": \"docker compose exec backend uv run python manage.py test analytics.tests.test_legacy_api -v 2\", \"acceptanceCriteria\": [\"GET /api/analytics/legacy-requests/ returns the signed-in user's rows and 403s anonymously\", \"GET /api/analytics/legacy-history/<token>/ returns rows for the token email, 404s unknown, 410s expired\", \"GET /api/analytics/legacy-requests/<id>/ returns detail with dataset_titles and boundary_title, 404s unknown id\", \"Every payload carries is_legacy: true and status_label: \\\"completed\\\"\", \"Detail includes download_url only when LEGACY_DOWNLOAD_BASE_URL is set\", \"One user never sees another's rows\"], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 6,
+      "subject": "Task 7: Frontend API types and fetchers",
+      "status": "completed",
+      "description": "**Goal:** Typed client functions for the three legacy endpoints.\n\n**Files:**\n- Modify: `frontend/src/lib/api.ts` (types after PastRequest line 261; fetchers after fetchRequestsByToken line 420)\n\n**Acceptance Criteria:**\n- [ ] LegacyPastRequest and LegacyRequestDetail types exist and match the endpoint payloads\n- [ ] fetchMyLegacyRequests, fetchLegacyRequestsByToken, fetchLegacyRequestDetail exist\n- [ ] The token fetcher throws 'expired' on 410, matching fetchRequestsByToken\n- [ ] bun run check passes\n\n**Verify:** `docker compose exec frontend bun run check` -> 0 errors\n\n**Steps:**\n1. Add the two interfaces\n2. Add the three fetchers\n3. Run bun run check\n4. Commit\n\n```json:metadata\n{\"files\": [\"frontend/src/lib/api.ts\"], \"verifyCommand\": \"docker compose exec frontend bun run check\", \"acceptanceCriteria\": [\"LegacyPastRequest and LegacyRequestDetail types exist and match the endpoint payloads\", \"fetchMyLegacyRequests, fetchLegacyRequestsByToken, fetchLegacyRequestDetail exist\", \"The token fetcher throws 'expired' on 410, matching fetchRequestsByToken\", \"bun run check passes\"], \"modelTier\": \"mechanical\"}\n```",
+      "blockedBy": [
+        5
+      ]
+    },
+    {
+      "id": 7,
+      "subject": "Task 8: Archived requests section on past-requests page",
+      "status": "completed",
+      "description": "**Goal:** Legacy requests render in a collapsed, visually-distinct section below current requests, and are absent entirely when there are none.\n\n**Files:**\n- Modify: `frontend/src/routes/requests/[[token]]/+page.svelte` (script block; markup lines 191-223)\n\n**Acceptance Criteria:**\n- [ ] Legacy requests load in parallel with current ones, for both the token and signed-in paths\n- [ ] The section is collapsed by default and shows a count\n- [ ] Rows are muted, carry an Archive badge, and link to /requests/legacy/<id>\n- [ ] No section renders when the user has no legacy requests\n- [ ] A legacy fetch failure does not break the current-requests list\n- [ ] bun run check passes\n\n**Verify:** `docker compose exec frontend bun run check` -> 0 errors, then load http://localhost:5173/requests signed in and confirm the section\n\n**Steps:**\n1. Extend imports (Archive, ChevronDown, Collapsible, two fetchers) and add legacyRequests state\n2. Rewrite loadHistory/loadMine to Promise.all with .catch(() => []) on the legacy side\n3. Update the count paragraph\n4. Change empty-state condition at line 191; insert the Collapsible between lines 222 and 223\n5. bun run check + manual check\n6. Commit\n\n```json:metadata\n{\"files\": [\"frontend/src/routes/requests/[[token]]/+page.svelte\"], \"verifyCommand\": \"docker compose exec frontend bun run check\", \"acceptanceCriteria\": [\"Legacy requests load in parallel with current ones, for both the token and signed-in paths\", \"The section is collapsed by default and shows a count\", \"Rows are muted, carry an Archive badge, and link to /requests/legacy/<id>\", \"No section renders when the user has no legacy requests\", \"A legacy fetch failure does not break the current-requests list\", \"bun run check passes\"], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        6
+      ]
+    },
+    {
+      "id": 8,
+      "subject": "Task 9: Legacy request detail page",
+      "status": "completed",
+      "description": "**Goal:** A dedicated page showing a legacy request's summary, boundary, datasets and download link.\n\n**Files:**\n- Create: `frontend/src/routes/requests/legacy/[id]/+page.svelte`\n\n**Acceptance Criteria:**\n- [ ] Renders name, submitted and completed dates, boundary title, and dataset titles\n- [ ] Shows a download button only when download_url is present\n- [ ] Shows an explanatory note that the request cannot be re-run or visualized\n- [ ] An unknown id renders a not-found message rather than a blank page\n- [ ] bun run check passes\n\n**Verify:** `docker compose exec frontend bun run check` -> 0 errors, then open /requests/legacy/<id>\n\n**Steps:**\n1. Create the page component\n2. bun run check\n3. Manually confirm a real id and a bogus 24-char id\n4. Commit\n\n```json:metadata\n{\"files\": [\"frontend/src/routes/requests/legacy/[id]/+page.svelte\"], \"verifyCommand\": \"docker compose exec frontend bun run check\", \"acceptanceCriteria\": [\"Renders name, submitted and completed dates, boundary title, and dataset titles\", \"Shows a download button only when download_url is present\", \"Shows an explanatory note that the request cannot be re-run or visualized\", \"An unknown id renders a not-found message rather than a blank page\", \"bun run check passes\"], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        6
+      ]
+    },
+    {
+      "id": 9,
+      "subject": "Task 10: Report legacy request count in stats",
+      "status": "completed",
+      "description": "**Goal:** The stats snapshot carries a legacy count, reported separately from current-system figures.\n\n**Files:**\n- Modify: `backend/stats/builder.py:11` (import) and _collect's return dict (~line 129)\n- Modify: `backend/stats/tests.py`\n- Modify: `frontend/src/lib/api.ts` (StatsData, ~line 428)\n- Modify: `frontend/src/routes/stats/+page.svelte` (after the cards grid closing </div> at line 127)\n\n**Acceptance Criteria:**\n- [ ] The snapshot includes legacy_request_count\n- [ ] The count is not folded into total, status_counts or either time series\n- [ ] The stats page renders it as a distinct, labelled figure\n- [ ] bun run check passes\n\n**Verify:** `docker compose exec backend uv run python manage.py test stats -v 2` -> OK and `docker compose exec frontend bun run check` -> 0 errors\n\n**Steps:**\n1. Write failing test using ReplicaReadsTestMixin + StatsBuilder().collect()\n2. Run - expect KeyError\n3. Add LegacyRequest to the builder import and legacy_request_count to the snapshot (reads via _DB replica alias)\n4. Add the StatsData field and the stats page paragraph\n5. Run both verifies\n6. Commit\n\n```json:metadata\n{\"files\": [\"backend/stats/builder.py\", \"backend/stats/tests.py\", \"frontend/src/lib/api.ts\", \"frontend/src/routes/stats/+page.svelte\"], \"verifyCommand\": \"docker compose exec backend uv run python manage.py test stats -v 2\", \"acceptanceCriteria\": [\"The snapshot includes legacy_request_count\", \"The count is not folded into total, status_counts or either time series\", \"The stats page renders it as a distinct, labelled figure\", \"bun run check passes\"], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        0,
+        6
+      ]
+    },
+    {
+      "id": 10,
+      "subject": "Task 11: Register LegacyRequest in the admin",
+      "status": "completed",
+      "blockedBy": [
+        0
+      ],
+      "description": "**Goal:** Support staff can find and inspect an imported legacy request in the Django admin, as they can a current one.\n\n**Files:**\n- Modify: `backend/analytics/admin.py` (after RequestAdmin, ~line 72)\n\n**Acceptance Criteria:**\n- [ ] LegacyRequest appears in the admin index\n- [ ] Changelist shows id, contact, name, dates and dataset count\n- [ ] contact and id are searchable\n- [ ] Every field is read-only\n- [ ] admin checks pass\n\n**Verify:** `sudo docker compose exec -T backend uv run python manage.py check` -> no issues\n\n**Steps:**\n1. Add LegacyRequestAdmin with readonly_fields and has_add/change_permission False\n2. Run manage.py check; load the changelist\n3. Commit\n\n```json:metadata\n{\"files\": [\"backend/analytics/admin.py\"], \"verifyCommand\": \"sudo docker compose exec -T backend uv run python manage.py check\", \"acceptanceCriteria\": [\"LegacyRequest appears in the admin index\", \"changelist shows id, contact, name, dates, dataset count\", \"contact and id searchable\", \"all fields read-only\", \"admin checks pass\"], \"modelTier\": \"mechanical\"}\n```"
+    }
+  ],
+  "lastUpdated": "2026-10-08T14:48:18.900618+00:00"
+}

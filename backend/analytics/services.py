@@ -36,7 +36,7 @@ from catalog.access import (
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap
 
-from .models import ExtractTask, ProcessingOption, Request, RequestMap
+from .models import ExtractTask, LegacyRequest, ProcessingOption, Request, RequestMap
 
 # Request.status as a word. Also imported by analytics.views, which exposed
 # this mapping long before the service existed.
@@ -558,6 +558,25 @@ def requests_for_user(user) -> QuerySet[Request]:
     return Request.objects.filter(q).order_by("-submit_time")
 
 
+def legacy_requests_for_user(user) -> QuerySet[LegacyRequest]:
+    """Every legacy request belonging to ``user``, newest first.
+
+    Deliberately mirrors ``requests_for_user`` rather than generalizing it:
+    the two read side by side, so if ownership semantics ever drift apart the
+    difference is visible in a diff.
+    """
+    from allauth.account.models import EmailAddress
+
+    q = Q(user=user)
+    emails = EmailAddress.objects.filter(user=user, verified=True).values_list(
+        "email", flat=True
+    )
+    for email in emails:
+        q |= Q(contact__iexact=email)
+
+    return LegacyRequest.objects.filter(q).order_by("-submit_time")
+
+
 def request_progress(request: Request) -> tuple[int, int]:
     """``(completed_tasks, total_tasks)`` for a request.
 
@@ -596,3 +615,30 @@ def request_links(request: Request) -> dict:
     if frontend_base:
         links["visualization_url"] = f"{frontend_base}/viz/{request.id}"
     return links
+
+
+def legacy_request_links(legacy_request) -> dict:
+    """Download URL for an imported legacy request.
+
+    Only a zip: the old system produced no equivalent of the documentation
+    page or the visualization, and every imported row is already complete, so
+    there is no "not ready yet" state.
+
+    Empty only when ``LEGACY_DOWNLOAD_BASE_URL`` is explicitly set to an empty
+    value. Leaving it unset inherits ``DOWNLOAD_BASE_URL``, so the link is live
+    by default -- the empty value is the deliberate switch for deploying before
+    the zips are copied.
+
+    The ``legacy/`` segment is part of the path rather than part of the
+    configured base URL, so it cannot be left out by a misconfiguration. That
+    keeps the archive out of the download host's document root, where a
+    directory listing would expose all 48,666 filenames at once -- the ids are
+    derivable from one another (a known id yields a neighbour's id for a third
+    of the archive), so the filenames are not the secret they look like.
+    ``LEGACY_DOWNLOAD_BASE_URL`` should therefore NOT itself end in
+    ``/legacy``.
+    """
+    base = getattr(settings, "LEGACY_DOWNLOAD_BASE_URL", "").rstrip("/")
+    if not base:
+        return {}
+    return {"download_url": f"{base}/legacy/{legacy_request.id}.zip"}

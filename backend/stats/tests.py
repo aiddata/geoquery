@@ -242,3 +242,32 @@ class StatsDisabledTests(ReplicaReadsTestMixin, TestCase):
         build.assert_not_called()
         self.assertEqual(result, {"status": "Disabled"})
         self.assertFalse(out.exists())
+
+
+class LegacyCountInSnapshotTests(ReplicaReadsTestMixin, TestCase):
+    # StatsBuilder reads through the "replica" alias.
+
+    def test_snapshot_counts_legacy_requests_separately(self):
+        from analytics.models import LegacyRequest
+
+        LegacyRequest.objects.create(
+            id="a" * 24,
+            contact="alice@example.com",
+            custom_name="Legacy",
+            submit_time=datetime(2018, 1, 1, tzinfo=timezone.utc),
+            complete_time=datetime(2018, 1, 1, 1, tzinfo=timezone.utc),
+            boundary_title="Kenya ADM1",
+            boundary_name="ken_adm1_gadm28",
+            boundary_group="ken_gadm28",
+            dataset_titles=["Population"],
+            dataset_count=1,
+            data={},
+        )
+
+        snapshot = StatsBuilder().collect()
+
+        self.assertEqual(snapshot["legacy_request_count"], 1)
+        # Legacy rows live in their own table and must not inflate the
+        # current system's figures: no Request rows exist here.
+        self.assertEqual(snapshot["total"], 0)
+        self.assertEqual(sum(snapshot["status_counts"].values()), 0)
