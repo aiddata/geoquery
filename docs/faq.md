@@ -52,7 +52,7 @@ Yes. AidData works with a wide range of organizations to analyze spatial informa
 Yes — tutorial videos, research applications, and more are available at [aiddata.org/geoquery](https://aiddata.org/geoquery).
 
 ### How can I get help or ask a question?
-We suggest first exploring the rest of the documentation, as well as the GitHub repository for existing Issues or Discussions. If you still need help, you may create a new Issue in our GitHub repository](https://github.com/aiddata/geoquery) or email us at [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu).
+We suggest first exploring the rest of the documentation, as well as the GitHub repository for existing Issues or Discussions. If you still need help, you may create a new Issue in [our GitHub repository](https://github.com/aiddata/geoquery) or email us at [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu).
 
 ### Where can I provide feedback or request new datasets?
 You may submit specific feedback (bugs, suggested features, etc) or data requests by creating a new Issue in our [GitHub repository](https://github.com/aiddata/geoquery). For any other feedback please email us at [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu).

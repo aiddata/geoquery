@@ -4,7 +4,7 @@
 
 Select boundaries, choose from a curated library of datasets, and download results ready for analysis in Excel, Stata, SPSS, or GIS software.
 
-[Get started with GeoQuery →](#){ .md-button .md-button--primary }
+[Get started with GeoQuery →](using-geoquery/getting-started.md){ .md-button .md-button--primary }
 
 ---
 
