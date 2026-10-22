@@ -25,9 +25,9 @@ vocabulary of workload names and MUST NOT carry per-request identifiers.
 
 import logging
 import re
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 
-from django.db import connection
+from django.db import connections
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +46,10 @@ def _sanitize(tag):
 def tag_queries(workload):
     """Prefix every statement issued in this block with ``/* gq:<workload> */``.
 
-    Wraps Django's documented execute_wrapper hook, which applies to the
-    current connection for the duration of the block and nests cleanly if an
-    inner block sets a different tag.
+    Wraps Django's documented execute_wrapper hook on every connection alias
+    -- the primary and the standby a lease may read from -- for the duration
+    of the block. It nests cleanly if an inner block sets a different tag,
+    and opens no connection itself.
 
     Deliberately failure-tolerant: this exists to label work, and a bug in
     labelling must never be able to fail the work. If the tag sanitizes to
@@ -72,7 +73,9 @@ def tag_queries(workload):
             logger.warning("query tagging failed for %s", name, exc_info=True)
         return execute(sql, params, many, context)
 
-    with connection.execute_wrapper(wrapper):
+    with ExitStack() as stack:
+        for conn in connections.all(initialized_only=False):
+            stack.enter_context(conn.execute_wrapper(wrapper))
         yield
 
 

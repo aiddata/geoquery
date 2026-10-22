@@ -7,6 +7,7 @@ import json
 import uuid
 
 from django.contrib.gis.geos import GEOSGeometry
+from django.db import transaction
 
 from analytics.models import ExtractTask, Request, RequestMap
 from catalog.access import visible_datasets, visible_processing_options_for_dataset
@@ -172,20 +173,24 @@ def ingest_custom_boundary(
 
     feature_ids = [fm.geom_id for fm in feat_map_objs]
 
-    req.data = {
-        **req.data,
-        "feature_ids": feature_ids,
-        "datasets": valid_datasets,
-        "fc_id": fc.id,
-    }
-    req.status = -1
-    req.save(update_fields=["data", "status"])
-
-    RequestMap.objects.bulk_create(
-        [
-            RequestMap(request=req, task_id=task_id, dataset_id=dataset_id)
-            for task_id, dataset_id in all_task_ids.items()
-        ]
-    )
+    # One transaction, so the completion sweep never sees the request queued
+    # without its RequestMap rows. task_count lets the sweep tell tasks
+    # deleted later (with a boundary or resource) from a smaller request.
+    with transaction.atomic():
+        RequestMap.objects.bulk_create(
+            [
+                RequestMap(request=req, task_id=task_id, dataset_id=dataset_id)
+                for task_id, dataset_id in all_task_ids.items()
+            ]
+        )
+        req.data = {
+            **req.data,
+            "feature_ids": feature_ids,
+            "datasets": valid_datasets,
+            "fc_id": fc.id,
+            "task_count": len(all_task_ids),
+        }
+        req.status = -1
+        req.save(update_fields=["data", "status"])
 
     return len(all_task_ids), warnings

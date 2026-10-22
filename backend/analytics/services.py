@@ -51,6 +51,15 @@ STATUS_LABELS = {
 }
 
 
+class MaterializationDeferred(Exception):
+    """An input of the request is mid-reset; try again shortly.
+
+    Not a user error: the request stays at status=4 and is materialized once
+    sync has reconciled the change (materialize_request_tasks reschedules
+    itself, and reset_stale_requests re-dispatches as a backstop).
+    """
+
+
 class NoExtractTasksError(Exception):
     """Nothing in the submission resolved to a single extract task.
 
@@ -210,7 +219,7 @@ def _get_or_create_task(resolved: ResolvedDataset, fm: FeatMap, resource, po):
     remains the actual correctness check.
 
     Django JSONField maps None to JSON null for equality queries, but rows with
-    no kwargs (e.g. from build_extract_tasks) have SQL NULL. Use isnull lookup
+    no kwargs (background lease tasks, and most requests') have SQL NULL. Use isnull lookup
     for the None case so the GET matches SQL NULL rows.
     """
     task_kwargs = resolved.task_kwargs
@@ -236,14 +245,16 @@ def _get_or_create_task(resolved: ResolvedDataset, fm: FeatMap, resource, po):
             # resource_ids_hash is NOT set here -- it's a generated column
             # (migration 0024), Postgres computes it automatically from
             # resource_ids on INSERT; explicitly setting a generated column's
-            # value raises an error.
-            return ExtractTask.objects.create(
-                dataset_id=resolved.dataset.id,
-                resource_ids=resource_ids,
-                fm=fm,
-                po=po,
-                kwargs=task_kwargs,
-            )
+            # value raises an error. The savepoint keeps a conflict from
+            # aborting materialize_request's enclosing transaction.
+            with transaction.atomic():
+                return ExtractTask.objects.create(
+                    dataset_id=resolved.dataset.id,
+                    resource_ids=resource_ids,
+                    fm=fm,
+                    po=po,
+                    kwargs=task_kwargs,
+                )
         except IntegrityError:
             return ExtractTask.objects.get(**lookup)
 
@@ -260,7 +271,7 @@ def _build_tasks(plan: RequestPlan) -> tuple[dict[int, int], list[dict]]:
     the dataset contributes: one SELECT for what already exists, one bulk
     INSERT for what doesn't, one re-SELECT to resolve the inserted ids, and
     up to two priority UPDATEs. Tasks are still created on demand when
-    build_extract_tasks hasn't reached this (fm, resource, po) space yet, and
+    background extraction hasn't reached this (fm, resource, po) space yet, and
     concurrent submissions are still safe -- the insert is ON CONFLICT DO
     NOTHING and the re-SELECT picks up whatever the other writer created.
 
@@ -519,12 +530,19 @@ def materialize_request(request: Request) -> None:
     plan = resolve_request_plan(
         request.user, request.data["feature_ids"], request.data["dataset_specs"]
     )
-    all_task_ids, valid_datasets = _build_tasks(plan)
 
-    if not all_task_ids:
-        raise NoExtractTasksError(plan.warnings)
-
+    # One transaction, under shared guards on every input scope the plan
+    # reads. A scope whose results are being reset defers the whole request:
+    # reusing a task the reset has not reached yet would hand the request a
+    # result that is about to be invalidated, and the share stops a reset
+    # from starting until these tasks and their RequestMap rows are in.
     with transaction.atomic():
+        _guard_materialization(plan)
+        all_task_ids, valid_datasets = _build_tasks(plan)
+
+        if not all_task_ids:
+            raise NoExtractTasksError(plan.warnings)
+
         RequestMap.objects.filter(request=request).delete()
         RequestMap.objects.bulk_create(
             [
@@ -534,8 +552,56 @@ def materialize_request(request: Request) -> None:
         )
 
         request.status = -1
-        request.data = {**request.data, "datasets": valid_datasets}
+        # task_count lets the completion sweep tell a request whose tasks
+        # were later deleted (with a boundary or resource) from a smaller one.
+        request.data = {
+            **request.data,
+            "datasets": valid_datasets,
+            "task_count": len(all_task_ids),
+        }
         request.save(update_fields=["status", "data"])
+
+
+# A scope materialization must wait for: being reset as a whole, still
+# bootstrapping, or with a targeted reset pending (its existing tasks' values
+# may be about to be discarded, and linking one now would keep them).
+_MATERIALIZATION_STATES_SQL = """
+    SELECT kind, object_id,
+           reset_tasks OR bootstrap_pending
+           OR EXISTS (SELECT 1 FROM extract_invalid_items i
+                      WHERE i.scope_kind = extract_input_state.kind
+                        AND i.scope_id = extract_input_state.object_id)
+    FROM extract_input_state
+    WHERE (kind = 'dataset' AND object_id = ANY(%s::int[]))
+       OR (kind = 'collection' AND object_id = ANY(%s::int[]))
+    ORDER BY kind = 'collection', object_id
+    FOR SHARE SKIP LOCKED
+"""
+
+
+def _guard_materialization(plan: RequestPlan) -> None:
+    """Share-lock the plan's input states; raise MaterializationDeferred if any is resetting.
+
+    A state held by a writer (an ingest mid-transaction) is skipped by SKIP
+    LOCKED and also defers: its outcome is unknown, and waiting for it would
+    hold this transaction open behind someone else's.
+    """
+    from django.db import connection
+
+    dataset_ids = sorted({r.dataset.id for r in plan.resolved})
+    collection_ids = sorted({fm.fc_id for r in plan.resolved for fm in r.fms})
+    with connection.cursor() as cursor:
+        cursor.execute(_MATERIALIZATION_STATES_SQL, [dataset_ids, collection_ids])
+        rows = cursor.fetchall()
+    seen = {(kind, object_id) for kind, object_id, _ in rows}
+    blocked = [f"{kind} {object_id}" for kind, object_id, resetting in rows if resetting]
+    wanted = {("dataset", i) for i in dataset_ids} | {("collection", i) for i in collection_ids}
+    unavailable = sorted(wanted - seen)
+    if blocked or unavailable:
+        raise MaterializationDeferred(
+            "inputs are being reset or changed: "
+            + ", ".join(blocked + [f"{kind} {object_id}" for kind, object_id in unavailable])
+        )
 
 
 def requests_for_user(user) -> QuerySet[Request]:

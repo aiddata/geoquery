@@ -199,7 +199,7 @@ class StatsScheduleTests(SimpleTestCase):
         self.assertFalse(loaded["STATS_REPORT_ENABLED"])
         self.assertNotIn("build-stats-report", loaded["CELERY_BEAT_SCHEDULE"])
         # Only the stats entry goes; the rest of the schedule is untouched.
-        self.assertIn("build-extract-tasks", loaded["CELERY_BEAT_SCHEDULE"])
+        self.assertIn("sync-extract-work", loaded["CELERY_BEAT_SCHEDULE"])
 
     def test_negative_interval_is_rejected(self):
         with self.assertRaisesMessage(ImproperlyConfigured, "STATS_REPORT_INTERVAL_SECONDS"):

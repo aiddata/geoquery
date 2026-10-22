@@ -1,7 +1,9 @@
 from django.contrib.gis.geos import Point
 from django.test import TestCase
 
-from analytics.models import ExtractData, ExtractTask, ProcessingOption, Request, RequestMap
+from analytics.models import (
+    ExtractData, ExtractTask, ExtractTaskBuildProgress, ProcessingOption, Request, RequestMap,
+)
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
 from geoquery.testing import ReplicaReadsTestMixin
@@ -118,9 +120,9 @@ class VisualizeDataTestCase(ReplicaReadsTestMixin, TestCase):
         )
 
     def test_build_request_data_grouped_task_with_null_position(self):
-        # A position that's still NULL (not yet processed, or its resource
-        # failed -- see analytics.tasks.processing) must come back as None,
-        # not be dropped or mistakenly attributed to a neighboring resource.
+        # A NULL position in a completed task is nodata, and must come back
+        # as None, not be dropped or mistakenly attributed to a neighboring
+        # resource.
         resources = [
             DatasetResource.objects.create(
                 dataset=self.dataset, name=f"ds1-null-{i}", path=f"n{i}.tif"
@@ -129,7 +131,7 @@ class VisualizeDataTestCase(ReplicaReadsTestMixin, TestCase):
         ]
         task = ExtractTask.objects.create(
             resource_ids=[r.id for r in resources],
-            dataset_id=self.dataset.id, fm=self.fm, po=self.po, status=-1,
+            dataset_id=self.dataset.id, fm=self.fm, po=self.po, status=1,
         )
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="mean",
@@ -214,6 +216,90 @@ class VisualizeDataTestCase(ReplicaReadsTestMixin, TestCase):
 
     # --- explore data (same flattening, filtered by fc/po instead of request)
 
+    def test_failed_and_unfinished_tasks_are_not_served(self):
+        # Only completed results are live: a failed task's surviving
+        # positions, or a task still pending a rerun, must not reach a viewer.
+        resource = DatasetResource.objects.create(dataset=self.dataset, name="ds1-nl", path="nl.tif")
+        for status, value in ((-1, 1.0), (0, 2.0)):
+            task = ExtractTask.objects.create(
+                resource_ids=[resource.id], dataset_id=self.dataset.id, fm=self.fm,
+                po=self.po, status=status, kwargs={"status": status},
+            )
+            ExtractData.objects.create(
+                extract_task=task, dataset_id=self.dataset.id, name=f"mean_{status}",
+                float_value=value,
+            )
+            req = self._make_request(task)
+            self.assertEqual(build_request_data(req)["columns"], [])
+        self.assertEqual(build_explore_data([self.fc.id], [self.po.id])["columns"], [])
+
+    def test_a_pending_reset_hides_exactly_the_results_it_names(self):
+        resource = DatasetResource.objects.create(dataset=self.dataset, name="ds1-hide", path="h.tif")
+        other_fm = FeatMap.objects.create(fc=self.fc, geom=Feature.objects.create(shape=Point(1, 1)), name="B")
+        tasks = []
+        for fm in (self.fm, other_fm):
+            task = ExtractTask.objects.create(
+                resource_ids=[resource.id], dataset_id=self.dataset.id, fm=fm, po=self.po, status=1)
+            ExtractData.objects.create(extract_task=task, dataset_id=self.dataset.id, name="mean", float_value=1.0)
+            tasks.append(task)
+        req = self._make_request(*tasks)
+        # Feature A is reshaped: its results wait for sync, B's stay served.
+        Feature.objects.filter(id=self.feature.id).update(shape=Point(5, 5))
+        for payload in (build_request_data(req), build_explore_data([self.fc.id], [self.po.id])):
+            self.assertNotIn("ds1-hide.mean", payload["features"][str(self.feature.id)])
+            self.assertEqual(payload["features"][str(other_fm.geom_id)]["ds1-hide.mean"], 1.0)
+
+    def test_grouped_results_of_a_retired_pair_are_not_explored(self):
+        resources = [
+            DatasetResource.objects.create(dataset=self.dataset, name=f"ds1-old-{i}", path=f"o{i}.tif")
+            for i in (1, 2)
+        ]
+        retired = ExtractTaskBuildProgress.objects.create(
+            resource_ids=[r.id for r in resources], po=self.po, dataset_id=self.dataset.id,
+            current=False,
+        )
+        task = ExtractTask.objects.create(
+            resource_ids=[r.id for r in resources], dataset_id=self.dataset.id, fm=self.fm,
+            po=self.po, status=1, pair_id=retired.id,
+        )
+        ExtractData.objects.create(
+            extract_task=task, dataset_id=self.dataset.id, name="mean", float_values=[1.0, 2.0],
+        )
+        self.assertEqual(build_explore_data([self.fc.id], [self.po.id])["columns"], [])
+        self.assertEqual(build_explore_available([self.fc.id], [self.po.id]), [])
+        # A request built from that set still shows it.
+        self.assertEqual(
+            build_request_data(self._make_request(task))["columns"],
+            ["ds1-old-1.mean", "ds1-old-2.mean"],
+        )
+
+    def test_a_current_pairs_grouped_value_wins_over_a_singleton_request_task(self):
+        resources = [
+            DatasetResource.objects.create(dataset=self.dataset, name=f"ds1-pref-{i}", path=f"p{i}.tif")
+            for i in (1, 2)
+        ]
+        pair = ExtractTaskBuildProgress.objects.create(
+            resource_ids=[r.id for r in resources], po=self.po, dataset_id=self.dataset.id,
+            current=True,
+        )
+        grouped = ExtractTask.objects.create(
+            resource_ids=[r.id for r in resources], dataset_id=self.dataset.id, fm=self.fm,
+            po=self.po, status=1, pair_id=pair.id,
+        )
+        ExtractData.objects.create(
+            extract_task=grouped, dataset_id=self.dataset.id, name="mean", float_values=[10.0, 20.0],
+        )
+        singleton = ExtractTask.objects.create(
+            resource_ids=[resources[0].id], dataset_id=self.dataset.id, fm=self.fm,
+            po=self.po, status=1,
+        )
+        ExtractData.objects.create(
+            extract_task=singleton, dataset_id=self.dataset.id, name="mean", float_value=99.0,
+        )
+        record = build_explore_data([self.fc.id], [self.po.id])["features"][str(self.feature.id)]
+        self.assertEqual(record["ds1-pref-1.mean"], 10.0)
+        self.assertEqual(record["ds1-pref-2.mean"], 20.0)
+
     def test_build_explore_data_grouped_task_attributes_each_resource(self):
         resources = [
             DatasetResource.objects.create(
@@ -221,9 +307,13 @@ class VisualizeDataTestCase(ReplicaReadsTestMixin, TestCase):
             )
             for i in (1, 2)
         ]
+        pair = ExtractTaskBuildProgress.objects.create(
+            resource_ids=[r.id for r in resources], po=self.po, dataset_id=self.dataset.id,
+            current=True,
+        )
         task = ExtractTask.objects.create(
             resource_ids=[r.id for r in resources],
-            dataset_id=self.dataset.id, fm=self.fm, po=self.po, status=1,
+            dataset_id=self.dataset.id, fm=self.fm, po=self.po, status=1, pair_id=pair.id,
         )
         ExtractData.objects.create(
             extract_task=task, dataset_id=self.dataset.id, name="mean",

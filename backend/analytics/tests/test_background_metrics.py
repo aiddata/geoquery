@@ -18,12 +18,12 @@ from analytics.tests.test_metrics import Delta
 
 class JobMetricsTests(SimpleTestCase):
     def test_success_and_exception_keep_result_and_failure_semantics(self):
-        success = ("geoquery_background_job_runs_total", (("job_name", "builder"), ("outcome", "success")))
-        error = ("geoquery_background_job_runs_total", (("job_name", "builder"), ("outcome", "error")))
-        durations = ("geoquery_background_job_seconds_count", (("job_name", "builder"),))
+        success = ("geoquery_background_job_runs_total", (("job_name", "extract_sync"), ("outcome", "success")))
+        error = ("geoquery_background_job_runs_total", (("job_name", "extract_sync"), ("outcome", "error")))
+        durations = ("geoquery_background_job_seconds_count", (("job_name", "extract_sync"),))
         delta = Delta(success, error, durations)
 
-        @bg.observe_job("builder")
+        @bg.observe_job("extract_sync")
         def job(fail=False):
             if fail:
                 raise ValueError("failure")
@@ -31,7 +31,7 @@ class JobMetricsTests(SimpleTestCase):
 
         self.assertEqual(job(), 42)
         timestamp = REGISTRY.get_sample_value(
-            "geoquery_background_job_last_success_timestamp_seconds", {"job_name": "builder"},
+            "geoquery_background_job_last_success_timestamp_seconds", {"job_name": "extract_sync"},
         )
         with self.assertRaisesMessage(ValueError, "failure"):
             job(True)
@@ -39,7 +39,7 @@ class JobMetricsTests(SimpleTestCase):
         self.assertEqual(delta[error], 1)
         self.assertEqual(delta[durations], 2)
         self.assertEqual(timestamp, REGISTRY.get_sample_value(
-            "geoquery_background_job_last_success_timestamp_seconds", {"job_name": "builder"},
+            "geoquery_background_job_last_success_timestamp_seconds", {"job_name": "extract_sync"},
         ))
 
     def test_live_collector_measures_unfinished_chunks_and_zero_when_idle(self):
@@ -60,8 +60,8 @@ class JobMetricsTests(SimpleTestCase):
             env = {**os.environ, "PROMETHEUS_MULTIPROC_DIR": directory}
             child = """
 from analytics import background_metrics as bg
-bg.JOB_LAST_SUCCESS.labels('builder').set(123)
-bg.JOB_RUNS.labels('builder', 'success').inc(2)
+bg.JOB_LAST_SUCCESS.labels('extract_sync').set(123)
+bg.JOB_RUNS.labels('extract_sync', 'success').inc(2)
 """
             subprocess.run([sys.executable, "-c", child], env=env, check=True, capture_output=True)
             parent = """
@@ -70,8 +70,8 @@ from prometheus_client import CollectorRegistry, multiprocess
 r = CollectorRegistry()
 multiprocess.MultiProcessCollector(r)
 r.register(metrics.WorkerStateCollector([0, 0], 1800))
-assert r.get_sample_value('geoquery_background_job_last_success_timestamp_seconds', {'job_name': 'builder'}) == 123
-assert r.get_sample_value('geoquery_background_job_runs_total', {'job_name': 'builder', 'outcome': 'success'}) == 2
+assert r.get_sample_value('geoquery_background_job_last_success_timestamp_seconds', {'job_name': 'extract_sync'}) == 123
+assert r.get_sample_value('geoquery_background_job_runs_total', {'job_name': 'extract_sync', 'outcome': 'success'}) == 2
 assert r.get_sample_value('geoquery_extract_slots') == 2
 """
             subprocess.run([sys.executable, "-c", parent], env=env, check=True, capture_output=True)

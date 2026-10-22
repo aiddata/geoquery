@@ -1,5 +1,6 @@
 from django.contrib.gis.geos import Point
 from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.test import TestCase
 
 from analytics.models import (
@@ -7,6 +8,8 @@ from analytics.models import (
     ExtractTask,
     ExtractTaskBuildProgress,
     ProcessingOption,
+    Request,
+    RequestMap,
 )
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
@@ -67,18 +70,35 @@ class ExtractTaskResourceIdsHashTest(TestCase):
     def test_unique_indexes_use_hash_column(self):
         with connection.cursor() as cursor:
             cursor.execute("""
-                SELECT indexdef FROM pg_indexes
+                SELECT indexname, indexdef FROM pg_indexes
                 WHERE tablename = 'extract_tasks'
                   AND indexname IN (
-                      'extract_tasks_fm_po_resources_null_kwargs_idx',
+                      'extract_tasks_pair_null_kwargs_idx',
                       'extract_tasks_fm_po_resources_kwargs_hash_idx'
                   )
             """)
-            defs = [row[0] for row in cursor.fetchall()]
+            defs = dict(cursor.fetchall())
         self.assertEqual(len(defs), 2)
-        for indexdef in defs:
+        for indexdef in defs.values():
             self.assertIn("resource_ids_hash", indexdef)
             self.assertNotIn("resource_ids)", indexdef)
+        # Migration 0031: fm_id last, the order a lease page inserts in.
+        self.assertIn(
+            "(dataset_id, po_id, resource_ids_hash, fm_id) WHERE (kwargs IS NULL)",
+            defs["extract_tasks_pair_null_kwargs_idx"],
+        )
+
+    def test_old_unique_and_po_indexes_are_gone(self):
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT indexname FROM pg_indexes
+                WHERE tablename = 'extract_tasks'
+                  AND indexname IN (
+                      'extract_tasks_fm_po_resources_null_kwargs_idx',
+                      'extract_tasks_po_id_idx'
+                  )
+            """)
+            self.assertEqual(cursor.fetchall(), [])
 
 
 class ExtractDataArraysTest(TestCase):
@@ -201,3 +221,48 @@ class ExtractTaskBuildProgressArrayTest(TestCase):
             row = cursor.fetchone()
         self.assertIsNotNone(row, "constraint does not exist in the database")
         self.assertEqual(row[0], "u")
+
+
+class ProcessingOptionDeleteTests(TestCase):
+    """extract_tasks has no po_id index or foreign key (migration 0031)."""
+
+    def setUp(self):
+        from analytics.tests.extract_helpers import make_collection, make_dataset
+
+        self.dataset, self.po, (resource,) = make_dataset("po-delete")
+        self.other, other_po, (other_resource,) = make_dataset("po-keep")
+        _, fms = make_collection("po-delete-fc", 2)
+        for fm in fms:
+            ExtractTask.objects.create(
+                dataset_id=self.dataset.id, resource_ids=[resource.id], fm=fm, po=self.po)
+            ExtractTask.objects.create(
+                dataset_id=self.other.id, resource_ids=[other_resource.id], fm=fm, po=other_po)
+        # Results and request links go with their task (checked at teardown,
+        # when the deferred constraints are).
+        doomed = ExtractTask.objects.filter(dataset_id=self.dataset.id).first()
+        ExtractData.objects.create(
+            extract_task=doomed, dataset_id=self.dataset.id, name="mean", float_values=[1.0])
+        request = Request.objects.create(contact="a@b.c", status=-1, data={})
+        RequestMap.objects.create(request=request, task=doomed, dataset_id=self.dataset.id)
+
+    def assert_partition_pruned(self, context):
+        queries = [q["sql"] for q in context.captured_queries if "extract_tasks" in q["sql"]]
+        self.assertTrue(queries)
+        for sql in queries:
+            self.assertIn("dataset_id", sql)
+
+    def test_deleting_an_option_deletes_its_tasks_within_its_partition(self):
+        with CaptureQueriesContext(connection) as context:
+            self.po.delete()
+        self.assertFalse(ExtractTask.objects.filter(dataset_id=self.dataset.id).exists())
+        self.assertFalse(ExtractData.objects.filter(dataset_id=self.dataset.id).exists())
+        self.assertFalse(RequestMap.objects.filter(dataset_id=self.dataset.id).exists())
+        self.assertEqual(ExtractTask.objects.filter(dataset_id=self.other.id).count(), 2)
+        self.assert_partition_pruned(context)
+
+    def test_deleting_a_dataset_deletes_its_tasks_within_its_partition(self):
+        with CaptureQueriesContext(connection) as context:
+            self.dataset.delete()
+        self.assertFalse(ExtractTask.objects.filter(dataset_id=self.dataset.id).exists())
+        self.assertEqual(ExtractTask.objects.filter(dataset_id=self.other.id).count(), 2)
+        self.assert_partition_pruned(context)

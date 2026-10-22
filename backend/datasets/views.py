@@ -4,7 +4,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from analytics.models import Coverage
+from analytics.coverage import valid_coverage
 from catalog.access import visible_datasets
 
 from .models import Dataset
@@ -39,7 +39,10 @@ class DatasetCoverageView(APIView):
     """POST /api/datasets/coverage/
 
     Body: {"featureIds": [1, 2, 3, ...]}
-    Returns datasets that have at least one Coverage record for any of the given features.
+    Returns global datasets, and datasets whose extent is confirmed (coverage
+    status 1) to contain at least one of the given features. Coverage being
+    recomputed after an extent or geometry change is not served; see
+    analytics.coverage.valid_coverage.
     Accepts a POST body instead of query params to avoid URL length limits for large selections.
     """
 
@@ -58,7 +61,7 @@ class DatasetCoverageView(APIView):
 
         if feature_ids:
             covered_ids = (
-                Coverage.objects.using("replica")
+                valid_coverage("replica")
                 .filter(geom_id__in=feature_ids)
                 .values_list("dataset_id", flat=True)
                 .distinct()

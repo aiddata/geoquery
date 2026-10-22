@@ -15,7 +15,7 @@ from celery.signals import worker_init
 from analytics.metrics import start_worker_exporter
 from prometheus_client import Counter, Gauge, Histogram
 
-JOBS = ("builder", "builder_dispatch", "request_sweep", "task_reaper",
+JOBS = ("extract_sync", "request_sweep", "task_reaper",
         "request_reaper", "materialize", "boundary_ingest")
 JOB_RUNS = Counter("geoquery_background_job_runs", "Finished job invocations", ["job_name", "outcome"])
 JOB_SECONDS = Histogram(
@@ -43,10 +43,87 @@ for job_name in JOBS:
     JOB_LAST_SUCCESS.labels(job_name).set(0)
     for outcome in ("success", "error"):
         JOB_RUNS.labels(job_name, outcome)
-for operation in ("tasks_created", "tasks_reclaimed", "requests_completed", "builder_batch_errors"):
+for operation in ("tasks_reset", "tasks_reclaimed", "requests_completed",
+                  "sync_chunks", "sync_published", "sync_errors"):
     WORK.labels(operation)
 for outcome in ("completed", "failed"):
     REQUEST_OUTCOMES.labels(outcome)
+
+
+# Extraction health, refreshed by every sync run (analytics.tasks.maintenance.
+# sync_extract_work) from the database, so it keeps reporting while the
+# processing fleet is scaled to zero. "mostrecent" because several background
+# children may have written a value; only the latest describes the database.
+DIRTY_SCOPES = Gauge(
+    "geoquery_extract_dirty_scopes",
+    "Input scopes (dataset or collection) with changes sync has not published yet",
+    ["kind"], multiprocess_mode="mostrecent",
+)
+ERRORING_SCOPES = Gauge(
+    "geoquery_extract_erroring_scopes",
+    "Dirty input scopes whose last sync attempt failed (see extract_input_state.last_error)",
+    ["kind"], multiprocess_mode="mostrecent",
+)
+OLDEST_DIRTY_SECONDS = Gauge(
+    "geoquery_extract_oldest_dirty_scope_seconds",
+    "Time since the least recently touched dirty scope last changed or progressed",
+    ["kind"], multiprocess_mode="mostrecent",
+)
+BOOTSTRAP_PENDING = Gauge(
+    "geoquery_extract_bootstrap_pending_datasets",
+    "Datasets initialize_extract_work has not finished; nothing processes them",
+    multiprocess_mode="mostrecent",
+)
+LEASES = Gauge(
+    "geoquery_extract_leases",
+    "Outstanding lease pages: outstanding (all), expired (owner gone, awaiting "
+    "takeover), parked (dataset or option inactive)",
+    ["state"], multiprocess_mode="mostrecent",
+)
+OLDEST_LEASE_SECONDS = Gauge(
+    "geoquery_extract_oldest_lease_seconds",
+    "Age of the oldest outstanding lease page, from its first assignment",
+    multiprocess_mode="mostrecent",
+)
+MAX_LEASE_ATTEMPTS = Gauge(
+    "geoquery_extract_lease_max_attempts",
+    "Highest assignment count among outstanding leases",
+    multiprocess_mode="mostrecent",
+)
+PAIR_ERRORS = Gauge(
+    "geoquery_extract_pair_errors",
+    "Current pairs held back by an error (see extract_task_build_progress.last_error)",
+    multiprocess_mode="mostrecent",
+)
+WORK_DEMAND = Gauge(
+    "geoquery_extract_work_demand",
+    "extract_work_demand(): the autoscaler's estimate of outstanding feature-pair work",
+    multiprocess_mode="mostrecent",
+)
+
+
+def update_extract_health():
+    from django.db import connection
+
+    from analytics.sync import health
+    from analytics.tasks.leases import lease_health
+
+    scopes = health()
+    for kind in ("dataset", "collection"):
+        values = scopes.get(kind, {})
+        DIRTY_SCOPES.labels(kind).set(values.get("dirty", 0))
+        ERRORING_SCOPES.labels(kind).set(values.get("erroring", 0))
+        OLDEST_DIRTY_SECONDS.labels(kind).set(values.get("oldest_dirty_seconds", 0))
+    BOOTSTRAP_PENDING.set(scopes.get("dataset", {}).get("bootstrap_pending", 0))
+    leases = lease_health()
+    for state in ("outstanding", "expired", "parked"):
+        LEASES.labels(state).set(leases[state])
+    OLDEST_LEASE_SECONDS.set(leases["oldest_seconds"])
+    MAX_LEASE_ATTEMPTS.set(leases["max_attempts"])
+    PAIR_ERRORS.set(leases["pair_errors"])
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT extract_work_demand()")
+        WORK_DEMAND.set(cursor.fetchone()[0])
 
 
 @worker_init.connect

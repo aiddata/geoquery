@@ -7,6 +7,7 @@ from analytics.models import ExtractData, ExtractTask, ProcessingOption, Request
 from analytics.tasks import processing
 from analytics.tasks.merge import merge_task_results
 from analytics.tasks.processing import _run_extract_task
+from analytics.tests.extract_helpers import settle_inputs
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
 from geoquery.testing import ReplicaReadsTestMixin
@@ -38,6 +39,7 @@ class ExtractDataRoundTripTest(ReplicaReadsTestMixin, TestCase):
 
     def _task(self, feat):
         fm = FeatMap.objects.create(fc=self.fc, geom=feat, name="F", attr={})
+        settle_inputs()
         return ExtractTask.objects.create(
             resource_ids=[self.r.id], dataset_id=self.ds.id, fm=fm, po=self.po, status=2)
 

@@ -102,9 +102,9 @@ Things that will trip you up:
   email managed by allauth. `catalog.access` short-circuits anonymous callers
   before guardian is consulted, because guardian's own `None` guard covers
   only the `has_perm` path, not `get_objects_for_user`.
-- Celery tasks and management commands (extract processing, doc builds,
-  `build_extract_tasks`) have no user context and deliberately keep filtering
-  on `active` alone.
+- Celery tasks and management commands (extract processing and sync, doc
+  builds) have no user context and deliberately keep filtering on `active`
+  alone.
 
 Processing options are a special case: catalog membership on an option only
 *widens* the option list for a dataset the caller can already see. It never

@@ -10,6 +10,7 @@ from django.utils import timezone
 from analytics.management.commands.free_stale_processing_tasks import _free_stale_tasks
 from analytics.models import ExtractTask, ProcessingOption
 from analytics.tasks.processing import _release_claimed_tasks, claim_pending_tasks
+from analytics.tests.extract_helpers import settle_inputs
 from datasets.models import Dataset, DatasetResource
 from features.models import Feature, FeatMap, FeatureCollection
 
@@ -39,6 +40,7 @@ class DispatchTestCase(TestCase):
         )
         fc = FeatureCollection.objects.create(name="fc", path="/data/fc", active=True)
         cls.fm = FeatMap.objects.create(fc=fc, geom=Feature.objects.create(shape=Point(0, 0)))
+        settle_inputs()
 
     _seq = 0
 
@@ -79,7 +81,7 @@ class DispatchTestCase(TestCase):
         self.assertEqual(self.statuses(urgent, old, new), [LOCKED, LOCKED, PENDING])
 
     def test_claim_breaks_priority_and_submit_time_ties_by_id(self):
-        # build_extract_tasks inserts in batches sharing one NOW() per
+        # Bulk inserts (a request's materialization) share one NOW() per
         # INSERT, so many real rows carry identical (priority, submit_time)
         # -- explicitly backdate all three to the exact same timestamp here
         # to reproduce that tie, rather than relying on auto_now_add's
@@ -122,7 +124,10 @@ class DispatchTestCase(TestCase):
             claimed = claim_pending_tasks(5)
 
         self.assertEqual(len(claimed), 5)
-        [update] = [q["sql"] for q in ctx.captured_queries if "unnest" in q["sql"]]
+        claim_statements = [q["sql"] for q in ctx.captured_queries if "unnest" in q["sql"]]
+        # The task lock and the status UPDATE both take the arrays.
+        self.assertEqual(len(claim_statements), 2)
+        [update] = [sql for sql in claim_statements if "UPDATE extract_tasks" in sql]
         self.assertNotIn("VALUES", update)
 
     # --- _release_claimed_tasks ------------------------------------------------
@@ -190,6 +195,7 @@ class ClaimLockContentionTest(TransactionTestCase):
         )
         fc = FeatureCollection.objects.create(name="fc", path="/data/fc", active=True)
         self.fm = FeatMap.objects.create(fc=fc, geom=Feature.objects.create(shape=Point(0, 0)))
+        settle_inputs()
 
         self.tasks = []
         tied_time = timezone.now() - timedelta(hours=1)

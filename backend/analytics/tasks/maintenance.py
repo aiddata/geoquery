@@ -116,136 +116,31 @@ def build_stats_report():
     return {"status": status}
 
 
-def _n_extract_task_builders():
-    """How many build workers one wave fans out to.
+@shared_task(ignore_result=True)
+@tagged("extract.sync")
+@observe_job("extract_sync")
+def sync_extract_work():
+    """Reconcile input changes into pairs, resets and rewinds (analytics.sync).
 
-    Each one holds a pooler connection for the length of its INSERT batch --
-    measured in production at 11-20s a transaction, against milliseconds for
-    everything processing does. Six of them running concurrently roughly
-    halved extract task throughput (~43k/min with the builder idle, ~22k/min
-    with it running), and that penalty lands on user-requested tasks too:
-    a request's tasks are priority-bumped ahead of the backlog, but they
-    still run at whatever rate the fleet is managing. That trade is why this
-    is a knob rather than a constant.
-
-    Which side is scarce has since flipped. When this was set to 2, build-out
-    was outpacing processing ~3:1 and the right move was to starve the
-    builder. After the claim batching work took processing to ~43k/min, a
-    12-hour window on 2026-09-23 measured the reverse:
-
-        built      905,709/hr   (~15.1k/min)
-        completed  2,276,650/hr (~37.9k/min)
-
-    Processing now clears tasks 2.5x faster than the builder creates them.
-    The 191M pending backlog hides that -- it is a buffer draining at
-    ~1.37M/hr, so it lasts under six days -- but against the ~1.2B target
-    the builder needs ~40 days to finish supplying work that processing
-    could consume in ~20. Past the point the buffer empties, the builder
-    rate IS the pipeline rate.
-
-    So 4, not 2: enough to close the gap without returning to the six-way
-    fan-out that halved throughput. Expect processing to give up some rate
-    in exchange; the number worth watching is not either rate alone but
-    whether the backlog still drains.
+    Beat runs this every EXTRACT_SYNC_INTERVAL_SECONDS; ingest and model
+    signals also wake it after their transactions commit. Either way the
+    changes it consumes are already durable in extract_input_state, so a lost
+    or duplicated message costs only latency. Each call does a bounded number
+    of short transactions (EXTRACT_SYNC_CHUNKS_PER_RUN) and concurrent calls
+    skip each other's scopes. Health gauges are refreshed on every run, so they
+    keep reporting even when the processing fleet is scaled to zero.
     """
-    from django.conf import settings
+    from analytics.background_metrics import update_extract_health
+    from analytics.sync import sync_extract_work as run
 
-    return max(1, getattr(settings, "N_EXTRACT_TASK_BUILDERS", 4))
-
-
-
-@shared_task
-@tagged("builder.launch")
-@observe_job("builder_dispatch")
-def build_extract_tasks():
-    """Launch parallel global-dataset task generation, plus one pass over the
-    (cheap) non-global/coverage-gated branch.
-
-    Fire-and-forget for the parallel workers: this does not wait on them,
-    since blocking on child-task results from within the same worker pool
-    risks deadlock if all concurrency slots end up waiting rather than
-    working. try_acquire_build_run guards against celery-beat's configured
-    schedule launching a fresh wave on top of one still working through the
-    backlog -- see build_extract_tasks.py for why that matters.
-    """
-    from analytics.management.commands.build_extract_tasks import (
-        _build_non_global_tasks,
-        try_acquire_build_run,
-    )
-
-    worker_count = _n_extract_task_builders()
-    run_id = try_acquire_build_run(worker_count)
-    if run_id is not None:
-        for _ in range(worker_count):
-            build_extract_tasks_worker.delay(run_id=str(run_id))
-    else:
-        logger.info("build_extract_tasks: a wave is already in progress, not dispatching another")
-
-    return _build_non_global_tasks()
-
-
-@shared_task
-@tagged("builder.worker")
-@observe_job("builder")
-def build_extract_tasks_worker(run_id=None):
-    """One parallel worker's share of the global-dataset backlog. Safe to run
-    many of these concurrently -- see build_extract_tasks.py."""
-    from analytics.management.commands.build_extract_tasks import _build_global_tasks, finish_build_worker
-
+    stats = run()
     try:
-        return _build_global_tasks(run_id=run_id)
-    finally:
-        if run_id is not None:
-            finish_build_worker(run_id)
-
-
-@shared_task
-@tagged("coverage.sweep")
-def sweep_coverage_records():
-    """Create any missing coverage records and dispatch checks for unchecked ones."""
-    from analytics.tasks.coverage import (
-        create_missing_coverage_records,
-        run_missing_coverage_checks,
-    )
-
-    result = create_missing_coverage_records()
-    logger.info("Coverage sweep created %d missing records", result.get("created", 0))
-    run_missing_coverage_checks(sync=False)
-    return result
-
-
-@shared_task
-def trigger_coverage_and_extract():
-    """Create missing coverage records, check all uncovered ones, then build extract tasks.
-
-    Uses a Celery chord so build_extract_tasks only fires after every coverage
-    check task has completed.
-    """
-    from celery import chord, group
-
-    from analytics.models import Coverage
-    from analytics.tasks.coverage import create_missing_coverage_records, test_coverage_for_dataset
-
-    result = create_missing_coverage_records()
-    logger.info("Created %d missing coverage records", result["created"])
-
-    unchecked_ids = list(
-        Coverage.objects.filter(status=-1).values_list("dataset_id", flat=True).distinct()
-    )
-
-    if not unchecked_ids:
-        logger.info("No unchecked coverage records; running build_extract_tasks directly")
-        from analytics.management.commands.build_extract_tasks import _build_extract_tasks
-
-        return _build_extract_tasks()
-
-    chord(
-        group(test_coverage_for_dataset.s(did) for did in unchecked_ids),
-        build_extract_tasks.si(),
-    ).delay()
-
-    logger.info("Dispatched coverage chord for %d datasets → build_extract_tasks", len(unchecked_ids))
-    return {"dispatched": len(unchecked_ids)}
+        update_extract_health()
+    except Exception:
+        logger.warning("Could not refresh extract health gauges", exc_info=True)
+    if stats["chunks"] or stats["errors"]:
+        logger.info("Extract sync: %s", stats)
+    return stats
 
 
 @shared_task

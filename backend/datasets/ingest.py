@@ -176,15 +176,24 @@ def _identify_and_create_resources(dataset: Dataset, dataset_path: Path):
 
 
 def _sync_mappings(dataset: Dataset, mappings: dict[str, int] | None):
-    """Replace all Mapping rows for *dataset* with those in *mappings*."""
-    dataset.mappings.all().delete()
-    if mappings:
-        Mapping.objects.bulk_create(
-            [
-                Mapping(dataset=dataset, map_name=key, map_val=val)
-                for key, val in mappings.items()
-            ]
-        )
+    """Make *dataset*'s Mapping rows exactly *mappings*, writing only differences.
+
+    Category maps are extraction inputs: any write to a mapped dataset's
+    mappings marks it for a full result reset (migration 0031's triggers).
+    Deleting and recreating identical rows on every re-ingest would therefore
+    discard every result the dataset has, so unchanged rows are left alone.
+    """
+    wanted = {int(val): key for key, val in (mappings or {}).items()}
+    existing = {m.map_val: m for m in dataset.mappings.all()}
+    stale = [val for val in existing if val not in wanted]
+    if stale:
+        Mapping.objects.filter(dataset=dataset, map_val__in=stale).delete()
+    for val, name in wanted.items():
+        current = existing.get(val)
+        if current is None:
+            Mapping.objects.create(dataset=dataset, map_name=name, map_val=val)
+        elif current.map_name != name:
+            Mapping.objects.filter(pk=current.pk).update(map_name=name)
 
 
 def _load_json(json_data: dict | Path) -> dict:

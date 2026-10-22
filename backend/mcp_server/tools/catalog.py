@@ -18,7 +18,9 @@ from typing import Annotated
 from django.db.models import Count, Q
 from pydantic import Field
 
-from analytics.models import Coverage, ExtractTask
+from analytics.changes import only_valid
+from analytics.coverage import valid_coverage
+from analytics.models import ExtractTask, ExtractTaskBuildProgress
 from catalog.access import (
     filter_processing_options,
     visible_datasets,
@@ -401,13 +403,22 @@ def _coverage_fractions(
     if not total:
         return {ds_id: 0.0 for ds_id in dataset_ids}
 
-    done = dict(
+    # Results with a reset pending are about to be recomputed, and a retired
+    # grouped set is not what Explore shows; neither counts.
+    done_tasks = only_valid(
         ExtractTask.objects.using("replica").filter(
             fm__fc_id__in=fc_ids,
             dataset_id__in=dataset_ids,
             po_id__in=po_ids,
             status=1,
+        ).filter(
+            Q(resource_ids__len=1)
+            | Q(pair_id__in=ExtractTaskBuildProgress.objects.using("replica")
+                .filter(current=True).values("id"))
         )
+    )
+    done = dict(
+        done_tasks
         .values("dataset_id")
         .annotate(n=Count("fm_id", distinct=True))
         .values_list("dataset_id", "n")
@@ -418,8 +429,8 @@ def _coverage_fractions(
 def _requestable_datasets(user, fc_ids: list[int], ready_dataset_ids: set[int]):
     """Visible datasets that *could* cover these boundaries but have no extracts.
 
-    "Could cover" is either global coverage or a Coverage row for one of these
-    features. Without that filter the list would include every dataset in the
+    "Could cover" is either global coverage or a confirmed (status 1) coverage
+    row for one of these features; see analytics.coverage.valid_coverage. Without that filter the list would include every dataset in the
     catalog, and exporting one that does not reach this area produces nothing.
     """
     geom_ids = FeatMap.objects.filter(fc_id__in=fc_ids).values("geom_id")
@@ -428,7 +439,7 @@ def _requestable_datasets(user, fc_ids: list[int], ready_dataset_ids: set[int]):
         .filter(
             Q(is_global=True)
             | Q(
-                id__in=Coverage.objects.filter(geom_id__in=geom_ids).values(
+                id__in=valid_coverage().filter(geom_id__in=geom_ids).values(
                     "dataset_id"
                 )
             )

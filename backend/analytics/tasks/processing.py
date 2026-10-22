@@ -4,6 +4,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from functools import partial
 from itertools import pairwise
 from pathlib import Path
 from warnings import catch_warnings
@@ -14,6 +15,7 @@ from django.db import (
 )
 
 from analytics import metrics
+from analytics.changes import UNAVAILABLE_SQL, Generations, lock_states
 from datasets.models import DatasetResource
 
 logger = logging.getLogger(__name__)
@@ -36,6 +38,37 @@ def get_func(op):
     if func is None:
         raise ValueError(f"Operation {op} not supported.")
     return func
+
+
+_batch_registry = None
+
+
+def get_batch_func(op):
+    """The processor's batch form, or None if it only runs one feature at a time."""
+    global _batch_registry
+    if _batch_registry is None:
+        from analytics.processors import BATCH_REGISTRY
+
+        _batch_registry = BATCH_REGISTRY
+    return _batch_registry.get(op)
+
+
+def _op_kwargs(short_name, po_kwargs, task_kwargs):
+    """Keyword arguments for one processor call, including the result name.
+
+    A task with its own kwargs gets a name suffixed by their hash, so its
+    columns never collide with the default task's for the same option.
+    """
+    op_kwargs = {"name": short_name}
+    if po_kwargs:
+        op_kwargs.update(po_kwargs)
+    if task_kwargs:
+        op_kwargs.update(task_kwargs)
+        kwargs_hash = hashlib.md5(
+            json.dumps(task_kwargs, sort_keys=True).encode()
+        ).hexdigest()[:8]
+        op_kwargs["name"] = f"{short_name}_{kwargs_hash}"
+    return op_kwargs
 
 
 def _classify_value(value):
@@ -87,6 +120,53 @@ def _column_for(values_by_pos):
 # ArrayField's per-element get_prep_value used to: COPY cannot dump a list of
 # mixed Python types, so [1.5, 0] must reach it as [1.5, 0.0].
 _COERCE = {"int": int, "float": float, "str": str}
+
+
+def _result_rows(produced, n, *, prefix, label):
+    """COPY-ready result rows from ``{name: {position: value}}``.
+
+    ``prefix`` is the leading (extract_task_id, dataset_id) pair of every row;
+    a lease page builds rows before its task ids exist and substitutes them
+    at completion. One row per name, even when every position is nodata: the
+    row records that the extraction ran. A single-resource row uses the
+    scalar column of the type its value picked; a grouped row uses the array
+    column of the type its first non-nodata value picked, position-aligned
+    with resource_ids.
+    """
+    rows = []
+    for name, values_by_pos in produced.items():
+        row = list(prefix) + [name] + [None] * (len(_RESULT_COLUMNS) - 3)
+        column = _column_for(values_by_pos)
+        if column is not None:
+            if n == 1:
+                classified = _classify_value(values_by_pos.get(0))
+                if classified is not None:
+                    row[_RESULT_INDEX[f"{column}_value"]] = classified[1]
+            else:
+                values = [None] * n
+                for i, value in values_by_pos.items():
+                    classified = _classify_value(value)
+                    if classified is not None:
+                        if classified[0] != column:
+                            logger.warning(
+                                "%s name %s position %d: %s value in a %s "
+                                "row. Coerced to the row's type; a genuinely "
+                                "incompatible value raises here. A name is "
+                                "assumed to produce one type across every "
+                                "position.",
+                                label, name, i, classified[0], column,
+                            )
+                        values[i] = _COERCE[column](classified[1])
+                row[_RESULT_INDEX[f"{column}_values"]] = values
+        rows.append(tuple(row))
+    return rows
+
+
+def _failure_summary(failures):
+    """The task error for ``[(resource_id, position, exc), ...]``, or None."""
+    if not failures:
+        return None
+    return "; ".join(f"resource {rid}[{i}]: {exc!r}" for rid, i, exc in failures)[:100]
 
 
 # Distinct from accounts.adopt_auth_user's ADVISORY_LOCK_ID (8419307742115) --
@@ -156,9 +236,9 @@ def claim_pending_tasks(limit=1):
     UPDATE SKIP LOCKED steps past rows another transaction is claiming rather
     than waiting on them or handing out the same row twice.
 
-    The `, id` tiebreaker matters at scale: build_extract_tasks inserts in
-    large batches sharing one NOW() per INSERT, so many rows can carry the
-    exact same (priority, submit_time). Without a deterministic tiebreaker,
+    The `, id` tiebreaker matters at scale: bulk inserts (a request's
+    materialization, and once the builder) share one NOW() per statement, so
+    many rows can carry the exact same (priority, submit_time). Without a deterministic tiebreaker,
     concurrent SKIP LOCKED scans have no stable order to partition across a
     large tied group -- every claimer effectively circles the same ambiguous
     block instead of cleanly dividing sequential work, and skip-distance
@@ -209,23 +289,29 @@ def claim_pending_tasks(limit=1):
     The second is what the whole fleet queues behind, so its rate caps claims
     per second -- which is also why the claim commits asynchronously: a
     commit that waits for fsync holds the lock for the whole flush.
+
+    Candidates come from extract_runnable_tasks, the same definition the
+    autoscaler counts (migration 0031): pending, valid (no reset pending for
+    them), every input active and available, and a request's or a current
+    pair's. The candidates' input states are then share-locked (see
+    analytics.changes, which also gives the lock order) and rechecked before
+    any task row is locked: the advisory lock first, then the guards, then
+    the tasks. Available datasets are passed as an explicit list so their
+    partitions are pruned at planning time and an unavailable partition's
+    backlog is never walked.
     """
     started = time.perf_counter()
     with transaction.atomic():
         with connection.cursor() as cursor:
             _execute_async(cursor, "SELECT pg_advisory_xact_lock(%s)", [CLAIM_LOCK_ID])
             locked = time.perf_counter()
-            cursor.execute(
-                """
-                SELECT id, dataset_id FROM extract_tasks
-                WHERE status = 0
-                ORDER BY priority DESC, submit_time ASC, id ASC
-                FOR UPDATE SKIP LOCKED
-                LIMIT %s
-                """,
-                [limit],
-            )
-            rows = cursor.fetchall()
+            cursor.execute(_CLEAN_ACTIVE_DATASETS_SQL)
+            clean_datasets = [r[0] for r in cursor.fetchall()]
+            rows = []
+            if clean_datasets:
+                cursor.execute(_DISCOVER_PENDING_SQL, [clean_datasets, limit])
+                candidates = cursor.fetchall()
+                rows = _lock_candidates(cursor, candidates)
             if rows:
                 # Keep the pair join for row identity, and the explicit
                 # dataset filter for plan-time partition pruning.
@@ -233,7 +319,7 @@ def claim_pending_tasks(limit=1):
                     """
                     UPDATE extract_tasks AS t
                     SET status = 2, update_time = NOW()
-                    FROM unnest(%s::int[], %s::int[]) AS v(dataset_id, id)
+                    FROM unnest(%s::int[], %s::bigint[]) AS v(dataset_id, id)
                     WHERE t.dataset_id = v.dataset_id AND t.id = v.id
                       AND t.dataset_id = ANY(%s::int[])
                     """,
@@ -244,35 +330,96 @@ def claim_pending_tasks(limit=1):
     return rows
 
 
+_CLEAN_ACTIVE_DATASETS_SQL = f"""
+    SELECT d.id FROM datasets d
+    JOIN extract_input_state s ON s.kind = 'dataset' AND s.object_id = d.id
+    WHERE d.active AND NOT {UNAVAILABLE_SQL}
+    ORDER BY d.id
+"""
+
+# Discovery, without locks, through the definition claims and demand share.
+_DISCOVER_PENDING_SQL = """
+    SELECT id, dataset_id, fc_id
+    FROM extract_runnable_tasks
+    WHERE dataset_id = ANY(%s::int[])
+    ORDER BY priority DESC, submit_time ASC, id ASC
+    LIMIT %s
+"""
+
+
+def _lock_candidates(cursor, candidates):
+    """Guard the candidates' scopes, then lock the tasks that are still pending.
+
+    Returns ``(id, dataset_id)`` refs in claim order. A scope a writer holds,
+    or that turned dirty since discovery, drops its candidates.
+    """
+    if not candidates:
+        return []
+    guard = lock_states(
+        {dataset_id for _, dataset_id, _ in candidates},
+        {fc_id for _, _, fc_id in candidates},
+        cursor=cursor,
+    )
+    refs = [
+        (task_id, dataset_id)
+        for task_id, dataset_id, fc_id in candidates
+        if dataset_id in guard.clean.datasets and fc_id in guard.clean.collections
+    ]
+    if not refs:
+        return []
+    cursor.execute(
+        """
+        SELECT t.id, t.dataset_id FROM extract_tasks t
+        JOIN unnest(%s::int[], %s::bigint[]) AS v(dataset_id, id)
+          ON t.dataset_id = v.dataset_id AND t.id = v.id
+        WHERE t.status = 0 AND t.dataset_id = ANY(%s::int[])
+        ORDER BY t.priority DESC, t.submit_time ASC, t.id ASC
+        FOR UPDATE OF t SKIP LOCKED
+        """,
+        _ref_arrays(refs),
+    )
+    return cursor.fetchall()
+
+
 def _ref_arrays(refs):
-    """Return aligned dataset/id arrays and distinct datasets for pruning."""
+    """Return aligned dataset/id arrays and distinct datasets for pruning.
+
+    Every statement that unnests these casts the id array to bigint[], never
+    int[]: task ids passed int4's range when extract_tasks_id_seq ran out at
+    2,147,483,647, and an int[] cast would overflow on the first id above it.
+    """
     dataset_ids = [dataset_id for _, dataset_id in refs]
     return [dataset_ids, [task_id for task_id, _ in refs], sorted(set(dataset_ids))]
 
 
-def _release_claimed_tasks(refs):
+def _release_claimed_tasks(refs, claimed_at=None):
     """Return claimed tasks a worker will not run to pending (status=0).
 
     For a worker shutting down, or a chunk abandoned on an error: the rows go
     straight back to the queue instead of waiting out STALE_TASK_MINUTES for
     free_stale_processing_tasks. Only rows still running (status=2) are
     touched, so a task that finished, failed, or was already reaped is left
-    alone. Commits asynchronously like the claim; if the commit is lost in a
-    crash, the reaper returns the rows anyway.
+    alone. With ``claimed_at`` (one claim stamp per ref) the release is also
+    fenced on the claim, so a task reclaimed by another worker is not taken
+    back from it. Commits asynchronously like the claim; if the commit is
+    lost in a crash, the reaper returns the rows anyway.
     """
     if not refs:
         return 0
+    dataset_ids, task_ids, datasets = _ref_arrays(refs)
+    stamps = list(claimed_at) if claimed_at is not None else [None] * len(refs)
     with connection.cursor() as cursor:
         _execute_async(
             cursor,
             """
             UPDATE extract_tasks AS t
             SET status = 0, update_time = NOW()
-            FROM unnest(%s::int[], %s::int[]) AS v(dataset_id, id)
+            FROM unnest(%s::int[], %s::bigint[], %s::timestamptz[]) AS v(dataset_id, id, claimed_at)
             WHERE t.dataset_id = v.dataset_id AND t.id = v.id AND t.status = 2
+              AND (v.claimed_at IS NULL OR t.update_time = v.claimed_at)
               AND t.dataset_id = ANY(%s::int[])
             """,
-            _ref_arrays(refs),
+            [dataset_ids, task_ids, stamps, datasets],
         )
         return cursor.rowcount
 
@@ -316,6 +463,9 @@ class _TaskOutcome:
     status: int
     error: str | None
     timer: metrics.TaskTimer
+    # The input generations the task was loaded under, and the collection
+    # they include. None only for outcomes built by hand.
+    generations: Generations | None = None
 
 
 def _run_extract_task(task_id, dataset_id=None, *, outcomes=None):
@@ -360,13 +510,19 @@ def _persist_outcomes(outcomes):
     idle in transaction on average. Locally the same rows took 670 ms with
     bulk_create and 20 ms with COPY.
 
+    Inputs are fenced too: the dataset and collection states each task was
+    loaded under are share-locked, and a task whose inputs changed since (a
+    different generation, or a scope now dirty or held by a writer) is not
+    finalized. Its claim is released in the same transaction, fenced on the
+    claim stamp, and the claim filter keeps it waiting until sync has
+    reconciled the change.
+
     Locks last only for persistence, never extraction. Empty row sets
     preserve old results, including when every resource failed on a retry.
     """
     if not outcomes:
         return
     ordered = sorted(outcomes, key=lambda o: (o.dataset_id, o.task_id))
-    dataset_ids = [o.dataset_id for o in ordered]
     accepted = []
     # (phase, wall, cpu) at each boundary. The recheck and status UPDATE and
     # the commit are finalize; replacing results is write.
@@ -374,14 +530,24 @@ def _persist_outcomes(outcomes):
     try:
         with transaction.atomic():
             with connection.cursor() as cursor:
-                _execute_async(
-                    cursor,
+                # The first statement carries the SET LOCAL for the whole
+                # transaction: the input guard if there is one, else the
+                # status UPDATE.
+                prefix = "" if _synchronous_commit() else _ASYNC_COMMIT
+                ordered, stale, guarded = _fence_inputs(cursor, ordered, prefix)
+                if stale:
+                    _release_claimed_tasks(
+                        [(o.task_id, o.dataset_id) for o in stale],
+                        [o.claimed_at for o in stale],
+                    )
+                dataset_ids = [o.dataset_id for o in ordered]
+                (cursor.execute if guarded else partial(_execute_async, cursor))(
                     """
                     UPDATE extract_tasks AS t
                     SET status = v.status, error = v.error,
                         complete_time = CASE WHEN v.status = 1
                             THEN STATEMENT_TIMESTAMP() ELSE t.complete_time END
-                    FROM unnest(%s::int[], %s::int[], %s::timestamptz[], %s::int[], %s::text[])
+                    FROM unnest(%s::int[], %s::bigint[], %s::timestamptz[], %s::int[], %s::text[])
                         AS v(dataset_id, id, claimed_at, status, error)
                     WHERE t.dataset_id = v.dataset_id AND t.id = v.id
                       AND t.status = 2 AND t.update_time IS NOT DISTINCT FROM v.claimed_at
@@ -402,7 +568,7 @@ def _persist_outcomes(outcomes):
                     cursor.execute(
                         """
                         DELETE FROM extract_data AS d
-                        USING unnest(%s::int[], %s::int[]) AS v(dataset_id, id)
+                        USING unnest(%s::int[], %s::bigint[]) AS v(dataset_id, id)
                         WHERE d.dataset_id = v.dataset_id AND d.extract_task_id = v.id
                           AND d.dataset_id = ANY(%s::int[])
                         """,
@@ -437,6 +603,37 @@ def _persist_outcomes(outcomes):
             outcome.timer.finish()
 
     transaction.on_commit(record_committed)
+
+
+def _fence_inputs(cursor, ordered, prefix=""):
+    """Split outcomes into those whose inputs are unchanged and the rest.
+
+    Takes the share locks (see analytics.changes) for every scope the
+    outcomes were loaded under; they last until the persist transaction
+    ends. Returns ``(current, stale, guarded)``, guarded meaning a guard
+    statement ran (carrying ``prefix``).
+    """
+    expected = [o for o in ordered if o.generations is not None]
+    if not expected:
+        return ordered, [], False
+    datasets = {d for o in expected for d in o.generations.datasets}
+    collections = {c for o in expected for c in o.generations.collections}
+    guard = lock_states(datasets, collections, cursor=cursor, prefix=prefix)
+
+    def current(outcome):
+        if outcome.generations is None:
+            return True
+        return all(
+            guard.clean.datasets.get(d) == g for d, g in outcome.generations.datasets.items()
+        ) and all(
+            guard.clean.collections.get(c) == g for c, g in outcome.generations.collections.items()
+        )
+
+    kept = [o for o in ordered if current(o)]
+    stale = [o for o in ordered if not current(o)]
+    if stale:
+        logger.info("Deferring %d task outcomes whose inputs changed since they were loaded", len(stale))
+    return kept, stale, True
 
 
 def _flush_outcomes(outcomes):
@@ -490,6 +687,7 @@ class _ClaimedTask:
     po_kwargs: dict | None
     geometry_wkb: bytes
     claimed_at: datetime | None
+    generations: Generations | None = None
 
 
 def _load_claimed_task(task_id, dataset_id=None):
@@ -505,6 +703,13 @@ def _load_claimed_task(task_id, dataset_id=None):
     deactivated since it was created. The PostGIS geometry is returned as WKB
     for Shapely directly.
 
+    The task's dataset and collection epochs are read in the same statement
+    as its current collection and inputs, so they describe what was actually
+    loaded, whatever the claim guarded. A task with a reset pending (not in
+    extract_valid_tasks), or whose dataset or collection is unavailable, is
+    not returned: the caller defers it rather than failing it.
+    _persist_outcomes checks the epochs again before anything is written.
+
     Name the partition: ``dataset_id`` comes from the claim, and filtering on
     it prunes the lookup to one partition. None is accepted (tests, manual
     runs) but cannot prune.
@@ -519,16 +724,23 @@ def _load_claimed_task(task_id, dataset_id=None):
             f"""
             SELECT t.dataset_id, t.resource_ids, t.kwargs::text,
                    po.function, po.short_name, po.kwargs::text,
-                   ST_AsBinary(g.shape), t.update_time
-            FROM extract_tasks AS t
+                   ST_AsBinary(g.shape), t.update_time,
+                   fm.fc_id, sd.epoch, sc.epoch
+            FROM extract_valid_tasks AS t
             JOIN datasets AS d ON d.id = t.dataset_id
             JOIN processing_options AS po ON po.id = t.po_id
             JOIN feat_map AS fm ON fm.id = t.fm_id
             JOIN feature_collections AS fc ON fc.id = fm.fc_id
             JOIN features AS g ON g.id = fm.geom_id
+            JOIN extract_input_state AS sd
+              ON sd.kind = 'dataset' AND sd.object_id = t.dataset_id
+            JOIN extract_input_state AS sc
+              ON sc.kind = 'collection' AND sc.object_id = fm.fc_id
             WHERE t.id = %s {partition_filter}
               AND t.status = 2
               AND d.active AND po.active AND fc.active
+              AND NOT (sd.reset_tasks OR sd.reset_coverage OR sd.bootstrap_pending)
+              AND NOT (sc.reset_tasks OR sc.reset_coverage OR sc.bootstrap_pending)
             """,
             params,
         )
@@ -536,7 +748,8 @@ def _load_claimed_task(task_id, dataset_id=None):
 
     if row is None:
         return None
-    dataset_id, resource_ids, kwargs, function, short_name, po_kwargs, wkb, claimed_at = row
+    (dataset_id, resource_ids, kwargs, function, short_name, po_kwargs, wkb,
+     claimed_at, fc_id, dataset_generation, collection_generation) = row
     return _ClaimedTask(
         dataset_id=dataset_id,
         resource_ids=resource_ids,
@@ -546,6 +759,10 @@ def _load_claimed_task(task_id, dataset_id=None):
         po_kwargs=json.loads(po_kwargs) if po_kwargs is not None else None,
         geometry_wkb=bytes(wkb),
         claimed_at=claimed_at,
+        generations=Generations(
+            datasets={dataset_id: dataset_generation},
+            collections={fc_id: collection_generation},
+        ),
     )
 
 
@@ -569,10 +786,16 @@ def _extract(task_id, dataset_id, timer, outcomes):
     task = _load_claimed_task(task_id, dataset_id)
     if task is None:
         logger.info(
-            "Task %s is not available (no longer running, or filtered out)",
+            "Task %s is not available (no longer running, filtered out, or its "
+            "inputs are changing); releasing it",
             task_id,
         )
         timer.outcome = "unavailable"
+        if dataset_id is not None:
+            # Still status 2 only if this worker's claim survives. Returning
+            # it now, rather than leaving it for the stale-task reaper, is
+            # what defers a task whose inputs went dirty after its claim.
+            _release_claimed_tasks([(task_id, dataset_id)])
         return None
     timer.dataset_id = task.dataset_id
 
@@ -595,8 +818,9 @@ def _extract(task_id, dataset_id, timer, outcomes):
         }
         resources = [by_id[rid] for rid in task.resource_ids]
         # Every resource in one task's resource_ids belongs to the same
-        # dataset by construction (see build_extract_tasks.py's equivalent
-        # resource_ids[1] comment), so any one of them stands in for it.
+        # dataset by construction (pair sync groups within a dataset, and
+        # requests create single-resource tasks), so any one of them stands
+        # in for it.
         dataset = resources[0].dataset
         func = get_func(task.function)
 
@@ -617,15 +841,7 @@ def _extract(task_id, dataset_id, timer, outcomes):
             resource = resources[i]
             dataset_path = Path(dataset.path) / resource.path
 
-            op_kwargs = {"name": task.short_name}
-            if task.po_kwargs:
-                op_kwargs.update(task.po_kwargs)
-            if task.kwargs:
-                op_kwargs.update(task.kwargs)
-                kwargs_hash = hashlib.md5(
-                    json.dumps(task.kwargs, sort_keys=True).encode()
-                ).hexdigest()[:8]
-                op_kwargs["name"] = f"{task.short_name}_{kwargs_hash}"
+            op_kwargs = _op_kwargs(task.short_name, task.po_kwargs, task.kwargs)
 
             if dataset.mapped:
                 # A query per resource, so it counts as load, not extract.
@@ -661,45 +877,17 @@ def _extract(task_id, dataset_id, timer, outcomes):
         # run left behind.
         #
         # A position that raised while others succeeded still lands as NULL
-        # here, indistinguishable from nodata at the row level. Two consumers,
-        # two different reasons that is acceptable:
-        #   - merge (the CSV download path) gates on status=1, so a failed
-        #     task's rows are never merged at all.
-        #   - visualize does NOT gate on status -- neither the request nor the
-        #     explore SQL filters et.status -- but a failed position already
-        #     rendered as an empty cell there before this change, so nothing
-        #     regresses.
+        # here, indistinguishable from nodata at the row level. That is
+        # acceptable because every reader of results (merge, visualize,
+        # explore) gates on status=1, so a failed task's rows are never read.
         # What broadens is the MEANING of an empty cell, from "failed or not
         # yet processed" to "failed or nodata". Both render identically.
         #
         # Rows are plain tuples in _RESULT_COLUMNS order, ready for COPY, so
         # none of this work happens inside the flush transaction.
-        rows = []
-        for name, values_by_pos in produced.items():
-            row = [task_id, task.dataset_id, name] + [None] * (len(_RESULT_COLUMNS) - 3)
-            column = _column_for(values_by_pos)
-            if column is not None:
-                if n == 1:
-                    classified = _classify_value(values_by_pos.get(0))
-                    if classified is not None:
-                        row[_RESULT_INDEX[f"{column}_value"]] = classified[1]
-                else:
-                    values = [None] * n
-                    for i, value in values_by_pos.items():
-                        classified = _classify_value(value)
-                        if classified is not None:
-                            if classified[0] != column:
-                                logger.warning(
-                                    "Task %s name %s position %d: %s value in a %s "
-                                    "row. Coerced to the row's type; a genuinely "
-                                    "incompatible value raises here. A name is "
-                                    "assumed to produce one type across every "
-                                    "position.",
-                                    task_id, name, i, classified[0], column,
-                                )
-                            values[i] = _COERCE[column](classified[1])
-                    row[_RESULT_INDEX[f"{column}_values"]] = values
-            rows.append(tuple(row))
+        rows = _result_rows(
+            produced, n, prefix=(task_id, task.dataset_id), label=f"Task {task_id}"
+        )
 
         all_names = set(produced)
 
@@ -707,15 +895,15 @@ def _extract(task_id, dataset_id, timer, outcomes):
         logger.exception("Task %s failed: %s", task_id, exc)
         outcomes.append(_TaskOutcome(
             task_id, task.dataset_id, task.claimed_at, [], -1, repr(exc)[:100], timer,
+            task.generations,
         ))
         raise
 
     incomplete_positions = {i for _, i, _ in failures}
-    parts = [f"resource {rid}[{i}]: {exc!r}" for rid, i, exc in failures]
-    error = "; ".join(parts)[:100] if failures else None
+    error = _failure_summary(failures)
     outcomes.append(_TaskOutcome(
         task_id, task.dataset_id, task.claimed_at, rows,
-        -1 if failures else 1, error, timer,
+        -1 if failures else 1, error, timer, task.generations,
     ))
     if not failures:
         return {"task_id": task_id, "results": len(all_names)}

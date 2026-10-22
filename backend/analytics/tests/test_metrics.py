@@ -10,6 +10,7 @@ from analytics import metrics
 from analytics.models import ExtractTask, ProcessingOption
 from analytics.tasks import processing
 from analytics.tasks.processing import _run_extract_task, claim_pending_tasks
+from analytics.tests.extract_helpers import settle_inputs
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
 
@@ -80,6 +81,7 @@ class TaskMetricsTests(TestCase):
         )
         fc = FeatureCollection.objects.create(name="fc", path="/data/fc", active=True)
         cls.fm = FeatMap.objects.create(fc=fc, geom=Feature.objects.create(shape=Point(0, 0)))
+        settle_inputs()
 
     _seq = 0
 

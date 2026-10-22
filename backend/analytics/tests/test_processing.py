@@ -10,6 +10,7 @@ from django.test.utils import CaptureQueriesContext
 from analytics.models import ExtractData, ExtractTask, ProcessingOption
 from analytics.tasks import processing
 from analytics.tasks.processing import _load_claimed_task, _run_extract_task
+from analytics.tests.extract_helpers import settle_inputs
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
 
@@ -56,6 +57,9 @@ class ProcessingTestCase(TestCase):
         ]
 
     def make_task(self, resources, *, status=LOCKED, kwargs=None):
+        # Resources made by the test mark the dataset dirty; settle so the
+        # task's inputs are clean, as they are in production once sync runs.
+        settle_inputs()
         return ExtractTask.objects.create(
             resource_ids=[r.id for r in resources],
             dataset_id=self.dataset.id,
@@ -536,7 +540,7 @@ class ProcessingTestCase(TestCase):
 
         touching = [
             q for q in queries
-            if "extract_tasks" in q
+            if "extract_tasks" in q or "extract_valid_tasks" in q
         ]
         self.assertEqual(len(touching), 2, touching)  # lookup, recheck-and-complete
         lookup, complete = touching
@@ -553,7 +557,7 @@ class ProcessingTestCase(TestCase):
 
         queries = self.run_capturing_queries(task, task.dataset_id)
 
-        lookup = next(q for q in queries if "FROM extract_tasks AS t" in q)
+        lookup = next(q for q in queries if "FROM extract_valid_tasks AS t" in q)
         self.assertTrue(lookup.lstrip().startswith("SELECT"), lookup)
         self.assertNotIn("FOR UPDATE", lookup)
 
@@ -577,7 +581,7 @@ class ProcessingTestCase(TestCase):
 
         queries = self.run_capturing_queries(task, task.dataset_id)
 
-        [lookup] = [q for q in queries if "FROM extract_tasks AS t" in q]
+        [lookup] = [q for q in queries if "FROM extract_valid_tasks AS t" in q]
         for unused in (
             "spatial_extent",
             "upload_metadata",
@@ -753,6 +757,8 @@ class ProcessingTestCase(TestCase):
             .startswith(("SELECT", "DELETE", "UPDATE"))
         ]
         # The claim recheck rides in the status UPDATE; no separate lock pass.
+        # (The input guard reads only extract_input_state.)
+        statements = [sql for sql in statements if "extract_input_state" not in sql]
         self.assertEqual(len(statements), 2, statements)
         self.assertFalse(any("FOR UPDATE" in sql for sql in statements), statements)
         for sql in statements:
@@ -781,6 +787,7 @@ class ProcessingTestCase(TestCase):
             dataset_id=other.id, resource_ids=[resource.id], fm=self.fm, po=po,
             status=LOCKED, kwargs={"n": 2},
         )
+        settle_inputs()
         outcomes = []
         with mock.patch.object(processing, "get_func", return_value=lambda *a, **kw: [("mean", 2.0)]):
             for task in (good, other_good):
@@ -833,11 +840,15 @@ class ProcessingTestCase(TestCase):
             ])
             if i < 2:
                 expected_refs.update((task.id, dataset.id) for task in tasks)
+        settle_inputs()
 
         with CaptureQueriesContext(connection) as queries:
             claimed = processing.claim_pending_tasks(64)
         self.assertEqual(set(claimed), expected_refs)
-        [claim_update] = [q["sql"] for q in queries.captured_queries if "unnest" in q["sql"]]
+        [claim_update] = [
+            q["sql"] for q in queries.captured_queries
+            if "unnest" in q["sql"] and "UPDATE extract_tasks" in q["sql"]
+        ]
         targets = ExtractTask.objects.filter(dataset_id__in=[d.id for d in datasets[:2]])
         self.assertEqual(set(targets.values_list("status", flat=True)), {LOCKED})
 
@@ -872,6 +883,7 @@ class _CommittedTaskFixture(TransactionTestCase):
         )
         fc = FeatureCollection.objects.create(name="fc", path="/data/fc", active=True)
         fm = FeatMap.objects.create(fc=fc, geom=Feature.objects.create(shape=Point(0, 0)))
+        settle_inputs()
         self.task = ExtractTask.objects.create(
             dataset_id=dataset.id, resource_ids=[resource.id], po=po, fm=fm,
             status=LOCKED,

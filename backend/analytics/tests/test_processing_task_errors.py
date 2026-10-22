@@ -56,6 +56,32 @@ class ErrorSweepFixture(TestCase):
 
 
 @override_settings(MAX_EXTRACT_TASK_ATTEMPTS=3)
+class RetiredFailureTests(ErrorSweepFixture):
+    def test_a_retired_pairs_failure_is_deleted_unless_a_request_needs_it(self):
+        from analytics.models import ExtractData, ExtractTaskBuildProgress, Request
+
+        retired = ExtractTaskBuildProgress.objects.create(
+            resource_ids=[self.resource.id], po=self.po, dataset_id=self.dataset.id, current=False)
+        orphan = self.errored_task(attempts=1)
+        ExtractTask.objects.filter(dataset_id=self.dataset.id, id=orphan.id).update(pair_id=retired.id)
+        ExtractData.objects.create(extract_task=orphan, dataset_id=self.dataset.id, name="mean", float_value=1.0)
+        other_fm = FeatMap.objects.create(fc=self.fc, geom=Feature.objects.create(shape="POINT(1 1)"))
+        needed = ExtractTask.objects.create(
+            dataset_id=self.dataset.id, resource_ids=[self.resource.id], fm=other_fm, po=self.po,
+            status=-1, attempts=1, pair_id=retired.id)
+        req = Request.objects.create(contact="a@b.c", status=-1, data={})
+        RequestMap.objects.create(request=req, task=needed, dataset_id=self.dataset.id)
+
+        _manage_processing_task_errors(error_values=-1)
+
+        # It could never be claimed again; it would sit in the pending index.
+        self.assertFalse(ExtractTask.objects.filter(dataset_id=self.dataset.id, id=orphan.id).exists())
+        self.assertFalse(ExtractData.objects.filter(dataset_id=self.dataset.id).exists())
+        needed.refresh_from_db()
+        self.assertEqual((needed.status, needed.attempts), (0, 2))
+
+
+@override_settings(MAX_EXTRACT_TASK_ATTEMPTS=3)
 class RetryCapTests(ErrorSweepFixture):
     def test_task_under_the_cap_is_returned_to_pending(self):
         task = self.errored_task(attempts=1)

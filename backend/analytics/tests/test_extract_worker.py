@@ -12,6 +12,7 @@ from django.utils import timezone
 from analytics import extract_worker, metrics
 from analytics.models import ExtractData, ExtractTask, ProcessingOption
 from analytics.tasks import processing
+from analytics.tests.extract_helpers import settle_inputs
 from analytics.tests.test_metrics import Delta, tasks_total
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
@@ -44,6 +45,7 @@ class RunChunkTests(TestCase):
         )
         fc = FeatureCollection.objects.create(name="fc", path="/data/fc", active=True)
         cls.fm = FeatMap.objects.create(fc=fc, geom=Feature.objects.create(shape=Point(0, 0)))
+        settle_inputs()
 
     _seq = 0
 
@@ -227,7 +229,10 @@ class RunChunkTests(TestCase):
         self.wait.assert_not_called()
 
     def test_an_empty_queue_waits_before_the_next_claim(self):
-        self.assertEqual(self.run_chunk(), 0)
+        # Nothing pending, no coverage to compute and no lease to take.
+        with mock.patch("analytics.coverage.run_coverage_chunk", return_value=None), \
+                mock.patch("analytics.tasks.leases.claim_lease", return_value=None):
+            self.assertEqual(self.run_chunk(), 0)
 
         [(seconds,), _] = self.wait.call_args
         self.assertGreaterEqual(seconds, 60 * 0.75)

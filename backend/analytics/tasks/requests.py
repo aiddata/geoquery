@@ -6,9 +6,14 @@ from django.db import transaction
 from analytics.background_metrics import observe_job, record_request_outcome
 from analytics.models import Request
 from analytics.query_tags import tagged
-from analytics.services import NoExtractTasksError, materialize_request
+from analytics.services import MaterializationDeferred, NoExtractTasksError, materialize_request
 
 logger = logging.getLogger(__name__)
+
+# How long a request whose inputs are mid-reset waits before trying again.
+# reset_stale_requests re-dispatches stranded status=4 requests as well, so a
+# lost retry message only costs latency.
+DEFERRED_RETRY_SECONDS = 60
 
 
 @shared_task
@@ -37,6 +42,19 @@ def materialize_request_tasks(request_id):
     try:
         materialize_request(req)
         logger.info("Materialized tasks for request %s", request_id)
+    except MaterializationDeferred as exc:
+        # Not the user's error: leave the request at status=4 and come back.
+        logger.info("Deferring materialization of request %s: %s", request_id, exc)
+        try:
+            materialize_request_tasks.apply_async(
+                (request_id,), countdown=DEFERRED_RETRY_SECONDS, retry=False
+            )
+        except Exception:
+            logger.warning(
+                "Could not schedule a retry for request %s; reset_stale_requests "
+                "will re-dispatch it", request_id, exc_info=True,
+            )
+        return
     except NoExtractTasksError as exc:
         logger.warning(
             "No extract tasks resolvable for request %s at materialization "

@@ -16,7 +16,7 @@ Module for handling edge-cases and errors.
 
 
 class Command(BaseCommand):
-    help = "Generate missing coverage records and kick off spatial coverage testing"
+    help = "Return errored extract tasks to pending, up to MAX_EXTRACT_TASK_ATTEMPTS"
 
     def add_arguments(self, parser):
         # boolean
@@ -109,6 +109,29 @@ def _manage_processing_task_errors(
                     )
 
             else:
+                # A retired pair's failure that no request needs could never
+                # be claimed again (see extract_runnable_tasks). Delete it
+                # instead of queueing it: if its pair is reactivated, the
+                # cursor restarts at 0 and a lease computes it afresh.
+                cursor.execute(
+                    """
+                        WITH doomed AS (
+                            SELECT t.dataset_id, t.id FROM extract_tasks t
+                            WHERE t.status = %s AND t.attempts < %s
+                              AND t.pair_id IS NOT NULL
+                              AND NOT EXISTS (SELECT 1 FROM extract_task_build_progress p
+                                              WHERE p.id = t.pair_id AND p.current)
+                              AND NOT EXISTS (SELECT 1 FROM request_map rm
+                                              WHERE rm.dataset_id = t.dataset_id AND rm.task_id = t.id)
+                        ), results AS (
+                            DELETE FROM extract_data d USING doomed
+                            WHERE d.dataset_id = doomed.dataset_id AND d.extract_task_id = doomed.id
+                        )
+                        DELETE FROM extract_tasks t USING doomed
+                        WHERE t.dataset_id = doomed.dataset_id AND t.id = doomed.id
+                        """,
+                    [ev, max_attempts],
+                )
                 cursor.execute(
                     """
                         UPDATE extract_tasks

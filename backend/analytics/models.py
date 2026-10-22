@@ -5,9 +5,11 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
-from django.db import models
-from django.db.models import F, Func
-from django.db.models.functions import Lower
+from django.db import connections, models
+from django.db.models import F, Func, JSONField, Q, Value
+from django.db.models.functions import Lower, Now
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
 from django.utils import timezone
 
 from datasets.models import Dataset, DatasetResource
@@ -99,9 +101,22 @@ class ExtractTask(models.Model):
     hashtext($1::text). Func() below calls that function directly rather
     than reconstructing the cast+hashtext expression in Python, so this
     declaration matches what's actually in the database.
+
+    id is bigint. It was an int4 AutoField until extract_tasks_id_seq ran out
+    at 2,147,483,647 with ~483M tasks still to build; migration 0031 converts
+    it (see database.md section 11). Ids already start above int4's range, so
+    SQL that carries them must cast to bigint[], never int[].
+
+    pair_id records which pair (ExtractTaskBuildProgress) a lease created this
+    task for. It is provenance, not identity: requests create tasks with it
+    NULL, and uniqueness still comes from the (dataset_id, po_id,
+    resource_ids_hash, fm_id) index. Readers use it to tell a current grouped
+    set from a retired one. Deliberately no index and no foreign key: it is
+    only ever read alongside a row already found some other way, and pair rows
+    are kept for as long as any task names them.
     """
 
-    id = models.AutoField(primary_key=True)
+    id = models.BigAutoField(primary_key=True)
     resource_ids = ArrayField(models.IntegerField())
     resource_ids_hash = models.GeneratedField(
         expression=Func(
@@ -119,8 +134,16 @@ class ExtractTask(models.Model):
     dataset_id = models.IntegerField()
     task_group_period = models.CharField(max_length=10, null=True, blank=True)
     fm = models.ForeignKey(FeatMap, on_delete=models.CASCADE, db_column="fm_id")
+    # extract_tasks_po_id_idx and the database foreign key were dropped in
+    # migration 0031. Every lookup by po_id also names dataset_id and either
+    # fm_id or the resource hash, which the unique indexes serve. Deleting an
+    # option deletes its tasks in delete_option_tasks, not by ORM cascade.
     po = models.ForeignKey(
-        ProcessingOption, on_delete=models.CASCADE, db_column="po_id"
+        ProcessingOption,
+        on_delete=models.DO_NOTHING,
+        db_column="po_id",
+        db_constraint=False,
+        db_index=False,
     )
     status = models.IntegerField(default=0)
     priority = models.IntegerField(default=0)
@@ -131,6 +154,7 @@ class ExtractTask(models.Model):
     attempts = models.IntegerField(default=0)
     error = models.CharField(max_length=100, blank=True, null=True)
     kwargs = models.JSONField(blank=True, null=True)
+    pair_id = models.BigIntegerField(blank=True, null=True)
 
     class Meta:
         db_table = "extract_tasks"
@@ -141,27 +165,81 @@ class ExtractTask(models.Model):
         )
 
 
-class ExtractTaskBuildProgress(models.Model):
-    """Tracks how far build_extract_tasks has generated tasks for each
-    (resource_ids, po) unit of work.
+@receiver(pre_delete, sender=ProcessingOption)
+def delete_option_tasks(sender, instance, using, **kwargs):
+    """Delete an option's tasks, their results and request links, in one partition.
 
-    For a standard (ungrouped) dataset, resource_ids is a 1-element array (one
-    row per individual DatasetResource x po). For a grouped dataset,
-    resource_ids holds every resource in one date_trunc(task_group_period, ...)
-    bucket. Either way, completed_up_to_fm_id is the highest feat_map.id
-    confirmed generated for that (resource_ids, po) pair -- a run only has to
-    look at feat_map rows added since. claimed_at supports concurrent workers:
-    set while a worker is actively batching this pair, cleared right after
-    (success or failure); staleness lets another worker reclaim a pair whose
-    claiming worker died mid-batch.
+    The ORM cascade would look tasks up by po_id, which has no index, and
+    delete them by id alone; both scan every partition. Naming the dataset
+    prunes each statement to the option's own partition. Runs inside the
+    deleting transaction, and only when the option is actually deleted.
+    """
+    with connections[using].cursor() as cursor:
+        cursor.execute(
+            """
+            WITH doomed AS (
+                SELECT id FROM extract_tasks WHERE dataset_id = %(dataset)s AND po_id = %(po)s
+            ), results AS (
+                DELETE FROM extract_data
+                WHERE dataset_id = %(dataset)s AND extract_task_id IN (SELECT id FROM doomed)
+            ), links AS (
+                DELETE FROM request_map
+                WHERE dataset_id = %(dataset)s AND task_id IN (SELECT id FROM doomed)
+            )
+            DELETE FROM extract_tasks WHERE dataset_id = %(dataset)s AND po_id = %(po)s
+            """,
+            {"dataset": instance.dataset_id, "po": instance.pk},
+        )
+
+
+class ExtractTaskBuildProgress(models.Model):
+    """A pair: one immutable set of resources with one processing option, and
+    its cursor over feat_map.
+
+    For a standard (ungrouped) dataset, resource_ids is a 1-element array. For
+    a grouped dataset it holds every resource in one UTC
+    date_trunc(task_group_period, temporal) bucket, ascending. The array never
+    changes after insert: when a bucket gains or loses a resource, sync retires
+    this pair and inserts (or reactivates) the pair for the new set. Results
+    are never relabelled from one set to another.
+
+    cursor_fm_id means "accounted for", not "finished". Every eligible feature
+    at or below it has a task row, sits in an outstanding lease, or belongs to
+    an input scope whose durable rewind (extract_input_state.rewind_from, or
+    the pending targeted reset in extract_invalid_items, which rewinds its
+    pairs when published) is still pending. Anything that deletes a lease or a
+    background task must leave one of those true.
+    See analytics.tasks.leases for the claim that advances it and
+    analytics.sync for the rewinds.
+
+    current is False for retired pairs. Their rows are kept: tasks name them
+    in pair_id, and an identical set can become current again (A -> B -> A),
+    in which case its cursor restarts at 0. Dataset or option inactivity does
+    not retire a pair; it only parks it.
+
+    The model keeps its historical name and table, which is why it is not
+    called ExtractPair: the builder that once filled it is gone, but its rows
+    and their ids carry over.
     """
 
     resource_ids = ArrayField(models.IntegerField())
     po = models.ForeignKey(
         ProcessingOption, on_delete=models.CASCADE, db_column="po_id"
     )
-    completed_up_to_fm_id = models.IntegerField(blank=True, null=True)
-    claimed_at = models.DateTimeField(blank=True, null=True)
+    dataset_id = models.IntegerField()
+    # The UTC date_trunc(task_group_period, temporal) of a grouped set; NULL
+    # for a standard pair.
+    bucket = models.DateField(blank=True, null=True)
+    task_group_period = models.CharField(max_length=10, blank=True, null=True)
+    current = models.BooleanField(default=False, db_default=False)
+    priority = models.IntegerField(default=0, db_default=0)
+    cursor_fm_id = models.IntegerField(default=0, db_default=0)
+    last_error = models.CharField(max_length=200, blank=True, null=True)
+    retry_after = models.DateTimeField(db_default=Now())
+    # Moving average of a page's compute time per feature, which sizes this
+    # pair's pages to fit their lease (analytics.tasks.leases). NULL until a
+    # page has finished or timed out.
+    seconds_per_feature = models.FloatField(blank=True, null=True)
 
     class Meta:
         db_table = "extract_task_build_progress"
@@ -170,45 +248,181 @@ class ExtractTaskBuildProgress(models.Model):
                 fields=["resource_ids", "po"],
                 name="extract_task_build_progress_resource_ids_po_unique",
             ),
+            models.UniqueConstraint(
+                fields=["dataset_id", "po", "bucket"],
+                condition=Q(current=True, bucket__isnull=False),
+                name="extract_pairs_current_bucket_unique",
+            ),
         ]
 
+    def __str__(self):
+        state = "current" if self.current else "retired"
+        return f"Pair {self.id}: resources {self.resource_ids} x po {self.po_id} ({state}, cursor {self.cursor_fm_id})"
 
-class ExtractTaskBuildRun(models.Model):
-    """Singleton row coordinating parallel build_extract_tasks workers so the
-    beat schedule can't pile up a fresh wave of workers on top of one
-    still grinding through the backlog -- the same "unbounded daily pileup"
-    pattern that caused the original extract_tasks bloat incident, just at
-    the task-dispatch level instead of the transaction level.
 
-    in_progress + last_progress_at is a heartbeat, not a fixed timeout: any
-    worker batch refreshes last_progress_at, so the launcher can tell "still
-    actively working through a big backlog" (frequent heartbeat) apart from
-    "workers died silently" (stale heartbeat) without needing to guess how
-    long the whole backlog should take.
+class ExtractTaskLease(models.Model):
+    """One page of a pair's features, owned by one worker until it completes.
 
-    run_id fences a wave's heartbeat and completion; workers_remaining
-    releases its guard when the last worker finishes, even with a capped
-    backlog. An interrupted wave still expires via last_progress_at.
+    The lease is the durable record that its fm_ids are accounted for even
+    though the pair's cursor has moved past them and no task row exists yet.
+    Completion inserts the terminal task rows and their results and deletes
+    the lease in one transaction; nothing else may delete a lease except sync,
+    when the pair is retired and the work is therefore obsolete.
 
-    This class keeps the model's migration state anchored in models.py.
-    Without it, `makemigrations` sees a model in migration history with no
-    matching class in models.py and offers to delete it, which is exactly
-    what happened once already (migration 0026, reverted): the table looked
-    like orphaned drift and got dropped out from under the raw-SQL code that
-    still depends on it.
+    token changes on every assignment, takeover and return. Completion and
+    every write a worker makes to its lease are fenced on the token it was
+    assigned, under the lease's row lock, so exactly one of "old owner
+    completes" and "someone else takes over" happens.
+
+    leased_until detects lost ownership; retry_after schedules backoff. A
+    takeover needs both to be due. input_generations holds the dataset and
+    collection generations captured at assignment; completion requires the
+    same generations, clean.
     """
 
-    id = models.SmallIntegerField(primary_key=True, default=1)
-    in_progress = models.BooleanField(default=False)
-    last_progress_at = models.DateTimeField(blank=True, null=True)
-    run_id = models.UUIDField(blank=True, null=True)
-    workers_remaining = models.PositiveIntegerField(default=0, db_default=0)
+    id = models.BigAutoField(primary_key=True)
+    progress = models.ForeignKey(
+        ExtractTaskBuildProgress, on_delete=models.CASCADE, db_column="progress_id"
+    )
+    dataset_id = models.IntegerField()
+    resource_ids = ArrayField(models.IntegerField())
+    po_id = models.IntegerField()
+    task_group_period = models.CharField(max_length=10, blank=True, null=True)
+    fm_ids = ArrayField(models.IntegerField())
+    input_generations = models.JSONField(default=dict, db_default=Value({}, JSONField()))
+    token = models.UUIDField()
+    leased_at = models.DateTimeField(db_default=Now())
+    leased_until = models.DateTimeField()
+    retry_after = models.DateTimeField(db_default=Now())
+    created_at = models.DateTimeField(db_default=Now())
+    attempts = models.IntegerField(default=0, db_default=0)
+    last_error = models.CharField(max_length=100, blank=True, null=True)
 
     class Meta:
-        db_table = "extract_task_build_run"
+        db_table = "extract_task_leases"
+        indexes = [
+            models.Index(fields=["leased_until"], name="extract_task_leases_due_idx"),
+        ]
 
     def __str__(self):
-        return f"BuildProgress: Resources {self.resource_ids} - PO {self.po_id} (up to fm {self.completed_up_to_fm_id})"
+        return f"Lease {self.id}: pair {self.progress_id}, {len(self.fm_ids)} features"
+
+
+class CoverageProgress(models.Model):
+    """How far coverage has been computed for one non-global dataset.
+
+    Every feat_map row with an id at or below covered_up_to_fm_id has had its
+    geometry tested against the dataset's extent (a coverage row with status 0
+    or 1), unless its collection was dirty and holds a durable rewind below
+    it. Leases of a non-global dataset never scan past this watermark, so a
+    missing row means a cap of 0. Global datasets have no row.
+
+    extent_hash is the md5 of the extent this progress was computed against.
+    It is an audit check for drift, not how extent changes are delivered:
+    those arrive through extract_input_state like every other input change.
+    """
+
+    dataset = models.OneToOneField(
+        Dataset, on_delete=models.CASCADE, primary_key=True, db_column="dataset_id"
+    )
+    covered_up_to_fm_id = models.IntegerField(default=0, db_default=0)
+    extent_hash = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = "extract_coverage_progress"
+
+    def __str__(self):
+        return f"Coverage progress: dataset {self.dataset_id} up to fm {self.covered_up_to_fm_id}"
+
+
+class ExtractInputState(models.Model):
+    """Durable record of changes to one dataset's or one collection's inputs.
+
+    Database triggers on the input tables (migration 0031) write these rows in
+    the same transaction as the change, so ORM bulk writes and raw SQL are
+    captured like everything else. A trigger increments generation, ORs in the
+    pending flags, keeps the minimum rewind boundary, and clears the
+    checkpoint, error and backoff. The scope is dirty while generation !=
+    applied_generation; analytics.sync reconciles it in bounded chunks and
+    only then sets applied_generation. Nothing else may clear a flag.
+
+    Workers take FOR SHARE on the clean states their work depends on, and
+    record the generations they saw. Completion requires the same generations,
+    still clean, which is what stops work computed from pre-edit inputs from
+    landing after an edit.
+
+    epoch counts invalidations only: a change that makes stored results or
+    in-flight work wrong (a reshaped feature, a new resource path, a whole
+    dataset reset, a deleted feature). Work records the epochs it saw and
+    rechecks them; additive changes (a new feature or resource, an activity
+    flip) advance generation, which drives sync, but not epoch, so they never
+    discard finished work.
+
+    A row outlives its dataset or collection (a tombstone) until sync has
+    finished reconciling the deletion, then sync deletes it. A missing row is
+    an initialization error, never "clean".
+
+    checkpoint keys: generation, phase, dataset_id, fm_id, task_id (and
+    failures, for backoff).
+    """
+
+    KIND_DATASET = "dataset"
+    KIND_COLLECTION = "collection"
+    KIND_CHOICES = [(KIND_DATASET, "Dataset"), (KIND_COLLECTION, "Collection")]
+
+    pk = models.CompositePrimaryKey("kind", "object_id")
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES)
+    object_id = models.IntegerField()
+    generation = models.BigIntegerField(default=0, db_default=0)
+    applied_generation = models.BigIntegerField(default=0, db_default=0)
+    epoch = models.BigIntegerField(default=0, db_default=0)
+    rewind_from = models.IntegerField(blank=True, null=True)
+    sync_pairs = models.BooleanField(default=False, db_default=False)
+    reset_tasks = models.BooleanField(default=False, db_default=False)
+    reset_coverage = models.BooleanField(default=False, db_default=False)
+    bootstrap_pending = models.BooleanField(default=False, db_default=False)
+    checkpoint = models.JSONField(default=dict, db_default=Value({}, JSONField()))
+    updated_at = models.DateTimeField(db_default=Now())
+    retry_after = models.DateTimeField(db_default=Now())
+    last_error = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = "extract_input_state"
+
+    @property
+    def dirty(self):
+        return self.generation != self.applied_generation
+
+    def __str__(self):
+        state = "dirty" if self.dirty else "clean"
+        return f"{self.kind} {self.object_id}: generation {self.generation} ({state})"
+
+
+class ExtractInvalidItem(models.Model):
+    """One input a pending targeted reset invalidates.
+
+    Written by the capture triggers (migration 0031) next to the scope's
+    mark, and deleted when sync publishes that scope. A ``feature`` item
+    (collection scope) is a feat_map row whose geometry changed; a
+    ``resource`` or ``option`` item (dataset scope) is one whose path or
+    definition changed. Sync resets only the tasks these name, and readers
+    and claims skip those tasks until then (the extract_valid_tasks view).
+    Whole-dataset changes still use the scope's reset flags instead.
+    """
+
+    FEATURE = "feature"
+    RESOURCE = "resource"
+    OPTION = "option"
+
+    pk = models.CompositePrimaryKey("scope_kind", "scope_id", "item_kind", "item_id")
+    scope_kind = models.CharField(max_length=10, choices=ExtractInputState.KIND_CHOICES)
+    scope_id = models.IntegerField()
+    item_kind = models.CharField(max_length=10)
+    item_id = models.IntegerField()
+
+    class Meta:
+        db_table = "extract_invalid_items"
+        indexes = [models.Index(fields=["item_kind", "item_id"], name="extract_invalid_items_item_idx")]
 
 
 class ExtractData(models.Model):

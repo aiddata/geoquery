@@ -21,6 +21,7 @@ from analytics.management.commands.manage_user_requests import (
 )
 from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
 from analytics.services import create_request, materialize_request
+from analytics.tests.extract_helpers import settle_inputs
 from datasets.models import Dataset, DatasetResource
 from features.models import Feature, FeatMap, FeatureCollection
 
@@ -45,6 +46,7 @@ class SweepIgnoresMaterializingRequestsTest(TestCase):
         )
         self.feature = Feature.objects.create(shape="POINT(0 0)")
         self.fm = FeatMap.objects.create(fc=self.fc, geom=self.feature)
+        settle_inputs()
 
     def test_sweep_does_not_touch_a_materializing_request(self):
         created = create_request(
@@ -57,7 +59,7 @@ class SweepIgnoresMaterializingRequestsTest(TestCase):
         self.assertEqual(created.request.status, 4)
 
         with mock.patch(
-            "analytics.management.commands.manage_user_requests._build_output"
+            "analytics.management.commands.manage_user_requests._build_output", return_value=None
         ) as mock_build_output, mock.patch(
             "analytics.management.commands.manage_user_requests._notify_user"
         ) as mock_send_email:
@@ -91,6 +93,7 @@ class FullSubmissionToCompletionFlowTest(TestCase):
         )
         self.feature = Feature.objects.create(shape="POINT(0 0)")
         self.fm = FeatMap.objects.create(fc=self.fc, geom=self.feature)
+        settle_inputs()
 
     def test_submit_materialize_sweep_reaches_completed(self):
         created = create_request(
@@ -167,6 +170,7 @@ class BuildOutputAtomicityTests(TestCase):
         )
         self.feature = Feature.objects.create(shape="POINT(0 0)")
         self.fm = FeatMap.objects.create(fc=self.fc, geom=self.feature)
+        settle_inputs()
 
     def build(self, requests_dir):
         created = create_request(
@@ -534,6 +538,7 @@ class SweepClaimTests(TestCase):
         )
         self.feature = Feature.objects.create(shape="POINT(0 0)")
         self.fm = FeatMap.objects.create(fc=self.fc, geom=self.feature)
+        settle_inputs()
 
     def submit(self):
         created = create_request(
@@ -559,7 +564,7 @@ class SweepClaimTests(TestCase):
         ExtractTask.objects.update(status=1)
 
         with mock.patch(
-            "analytics.management.commands.manage_user_requests._build_output"
+            "analytics.management.commands.manage_user_requests._build_output", return_value=None
         ) as mock_build, mock.patch(
             "analytics.management.commands.manage_user_requests._notify_user"
         ):
@@ -655,7 +660,7 @@ class SweepClaimTests(TestCase):
         ExtractTask.objects.update(status=1)
 
         with mock.patch(
-            "analytics.management.commands.manage_user_requests._build_output"
+            "analytics.management.commands.manage_user_requests._build_output", return_value=None
         ), mock.patch(
             "analytics.management.commands.manage_user_requests._notify_user"
         ) as first_notify:
@@ -668,7 +673,7 @@ class SweepClaimTests(TestCase):
         Request.objects.filter(id=req.id).update(status=-1)
 
         with mock.patch(
-            "analytics.management.commands.manage_user_requests._build_output"
+            "analytics.management.commands.manage_user_requests._build_output", return_value=None
         ), mock.patch(
             "analytics.management.commands.manage_user_requests._notify_user"
         ) as second_notify:
@@ -817,7 +822,7 @@ class SweepClaimTests(TestCase):
         Request.objects.filter(id=second.id).update(data=data)
 
         with mock.patch(
-            "analytics.management.commands.manage_user_requests._build_output"
+            "analytics.management.commands.manage_user_requests._build_output", return_value=None
         ), mock.patch(
             "analytics.management.commands.manage_user_requests._notify_user"
         ):
@@ -863,7 +868,7 @@ class SweepClaimTests(TestCase):
         self.assertEqual(req.status, -1)
 
         with mock.patch(
-            "analytics.management.commands.manage_user_requests._build_output"
+            "analytics.management.commands.manage_user_requests._build_output", return_value=None
         ), mock.patch(
             "analytics.management.commands.manage_user_requests._notify_user"
         ):
@@ -991,6 +996,7 @@ class ClaimCommitVisibilityTest(TransactionTestCase):
         )
         self.feature = Feature.objects.create(shape="POINT(0 0)")
         self.fm = FeatMap.objects.create(fc=self.fc, geom=self.feature)
+        settle_inputs()
 
     def test_claim_is_visible_to_another_connection_during_build(self):
         created = create_request(
@@ -1067,6 +1073,7 @@ class ClaimHeartbeatTest(TransactionTestCase):
         )
         self.feature = Feature.objects.create(shape="POINT(0 0)")
         self.fm = FeatMap.objects.create(fc=self.fc, geom=self.feature)
+        settle_inputs()
 
     def submit(self):
         created = create_request(

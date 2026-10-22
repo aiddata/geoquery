@@ -9,12 +9,15 @@ improvements apply to all past requests without re-running anything.
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 
 from django.contrib.gis.db.models import Extent
-from django.db import connections
+from django.db import connections, transaction
+from django.db.models import Q
 
 from features.models import Feature, FeatMap
-from analytics.models import ExtractTask, ProcessingOption
+from analytics.changes import only_valid
+from analytics.models import ExtractTask, ExtractTaskBuildProgress, ProcessingOption
 from datasets.models import Dataset
 
 # Every read here is of finished extraction results and the boundaries and
@@ -23,6 +26,25 @@ from datasets.models import Dataset
 # on a standby. In a process without PG_RO_* the alias falls back to the
 # primary (see settings._pg).
 _DB = "replica"
+
+
+@contextmanager
+def _one_snapshot():
+    """Read a whole response from one snapshot.
+
+    Boundaries, values and their validity are separate statements; under
+    READ COMMITTED a reshape or reset committing between them could pair new
+    geometry with old values. REPEATABLE READ gives every statement the same
+    snapshot (standbys allow it). Inside an outer transaction (tests) the
+    reads already share it.
+    """
+    if connections[_DB].in_atomic_block:
+        yield
+        return
+    with transaction.atomic(using=_DB):
+        with connections[_DB].cursor() as cursor:
+            cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+        yield
 
 
 def _fmt_kwargs(kwargs: dict) -> str:
@@ -109,7 +131,7 @@ _REQUEST_EXTRACT_DATA_SQL = """
         u.float_value AS float_value,
         u.str_value AS str_value
     FROM extract_data ed
-    INNER JOIN extract_tasks et
+    INNER JOIN extract_valid_tasks et
         ON et.dataset_id = ed.dataset_id AND et.id = ed.extract_task_id
     INNER JOIN request_map rm
         ON rm.dataset_id = et.dataset_id AND rm.task_id = et.id
@@ -132,13 +154,23 @@ _REQUEST_EXTRACT_DATA_SQL = """
     INNER JOIN dataset_resources dr ON dr.id = u.resource_id
     INNER JOIN datasets d ON d.id = dr.dataset_id
     WHERE rm.req_id = %s
+      AND et.status = 1
 """
 
 # Same shape as _REQUEST_EXTRACT_DATA_SQL (see its comment for the unnest and
 # partition-wise-join rationale, both identical here) but filtered directly
-# by fc/po id, mirroring how build_explore_data's old ORM query filtered on
-# extract_task__fm__fc_id__in / extract_task__po_id__in instead of going
-# through request_map.
+# by fc/po id instead of going through request_map, plus the datasets those
+# options belong to: extract_tasks is partitioned on dataset_id, and without
+# it every partition is scanned (database.md section 1).
+#
+# Explore shows what is current, not every set ever computed. A grouped
+# result counts only if its task belongs to a current pair (pair_id, against
+# the small pair table): when a bucket gains or loses a resource the old set
+# is retired, and its values must not sit beside the new set's. A request's
+# own view (above) still shows the sets it was built from, while their
+# inputs and results remain valid. "preferred" marks a current pair's
+# result, so where a feature has both that and a singleton request task for
+# the same resource, the pair's value wins (see _aggregate_data_rows).
 _EXPLORE_EXTRACT_DATA_SQL = """
     SELECT
         fm.geom_id AS geom_id,
@@ -153,9 +185,10 @@ _EXPLORE_EXTRACT_DATA_SQL = """
         ed.name AS name,
         u.int_value AS int_value,
         u.float_value AS float_value,
-        u.str_value AS str_value
+        u.str_value AS str_value,
+        cardinality(et.resource_ids) > 1 AS preferred
     FROM extract_data ed
-    INNER JOIN extract_tasks et
+    INNER JOIN extract_valid_tasks et
         ON et.dataset_id = ed.dataset_id AND et.id = ed.extract_task_id
     INNER JOIN feat_map fm ON fm.id = et.fm_id
     INNER JOIN processing_options po ON po.id = et.po_id
@@ -176,6 +209,11 @@ _EXPLORE_EXTRACT_DATA_SQL = """
     INNER JOIN dataset_resources dr ON dr.id = u.resource_id
     INNER JOIN datasets d ON d.id = dr.dataset_id
     WHERE fm.fc_id = ANY(%s) AND et.po_id = ANY(%s)
+      AND et.dataset_id = ANY(%s::int[]) AND ed.dataset_id = ANY(%s::int[])
+      AND et.status = 1
+      AND (cardinality(et.resource_ids) = 1
+           OR EXISTS (SELECT 1 FROM extract_task_build_progress p
+                      WHERE p.id = et.pair_id AND p.current))
 """
 
 # Optional narrowing appended to _EXPLORE_EXTRACT_DATA_SQL when the caller
@@ -197,6 +235,9 @@ def _aggregate_data_rows(data_rows: list[dict], features: dict[str, dict]):
     col_dataset_titles: dict[str, str] = {}
     col_temporal: dict[str, str] = {}
     col_kwargs: dict[str, dict] = {}
+    # (geom_id, col) cells already filled from a current pair's grouped task;
+    # a singleton task for the same cell must not overwrite them.
+    preferred_cells: set[tuple] = set()
 
     for dr in data_rows:
         col = f"{dr['resource_name']}.{dr['name']}"
@@ -229,6 +270,11 @@ def _aggregate_data_rows(data_rows: list[dict], features: dict[str, dict]):
             value = float(dr["float_value"])
         else:
             value = dr["str_value"]
+        cell = (geom_id, col)
+        if dr.get("preferred"):
+            preferred_cells.add(cell)
+        elif cell in preferred_cells:
+            continue
         record[col] = value
 
     return data_cols_set, po_keys_per_col, col_dataset_titles, col_temporal, col_kwargs
@@ -288,6 +334,17 @@ def _bbox_for(features: dict[str, dict]):
     return list(extent) if extent else None
 
 
+def _dataset_ids_for(po_ids: list[int]) -> list[int]:
+    """The datasets these processing options belong to, for partition pruning."""
+    return sorted(
+        set(
+            ProcessingOption.objects.using(_DB)
+            .filter(id__in=po_ids)
+            .values_list("dataset_id", flat=True)
+        )
+    )
+
+
 def build_request_data(request) -> dict:
     """Build the visualization payload for a single Request.
 
@@ -295,16 +352,21 @@ def build_request_data(request) -> dict:
     renderer port is a straight 1:1 mapping. Tile base URL and Protomaps
     key are intentionally omitted — the frontend reads those from /api/config/.
     """
-    # ── 1. Features touched by the request (one row per FeatMap) ─────────────
-    # id__in=request.featmap_ids() rather than joining through
-    # extracttask__requestmap__request: extract_tasks is LIST partitioned on
-    # dataset_id, so that join scans every partition (see Request.featmap_ids).
-    features, fc_names_set = _feature_rows(id__in=request.featmap_ids(using=_DB))
+    with _one_snapshot():
+        # ── 1. Features touched by the request (one row per FeatMap) ─────────
+        # id__in=request.featmap_ids() rather than joining through
+        # extracttask__requestmap__request: extract_tasks is LIST partitioned
+        # on dataset_id, so that join scans every partition (see
+        # Request.featmap_ids).
+        features, fc_names_set = _feature_rows(id__in=request.featmap_ids(using=_DB))
 
-    # ── 2. Extract data values + the metadata needed for column names ────────
-    with connections[_DB].cursor() as cursor:
-        cursor.execute(_REQUEST_EXTRACT_DATA_SQL, [str(request.id)])
-        data_rows = _dictfetchall(cursor)
+        # ── 2. Extract data values + the metadata needed for column names ────
+        # Results with a reset pending are not served (extract_valid_tasks):
+        # they are about to be recomputed.
+        with connections[_DB].cursor() as cursor:
+            cursor.execute(_REQUEST_EXTRACT_DATA_SQL, [str(request.id)])
+            data_rows = _dictfetchall(cursor)
+        bbox = _bbox_for(features)
 
     data_cols_set, po_keys_per_col, col_dataset_titles, col_temporal, col_kwargs = (
         _aggregate_data_rows(data_rows, features)
@@ -326,9 +388,7 @@ def build_request_data(request) -> dict:
         col: _fmt_kwargs(kw) for col, kw in col_kwargs.items()
     }
 
-    # ── 5. Bounding box from Feature geometries ──────────────────────────────
-    bbox = _bbox_for(features)
-
+    # ── 5. Bounding box from Feature geometries (read above, in the snapshot)
     req_data = request.data or {}
     return {
         "request_id": str(request.id),
@@ -360,17 +420,22 @@ def build_explore_data(
     DatasetResources (i.e. particular years). ``None`` means every resource,
     which is what the explore page passes -- its behaviour is unchanged.
     """
-    features, fc_names_set = _feature_rows(fc_id__in=fc_ids)
-
+    dataset_ids = _dataset_ids_for(po_ids)
     sql = _EXPLORE_EXTRACT_DATA_SQL
-    params = [fc_ids, po_ids]
+    params = [fc_ids, po_ids, dataset_ids, dataset_ids]
     if resource_ids is not None:
         sql += _EXPLORE_RESOURCE_FILTER_SQL
         params.append(resource_ids)
+    # Singleton rows first, so a current pair's grouped value for the same
+    # cell is applied after them and kept.
+    sql += "    ORDER BY preferred\n"
 
-    with connections[_DB].cursor() as cursor:
-        cursor.execute(sql, params)
-        data_rows = _dictfetchall(cursor)
+    with _one_snapshot():
+        features, fc_names_set = _feature_rows(fc_id__in=fc_ids)
+        with connections[_DB].cursor() as cursor:
+            cursor.execute(sql, params)
+            data_rows = _dictfetchall(cursor)
+        bbox = _bbox_for(features)
 
     data_cols_set, po_keys_per_col, col_dataset_titles, col_temporal, col_kwargs = (
         _aggregate_data_rows(data_rows, features)
@@ -389,8 +454,6 @@ def build_explore_data(
     col_filter_desc: dict[str, str] = {
         col: _fmt_kwargs(kw) for col, kw in col_kwargs.items()
     }
-
-    bbox = _bbox_for(features)
 
     return {
         "fc_names": fc_names,
@@ -421,13 +484,23 @@ def build_explore_available(fc_ids: list[int], po_ids: list[int]) -> list[dict]:
     traversal, the same pattern _col_descriptions_for/po_descriptions above
     uses for ProcessingOption.
     """
-    rows = list(
+    tasks = only_valid(
         ExtractTask.objects.using(_DB)
-        .filter(fm__fc_id__in=fc_ids, po_id__in=po_ids, status=1)
-        .values("dataset_id", "po_id", "po__short_name", "po__description")
-        .distinct()
+        .filter(
+            dataset_id__in=_dataset_ids_for(po_ids),
+            fm__fc_id__in=fc_ids,
+            po_id__in=po_ids,
+            status=1,
+        )
+        .filter(
+            Q(resource_ids__len=1)
+            | Q(pair_id__in=ExtractTaskBuildProgress.objects.using(_DB)
+                .filter(current=True).values("id"))
+        )
     )
-
+    rows = list(
+        tasks.values("dataset_id", "po_id", "po__short_name", "po__description").distinct()
+    )
     dataset_ids = {row["dataset_id"] for row in rows}
     dataset_lookup = {
         d["id"]: d

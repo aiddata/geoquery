@@ -50,3 +50,36 @@ def on_request_submitted(sender, instance, created, **kwargs):
         from analytics.tasks.maintenance import process_user_requests
 
         transaction.on_commit(lambda: process_user_requests.delay())
+
+
+def _wake_extract_sync(sender, **kwargs):
+    """Start reconciling an input change once its transaction commits.
+
+    The change itself is already recorded, durably, by the database triggers
+    (migration 0031); see analytics.changes. wake_sync sends at most one
+    message per transaction, and only for these per-object models: features
+    and feat_map rows change by the thousand in an ingest, which wakes sync
+    once through BaseIngestCommand instead.
+    """
+    from analytics.changes import wake_sync
+
+    wake_sync()
+
+
+def _connect_extract_wakes():
+    from django.db.models.signals import post_delete
+
+    from datasets.models import Dataset, DatasetResource, Mapping
+    from features.models import FeatureCollection
+
+    from .models import ProcessingOption
+
+    for model in (Dataset, DatasetResource, Mapping, ProcessingOption, FeatureCollection):
+        for signal in (post_save, post_delete):
+            signal.connect(
+                _wake_extract_sync, sender=model, weak=False,
+                dispatch_uid=f"extract_sync_wake_{signal is post_save}_{model._meta.label}",
+            )
+
+
+_connect_extract_wakes()

@@ -107,6 +107,93 @@ FLUSH_FAILURES = Counter(
 )
 
 
+# Lease pages run up to EXTRACT_TASK_LEASE_SECONDS (30 minutes by default).
+_LEASE_BUCKETS = (0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600, 1200, 1800)
+
+LEASE_PAGES = Counter(
+    "geoquery_extract_lease_pages",
+    "Lease pages finished, by outcome. completed = tasks and results committed; "
+    "deferred = inputs changed, page given back; parked = dataset or option "
+    "inactive; stale = token changed (taken over); gone = already completed or "
+    "cancelled; collision = resource-array hash collision; returned = graceful "
+    "stop; timed_out = ran past the lease; failed = unexpected error; "
+    "exhausted = a single feature recorded as a terminal failure.",
+    ["outcome"],
+)
+
+LEASE_FEATURES = Counter(
+    "geoquery_extract_lease_features",
+    "Features in committed lease pages. completed = status 1; failed = "
+    "status -1; conflict = a request's task already existed and was kept.",
+    ["outcome"],
+)
+
+LEASE_PHASE_SECONDS = Histogram(
+    "geoquery_extract_lease_phase_seconds",
+    "Wall time per lease page in each phase: claim (including takeover and "
+    "empty windows), load (option, resources, category map), compute "
+    "(geometry blocks and processor calls), commit (fenced completion).",
+    ["phase"],
+    buckets=_LEASE_BUCKETS,
+)
+
+LEASE_TAKEOVERS = Counter(
+    "geoquery_extract_lease_takeovers",
+    "Expired leases reassigned to another worker.",
+)
+
+LEASE_SPLITS = Counter(
+    "geoquery_extract_lease_splits",
+    "Leases split in half after EXTRACT_TASK_LEASE_BISECT_ATTEMPT unsuccessful assignments.",
+)
+
+LEASE_ERRORS = Counter(
+    "geoquery_extract_lease_errors",
+    "Lease failures by class: database, hash_collision, or the exception type.",
+    ["error_class"],
+)
+
+REPLICA_FALLBACKS = Counter(
+    "geoquery_extract_replica_fallbacks",
+    "Lease input reads that fell back to the primary: lag (barrier timed "
+    "out), conflict (standby query cancelled), error, missing_rows.",
+    ["reason"],
+)
+
+GUARD_SECONDS = Histogram(
+    "geoquery_extract_guard_seconds",
+    "Time taking input-state share locks (wait) and holding them through "
+    "commit (hold).",
+    ["stage"],
+    buckets=_DISPATCH_BUCKETS,
+)
+
+COVERAGE_CHUNKS = Counter(
+    "geoquery_extract_coverage_chunks",
+    "Coverage chunks attempted by worker slots: advanced, or busy (every "
+    "candidate dataset locked, dirty or blocked).",
+    ["outcome"],
+)
+
+COVERAGE_FEATURES = Counter(
+    "geoquery_extract_coverage_features",
+    "feat_map rows examined by coverage chunks.",
+)
+
+COVERAGE_CHUNK_SECONDS = Histogram(
+    "geoquery_extract_coverage_chunk_seconds",
+    "Wall time of one coverage chunk.",
+    buckets=_PHASE_BUCKETS,
+)
+
+INFRA_BACKOFF_SECONDS = Histogram(
+    "geoquery_extract_infra_backoff_seconds",
+    "Slot backoff after a database failure, which doubles per consecutive "
+    "failure up to five minutes.",
+    buckets=_IDLE_BUCKETS,
+)
+
+
 class WorkerStateCollector:
     """Read slot state shared with children, including chunks still running.
 

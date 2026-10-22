@@ -1,8 +1,8 @@
-"""BaseIngestCommand's post-ingest hook dispatch."""
+"""BaseIngestCommand's post-ingest wake of the extract sync."""
 
 from unittest import mock
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from analytics.management.commands.base import BaseIngestCommand
 
@@ -21,28 +21,31 @@ class _NoopIngestCommand(BaseIngestCommand):
             self.skip_post_ingest_hooks = True
 
 
-class PostIngestHookTests(SimpleTestCase):
-    def test_dispatches_coverage_and_extract_by_default(self):
+class PostIngestHookTests(TestCase):
+    def test_wakes_extract_sync_once_after_commit(self):
         cmd = _NoopIngestCommand()
 
         with mock.patch(
-            "analytics.tasks.maintenance.trigger_coverage_and_extract"
-        ) as task:
+            "analytics.tasks.maintenance.sync_extract_work"
+        ) as task, self.captureOnCommitCallbacks(execute=True):
             cmd.execute(skip_checks=True, no_color=False, force_color=False)
+            task.apply_async.assert_not_called()
 
         self.assertTrue(cmd.ran)
-        task.delay.assert_called_once()
+        task.apply_async.assert_called_once_with(retry=False)
 
     def test_skips_dispatch_when_handle_sets_the_flag(self):
         cmd = _NoopIngestCommand(skip=True)
 
         with mock.patch(
-            "analytics.tasks.maintenance.trigger_coverage_and_extract"
-        ) as task:
+            "analytics.tasks.maintenance.sync_extract_work"
+        ) as task, self.captureOnCommitCallbacks(execute=True):
             cmd.execute(skip_checks=True, no_color=False, force_color=False)
 
         self.assertTrue(cmd.ran)
-        task.delay.assert_not_called()
+        task.apply_async.assert_not_called()
 
+
+class PostIngestFlagTests(SimpleTestCase):
     def test_flag_defaults_to_false(self):
         self.assertFalse(BaseIngestCommand.skip_post_ingest_hooks)

@@ -26,6 +26,7 @@ from django.utils import timezone
 from features.models import FeatMap, Feature, FeatureCollection
 
 from analytics.background_metrics import record_request_outcome
+from analytics.changes import Generations, only_valid, read_states, recheck
 from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
 from analytics.tasks.documentation import DocBuilder
 from analytics.tasks.email import GeoEmail
@@ -342,6 +343,27 @@ def _manage_user_requests(
                 request_obj, dry_run=dry_run
             )
 
+            # Tasks deleted with their feature or resource take their
+            # RequestMap rows with them (the ORM cascades), so they look like
+            # a smaller request rather than a missing part of this one.
+            # Shipping that as complete would silently drop data.
+            deleted_items = _deleted_task_count(request_obj)
+            if deleted_items:
+                if not dry_run:
+                    _request_error(
+                        request_id,
+                        f"{deleted_items} extract task(s) of this request were "
+                        "removed because their boundaries or dataset resources "
+                        "were deleted",
+                        claim=error_claim,
+                    )
+                else:
+                    logger.warning(
+                        "Request (id: %s) lost %d task(s) to deleted inputs; "
+                        "would be marked failed", request_id, deleted_items,
+                    )
+                continue
+
             # Checked before missing_items: an exhausted task also counts as
             # missing, and requeueing would put the request back in the same
             # state next pass, forever. Nothing will advance those tasks --
@@ -365,6 +387,19 @@ def _manage_user_requests(
                         request_id, failed_items,
                     )
                 continue
+
+            # The inputs the results were computed from, captured before
+            # merging and checked again, under share locks, before the output
+            # is published. A scope that is mid-change is not ready yet.
+            inputs = None
+            if missing_items == 0 and not dry_run:
+                inputs = _capture_inputs(merge_map)
+                if inputs is None:
+                    missing_items = len(merge_map) or 1
+                    logger.info(
+                        "Request (id: %s) waits for input changes to be "
+                        "reconciled before its output is built", request_id,
+                    )
 
             if missing_items > 0:
                 if not dry_run:
@@ -396,14 +431,16 @@ def _manage_user_requests(
                     )
                 else:
                     heartbeat = _ClaimHeartbeat(request_id, claim)
+                    staged = None
                     try:
                         with heartbeat:
-                            _build_output(
+                            staged = _build_output(
                                 updated_request_obj,
                                 merge_map,
                                 download_base,
                                 requests_dir,
                                 assets_dir,
+                                stage_only=True,
                             )
                     finally:
                         # The heartbeat moves process_time, so every later
@@ -421,6 +458,7 @@ def _manage_user_requests(
                             "claim was lost while it ran",
                             request_id,
                         )
+                        _discard_staged(staged)
                         continue
                 # Phase 3 -- finalize. Both terminal writes are fenced on
                 # still holding the claim (status=2 with our process_time):
@@ -429,13 +467,42 @@ def _manage_user_requests(
                 # rmtree-ing the request dir. Without the fence this sweep
                 # would mark a request complete and email a download link
                 # while another sweep is still writing that same zip.
+                #
+                # The output is published inside the same transaction, after
+                # the input check: a build whose inputs changed while it ran
+                # (a reshaped boundary, a replaced raster) is discarded and the
+                # request requeued, so stale values are never made visible.
+                # Completed downloads stay what they were: nothing rebuilds
+                # old artifacts when inputs change later.
                 if not dry_run:
-                    with transaction.atomic():
-                        updated = Request.objects.filter(
-                            id=request_id, status=2, process_time=claim.claim_time
-                        ).update(status=1, complete_time=timezone.now())
-                        if updated:
-                            record_request_outcome(request_obj.submit_time, "completed")
+                    stale_inputs = False
+                    try:
+                        with transaction.atomic():
+                            if not recheck(inputs):
+                                stale_inputs = True
+                                updated = Request.objects.filter(
+                                    id=request_id, status=2, process_time=claim.claim_time
+                                ).update(status=0)
+                            else:
+                                updated = Request.objects.filter(
+                                    id=request_id, status=2, process_time=claim.claim_time
+                                ).update(status=1, complete_time=timezone.now())
+                                if updated:
+                                    if staged is not None:
+                                        _swap_output_into_place(
+                                            staged, Path(requests_dir) / request_id
+                                        )
+                                        staged = None
+                                    record_request_outcome(request_obj.submit_time, "completed")
+                    finally:
+                        _discard_staged(staged)
+                    if stale_inputs:
+                        logger.warning(
+                            "Discarded output for request (id: %s) -- its inputs "
+                            "changed while it was built; requeued",
+                            request_id,
+                        )
+                        continue
                     if not updated:
                         logger.warning(
                             "Lost claim on request (id: %s) before finalize "
@@ -727,18 +794,28 @@ def _check_request_tasks(request, dry_run=False):
     completed_task_map = {}
     exhausted_count = 0
     max_attempts = settings.MAX_EXTRACT_TASK_ATTEMPTS
+    # A task with a reset pending is neither done nor failed: sync is about
+    # to return it to pending (or fail it for a deleted input), and its old
+    # values must not be merged meanwhile. only_valid excludes it in the same
+    # statement that reads its status.
     for dataset_id, ds_task_ids in tasks_by_dataset.items():
         existing_ids.update(
             ExtractTask.objects.filter(
                 dataset_id=dataset_id, id__in=ds_task_ids
             ).values_list("id", flat=True)
         )
+        # Bump priority on pending tasks so workers pick them up before
+        # background tasks
+        if not dry_run:
+            ExtractTask.objects.filter(
+                dataset_id=dataset_id, id__in=ds_task_ids, priority=0
+            ).exclude(status=1).update(priority=1)
+
+        settled = only_valid(ExtractTask.objects.filter(dataset_id=dataset_id, id__in=ds_task_ids))
         completed_task_map.update(
             {
                 task_id: dataset_id
-                for task_id in ExtractTask.objects.filter(
-                    dataset_id=dataset_id, id__in=ds_task_ids, status=1
-                ).values_list("id", flat=True)
+                for task_id in settled.filter(status=1).values_list("id", flat=True)
             }
         )
 
@@ -750,19 +827,10 @@ def _check_request_tasks(request, dry_run=False):
         # from "will never finish" (fail the request). Left out of pending
         # would silently complete a request with missing columns; left in,
         # the sweep would requeue it forever.
-        exhausted_count += ExtractTask.objects.filter(
-            dataset_id=dataset_id,
-            id__in=ds_task_ids,
+        exhausted_count += settled.filter(
             status=-1,
             attempts__gte=max_attempts,
         ).count()
-
-        # Bump priority on pending tasks so workers pick them up before
-        # background tasks
-        if not dry_run:
-            ExtractTask.objects.filter(
-                dataset_id=dataset_id, id__in=ds_task_ids, priority=0
-            ).exclude(status=1).update(priority=1)
 
     missing_ids = {task_id for task_id, _ in task_rows} - existing_ids
     if missing_ids:
@@ -777,8 +845,89 @@ def _check_request_tasks(request, dry_run=False):
     return pending_task_count, completed_task_map, exhausted_count
 
 
-def _build_output(request, task_map, download_server, requests_dir, assets_dir):
-    """Merge extracts, generate documentation, build zip."""
+def _deleted_task_count(request):
+    """How many of the request's materialized tasks no longer exist.
+
+    materialize_request records task_count; requests materialized before it
+    did have no count and are not checked.
+    """
+    expected = (request.data or {}).get("task_count")
+    if not expected:
+        return 0
+    present = RequestMap.objects.filter(request=request.id).count()
+    return max(0, expected - present)
+
+
+def _capture_inputs(task_map):
+    """Epochs of every scope the completed tasks were computed from.
+
+    Returns None if any of them is unavailable or uninitialized, if the
+    tasks' collections changed while they were read, or if a task is no
+    longer valid and complete: the request is then not ready to build.
+    Grouped by dataset, so every task query names its partition.
+    """
+    grouped = _group_task_map(task_map)
+
+    def collections():
+        found = set()
+        for dataset_id, ids in grouped.items():
+            for start in range(0, len(ids), 10_000):
+                found.update(
+                    ExtractTask.objects.filter(dataset_id=dataset_id, id__in=ids[start:start + 10_000])
+                    .values_list("fm__fc_id", flat=True)
+                    .distinct()
+                )
+        return found
+
+    scopes = collections()
+    datasets = set(task_map.values())
+    states = read_states(datasets, scopes)
+    generations = Generations()
+    for kind, ids, target in (
+        ("dataset", datasets, generations.datasets),
+        ("collection", scopes, generations.collections),
+    ):
+        for object_id in ids:
+            state = states.get((kind, object_id))
+            if state is None or state.unavailable:
+                return None
+            target[object_id] = state.epoch
+    # Everything below is read after the epochs. A feature moved to another
+    # collection since the first read would leave its new collection
+    # unwatched; a reset (or deletion) published since _check_request_tasks
+    # has already changed its tasks. A change from now on moves an epoch
+    # recheck() sees.
+    if collections() != scopes:
+        return None
+    for dataset_id, ids in grouped.items():
+        for start in range(0, len(ids), 10_000):
+            chunk = ids[start:start + 10_000]
+            done = only_valid(ExtractTask.objects.filter(dataset_id=dataset_id, id__in=chunk, status=1))
+            if done.count() != len(chunk):
+                return None
+    return generations
+
+
+def _group_task_map(task_map):
+    grouped = defaultdict(list)
+    for task_id, dataset_id in task_map.items():
+        grouped[dataset_id].append(task_id)
+    return grouped
+
+
+def _discard_staged(staged):
+    if staged is not None:
+        shutil.rmtree(staged, ignore_errors=True)
+
+
+def _build_output(request, task_map, download_server, requests_dir, assets_dir, stage_only=False):
+    """Merge extracts, generate documentation, build zip.
+
+    With ``stage_only`` the finished build is left in its unique sibling
+    directory and returned, for the caller to swap into place once it has
+    checked the build may be published (see the completion sweep). Nothing
+    is visible at the request's path until then.
+    """
     requests_dir = Path(requests_dir)
     assets_dir = Path(assets_dir)
 
@@ -862,6 +1011,8 @@ def _build_output(request, task_map, download_server, requests_dir, assets_dir):
             for f in fi:
                 os.chmod(os.path.join(ro, f), 0o664)
 
+        if stage_only:
+            return build_dir
         # Everything above wrote only into build_dir; this is the one step
         # that touches the path readers and download links point at.
         _swap_output_into_place(build_dir, request_dir)

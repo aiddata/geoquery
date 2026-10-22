@@ -5,7 +5,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from analytics.models import Coverage
+from analytics.coverage import valid_coverage
 from datasets.models import Dataset
 from features.models import FeatureCollection
 from features.views import BoundaryPresetsView as _InternalBoundaryPresetsView
@@ -80,11 +80,11 @@ class PublicDatasetCoverageView(PublicApiBaseMixin, APIView):
     boundary IDs. POST (not GET) to avoid URL length limits for large
     selections, matching the internal datasets/coverage/ endpoint.
 
-    Coverage rows start at status=-1 (untested) when the post-ingest sweep
-    creates them — see analytics.tasks.maintenance.trigger_coverage_and_extract
-    — and are only flipped to 0/1 once the async ST_Contains check runs. Filtering on status=1 here (rather
-    than matching any row, untested included) is what makes "covers this
-    boundary" mean something.
+    Coverage rows are written by the processing workers' coverage chunks
+    (analytics.coverage) with status 1 (inside the dataset's extent) or 0.
+    Filtering on status=1 is what makes "covers this boundary" mean something,
+    and rows whose dataset or collection is being re-covered are excluded
+    until sync publishes the change (see analytics.coverage.valid_coverage).
     """
 
     @extend_schema(
@@ -105,8 +105,8 @@ class PublicDatasetCoverageView(PublicApiBaseMixin, APIView):
         qs = Dataset.objects.using("replica").filter(active=True, public=True)
         if feature_ids:
             covered_ids = (
-                Coverage.objects.using("replica")
-                .filter(geom_id__in=feature_ids, status=1)
+                valid_coverage("replica")
+                .filter(geom_id__in=feature_ids)
                 .values_list("dataset_id", flat=True)
                 .distinct()
             )
