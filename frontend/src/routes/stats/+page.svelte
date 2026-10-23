@@ -193,7 +193,7 @@
 				</div>
 			</CardHeader>
 			<CardContent>
-				<BarChart data={requestSeries} label="requests" color="var(--color-blue-600, #2563eb)" />
+				<BarChart data={requestSeries} label="requests" series={1} title="Requests over time" />
 			</CardContent>
 		</Card>
 
@@ -215,7 +215,7 @@
 				</div>
 			</CardHeader>
 			<CardContent>
-				<BarChart data={extractSeries} label="tasks" color="var(--color-green-600, #16a34a)" />
+				<BarChart data={extractSeries} label="tasks" series={3} title="Extract task completions over time" />
 			</CardContent>
 		</Card>
 	{/if}

@@ -1,112 +1,185 @@
 <script lang="ts">
-  import type { VizPayload } from '$lib/api';
-  import type { TimeSeriesCard } from '../chartTypes';
-  import { getTemporalSeries, getDatasetFieldTracks, getTemporalDatasets, fmt } from '$lib/viz';
+	import type { VizPayload } from '$lib/api';
+	import type { TimeSeriesCard } from '../chartTypes';
+	import { fmt, getDatasetFieldTracks, getTemporalSeries, numericValue } from '$lib/viz';
+	import { aidBase, aidTip, compact, niceScale, tickFormatFor, type DrawFn } from '$lib/charts/plot';
+	import PlotFigure, { type FigureHandle } from '$lib/components/charts/PlotFigure.svelte';
 
-  interface Props {
-    data: VizPayload;
-    card: TimeSeriesCard;
-    highlightedFeature?: string | null;
-    onHighlight?: (name: string | null) => void;
-    onsvgready?: (svg: SVGSVGElement | null) => void;
-  }
-  let { data, card, highlightedFeature = null, onHighlight, onsvgready }: Props = $props();
+	interface Props {
+		data: VizPayload;
+		card: TimeSeriesCard;
+		/** Feature id highlighted across the scatter and time-series charts */
+		highlightedFeature?: string | null;
+		onHighlight?: (id: string | null) => void;
+		handle?: FigureHandle | null;
+	}
+	let { data, card, highlightedFeature = null, onHighlight, handle = $bindable() }: Props = $props();
 
-  const W = 480, H = 200;
-  const LEFT = 48, RIGHT = 460, TOP = 30, BOT = 160;
-  const CW = RIGHT - LEFT, CH = BOT - TOP;
+	/** "All features" draws at most this many lines */
+	const MAX_LINES = 200;
 
-  let svgEl = $state<SVGSVGElement | undefined>();
-  $effect(() => {
-    if (svgEl) onsvgready?.(svgEl);
-    return () => onsvgready?.(null);
-  });
+	interface PeriodRow {
+		period: string;
+		mean: number | null;
+		min: number | null;
+		max: number | null;
+		n: number;
+	}
 
-  let series = $derived(getTemporalSeries(data, card.datasetKey, card.fieldTrack));
+	interface FeaturePoint {
+		id: string;
+		name: string;
+		period: string;
+		value: number | null;
+	}
 
-  function getFeatureLines() {
-    if (!series.length) return [];
-    return Object.values(data.features).slice(0, 50).map(f => ({
-      name: f.name as string,
-      values: series.map(e => { const v = Number(f[e.col]); return isNaN(v) ? null : v; }),
-    }));
-  }
+	let series = $derived(getTemporalSeries(data, card.datasetKey, card.fieldTrack));
+	let periods = $derived<PeriodRow[]>(
+		series.map((e) => ({ period: e.temporal, mean: e.mean, min: e.min, max: e.max, n: e.values.length }))
+	);
+	let featureCount = $derived(Object.keys(data.features).length);
 
-  let featureLines = $derived(getFeatureLines());
-  let means = $derived(series.map(e => e.mean));
-  let mins = $derived(series.map(e => e.min));
-  let maxs = $derived(series.map(e => e.max));
-  let globalMin = $derived(series.length ? Math.min(...series.map(e => e.min)) : 0);
-  let globalMax = $derived(series.length ? Math.max(...series.map(e => e.max)) : 1);
-  let yRange = $derived(globalMax - globalMin || 1);
+	// One point per feature per period; a missing value breaks that feature's line instead of joining across it
+	let featurePoints = $derived<FeaturePoint[]>(
+		card.aggregateMode === 'all'
+			? Object.entries(data.features)
+					.slice(0, MAX_LINES)
+					.flatMap(([id, f]) => series.map((e) => ({ id, name: f.name, period: e.temporal, value: numericValue(f[e.col]) })))
+			: []
+	);
 
-  function xPos(i: number) { return LEFT + (series.length > 1 ? (i / (series.length - 1)) * CW : CW / 2); }
-  function yPos(v: number) { return BOT - ((v - globalMin) / yRange) * CH; }
+	let hasMultipleTracks = $derived(getDatasetFieldTracks(data, card.datasetKey).length > 1);
+	let modeLabel = $derived(
+		card.aggregateMode === 'all' ? 'all features' : card.aggregateMode === 'mean' ? 'mean' : 'mean and range'
+	);
+	let subtitle = $derived(`${hasMultipleTracks && card.fieldTrack ? card.fieldTrack + ' — ' : ''}Time series — ${modeLabel}`);
 
-  function toPolyline(values: (number | null)[]) {
-    return values.flatMap((v, i) => v !== null ? [`${xPos(i).toFixed(1)},${yPos(v).toFixed(1)}`] : []).join(' ');
-  }
+	const draw: DrawFn = ({ Plot, t, width }) => {
+		const domain = periods.map((p) => p.period);
+		const defined = periods.filter((p) => p.mean !== null);
+		const lows = card.aggregateMode === 'all'
+			? featurePoints.flatMap((p) => (p.value === null ? [] : [p.value]))
+			: card.aggregateMode === 'band' ? defined.map((p) => p.min!) : defined.map((p) => p.mean!);
+		const highs = card.aggregateMode === 'all'
+			? lows
+			: card.aggregateMode === 'band' ? defined.map((p) => p.max!) : defined.map((p) => p.mean!);
+		const y = niceScale(Math.min(...lows, ...defined.map((p) => p.mean!)), Math.max(...highs, ...defined.map((p) => p.mean!)), 4);
+		const crowded = width / domain.length < 44;
+		const first = defined[0];
+		const last = defined[defined.length - 1];
+		const highlighted = featurePoints.filter((p) => p.id === highlightedFeature);
 
-  function bandPath() {
-    const top = series.map((_, i) => `${xPos(i).toFixed(1)},${yPos(maxs[i]).toFixed(1)}`).join(' ');
-    const bot = [...series.map((_, i) => `${xPos(i).toFixed(1)},${yPos(mins[i]).toFixed(1)}`)].reverse().join(' ');
-    return `M ${top.split(' ')[0]} L ${top} L ${bot} Z`;
-  }
+		const marks = [Plot.gridY(y.ticks, { stroke: t.grid, strokeOpacity: 1 })];
+		if (card.aggregateMode === 'band') {
+			marks.push(Plot.areaY(periods, { x: 'period', y1: 'min', y2: 'max', fill: t.series[0], fillOpacity: 0.2 }));
+		}
+		if (card.aggregateMode === 'all') {
+			marks.push(
+				Plot.lineY(featurePoints, {
+					x: 'period',
+					y: 'value',
+					z: 'id',
+					stroke: t.mutedForeground,
+					strokeWidth: 1,
+					strokeOpacity: highlightedFeature === null ? 0.35 : 0.15
+				}),
+				Plot.lineY(highlighted, { x: 'period', y: 'value', stroke: t.foreground, strokeWidth: 2.5 })
+			);
+		}
+		marks.push(
+			Plot.lineY(periods, { x: 'period', y: 'mean', stroke: t.series[0], strokeWidth: 2 }),
+			Plot.dot(periods, { x: 'period', y: 'mean', fill: t.series[0], r: 3.5, stroke: t.edge, strokeWidth: 1.5 }),
+			// End label only (§9.5)
+			Plot.text(defined, Plot.selectLast({
+				x: 'period',
+				y: 'mean',
+				text: (p: PeriodRow) => compact(p.mean!),
+				dx: 8,
+				textAnchor: 'start',
+				fill: t.foreground,
+				fontWeight: 700
+			})),
+			Plot.ruleX(periods, Plot.pointerX({ x: 'period', stroke: t.axis })),
+			Plot.tip(
+				periods,
+				Plot.pointerX({
+					x: 'period',
+					y: 'mean',
+					title: (p: PeriodRow) =>
+						p.mean === null
+							? `${p.period}\nNo values`
+							: [p.period, `Mean ${fmt(p.mean)}`, `Min ${fmt(p.min)}, max ${fmt(p.max)}`, `n = ${p.n.toLocaleString()}`].join('\n'),
+					...aidTip(t)
+				})
+			)
+		);
 
-  let yTicks = $derived(Array.from({ length: 4 }, (_, i) => ({
-    v: globalMin + (i / 3) * yRange,
-    y: yPos(globalMin + (i / 3) * yRange)
-  })));
-  let xLabelRotate = $derived(series.length > 6);
-  let dsTitle = $derived(card.datasetKey);
-  let hasMultipleTracks = $derived(getDatasetFieldTracks(data, card.datasetKey).length > 1);
+		const plot = Plot.plot({
+			...aidBase(t, width, 260),
+			marginTop: 16,
+			marginLeft: 52,
+			marginRight: 52,
+			marginBottom: crowded ? 56 : 36,
+			ariaLabel: `${card.datasetKey}, ${subtitle}`,
+			ariaDescription:
+				first && last && first !== last
+					? `The mean moves from ${fmt(first.mean)} in ${first.period} to ${fmt(last.mean)} in ${last.period}.`
+					: `Mean values across ${domain.length} periods.`,
+			x: { type: 'point', domain, tickSize: 0, label: null, inset: 8, tickRotate: crowded ? -35 : 0 },
+			y: { domain: y.domain, ticks: y.ticks, tickFormat: tickFormatFor(y.ticks), tickSize: 0, label: null },
+			marks
+		});
+
+		// In "all features" mode, click near a feature's line to highlight it here and in the scatter plot
+		if (card.aggregateMode === 'all') {
+			const svg = plot instanceof SVGSVGElement ? plot : plot.querySelector('svg');
+			plot.addEventListener('click', (e) => {
+				const event = e as MouseEvent;
+				const xs = plot.scale('x');
+				const ys = plot.scale('y');
+				if (!svg || !xs?.apply || !ys?.apply) return;
+				const box = svg.getBoundingClientRect();
+				const mx = event.clientX - box.left;
+				const my = event.clientY - box.top;
+				let best: FeaturePoint | null = null;
+				let bestD = 12; // px
+				for (const p of featurePoints) {
+					if (p.value === null) continue;
+					const d = Math.hypot(xs.apply(p.period) - mx, ys.apply(p.value) - my);
+					if (d < bestD) {
+						bestD = d;
+						best = p;
+					}
+				}
+				if (best) onHighlight?.(best.id === highlightedFeature ? null : best.id);
+			});
+		}
+		return plot;
+	};
+
+	let table = $derived({
+		columns: [
+			{ key: 'period', label: 'Period' },
+			{ key: 'mean', label: 'Mean', numeric: true },
+			{ key: 'min', label: 'Min', numeric: true },
+			{ key: 'max', label: 'Max', numeric: true },
+			{ key: 'n', label: 'Features', numeric: true }
+		],
+		rows: periods.map((p) => ({ ...p }))
+	});
 </script>
 
 {#if series.length < 2}
-  <p class="text-center text-sm text-muted-foreground py-10">Not enough temporal columns in this dataset group.</p>
+	<p class="py-10 text-center text-sm text-muted-foreground">Not enough temporal columns in this dataset group.</p>
 {:else}
-  <svg bind:this={svgEl} viewBox="0 0 {W} {H}" class="w-full" style="aspect-ratio: {W} / {H}">
-    <rect width={W} height={H} fill="white" />
-    <text x={W/2} y="13" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{dsTitle}<title>{dsTitle}</title></text>
-    <text x={W/2} y="23" text-anchor="middle" font-size="9" fill="#64748b">{hasMultipleTracks && card.fieldTrack ? card.fieldTrack + ' — ' : ''}Time Series — {card.aggregateMode === 'all' ? 'all features' : card.aggregateMode === 'mean' ? 'mean' : 'mean ± range'}<title>{card.fieldTrack ? card.fieldTrack + ' — Time Series' : dsTitle + ' — Time Series'}</title></text>
-
-    {#each yTicks as t}
-      <line x1={LEFT} y1={t.y} x2={RIGHT} y2={t.y} stroke="#f1f5f9" stroke-width="1" />
-      <text x={LEFT - 4} y={t.y + 4} text-anchor="end" font-size="8" fill="#94a3b8">{fmt(t.v)}</text>
-    {/each}
-
-    {#if card.aggregateMode === 'band'}
-      <path d={bandPath()} fill="#3b82f6" opacity="0.10" />
-    {/if}
-
-    {#if card.aggregateMode === 'all'}
-      {#each featureLines as fl}
-        <polyline points={toPolyline(fl.values)} fill="none"
-          stroke={highlightedFeature === fl.name ? '#1d4ed8' : '#94a3b8'}
-          stroke-width={highlightedFeature === fl.name ? 1.5 : 0.75}
-          opacity={highlightedFeature === null || highlightedFeature === fl.name ? 0.6 : 0.08}
-          style="cursor: pointer"
-          onclick={() => onHighlight?.(highlightedFeature === fl.name ? null : fl.name)}>
-          <title>{fl.name}</title>
-        </polyline>
-      {/each}
-    {/if}
-
-    <polyline points={toPolyline(means)} fill="none" stroke="#3b82f6" stroke-width="2" />
-    {#each means as m, i}
-      <circle cx={xPos(i)} cy={yPos(m)} r="2.5" fill="#3b82f6">
-        <title>{series[i].temporal}: {fmt(m)}</title>
-      </circle>
-    {/each}
-
-    {#each series as e, i}
-      <text x={xPos(i)} y={BOT + (xLabelRotate ? 6 : 12)}
-        text-anchor={xLabelRotate ? 'end' : 'middle'} font-size="8" fill="#94a3b8"
-        transform={xLabelRotate ? `rotate(-40, ${xPos(i)}, ${BOT + 6})` : undefined}
-      >{e.temporal}<title>{e.temporal}</title></text>
-    {/each}
-
-    <line x1={LEFT} y1={TOP} x2={LEFT} y2={BOT} stroke="#e2e8f0" stroke-width="0.5" />
-    <line x1={LEFT} y1={BOT} x2={RIGHT} y2={BOT} stroke="#e2e8f0" stroke-width="0.5" />
-  </svg>
+	<PlotFigure
+		title={card.datasetKey}
+		{subtitle}
+		caption={card.aggregateMode === 'all' && featureCount > MAX_LINES
+			? `Showing the first ${MAX_LINES} of ${featureCount.toLocaleString()} features.`
+			: undefined}
+		{draw}
+		{table}
+		bind:handle
+	/>
 {/if}

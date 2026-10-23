@@ -457,3 +457,29 @@
     color: var(--foreground);
     font-variant-numeric: tabular-nums;
 }
+
+/* Observable Plot charts (design-system.md §9.7) */
+.aid-plot {
+    overflow: visible; /* let tooltips extend past the frame */
+}
+.aid-plot figure {
+    margin: 0;
+}
+.aid-plot figure > div {
+    /* Plot's legend, rendered as HTML above the SVG */
+    font-family: var(--font-ui) !important;
+    font-size: 13px !important;
+    font-weight: 700;
+    color: var(--foreground);
+    margin-bottom: 6px !important;
+}
+.aid-plot svg {
+    display: block;
+    font-variant-numeric: tabular-nums;
+}
+@media (forced-colors: active) {
+    .aid-plot svg,
+    .aid-plot figure > div {
+        forced-color-adjust: none;
+    }
+}

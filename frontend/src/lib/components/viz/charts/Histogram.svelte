@@ -1,102 +1,114 @@
 <script lang="ts">
-  import type { VizPayload } from '$lib/api';
-  import type { SingleColCard } from '../chartTypes';
-  import { fmt, fieldLabel } from '$lib/viz';
+	import type { VizPayload } from '$lib/api';
+	import type { SingleColCard } from '../chartTypes';
+	import { columnValues, fmt } from '$lib/viz';
+	import { aidBase, aidTip, niceScale, tickFormatFor, type DrawFn } from '$lib/charts/plot';
+	import { columnCaption } from '$lib/charts/labels';
+	import PlotFigure, { type FigureHandle } from '$lib/components/charts/PlotFigure.svelte';
 
-  interface Props {
-    data: VizPayload;
-    card: SingleColCard;
-    onsvgready?: (svg: SVGSVGElement | null) => void;
-  }
-  let { data, card, onsvgready }: Props = $props();
+	interface Props {
+		data: VizPayload;
+		card: SingleColCard;
+		handle?: FigureHandle | null;
+	}
+	let { data, card, handle = $bindable() }: Props = $props();
 
-  const N_BINS = 20;
+	const N_BINS = 20;
 
-  function getValues(col: string): number[] {
-    const out: number[] = [];
-    for (const f of Object.values(data.features)) {
-      const v = f[col];
-      if (v !== null && v !== undefined) {
-        const n = Number(v); if (!isNaN(n)) out.push(n);
-      }
-    }
-    return out;
-  }
+	interface Bin {
+		lo: number;
+		hi: number;
+		count: number;
+	}
 
-  interface Bin { lo: number; hi: number; count: number; }
+	function makeBins(vals: number[]): Bin[] {
+		if (!vals.length) return [];
+		let min = vals[0],
+			max = vals[0];
+		for (const v of vals) {
+			if (v < min) min = v;
+			if (v > max) max = v;
+		}
+		if (min === max) return [{ lo: min, hi: max, count: vals.length }];
+		const w = (max - min) / N_BINS;
+		const bins: Bin[] = Array.from({ length: N_BINS }, (_, i) => ({
+			lo: min + i * w,
+			hi: min + (i + 1) * w,
+			count: 0
+		}));
+		for (const v of vals) bins[Math.min(Math.floor((v - min) / w), N_BINS - 1)].count++;
+		return bins;
+	}
 
-  function makeBins(vals: number[]): Bin[] {
-    if (!vals.length) return [];
-    let min = vals[0], max = vals[0];
-    for (const v of vals) { if (v < min) min = v; if (v > max) max = v; }
-    if (min === max) return [{ lo: min, hi: max, count: vals.length }];
-    const w = (max - min) / N_BINS;
-    const bins: Bin[] = Array.from({ length: N_BINS }, (_, i) => ({
-      lo: min + i * w, hi: min + (i + 1) * w, count: 0
-    }));
-    for (const v of vals) {
-      const i = Math.min(Math.floor((v - min) / w), N_BINS - 1);
-      bins[i].count++;
-    }
-    return bins;
-  }
+	let vals = $derived(columnValues(data, card.column));
+	let bins = $derived(makeBins(vals));
+	let mean = $derived(vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0);
+	let caption = $derived(columnCaption(data, card.column, 'Distribution'));
 
-  function mean(vals: number[]) { return vals.reduce((a, b) => a + b, 0) / vals.length; }
+	const draw: DrawFn = ({ Plot, t, width }) => {
+		const lo = bins[0].lo;
+		const hi = bins[bins.length - 1].hi;
+		// A single-value column draws one bar with some room either side
+		const singleValue = lo === hi;
+		const x = niceScale(lo, hi, width < 420 ? 4 : 6);
+		const maxCount = Math.max(...bins.map((b) => b.count));
+		const y = niceScale(0, maxCount, 4);
+		const tallest = bins.reduce((a, b) => (b.count > a.count ? b : a));
+		const rects = singleValue
+			? [{ ...bins[0], lo: x.domain[0] + (x.domain[1] - x.domain[0]) * 0.45, hi: x.domain[0] + (x.domain[1] - x.domain[0]) * 0.55 }]
+			: bins;
 
-  let svgEl = $state<SVGSVGElement | undefined>();
-  $effect(() => {
-    if (svgEl) onsvgready?.(svgEl);
-    return () => onsvgready?.(null);
-  });
+		return Plot.plot({
+			...aidBase(t, width, 240),
+			marginTop: 26,
+			marginLeft: 48,
+			marginRight: 16,
+			ariaLabel: `Distribution of ${caption.title}, ${caption.subtitle}`,
+			ariaDescription: `${vals.length.toLocaleString()} values from ${fmt(lo)} to ${fmt(hi)}, mean ${fmt(mean)}. The most common range is ${fmt(tallest.lo)} to ${fmt(tallest.hi)}, with ${tallest.count.toLocaleString()} features.`,
+			x: { domain: x.domain, ticks: x.ticks, tickFormat: tickFormatFor(x.ticks), tickSize: 0, label: null },
+			y: { domain: y.domain, ticks: y.ticks, tickFormat: tickFormatFor(y.ticks), tickSize: 0, label: 'Features', labelArrow: 'none' },
+			marks: [
+				Plot.gridY(y.ticks.slice(1), { stroke: t.grid, strokeOpacity: 1 }),
+				// Bins are contiguous, so they're separated by 1px rather than capped at 24px (§11)
+				Plot.rectY(rects, { x1: 'lo', x2: 'hi', y: 'count', fill: t.series[0], stroke: t.edge, strokeWidth: 1, inset: 0.5 }),
+				Plot.ruleY([0], { stroke: t.axis }),
+				// Reference line: dashed foreground with a direct label, not red (§11)
+				Plot.ruleX([mean], { stroke: t.foreground, strokeWidth: 1.5, strokeDasharray: '4,3' }),
+				Plot.text([mean], {
+					x: (d: number) => d,
+					frameAnchor: 'top',
+					dy: -16,
+					dx: 4,
+					textAnchor: 'start',
+					text: (d: number) => `Mean ${fmt(d)}`,
+					fill: t.foreground,
+					fontWeight: 700
+				}),
+				Plot.tip(
+					rects,
+					Plot.pointerX({
+						x1: 'lo',
+						x2: 'hi',
+						y: 'count',
+						title: (b: Bin) => `${fmt(b.lo)} – ${fmt(b.hi)}\n${b.count.toLocaleString()} features`,
+						...aidTip(t)
+					})
+				)
+			]
+		});
+	};
 
-  let vals = $derived(getValues(card.column));
-  let bins = $derived(makeBins(vals));
-  let maxCount = $derived(bins.reduce((a, b) => Math.max(a, b.count), 0));
-  let minVal = $derived(bins.length ? bins[0].lo : 0);
-  let maxVal = $derived(bins.length ? bins[bins.length - 1].hi : 0);
-  let rangeVal = $derived(maxVal - minVal);
-  let m = $derived(vals.length ? mean(vals) : 0);
-  let meanX = $derived(rangeVal > 0 ? ((m - minVal) / rangeVal) * (N_BINS * 20) : -1);
-  let ds = $derived(data.col_dataset_titles[card.column] ?? '');
-  let temporal = $derived(data.col_temporal[card.column] ?? '');
-  let colPart = $derived([fieldLabel(card.column), temporal].filter(Boolean).join(' · '));
-  let typeLabel = $derived('Distribution');
-  let cx = $derived(7 + N_BINS * 10);
+	let table = $derived({
+		columns: [
+			{ key: 'range', label: 'Range' },
+			{ key: 'count', label: 'Features', numeric: true }
+		],
+		rows: bins.map((b) => ({ range: `${fmt(b.lo)} – ${fmt(b.hi)}`, count: b.count }))
+	});
 </script>
 
 {#if vals.length === 0}
-  <p class="text-center text-sm text-muted-foreground py-10">No numeric data for this column.</p>
+	<p class="py-10 text-center text-sm text-muted-foreground">No numeric data for this column.</p>
 {:else}
-  <svg
-    bind:this={svgEl}
-    viewBox="0 0 {14 + N_BINS * 20} 148"
-    class="w-full"
-    style="aspect-ratio: {14 + N_BINS * 20} / 148"
-    preserveAspectRatio="none"
-  >
-    <rect width="{14 + N_BINS * 20}" height="148" fill="white" />
-    <text x={cx} y="13" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{ds || fieldLabel(card.column)}<title>{ds || fieldLabel(card.column)}</title></text>
-    <text x={cx} y="25" text-anchor="middle" font-size="9" fill="#64748b">{colPart} — {typeLabel}<title>{colPart}</title></text>
-    <text transform="rotate(-90, 8, 70)" text-anchor="middle" font-size="8" fill="#94a3b8">Count</text>
-    {#each bins as bin, i}
-      {@const barH = maxCount > 0 ? (bin.count / maxCount) * 80 : 0}
-      <rect x={14 + i * 20 + 0.5} y={110 - barH} width="19" height={barH}
-        fill="#3b82f6" opacity="0.72" rx="1">
-        <title>{fmt(bin.lo)} – {fmt(bin.hi)}: {bin.count}</title>
-      </rect>
-    {/each}
-    <line x1="14" y1="110" x2="{14 + N_BINS * 20}" y2="110" stroke="#e2e8f0" stroke-width="0.5" />
-    {#if meanX >= 0}
-      <line x1={14 + meanX} y1="28" x2={14 + meanX} y2="110"
-        stroke="#ef4444" stroke-width="1.5" stroke-dasharray="3 2" opacity="0.85" />
-      <text x={Math.min(14 + meanX + 3, 14 + N_BINS * 20 - 40)} y="38"
-        font-size="9" fill="#ef4444" opacity="0.85">mean</text>
-    {/if}
-    <text x="16" y="122" font-size="8" fill="#94a3b8">{fmt(minVal)}</text>
-    <text x={cx} y="122" text-anchor="middle" font-size="8" fill="#94a3b8">
-      {vals.length.toLocaleString()} values · mean {fmt(m)}
-    </text>
-    <text x="{12 + N_BINS * 20}" y="122" text-anchor="end" font-size="8" fill="#94a3b8">{fmt(maxVal)}</text>
-    <text x={cx} y="138" text-anchor="middle" font-size="7" fill="#94a3b8">Value</text>
-  </svg>
+	<PlotFigure title={caption.title} subtitle={caption.subtitle} {draw} {table} bind:handle />
 {/if}

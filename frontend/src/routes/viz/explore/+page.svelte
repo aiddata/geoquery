@@ -27,9 +27,14 @@
 	} from '$lib/viz';
 	import { parseFormula, evaluateFormula, formulaColumns } from '$lib/formula';
 	import { GripVertical, AlertCircle, Plus, X, Search, ChevronDown, Download, ChartColumn, Map as MapIcon } from '@lucide/svelte';
-	import ChartPanel from '$lib/components/viz/ChartPanel.svelte';
 
 	let activeTab = $state<'map' | 'charts'>('map');
+	// Charts load on the first visit to their tab, then stay mounted so configured cards survive tab switches
+	let chartsVisited = $state(false);
+	$effect(() => {
+		if (activeTab === 'charts') chartsVisited = true;
+	});
+	const loadChartPanel = () => import('$lib/components/viz/ChartPanel.svelte');
 
 	// ── Section open state ────────────────────────────────────────────────────
 	let boundariesOpen = $state(true);
@@ -849,10 +854,12 @@
 					</div>
 				</div>
 			{/if}
-			{#if activeTab === 'charts'}
-				<div class="absolute inset-0 bg-background z-10">
+			{#if chartsVisited}
+				<div class="absolute inset-0 z-10 bg-background" hidden={activeTab !== 'charts'}>
 					{#if data}
-						<ChartPanel {data} />
+						{#await loadChartPanel() then { default: ChartPanel }}
+							<ChartPanel {data} />
+						{/await}
 					{:else}
 						<div class="flex h-full items-center justify-center text-sm text-muted-foreground">
 							Select boundaries and datasets to see charts.

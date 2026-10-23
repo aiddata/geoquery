@@ -20,7 +20,6 @@
 	import MapLegend from '$lib/components/viz/MapLegend.svelte';
 	import { parseFormula, evaluateFormula, formulaColumns } from '$lib/formula';
 	import { GripVertical, AlertCircle, Plus, X, Download, ChartColumn, Map as MapIcon } from '@lucide/svelte';
-	import ChartPanel from '$lib/components/viz/ChartPanel.svelte';
 
 	const requestId = page.params.id;
 
@@ -53,6 +52,12 @@
 	} as const;
 
 	let activeTab = $state<'map' | 'charts'>('map');
+	// Charts load on the first visit to their tab, then stay mounted so configured cards survive tab switches
+	let chartsVisited = $state(false);
+	$effect(() => {
+		if (activeTab === 'charts') chartsVisited = true;
+	});
+	const loadChartPanel = () => import('$lib/components/viz/ChartPanel.svelte');
 
 	// ── Custom indices ────────────────────────────────────────────────────────
 	interface CustomIndex {
@@ -644,9 +649,11 @@
 						Save image
 					</Button>
 				{/if}
-				{#if activeTab === 'charts'}
-					<div class="absolute inset-0 bg-background z-10">
-						<ChartPanel {data} />
+				{#if chartsVisited}
+					<div class="absolute inset-0 z-10 bg-background" hidden={activeTab !== 'charts'}>
+						{#await loadChartPanel() then { default: ChartPanel }}
+							<ChartPanel {data} />
+						{/await}
 					</div>
 				{/if}
 		</div>

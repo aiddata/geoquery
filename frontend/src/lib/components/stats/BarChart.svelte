@@ -1,24 +1,83 @@
 <script lang="ts">
 	import type { StatsPoint } from '$lib/api';
+	import { aidBase, aidTip, barInset, niceScale, tickFormatFor, type DrawFn } from '$lib/charts/plot';
+	import PlotFigure from '$lib/components/charts/PlotFigure.svelte';
 
 	interface Props {
 		data: StatsPoint[];
-		color?: string;
+		/** Which chart series color (1–4) the columns use */
+		series?: 1 | 2 | 3 | 4;
+		/** What a count counts, e.g. "requests" */
 		label?: string;
+		/** Accessible name; the card around the chart shows its visible title */
+		title: string;
 	}
 
-	// Rendered as inline SVG rather than with a charting library: the series is a
-	// flat list of date/count pairs, so a dependency (and the rebuild it forces)
-	// buys nothing here.
-	let { data, color = 'var(--color-primary)', label = 'items' }: Props = $props();
+	let { data, series = 1, label = 'items', title }: Props = $props();
 
-	let max = $derived(Math.max(1, ...data.map((d) => d.count)));
-	let hovered = $state<number | null>(null);
+	const MARGIN_LEFT = 52;
+	const MARGIN_RIGHT = 12;
 
-	// Enough gaps that labels stay legible at any series length.
-	let labelEvery = $derived(Math.max(1, Math.ceil(data.length / 12)));
+	const draw: DrawFn = ({ Plot, t, width }) => {
+		const counts = data.map((d) => d.count);
+		const y = niceScale(0, Math.max(1, ...counts), 4);
+		const band = (width - MARGIN_LEFT - MARGIN_RIGHT) / data.length;
+		const inset = barInset(band);
+		// Very narrow columns (a year of days) drop the edge and rounding, which would otherwise swamp the fill
+		const narrow = band - inset * 2 < 6;
+		const labelEvery = Math.max(1, Math.ceil(data.length / 12));
+		const crowded = band * labelEvery < 72;
+		const peak = data.reduce((a, d) => (d.count > a.count ? d : a));
+		const total = counts.reduce((a, b) => a + b, 0);
 
-	const fmt = (n: number) => n.toLocaleString();
+		return Plot.plot({
+			...aidBase(t, width, 300),
+			marginTop: 16,
+			marginLeft: MARGIN_LEFT,
+			marginRight: MARGIN_RIGHT,
+			marginBottom: crowded ? 64 : 32,
+			ariaLabel: title,
+			ariaDescription: `${total.toLocaleString()} ${label} across ${data.length} periods, peaking at ${peak.count.toLocaleString()} on ${peak.date}.`,
+			x: {
+				domain: data.map((d) => d.date),
+				padding: 0,
+				ticks: data.filter((_, i) => i % labelEvery === 0).map((d) => d.date),
+				tickSize: 0,
+				tickRotate: crowded ? -35 : 0,
+				label: null
+			},
+			y: { domain: y.domain, ticks: y.ticks, tickFormat: tickFormatFor(y.ticks), tickSize: 0, label: null },
+			marks: [
+				Plot.gridY(y.ticks.slice(1), { stroke: t.grid, strokeOpacity: 1 }),
+				Plot.barY(data, {
+					x: 'date',
+					y: 'count',
+					fill: t.series[series - 1],
+					insetLeft: Math.max(inset, narrow ? 0.25 : 0.5),
+					insetRight: Math.max(inset, narrow ? 0.25 : 0.5),
+					...(narrow ? {} : { stroke: t.edge, strokeWidth: 1, ry2: 4 })
+				}),
+				Plot.ruleY([0], { stroke: t.axis }),
+				Plot.tip(
+					data,
+					Plot.pointerX({
+						x: 'date',
+						y: 'count',
+						title: (d: StatsPoint) => `${d.date}\n${d.count.toLocaleString()} ${label}`,
+						...aidTip(t)
+					})
+				)
+			]
+		});
+	};
+
+	let table = $derived({
+		columns: [
+			{ key: 'date', label: 'Date' },
+			{ key: 'count', label: label.charAt(0).toUpperCase() + label.slice(1), numeric: true }
+		],
+		rows: data.map((d) => ({ ...d }))
+	});
 </script>
 
 {#if data.length === 0}
@@ -26,46 +85,5 @@
 		No data for this selection.
 	</div>
 {:else}
-	<div class="relative">
-		<div class="flex h-72 items-end gap-px" role="img" aria-label="{label} over time">
-			{#each data as point, i (point.date)}
-				<div
-					class="group relative flex flex-1 items-end"
-					style="height: 100%"
-					onmouseenter={() => (hovered = i)}
-					onmouseleave={() => (hovered = null)}
-					role="presentation"
-				>
-					<div
-						class="w-full rounded-t-sm transition-opacity"
-						style="height: {(point.count / max) * 100}%; background-color: {color}; opacity: {hovered ===
-							null || hovered === i
-							? 1
-							: 0.45}; min-height: {point.count > 0 ? '2px' : '0'}"
-					></div>
-
-					{#if hovered === i}
-						<div
-							class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-xs shadow-md"
-						>
-							<div class="font-medium">{point.date}</div>
-							<div class="text-muted-foreground">{fmt(point.count)} {label}</div>
-						</div>
-					{/if}
-				</div>
-			{/each}
-		</div>
-
-		<div class="mt-2 flex gap-px text-[10px] text-muted-foreground">
-			{#each data as point, i (point.date)}
-				<div class="flex-1 overflow-hidden text-center">
-					{#if i % labelEvery === 0}
-						<span class="inline-block origin-center -rotate-45 whitespace-nowrap">
-							{point.date}
-						</span>
-					{/if}
-				</div>
-			{/each}
-		</div>
-	</div>
+	<PlotFigure {title} titleHidden {draw} {table} />
 {/if}

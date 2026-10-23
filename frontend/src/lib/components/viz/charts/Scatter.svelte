@@ -1,95 +1,129 @@
 <script lang="ts">
 	import type { VizPayload } from '$lib/api';
 	import type { ScatterCard } from '../chartTypes';
-	import { fmt, fieldLabel } from '$lib/viz';
+	import { fieldLabel, fmt, numericValue, pearsonCorrelation } from '$lib/viz';
+	import { aidBase, aidTip, capCategories, niceScale, SYMBOLS, tickFormatFor, type DrawFn } from '$lib/charts/plot';
+	import PlotFigure, { type FigureHandle } from '$lib/components/charts/PlotFigure.svelte';
 
 	interface Props {
 		data: VizPayload;
 		card: ScatterCard;
+		/** Feature id highlighted across the scatter and time-series charts */
 		highlightedFeature?: string | null;
-		onHighlight?: (name: string | null) => void;
-		onsvgready?: (svg: SVGSVGElement | null) => void;
+		onHighlight?: (id: string | null) => void;
+		handle?: FigureHandle | null;
 	}
-	let { data, card, highlightedFeature = null, onHighlight, onsvgready }: Props = $props();
+	let { data, card, highlightedFeature = null, onHighlight, handle = $bindable() }: Props = $props();
 
-	const W = 340, H = 280;
-	const LEFT = 44, RIGHT = 300, TOP = 20, BOT = 240;
-	const CW = RIGHT - LEFT, CH = BOT - TOP;
-	const FC_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
+	interface Point {
+		id: string;
+		name: string;
+		fc: string;
+		group: string;
+		x: number;
+		y: number;
+	}
 
 	function axisLabel(col: string, ds: string, otherDs: string): string {
-		const field = fieldLabel(col);
 		const temporal = data.col_temporal[col];
-		const withTime = temporal ? `${field} · ${temporal}` : field;
-		// Only prepend dataset when the two columns come from different datasets
+		const withTime = temporal ? `${fieldLabel(col)} · ${temporal}` : fieldLabel(col);
+		// Only name the dataset when the two columns come from different datasets
 		return ds !== otherDs ? `${ds} · ${withTime}` : withTime;
 	}
 
-	let svgEl = $state<SVGSVGElement | undefined>();
-	$effect(() => {
-		if (svgEl) onsvgready?.(svgEl);
-		return () => onsvgready?.(null);
-	});
+	let fcs = $derived([...new Set(Object.values(data.features).map((f) => f.fc))].sort());
+	// At most four series; past four, the rest fold into "Other" (§9.2)
+	let groups = $derived(capCategories(fcs));
 
-	function getPoints() {
-		const fcList = [...new Set(Object.values(data.features).map(f => f.fc as string))].sort();
-		return Object.values(data.features).flatMap(f => {
-			const x = Number(f[card.xCol]), y = Number(f[card.yCol]);
-			if (isNaN(x) || isNaN(y)) return [];
-			return [{ x, y, name: f.name as string, color: FC_COLORS[fcList.indexOf(f.fc as string) % FC_COLORS.length] }];
-		});
-	}
-
-	let points = $derived(getPoints());
-	let xs = $derived(points.map(p => p.x));
-	let ys = $derived(points.map(p => p.y));
-	let xMin = $derived(xs.length ? Math.min(...xs) : 0);
-	let xMax = $derived(xs.length ? Math.max(...xs) : 1);
-	let yMin = $derived(ys.length ? Math.min(...ys) : 0);
-	let yMax = $derived(ys.length ? Math.max(...ys) : 1);
-	let xRange = $derived(xMax - xMin || 1);
-	let yRange = $derived(yMax - yMin || 1);
-
-	function px(x: number) { return LEFT + ((x - xMin) / xRange) * CW; }
-	function py(y: number) { return BOT - ((y - yMin) / yRange) * CH; }
-
-	let xTicks = $derived(Array.from({ length: 4 }, (_, i) => xMin + (i / 3) * xRange));
-	let yTicks = $derived(Array.from({ length: 4 }, (_, i) => yMin + (i / 3) * yRange));
+	let points = $derived(
+		Object.entries(data.features).flatMap(([id, f]): Point[] => {
+			const x = numericValue(f[card.xCol]);
+			const y = numericValue(f[card.yCol]);
+			if (x === null || y === null) return [];
+			return [{ id, name: f.name, fc: f.fc, group: groups.of(f.fc), x, y }];
+		})
+	);
 
 	let dsX = $derived(data.col_dataset_titles[card.xCol] ?? '');
 	let dsY = $derived(data.col_dataset_titles[card.yCol] ?? '');
-	let samDs = $derived(dsX === dsY);
-	let titleLine1 = $derived(samDs ? (dsX || 'Scatter Plot') : `${dsX} × ${dsY}`);
-	let titleLine2 = $derived(`${fieldLabel(card.xCol)} vs ${fieldLabel(card.yCol)}`);
+	let title = $derived(dsX === dsY ? dsX || fieldLabel(card.xCol) : `${dsX} × ${dsY}`);
+	let subtitle = $derived(`${fieldLabel(card.xCol)} vs ${fieldLabel(card.yCol)} — Scatter plot`);
+
+	const draw: DrawFn = ({ Plot, t, width }) => {
+		const x = niceScale(Math.min(...points.map((p) => p.x)), Math.max(...points.map((p) => p.x)), width < 420 ? 3 : 5);
+		const y = niceScale(Math.min(...points.map((p) => p.y)), Math.max(...points.map((p) => p.y)), 4);
+		const r = pearsonCorrelation(points.map((p) => p.x), points.map((p) => p.y));
+		const showLegend = groups.domain.length > 1;
+		const dim = (p: Point) => (highlightedFeature === null || p.id === highlightedFeature ? 1 : 0.15);
+
+		const plot = Plot.plot({
+			...aidBase(t, width, 300),
+			marginTop: 28, // room for the y-axis label above the top tick
+			marginLeft: 52,
+			marginRight: 16,
+			marginBottom: 40,
+			ariaLabel: `Scatter plot of ${fieldLabel(card.xCol)} against ${fieldLabel(card.yCol)}`,
+			ariaDescription: `${points.length.toLocaleString()} features. ${Number.isNaN(r) ? 'The correlation is undefined.' : `Pearson's r is ${r.toFixed(2)}.`}`,
+			x: { domain: x.domain, ticks: x.ticks, tickFormat: tickFormatFor(x.ticks), tickSize: 0, label: axisLabel(card.xCol, dsX, dsY), labelArrow: 'none' },
+			y: { domain: y.domain, ticks: y.ticks, tickFormat: tickFormatFor(y.ticks), tickSize: 0, label: axisLabel(card.yCol, dsY, dsX), labelArrow: 'none' },
+			// Color paired with shape, so each boundary set is identifiable without color (§3, §9.4).
+			// The symbol legend draws both, so the color scale has none of its own.
+			color: { domain: groups.domain, range: t.series.slice(0, groups.domain.length) },
+			symbol: { domain: groups.domain, range: SYMBOLS.slice(0, groups.domain.length), legend: showLegend },
+			marks: [
+				Plot.gridY(y.ticks, { stroke: t.grid, strokeOpacity: 1 }),
+				Plot.gridX(x.ticks, { stroke: t.grid, strokeOpacity: 1 }),
+				Plot.dot(points, {
+					x: 'x',
+					y: 'y',
+					fill: 'group',
+					symbol: 'group',
+					r: 5,
+					stroke: t.edge,
+					strokeWidth: 1.5,
+					fillOpacity: dim,
+					strokeOpacity: dim
+				}),
+				Plot.tip(
+					points,
+					Plot.pointer({
+						x: 'x',
+						y: 'y',
+						title: (p: Point) => `${p.name}\n${p.fc}\n${fieldLabel(card.xCol)}: ${fmt(p.x)}\n${fieldLabel(card.yCol)}: ${fmt(p.y)}`,
+						...aidTip(t)
+					})
+				)
+			]
+		});
+
+		// Click the pointed feature to highlight it here and in the time series; click again to clear
+		plot.addEventListener('click', () => {
+			const p = (plot as unknown as { value?: Point | null }).value;
+			if (p) onHighlight?.(p.id === highlightedFeature ? null : p.id);
+		});
+		return plot;
+	};
+
+	let table = $derived({
+		columns: [
+			{ key: 'name', label: 'Name' },
+			{ key: 'fc', label: 'Boundary set' },
+			{ key: 'x', label: fieldLabel(card.xCol), numeric: true },
+			{ key: 'y', label: fieldLabel(card.yCol), numeric: true }
+		],
+		rows: points.map((p) => ({ name: p.name, fc: p.fc, x: p.x, y: p.y }))
+	});
 </script>
 
 {#if points.length === 0}
-	<p class="text-center text-sm text-muted-foreground py-10">No numeric data for selected columns.</p>
+	<p class="py-10 text-center text-sm text-muted-foreground">No paired values for these columns.</p>
 {:else}
-	<svg bind:this={svgEl} viewBox="0 0 {W} {H}" class="w-full" style="aspect-ratio: {W} / {H}">
-		<rect width={W} height={H} fill="white" />
-		<text x={W/2} y="12" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{titleLine1}<title>{titleLine1}</title></text>
-		<text x={(LEFT+RIGHT)/2} y="22" text-anchor="middle" font-size="9" fill="#64748b">{titleLine2}<title>{titleLine2}</title></text>
-		{#each yTicks as t}
-			<line x1={LEFT} y1={py(t)} x2={RIGHT} y2={py(t)} stroke="#f1f5f9" stroke-width="1" />
-			<text x={LEFT-4} y={py(t)+4} text-anchor="end" font-size="8" fill="#94a3b8">{fmt(t)}</text>
-		{/each}
-		{#each xTicks as t}
-			<line x1={px(t)} y1={TOP} x2={px(t)} y2={BOT} stroke="#f1f5f9" stroke-width="1" />
-			<text x={px(t)} y={BOT+10} text-anchor="middle" font-size="8" fill="#94a3b8">{fmt(t)}</text>
-		{/each}
-		{#each points as p}
-			<circle cx={px(p.x)} cy={py(p.y)} r="3" fill={p.color}
-				opacity={highlightedFeature === null || highlightedFeature === p.name ? 0.75 : 0.12}
-				style="cursor: pointer"
-				onclick={() => onHighlight?.(highlightedFeature === p.name ? null : p.name)}>
-				<title>{p.name}: ({fmt(p.x)}, {fmt(p.y)})</title>
-			</circle>
-		{/each}
-		<line x1={LEFT} y1={TOP} x2={LEFT} y2={BOT} stroke="#e2e8f0" stroke-width="0.5" />
-		<line x1={LEFT} y1={BOT} x2={RIGHT} y2={BOT} stroke="#e2e8f0" stroke-width="0.5" />
-		<text x={(LEFT+RIGHT)/2} y={H-4} text-anchor="middle" font-size="8" fill="#94a3b8">{axisLabel(card.xCol, dsX, dsY)}<title>{axisLabel(card.xCol, dsX, dsY)}</title></text>
-		<text transform="rotate(-90, 10, {(TOP+BOT)/2})" x="10" y={(TOP+BOT)/2}
-			text-anchor="middle" font-size="8" fill="#94a3b8">{axisLabel(card.yCol, dsY, dsX)}<title>{axisLabel(card.yCol, dsY, dsX)}</title></text>
-	</svg>
+	<PlotFigure
+		{title}
+		{subtitle}
+		caption={fcs.length > 4 ? `${fcs.length - 3} boundary sets are grouped as "Other".` : undefined}
+		{draw}
+		{table}
+		bind:handle
+	/>
 {/if}

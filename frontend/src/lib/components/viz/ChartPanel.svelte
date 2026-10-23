@@ -1,8 +1,15 @@
 <script lang="ts">
 	import type { VizPayload } from '$lib/api';
-	import { fieldLabel, detectBinary, getDatasetFieldTracks, getTemporalDatasets, colFieldTrack } from '$lib/viz';
-	import { X, Plus, Download } from '@lucide/svelte';
+	import { columnValues, detectBinary, getDatasetFieldTracks, getTemporalDatasets, colFieldTrack } from '$lib/viz';
+	import { X, Plus, Download, ChevronDown } from '@lucide/svelte';
 	import { zipSync } from 'fflate';
+	import { exportPng } from '$lib/charts/exportPng';
+	import type { FigureHandle } from '$lib/components/charts/PlotFigure.svelte';
+	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import ColumnSelect from './ColumnSelect.svelte';
+	import OptionSelect from './OptionSelect.svelte';
 	import { type ChartCard, type SingleColCard, type TimeSeriesCard, type ScatterCard, type CorrelationCard, CHART_TYPES } from './chartTypes';
 	import Histogram from './charts/Histogram.svelte';
 	import RankedBar from './charts/RankedBar.svelte';
@@ -19,19 +26,19 @@
 
 	let chartCards = $state<ChartCard[]>([]);
 	let showAddPicker = $state(false);
-	let showFcPicker = $state(false);
 	let newCardCol = $state('');
 	let newCardDatasetKey = $state('');
 	let newCardFieldTrack = $state('');
 	let newCardType = $state<ChartCard['type']>('histogram');
 	let temporalDatasets = $derived(getTemporalDatasets(data));
 	let newCardFieldTracks = $derived(getDatasetFieldTracks(data, newCardDatasetKey));
+	// Feature id highlighted across the scatter and time-series charts
 	let highlightedFeature = $state<string | null>(null);
 	let exporting = $state(false);
 	let activeFcs = $state(new Set<string>());
 
 	let filteredData = $derived(
-		activeFcs.size === 0 || activeFcs.size === data.fc_names.length
+		activeFcs.size === data.fc_names.length
 			? data
 			: {
 					...data,
@@ -82,10 +89,7 @@
 		}
 
 		const firstCol = data.columns[0];
-		const firstVals = Object.values(data.features)
-			.map(f => Number(f[firstCol]))
-			.filter(n => !isNaN(n));
-		const firstType: SingleColCard['type'] = detectBinary(firstVals) ? 'binary_bar' : 'histogram';
+		const firstType: SingleColCard['type'] = detectBinary(columnValues(data, firstCol)) ? 'binary_bar' : 'histogram';
 		defaults.push({ id: crypto.randomUUID(), type: firstType, column: firstCol } satisfies SingleColCard);
 
 		if (!temporalGroup) {
@@ -133,17 +137,8 @@
 		showAddPicker = false;
 	}
 
-	const svgRefs = new Map<string, SVGSVGElement>();
-
-	function makeSvgHandler(id: string) {
-		return (svg: SVGSVGElement | null) => {
-			if (svg) {
-				svgRefs.set(id, svg);
-			} else {
-				svgRefs.delete(id);
-			}
-		};
-	}
+	// Each drawn chart's export handle, by card id
+	let handles = $state<Record<string, FigureHandle | null>>({});
 
 	function cardFilename(card: ChartCard): string {
 		if (card.type === 'time_series') return `${card.datasetKey}_time_series.png`;
@@ -152,343 +147,299 @@
 		return `${card.column}_${card.type}.png`;
 	}
 
-	async function exportCard(card: ChartCard) {
-		const svg = svgRefs.get(card.id);
-		if (!svg) return;
-		const data = await svgToPngBytes(svg);
-		if (!data) return;
-		const blob = new Blob([data], { type: 'image/png' });
+	function download(blob: Blob, filename: string) {
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
-		a.download = cardFilename(card);
+		a.download = filename;
 		document.body.appendChild(a);
 		a.click();
 		document.body.removeChild(a);
 		URL.revokeObjectURL(url);
 	}
 
-
-	async function svgToPngBytes(svg: SVGSVGElement): Promise<Uint8Array | null> {
-		return new Promise((resolve) => {
-			const vb = svg.viewBox.baseVal;
-			const scale = 2;
-			const pad = 24;
-			const clone = svg.cloneNode(true) as SVGSVGElement;
-			clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-			const xml = new XMLSerializer().serializeToString(clone);
-			const svgBlob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
-			const url = URL.createObjectURL(svgBlob);
-			const img = new Image();
-			img.onload = () => {
-				const canvas = document.createElement('canvas');
-				canvas.width = vb.width * scale + pad * 2;
-				canvas.height = vb.height * scale + pad * 2;
-				const ctx = canvas.getContext('2d')!;
-				ctx.fillStyle = '#ffffff';
-				ctx.fillRect(0, 0, canvas.width, canvas.height);
-				ctx.drawImage(img, pad, pad, vb.width * scale, vb.height * scale);
-				URL.revokeObjectURL(url);
-				canvas.toBlob((b) => {
-					if (!b) {
-						resolve(null);
-						return;
-					}
-					b.arrayBuffer().then((ab) => resolve(new Uint8Array(ab)));
-				}, 'image/png');
-			};
-			img.onerror = () => {
-				URL.revokeObjectURL(url);
-				resolve(null);
-			};
-			img.src = url;
-		});
+	async function exportCard(card: ChartCard) {
+		const handle = handles[card.id];
+		if (!handle) return;
+		const png = await exportPng(handle);
+		if (png) download(png, cardFilename(card));
 	}
 
 	async function exportAll() {
 		if (exporting) return;
 		exporting = true;
 		try {
-			const pngFiles: { name: string; data: Uint8Array }[] = [];
+			const files: { name: string; data: Uint8Array }[] = [];
 			for (const card of chartCards) {
-				const svg = svgRefs.get(card.id);
-				if (!svg) continue;
-				const data = await svgToPngBytes(svg);
-				if (data) pngFiles.push({ name: cardFilename(card), data });
+				const handle = handles[card.id];
+				if (!handle) continue;
+				const png = await exportPng(handle);
+				if (png) files.push({ name: cardFilename(card), data: new Uint8Array(await png.arrayBuffer()) });
 			}
-			if (pngFiles.length === 0) return;
+			if (files.length === 0) return;
 
 			// Deduplicate filenames
 			const seen = new Map<string, number>();
-			for (const f of pngFiles) {
+			for (const f of files) {
 				const count = seen.get(f.name) ?? 0;
 				seen.set(f.name, count + 1);
 				if (count > 0) f.name = f.name.replace('.png', `_${count}.png`);
 			}
 
-			const zipInput: Record<string, Uint8Array> = {};
-			for (const f of pngFiles) zipInput[f.name] = f.data;
-			const zip = zipSync(zipInput);
-			const blob = new Blob([zip], { type: 'application/zip' });
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = 'geoquery-charts.zip';
-			document.body.appendChild(a);
-			a.click();
-			document.body.removeChild(a);
-			URL.revokeObjectURL(url);
+			const zip = zipSync(Object.fromEntries(files.map((f) => [f.name, f.data])));
+			download(new Blob([zip.slice()], { type: "application/zip" }), "geoquery-charts.zip");
 		} finally {
 			exporting = false;
 		}
 	}
 
-	function colLabel(col: string): string {
-		const parts = [fieldLabel(col), data.col_temporal[col]].filter(Boolean);
-		return parts.join(' · ');
+	const CHART_TYPE_OPTIONS = CHART_TYPES.map((ct) => ({ value: ct.value, label: ct.label }));
+	const SINGLE_TYPE_OPTIONS = CHART_TYPES.filter((ct) => !ct.multi).map((ct) => ({
+		value: ct.value as SingleColCard['type'],
+		label: ct.label
+	}));
+	const AGGREGATE_OPTIONS: { value: TimeSeriesCard['aggregateMode']; label: string }[] = [
+		{ value: 'all', label: 'All features' },
+		{ value: 'mean', label: 'Mean only' },
+		{ value: 'band', label: 'Mean + range' }
+	];
+	let datasetOptions = $derived(Object.keys(temporalDatasets).map((title) => ({ value: title, label: title })));
+	const trackOptions = (tracks: string[]) => tracks.map((track) => ({ value: track, label: track }));
+
+	function setFcActive(fc: string, active: boolean) {
+		const next = new Set(activeFcs);
+		if (active) next.add(fc);
+		else next.delete(fc);
+		activeFcs = next;
 	}
+
 </script>
 
 <div class="h-full overflow-y-auto">
-	<div class="p-4 space-y-4">
+	<div class="space-y-4 p-4">
 		{#if chartCards.length === 0 && data.columns.length === 0}
 			<div class="flex h-48 items-center justify-center text-sm text-muted-foreground">
 				No data available.
 			</div>
 		{:else}
-			<!-- Toolbar: Add chart / Export All -->
+			<!-- Toolbar: Add chart / boundary sets / Export All -->
 			{#if data.columns.length > 0}
 				{#if showAddPicker}
-					<div class="rounded-lg border bg-muted/30 p-4 space-y-3 max-w-xs">
-						<p class="text-sm font-semibold">Add chart</p>
-						<div class="space-y-2">
-							<select bind:value={newCardType} class="chart-select w-full">
-								{#each CHART_TYPES as ct}<option value={ct.value}>{ct.label}</option>{/each}
-							</select>
-							{#if !CHART_TYPES.find(t => t.value === newCardType)?.multi}
-								<select bind:value={newCardCol} class="chart-select w-full">
-									{#each Object.entries(data.col_groups) as [group, cols]}
-										<optgroup label={group}>
-											{#each cols as col}<option value={col}>{colLabel(col)}</option>{/each}
-										</optgroup>
-									{/each}
-								</select>
+					<Card.Root class="max-w-sm gap-3 py-4">
+						<Card.Content class="space-y-3 px-4">
+							<p class="font-heading text-h4 font-bold">Add chart</p>
+							<OptionSelect
+								label="Chart type"
+								value={newCardType}
+								options={CHART_TYPE_OPTIONS}
+								onchange={(v) => (newCardType = v)}
+								class="w-full"
+							/>
+							{#if !CHART_TYPES.find((t) => t.value === newCardType)?.multi}
+								<ColumnSelect {data} label="Column" value={newCardCol} onchange={(c) => (newCardCol = c)} class="w-full" />
 							{:else if newCardType === 'time_series'}
-								<select bind:value={newCardDatasetKey} class="chart-select w-full">
-									{#each Object.keys(temporalDatasets) as title}<option value={title}>{title}</option>{/each}
-								</select>
+								<OptionSelect
+									label="Dataset"
+									value={newCardDatasetKey}
+									options={datasetOptions}
+									onchange={(v) => (newCardDatasetKey = v)}
+									class="w-full"
+								/>
 								{#if newCardFieldTracks.length > 1}
-									<select bind:value={newCardFieldTrack} class="chart-select w-full">
-										{#each newCardFieldTracks as track}<option value={track}>{track}</option>{/each}
-									</select>
+									<OptionSelect
+										label="Field"
+										value={newCardFieldTrack || newCardFieldTracks[0]}
+										options={trackOptions(newCardFieldTracks)}
+										onchange={(v) => (newCardFieldTrack = v)}
+										class="w-full"
+									/>
 								{/if}
 							{:else}
-								<p class="text-xs text-muted-foreground">Configure column selection in the card after adding.</p>
+								<p class="text-sm text-muted-foreground">Choose the columns in the card after adding it.</p>
 							{/if}
-						</div>
-						<div class="flex gap-2 items-center">
-							<button onclick={addCard} class="chart-btn-primary">Add</button>
-							<button onclick={() => (showAddPicker = false)} class="text-sm text-muted-foreground hover:text-foreground">Cancel</button>
-						</div>
-					</div>
-				{:else}
-					<div class="flex items-center gap-4 flex-wrap">
-						<button
-							onclick={() => { showAddPicker = true; newCardCol = data.columns[0]; }}
-							class="flex items-center gap-1.5 text-sm text-primary hover:underline"
-						>
-							<Plus class="h-4 w-4" />
-							Add chart
-						</button>
-						{#if data.fc_names.length > 1}
-							<div class="relative">
-								<button
-									onclick={() => (showFcPicker = !showFcPicker)}
-									class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-								>
-									{activeFcs.size === data.fc_names.length
-										? `All ${data.fc_names.length} FCs`
-										: `${activeFcs.size} / ${data.fc_names.length} FCs`}
-								</button>
-								{#if showFcPicker}
-									<div class="absolute left-0 top-full mt-1 z-20 rounded-lg border bg-card shadow-md p-3 space-y-1.5 min-w-[180px]">
-										{#each data.fc_names as fc}
-											<label class="flex items-center gap-2 text-xs cursor-pointer">
-												<input type="checkbox" checked={activeFcs.has(fc)}
-													onchange={(e) => {
-														const next = new Set(activeFcs);
-														if ((e.target as HTMLInputElement).checked) next.add(fc);
-														else next.delete(fc);
-														activeFcs = next;
-													}} />
-												{fc}
-											</label>
-										{/each}
-										<div class="flex gap-2 pt-1 border-t">
-											<button class="text-xs text-primary hover:underline" onclick={() => activeFcs = new Set(data.fc_names)}>All</button>
-											<button class="text-xs text-muted-foreground hover:underline" onclick={() => activeFcs = new Set()}>None</button>
-										</div>
-									</div>
-								{/if}
+							<div class="flex items-center gap-2">
+								<Button size="sm" onclick={addCard}>Add</Button>
+								<Button size="sm" variant="outline" onclick={() => (showAddPicker = false)}>Cancel</Button>
 							</div>
+						</Card.Content>
+					</Card.Root>
+				{:else}
+					<div class="flex flex-wrap items-center gap-2">
+						<Button
+							variant="ghost"
+							size="sm"
+							onclick={() => {
+								showAddPicker = true;
+								newCardCol = data.columns[0];
+							}}
+						>
+							<Plus />
+							Add chart
+						</Button>
+						{#if data.fc_names.length > 1}
+							<DropdownMenu.Root>
+								<DropdownMenu.Trigger>
+									{#snippet child({ props })}
+										<Button {...props} variant="ghost" size="sm" class="text-muted-foreground">
+											{activeFcs.size === data.fc_names.length
+												? `All ${data.fc_names.length} boundary sets`
+												: `${activeFcs.size} of ${data.fc_names.length} boundary sets`}
+											<ChevronDown />
+										</Button>
+									{/snippet}
+								</DropdownMenu.Trigger>
+								<DropdownMenu.Content align="start" class="w-64">
+									<DropdownMenu.Label>Boundary sets</DropdownMenu.Label>
+									{#each data.fc_names as fc (fc)}
+										<DropdownMenu.CheckboxItem
+											checked={activeFcs.has(fc)}
+											onCheckedChange={(checked) => setFcActive(fc, checked)}
+											closeOnSelect={false}
+										>
+											<span class="truncate">{fc}</span>
+										</DropdownMenu.CheckboxItem>
+									{/each}
+									<DropdownMenu.Separator />
+									<DropdownMenu.Item closeOnSelect={false} onclick={() => (activeFcs = new Set(data.fc_names))}>Select all</DropdownMenu.Item>
+									<DropdownMenu.Item closeOnSelect={false} onclick={() => (activeFcs = new Set())}>Clear</DropdownMenu.Item>
+								</DropdownMenu.Content>
+							</DropdownMenu.Root>
 						{/if}
 						{#if chartCards.length > 0}
-							<button
-								onclick={exportAll}
-								disabled={exporting}
-								class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
-							>
-								<Download class="h-4 w-4" />
+							<Button variant="ghost" size="sm" class="text-muted-foreground" onclick={exportAll} disabled={exporting}>
+								<Download />
 								{exporting ? 'Exporting…' : 'Export All'}
-							</button>
+							</Button>
 						{/if}
 					</div>
 				{/if}
 			{/if}
 
-			<div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-				{#each chartCards as card (card.id)}
-					<div class="rounded-lg border bg-card shadow-sm overflow-hidden">
-						<!-- Card header -->
-						<div class="flex items-center gap-2 px-3 py-2 border-b bg-muted/30">
-							{#if card.type === 'histogram' || card.type === 'top_bar' || card.type === 'bottom_bar' || card.type === 'binary_bar' || card.type === 'box_plot'}
-								{@const sc = card as SingleColCard}
-								<select value={sc.column}
-									onchange={(e) => updateCard(card.id, { column: (e.target as HTMLSelectElement).value } as Partial<SingleColCard>)}
-									class="chart-select flex-1 min-w-0">
-									{#each Object.entries(data.col_groups) as [group, cols]}
-										<optgroup label={group}>
-											{#each cols as col}<option value={col}>{colLabel(col)}</option>{/each}
-										</optgroup>
-									{/each}
-								</select>
-								<select value={card.type}
-									onchange={(e) => updateCard(card.id, { type: (e.target as HTMLSelectElement).value as SingleColCard['type'] } as Partial<SingleColCard>)}
-									class="chart-select shrink-0" style="width: auto">
-									{#each CHART_TYPES.filter(ct => !ct.multi) as ct}
-										<option value={ct.value}>{ct.label}</option>
-									{/each}
-								</select>
-							{:else if card.type === 'time_series'}
-								{@const tc = card as TimeSeriesCard}
-								{@const tcTracks = getDatasetFieldTracks(data, tc.datasetKey)}
-								<select value={tc.datasetKey}
-									onchange={(e) => {
-										const title = (e.target as HTMLSelectElement).value;
-										const cols = temporalDatasets[title] ?? [];
-										const dkTracks = getDatasetFieldTracks(data, title);
-										const fieldTrack = dkTracks.length > 1 ? dkTracks[0] : undefined;
-										updateCard(card.id, { datasetKey: title, columns: cols, fieldTrack } as Partial<TimeSeriesCard>);
-									}}
-									class="chart-select flex-1 min-w-0">
-									{#each Object.keys(temporalDatasets) as title}
-										<option value={title}>{title}</option>
-									{/each}
-								</select>
-								{#if tcTracks.length > 1}
-									<select value={tc.fieldTrack ?? tcTracks[0]}
-										onchange={(e) => updateCard(card.id, { fieldTrack: (e.target as HTMLSelectElement).value } as Partial<TimeSeriesCard>)}
-										class="chart-select flex-1 min-w-0">
-										{#each tcTracks as track}
-											<option value={track}>{track}</option>
-										{/each}
-									</select>
+			{#if activeFcs.size === 0 && data.fc_names.length > 0}
+				<p class="py-10 text-center text-sm text-muted-foreground">
+					No boundary sets selected. Choose at least one to draw the charts.
+				</p>
+			{:else}
+				<div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+					{#each chartCards as card (card.id)}
+						<Card.Root class="min-w-0 gap-0 overflow-visible py-0">
+							<!-- Card header: what the chart shows -->
+							<div class="flex flex-wrap items-center gap-2 rounded-t-xl bg-band px-3 py-2">
+								{#if card.type === 'histogram' || card.type === 'top_bar' || card.type === 'bottom_bar' || card.type === 'binary_bar' || card.type === 'box_plot'}
+									<ColumnSelect
+										{data}
+										label="Column"
+										value={card.column}
+										onchange={(column) => updateCard(card.id, { column } as Partial<SingleColCard>)}
+										class="flex-1"
+									/>
+									<OptionSelect
+										label="Chart type"
+										value={card.type}
+										options={SINGLE_TYPE_OPTIONS}
+										onchange={(type) => updateCard(card.id, { type } as Partial<SingleColCard>)}
+										class="shrink-0"
+									/>
+								{:else if card.type === 'time_series'}
+									{@const tcTracks = getDatasetFieldTracks(data, card.datasetKey)}
+									<OptionSelect
+										label="Dataset"
+										value={card.datasetKey}
+										options={datasetOptions}
+										onchange={(title) => {
+											const dkTracks = getDatasetFieldTracks(data, title);
+											updateCard(card.id, {
+												datasetKey: title,
+												columns: temporalDatasets[title] ?? [],
+												fieldTrack: dkTracks.length > 1 ? dkTracks[0] : undefined
+											} as Partial<TimeSeriesCard>);
+										}}
+										class="flex-1"
+									/>
+									{#if tcTracks.length > 1}
+										<OptionSelect
+											label="Field"
+											value={card.fieldTrack ?? tcTracks[0]}
+											options={trackOptions(tcTracks)}
+											onchange={(fieldTrack) => updateCard(card.id, { fieldTrack } as Partial<TimeSeriesCard>)}
+											class="flex-1"
+										/>
+									{/if}
+									<OptionSelect
+										label="Lines"
+										value={card.aggregateMode}
+										options={AGGREGATE_OPTIONS}
+										onchange={(aggregateMode) => updateCard(card.id, { aggregateMode } as Partial<TimeSeriesCard>)}
+										class="shrink-0"
+									/>
+								{:else if card.type === 'scatter'}
+									<ColumnSelect
+										{data}
+										label="X axis column"
+										value={card.xCol}
+										onchange={(xCol) => updateCard(card.id, { xCol } as Partial<ScatterCard>)}
+										class="flex-1"
+									/>
+									<span class="shrink-0 text-sm text-muted-foreground">vs</span>
+									<ColumnSelect
+										{data}
+										label="Y axis column"
+										value={card.yCol}
+										onchange={(yCol) => updateCard(card.id, { yCol } as Partial<ScatterCard>)}
+										class="flex-1"
+									/>
+								{:else if card.type === 'correlation'}
+									<span class="flex-1 text-sm text-muted-foreground">{card.columns.length} columns selected</span>
 								{/if}
-								<select value={tc.aggregateMode}
-									onchange={(e) => updateCard(card.id, { aggregateMode: (e.target as HTMLSelectElement).value as TimeSeriesCard['aggregateMode'] } as Partial<TimeSeriesCard>)}
-									class="chart-select shrink-0" style="width: auto">
-									<option value="all">All features</option>
-									<option value="mean">Mean only</option>
-									<option value="band">Mean + range</option>
-								</select>
-							{:else if card.type === 'scatter'}
-								{@const sc2 = card as ScatterCard}
-								<select value={sc2.xCol}
-									onchange={(e) => updateCard(card.id, { xCol: (e.target as HTMLSelectElement).value } as Partial<ScatterCard>)}
-									class="chart-select flex-1 min-w-0">
-									{#each Object.entries(data.col_groups) as [group, cols]}
-										<optgroup label={group}>
-											{#each cols as col}<option value={col}>{colLabel(col)}</option>{/each}
-										</optgroup>
-									{/each}
-								</select>
-								<span class="text-xs text-muted-foreground shrink-0">vs</span>
-								<select value={sc2.yCol}
-									onchange={(e) => updateCard(card.id, { yCol: (e.target as HTMLSelectElement).value } as Partial<ScatterCard>)}
-									class="chart-select flex-1 min-w-0">
-									{#each Object.entries(data.col_groups) as [group, cols]}
-										<optgroup label={group}>
-											{#each cols as col}<option value={col}>{colLabel(col)}</option>{/each}
-										</optgroup>
-									{/each}
-								</select>
-							{:else if card.type === 'correlation'}
-								{@const cc = card as CorrelationCard}
-								<span class="text-xs text-muted-foreground flex-1">{cc.columns.length} columns selected</span>
-							{/if}
-							<button onclick={() => exportCard(card)} class="shrink-0 text-muted-foreground hover:text-foreground" title="Save as PNG">
-								<Download class="h-3.5 w-3.5" />
-							</button>
-							<button onclick={() => removeCard(card.id)} class="shrink-0 text-muted-foreground hover:text-destructive" title="Remove chart">
-								<X class="h-3.5 w-3.5" />
-							</button>
-						</div>
-
-						<!-- Chart body -->
-						<div class="p-3">
-							{#if card.type === 'histogram'}
-								<Histogram data={filteredData} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
-							{:else if card.type === 'top_bar' || card.type === 'bottom_bar'}
-								<RankedBar data={filteredData} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
-							{:else if card.type === 'time_series'}
-								<TimeSeries data={filteredData} card={card as TimeSeriesCard}
-									highlightedFeature={highlightedFeature}
-									onHighlight={(name) => { highlightedFeature = name; }}
-									onsvgready={makeSvgHandler(card.id)} />
-							{:else if card.type === 'scatter'}
-								<Scatter data={filteredData} card={card as ScatterCard}
-									highlightedFeature={highlightedFeature}
-									onHighlight={(name) => { highlightedFeature = name; }}
-									onsvgready={makeSvgHandler(card.id)} />
-							{:else if card.type === 'binary_bar'}
-								<BinaryBar data={filteredData} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
-							{:else if card.type === 'box_plot'}
-								<BoxPlot data={filteredData} card={card as SingleColCard} onsvgready={makeSvgHandler(card.id)} />
-							{:else if card.type === 'correlation'}
-								<CorrelationMatrix data={filteredData} card={card as CorrelationCard}
-									onCardUpdate={(patch) => updateCard(card.id, patch)}
-									onsvgready={makeSvgHandler(card.id)} />
-							{:else}
-								<div class="flex h-32 items-center justify-center text-sm text-muted-foreground">
-									Chart type not yet implemented.
+								<div class="ml-auto flex shrink-0 items-center">
+									<Button variant="ghost" size="icon-sm" onclick={() => exportCard(card)} disabled={!handles[card.id]} aria-label="Save chart as PNG">
+										<Download />
+									</Button>
+									<Button variant="ghost" size="icon-sm" class="hover:text-destructive" onclick={() => removeCard(card.id)} aria-label="Remove chart">
+										<X />
+									</Button>
 								</div>
-							{/if}
-						</div>
-					</div>
-				{/each}
-			</div>
+							</div>
+
+							<!-- Chart body -->
+							<div class="p-4">
+								{#if card.type === 'histogram'}
+									<Histogram data={filteredData} {card} bind:handle={handles[card.id]} />
+								{:else if card.type === 'top_bar' || card.type === 'bottom_bar'}
+									<RankedBar data={filteredData} {card} bind:handle={handles[card.id]} />
+								{:else if card.type === 'time_series'}
+									<TimeSeries
+										data={filteredData}
+										{card}
+										{highlightedFeature}
+										onHighlight={(id) => (highlightedFeature = id)}
+										bind:handle={handles[card.id]}
+									/>
+								{:else if card.type === 'scatter'}
+									<Scatter
+										data={filteredData}
+										{card}
+										{highlightedFeature}
+										onHighlight={(id) => (highlightedFeature = id)}
+										bind:handle={handles[card.id]}
+									/>
+								{:else if card.type === 'binary_bar'}
+									<BinaryBar data={filteredData} {card} bind:handle={handles[card.id]} />
+								{:else if card.type === 'box_plot'}
+									<BoxPlot data={filteredData} {card} bind:handle={handles[card.id]} />
+								{:else if card.type === 'correlation'}
+									<CorrelationMatrix
+										data={filteredData}
+										{card}
+										onCardUpdate={(patch) => updateCard(card.id, patch)}
+										bind:handle={handles[card.id]}
+									/>
+								{/if}
+							</div>
+						</Card.Root>
+					{/each}
+				</div>
+			{/if}
 		{/if}
 	</div>
 </div>
-
-<style>
-	.chart-select {
-		padding: 4px 7px;
-		border: 1px solid #e2e8f0;
-		border-radius: 5px;
-		font-size: 12px;
-		background: #fff;
-		color: #1e293b;
-		cursor: pointer;
-	}
-	.chart-select:focus { outline: 2px solid #3b82f6; outline-offset: -1px; }
-	.chart-btn-primary {
-		padding: 4px 12px;
-		background: #3b82f6;
-		color: #fff;
-		border-radius: 5px;
-		font-size: 12px;
-		font-weight: 500;
-	}
-	.chart-btn-primary:hover { background: #2563eb; }
-</style>

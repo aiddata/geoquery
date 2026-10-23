@@ -1,74 +1,153 @@
 <script lang="ts">
 	import type { VizPayload } from '$lib/api';
 	import type { SingleColCard } from '../chartTypes';
-	import { fieldLabel } from '$lib/viz';
+	import { numericValue } from '$lib/viz';
+	import { aidBase, aidTip, barInset, labelWidth, type DrawFn } from '$lib/charts/plot';
+	import { columnCaption } from '$lib/charts/labels';
+	import PlotFigure, { type FigureHandle } from '$lib/components/charts/PlotFigure.svelte';
 
 	interface Props {
 		data: VizPayload;
 		card: SingleColCard;
-		onsvgready?: (svg: SVGSVGElement | null) => void;
+		handle?: FigureHandle | null;
 	}
-	let { data, card, onsvgready }: Props = $props();
+	let { data, card, handle = $bindable() }: Props = $props();
 
-	const W = 320;
-	const LEFT = 70, RIGHT = 300, BAR_H = 18, ROW_H = 30;
+	const LEVELS = ['Present', 'Absent'] as const;
+	const ROW_H = 36;
+	const MARGIN_TOP = 6;
+	const MARGIN_BOTTOM = 30;
+	const MIN_LABEL_PX = 34;
 
-	let svgEl = $state<SVGSVGElement | undefined>();
-	$effect(() => {
-		if (svgEl) onsvgready?.(svgEl);
-		return () => onsvgready?.(null);
-	});
+	interface Group {
+		fc: string;
+		present: number;
+		absent: number;
+		total: number;
+	}
 
-	function getGroups() {
+	interface Segment {
+		fc: string;
+		level: (typeof LEVELS)[number];
+		i: number;
+		n: number;
+		share: number;
+		x1: number;
+		x2: number;
+		mid: number;
+	}
+
+	function getGroups(): Group[] {
 		const byFc = new Map<string, { present: number; absent: number }>();
 		for (const f of Object.values(data.features)) {
-			const raw = f[card.column];
-			if (raw === null || raw === undefined) continue;
-			const v = Number(raw);
+			const v = numericValue(f[card.column]);
 			if (v !== 0 && v !== 1) continue;
-			const fc = f.fc as string;
-			if (!byFc.has(fc)) byFc.set(fc, { present: 0, absent: 0 });
-			const g = byFc.get(fc)!;
-			if (v === 1) g.present++; else g.absent++;
+			const g = byFc.get(f.fc) ?? { present: 0, absent: 0 };
+			if (v === 1) g.present++;
+			else g.absent++;
+			byFc.set(f.fc, g);
 		}
 		return [...byFc.entries()]
-			.map(([fc, { present, absent }]) => ({ fc, present, absent, total: present + absent }))
-			.filter(g => g.total > 0);
+			.map(([fc, g]) => ({ fc, ...g, total: g.present + g.absent }))
+			.filter((g) => g.total > 0);
 	}
 
 	let groups = $derived(getGroups());
-	let H = $derived(Math.max(120, groups.length * ROW_H + 60));
-	let ds = $derived(data.col_dataset_titles[card.column] ?? '');
-	let temporal = $derived(data.col_temporal[card.column] ?? '');
-	let colPart = $derived([fieldLabel(card.column), temporal].filter(Boolean).join(' · '));
+	let caption = $derived(columnCaption(data, card.column, 'Present / absent'));
 
-	function barW(n: number, total: number) { return (n / total) * (RIGHT - LEFT); }
+	let segments = $derived(
+		groups.flatMap((g): Segment[] => {
+			const present = (g.present / g.total) * 100;
+			return [
+				{ fc: g.fc, level: 'Present', i: 0, n: g.present, share: present, x1: 0, x2: present, mid: present / 2 },
+				{ fc: g.fc, level: 'Absent', i: 1, n: g.absent, share: 100 - present, x1: present, x2: 100, mid: (present + 100) / 2 }
+			];
+		})
+	);
+
+	const pct = (n: number) => `${Math.round(n)}%`;
+
+	const draw: DrawFn = ({ Plot, t, width }) => {
+		const marginLeft = Math.min(200, labelWidth(t, groups.map((g) => g.fc)) + 12);
+		const marginRight = 16;
+		const plotWidth = width - marginLeft - marginRight;
+		const height = groups.length * ROW_H + MARGIN_TOP + MARGIN_BOTTOM;
+		const inset = barInset(ROW_H);
+		const overall = groups.reduce((a, g) => a + g.present, 0) / groups.reduce((a, g) => a + g.total, 0);
+
+		// One mark per level, so only the stack's outer ends are rounded (§9.4)
+		const bars = LEVELS.map((level, i) =>
+			Plot.barX(
+				segments.filter((s) => s.i === i),
+				{
+					x1: 'x1',
+					x2: 'x2',
+					y: 'fc',
+					fill: 'level',
+					stroke: t.edge,
+					strokeWidth: 1,
+					insetTop: inset,
+					insetBottom: inset,
+					...(i === 0 ? { rx1: 4 } : { rx2: 4 })
+				}
+			)
+		);
+		// Labels in each level's ink, only where the segment is wide enough to hold one (§9.5)
+		const labels = LEVELS.map((_, i) =>
+			Plot.text(
+				segments.filter((s) => s.i === i && (s.share / 100) * plotWidth >= MIN_LABEL_PX),
+				{ x: 'mid', y: 'fc', text: (s: Segment) => pct(s.share), fill: t.ink[i], fontWeight: 700 }
+			)
+		);
+
+		return Plot.plot({
+			...aidBase(t, width, height),
+			marginTop: MARGIN_TOP,
+			marginBottom: MARGIN_BOTTOM,
+			marginLeft,
+			marginRight,
+			ariaLabel: `Share of features where ${caption.subtitle.split(' — ')[0]} is present, by boundary set`,
+			ariaDescription: `Across all boundary sets, ${pct(overall * 100)} of features are present.`,
+			x: { domain: [0, 100], ticks: [0, 25, 50, 75, 100], tickFormat: (d: number) => `${d}%`, tickSize: 0, label: null },
+			y: { domain: groups.map((g) => g.fc), padding: 0, tickSize: 0, label: null },
+			color: { domain: [...LEVELS], range: t.series.slice(0, 2), legend: true },
+			marks: [
+				Plot.gridX([25, 50, 75, 100], { stroke: t.grid, strokeOpacity: 1 }),
+				...bars,
+				...labels,
+				Plot.tip(
+					segments,
+					Plot.pointer({
+						x: 'mid',
+						y: 'fc',
+						title: (s: Segment) => `${s.fc}\n${s.level}: ${s.n.toLocaleString()} (${s.share.toFixed(1)}%)`,
+						...aidTip(t)
+					})
+				)
+			]
+		});
+	};
+
+	let table = $derived({
+		columns: [
+			{ key: 'fc', label: 'Boundary set' },
+			{ key: 'present', label: 'Present', numeric: true },
+			{ key: 'presentShare', label: 'Present %', numeric: true, format: (v: unknown) => `${(v as number).toFixed(1)}%` },
+			{ key: 'absent', label: 'Absent', numeric: true },
+			{ key: 'absentShare', label: 'Absent %', numeric: true, format: (v: unknown) => `${(v as number).toFixed(1)}%` }
+		],
+		rows: groups.map((g) => ({
+			fc: g.fc,
+			present: g.present,
+			presentShare: (g.present / g.total) * 100,
+			absent: g.absent,
+			absentShare: (g.absent / g.total) * 100
+		}))
+	});
 </script>
 
 {#if groups.length === 0}
-	<p class="text-center text-sm text-muted-foreground py-10">No binary data for this column.</p>
+	<p class="py-10 text-center text-sm text-muted-foreground">No binary data for this column.</p>
 {:else}
-	<svg bind:this={svgEl} viewBox="0 0 {W} {H}" class="w-full" style="aspect-ratio: {W} / {H}">
-		<rect width={W} height={H} fill="white" />
-		<text x={W/2} y="13" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b">{ds || fieldLabel(card.column)}<title>{ds || fieldLabel(card.column)}</title></text>
-		<text x={W/2} y="23" text-anchor="middle" font-size="9" fill="#64748b">{colPart} — Present / Absent<title>{colPart}</title></text>
-		{#each groups as g, i}
-			{@const y = 36 + i * ROW_H}
-			{@const pw = barW(g.present, g.total)}
-			{@const aw = barW(g.absent, g.total)}
-			{@const pct = Math.round((g.present / g.total) * 100)}
-			<text x={LEFT - 4} y={y + BAR_H/2 + 4} text-anchor="end" font-size="8" fill="#64748b">{g.fc}<title>{g.fc}</title></text>
-			<rect x={LEFT} y={y} width={pw} height={BAR_H} fill="#22c55e" />
-			<rect x={LEFT + pw} y={y} width={aw} height={BAR_H} fill="#ef4444" />
-			<text x={Math.min(LEFT + pw + 3, RIGHT - 30)} y={y + BAR_H/2 + 4} font-size="8" fill="#475569">{pct}%</text>
-		{/each}
-		<line x1={LEFT} y1="34" x2={LEFT} y2={H - 16} stroke="#e2e8f0" stroke-width="0.5" />
-		<line x1={RIGHT} y1="34" x2={RIGHT} y2={H - 16} stroke="#e2e8f0" stroke-width="0.5" />
-		<text x={LEFT} y={H - 6} text-anchor="middle" font-size="7" fill="#94a3b8">0%</text>
-		<text x={RIGHT} y={H - 6} text-anchor="middle" font-size="7" fill="#94a3b8">100%</text>
-		<rect x={LEFT+8} y={H-14} width="8" height="8" fill="#22c55e" />
-		<text x={LEFT+18} y={H-7} font-size="7" fill="#64748b">Present</text>
-		<rect x={LEFT+60} y={H-14} width="8" height="8" fill="#ef4444" />
-		<text x={LEFT+70} y={H-7} font-size="7" fill="#64748b">Absent</text>
-	</svg>
+	<PlotFigure title={caption.title} subtitle={caption.subtitle} {draw} {table} bind:handle />
 {/if}

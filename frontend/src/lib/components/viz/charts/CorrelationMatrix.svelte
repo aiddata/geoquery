@@ -1,50 +1,50 @@
 <script lang="ts">
 	import type { VizPayload } from '$lib/api';
 	import type { CorrelationCard } from '../chartTypes';
-	import { pearsonMatrix, fieldLabel } from '$lib/viz';
+	import { fieldLabel, pearsonMatrix } from '$lib/viz';
+	import { aidBase, aidTip, labelWidth, type DrawFn } from '$lib/charts/plot';
+	import PlotFigure, { type FigureHandle } from '$lib/components/charts/PlotFigure.svelte';
+	import { Button } from '$lib/components/ui/button';
+	import { Checkbox } from '$lib/components/ui/checkbox';
 
 	interface Props {
 		data: VizPayload;
 		card: CorrelationCard;
 		onCardUpdate?: (patch: Partial<CorrelationCard>) => void;
-		onsvgready?: (svg: SVGSVGElement | null) => void;
+		handle?: FigureHandle | null;
 	}
-	let { data, card, onCardUpdate, onsvgready }: Props = $props();
+	let { data, card, onCardUpdate, handle = $bindable() }: Props = $props();
 
-	const CELL = 36, LEFT_PAD = 80, TOP_PAD = 80;
+	// The §3 diverging ramp in five classes; the middle class is "little or no correlation" (§11)
+	const THRESHOLDS = [-0.6, -0.2, 0.2, 0.6];
 
-	function axisLabel(col: string) {
+	interface Cell {
+		row: string;
+		col: string;
+		r: number;
+	}
+
+	function shortLabel(col: string) {
 		const temporal = data.col_temporal[col];
 		const s = temporal ? `${fieldLabel(col)} ${temporal}` : fieldLabel(col);
-		return s.length > 12 ? s.slice(0, 11) + '…' : s;
+		return s.length > 18 ? s.slice(0, 17) + '…' : s;
 	}
 
 	function fullLabel(col: string) {
-		const ds = data.col_dataset_titles[col];
-		const field = fieldLabel(col);
-		const temporal = data.col_temporal[col];
-		return [ds, field, temporal].filter(Boolean).join(' · ');
+		return [data.col_dataset_titles[col], fieldLabel(col), data.col_temporal[col]].filter(Boolean).join(' · ');
 	}
 
-	function rToColor(r: number): string {
-		if (r >= 0) {
-			const t = r;
-			return `rgb(${Math.round(241 + t * (29 - 241))},${Math.round(245 + t * (78 - 245))},${Math.round(248 + t * (216 - 248))})`;
-		}
-		const t = -r;
-		return `rgb(${Math.round(241 + t * (220 - 241))},${Math.round(245 + t * (38 - 245))},${Math.round(248 + t * (38 - 248))})`;
+	function step(r: number): number {
+		let i = 0;
+		while (i < THRESHOLDS.length && r >= THRESHOLDS[i]) i++;
+		return i;
 	}
+
+	const rText = (r: number) => (Number.isNaN(r) ? 'n/a' : r.toFixed(2));
 
 	let cols = $derived(card.columns);
 	let matrix = $derived(cols.length >= 2 ? pearsonMatrix(data, cols) : []);
-	let N = $derived(cols.length);
-	let svgSize = $derived(N * CELL + LEFT_PAD + 8);
-
-	let svgEl = $state<SVGSVGElement | undefined>();
-	$effect(() => {
-		if (svgEl) onsvgready?.(svgEl);
-		return () => onsvgready?.(null);
-	});
+	let cells = $derived<Cell[]>(cols.flatMap((row, i) => cols.map((col, j) => ({ row, col, r: matrix[i][j] }))));
 
 	let showColPicker = $state(false);
 
@@ -52,78 +52,96 @@
 		const next = checked ? [...card.columns, col] : card.columns.filter((c) => c !== col);
 		onCardUpdate?.({ columns: next });
 	}
+
+	const draw: DrawFn = ({ Plot, t, width }) => {
+		const widest = labelWidth(t, cols.map(shortLabel));
+		const marginLeft = Math.min(170, widest + 12);
+		// Column labels are rotated 40°, so they need about sin(40°) of their width above the grid
+		const marginTop = Math.min(130, widest * 0.65 + 16);
+		const cellSize = Math.min(56, (width - marginLeft - 8) / cols.length);
+		const offDiagonal = cells.filter((c) => c.row < c.col && !Number.isNaN(c.r));
+		const strongest = offDiagonal.reduce<Cell | null>((a, c) => (!a || Math.abs(c.r) > Math.abs(a.r) ? c : a), null);
+		const label = (c: Cell) => (cellSize >= 34 ? rText(c.r) : '');
+
+		return Plot.plot({
+			...aidBase(t, Math.min(width, marginLeft + cellSize * cols.length + 8), marginTop + cellSize * cols.length + 8),
+			marginTop,
+			marginLeft,
+			marginRight: 8,
+			marginBottom: 8,
+			ariaLabel: `Correlation matrix of ${cols.length} columns`,
+			ariaDescription: strongest
+				? `The strongest correlation is between ${fieldLabel(strongest.row)} and ${fieldLabel(strongest.col)}, r = ${strongest.r.toFixed(2)}.`
+				: 'No correlations could be computed.',
+			x: { domain: cols, axis: 'top', tickSize: 0, tickRotate: -40, tickFormat: shortLabel, label: null },
+			y: { domain: cols, tickSize: 0, tickFormat: shortLabel, label: null },
+			color: { type: 'threshold', domain: THRESHOLDS, range: t.div, unknown: t.noValue, legend: true, label: "Pearson's r" },
+			marks: [
+				Plot.cell(cells, { x: 'col', y: 'row', fill: (c: Cell) => (Number.isNaN(c.r) ? null : c.r), stroke: t.edge, strokeWidth: 1, inset: 0.5 }),
+				// Coefficients in each step's ink (§3); undefined ones on the no-value fill
+				Plot.text(cells, {
+					x: 'col',
+					y: 'row',
+					text: label,
+					fill: (c: Cell) => (Number.isNaN(c.r) ? t.forest : t.divInk[step(c.r)]),
+					fontWeight: 700
+				}),
+				Plot.tip(
+					cells,
+					Plot.pointer({
+						x: 'col',
+						y: 'row',
+						title: (c: Cell) => `${fullLabel(c.row)}\n${fullLabel(c.col)}\nr = ${rText(c.r)}`,
+						...aidTip(t)
+					})
+				)
+			]
+		});
+	};
+
+	let table = $derived({
+		columns: [{ key: 'row', label: 'Column' }, ...cols.map((c) => ({ key: c, label: shortLabel(c), numeric: true, format: (v: unknown) => rText(v as number) }))],
+		rows: cols.map((row, i) => ({ row: fullLabel(row), ...Object.fromEntries(cols.map((c, j) => [c, matrix[i][j]])) }))
+	});
 </script>
 
-<div class="space-y-2">
-	<div class="flex items-center gap-2 px-1">
-		<button
-			onclick={() => (showColPicker = !showColPicker)}
-			class="text-xs text-primary hover:underline"
-		>
-			{showColPicker ? 'Hide' : 'Edit'} columns ({cols.length} selected)
-		</button>
-		{#if cols.length > 15}
-			<span class="text-xs text-amber-600">Select ≤ 15 columns for readability</span>
+{#snippet picker()}
+	<div class="space-y-2">
+		<div class="flex items-center gap-2">
+			<Button variant="link" size="xs" class="px-0" onclick={() => (showColPicker = !showColPicker)} aria-expanded={showColPicker}>
+				{showColPicker ? 'Hide' : 'Edit'} columns ({cols.length} selected)
+			</Button>
+			{#if cols.length > 15}
+				<span class="text-xs text-warning-text">Select 15 or fewer columns for readability</span>
+			{/if}
+		</div>
+		{#if showColPicker}
+			<div class="max-h-48 space-y-1 overflow-y-auto rounded-md bg-muted p-2">
+				{#each Object.entries(data.col_groups) as [group, groupCols] (group)}
+					<p class="mt-1 text-xs font-bold text-muted-foreground">{group}</p>
+					{#each groupCols as col (col)}
+						<label class="flex cursor-pointer items-center gap-2 text-sm" title={fullLabel(col)}>
+							<Checkbox checked={card.columns.includes(col)} onCheckedChange={(checked) => toggleCol(col, checked)} />
+							{fieldLabel(col)}
+							{#if data.col_temporal[col]}<span class="text-muted-foreground">· {data.col_temporal[col]}</span>{/if}
+						</label>
+					{/each}
+				{/each}
+			</div>
 		{/if}
 	</div>
-	{#if showColPicker}
-		<div class="max-h-48 overflow-y-auto rounded border bg-muted/20 p-2 space-y-1">
-			{#each Object.entries(data.col_groups) as [group, groupCols]}
-				<p class="text-[10px] font-semibold uppercase text-muted-foreground/70 mt-1">{group}</p>
-				{#each groupCols as col}
-					<label class="flex items-center gap-1.5 text-xs cursor-pointer" title={fullLabel(col)}>
-						<input
-							type="checkbox"
-							checked={card.columns.includes(col)}
-							onchange={(e) => toggleCol(col, (e.target as HTMLInputElement).checked)}
-						/>
-						{fieldLabel(col)}
-						{#if data.col_temporal[col]}<span class="text-muted-foreground">·
-							{data.col_temporal[col]}</span>{/if}
-					</label>
-				{/each}
-			{/each}
-		</div>
-	{/if}
-	{#if N < 2}
-		<p class="text-center text-sm text-muted-foreground py-6">Select at least 2 columns.</p>
-	{:else}
-		<svg bind:this={svgEl} viewBox="0 0 {svgSize} {svgSize}" class="w-full" style="aspect-ratio: 1">
-			<rect width={svgSize} height={svgSize} fill="white" />
-			{#each cols as col, j}
-				<text
-					x={LEFT_PAD + j * CELL + CELL / 2}
-					y={TOP_PAD - 4}
-					text-anchor="start"
-					font-size="9"
-					fill="#64748b"
-					transform="rotate(-45, {LEFT_PAD + j * CELL + CELL / 2}, {TOP_PAD - 4})"
-				>{axisLabel(col)}<title>{fullLabel(col)}</title></text>
-			{/each}
-			{#each cols as col, i}
-				<text x={LEFT_PAD - 4} y={TOP_PAD + i * CELL + CELL / 2 + 4} text-anchor="end" font-size="9" fill="#64748b"
-				>{axisLabel(col)}<title>{fullLabel(col)}</title></text>
-			{/each}
-			{#each matrix as row, i}
-				{#each row as r, j}
-					<rect
-						x={LEFT_PAD + j * CELL}
-						y={TOP_PAD + i * CELL}
-						width={CELL}
-						height={CELL}
-						fill={rToColor(r)}
-					/>
-					<text
-						x={LEFT_PAD + j * CELL + CELL / 2}
-						y={TOP_PAD + i * CELL + CELL / 2 + 4}
-						text-anchor="middle"
-						font-size="8"
-						fill={Math.abs(r) > 0.5 ? 'white' : '#475569'}
-					>
-						{r.toFixed(2)}
-					</text>
-				{/each}
-			{/each}
-		</svg>
-	{/if}
-</div>
+{/snippet}
+
+{#if cols.length < 2}
+	{@render picker()}
+	<p class="py-6 text-center text-sm text-muted-foreground">Select at least 2 columns.</p>
+{:else}
+	<PlotFigure
+		title="Correlation matrix"
+		subtitle="Pearson's r between columns, over features with values in both"
+		controls={picker}
+		{draw}
+		{table}
+		bind:handle
+	/>
+{/if}

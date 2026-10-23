@@ -13,9 +13,16 @@ export interface Tokens {
 	ring: string;
 	forest: string;
 	edge: string;
+	/** Chart gridlines (faint on purpose) and axes/baselines/tooltip borders */
+	grid: string;
+	axis: string;
 	series: string[];
+	/** Label ink for text drawn inside a filled mark of the matching series or ramp step */
+	ink: string[];
 	seq: string[];
+	seqInk: string[];
 	div: string[];
+	divInk: string[];
 	noValue: string;
 	fontUi: string;
 	fontBody: string;
@@ -34,9 +41,14 @@ export function readTokens(el: Element = document.documentElement): Tokens {
 		ring: v('--ring'),
 		forest: v('--forest'),
 		edge: v('--chart-edge'),
+		grid: v('--chart-grid'),
+		axis: v('--chart-axis'),
 		series: [1, 2, 3, 4].map((i) => v(`--chart-${i}`)),
+		ink: [1, 2, 3, 4].map((i) => v(`--chart-${i}-ink`)),
 		seq: [1, 2, 3, 4, 5].map((i) => v(`--seq-${i}`)),
+		seqInk: [1, 2, 3, 4, 5].map((i) => v(`--seq-${i}-ink`)),
 		div: [1, 2, 3, 4, 5].map((i) => v(`--div-${i}`)),
+		divInk: [1, 2, 3, 4, 5].map((i) => v(`--div-${i}-ink`)),
 		noValue: v('--no-value'),
 		fontUi: v('--font-ui'),
 		fontBody: v('--font-body'),

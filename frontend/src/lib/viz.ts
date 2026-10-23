@@ -98,6 +98,26 @@ export function escapeHtml(s: string): string {
 	));
 }
 
+/**
+ * A feature value as a number, or null when it's missing. `Number(null)` and `Number('')`
+ * are 0, so a plain `isNaN(Number(v))` check would count missing values as zeros.
+ */
+export function numericValue(v: unknown): number | null {
+	if (v === null || v === undefined || v === '' || typeof v === 'boolean') return null;
+	const n = Number(v);
+	return Number.isFinite(n) ? n : null;
+}
+
+/** The non-missing numeric values of one column across all features. */
+export function columnValues(data: VizPayload, col: string): number[] {
+	const out: number[] = [];
+	for (const f of Object.values(data.features)) {
+		const v = numericValue(f[col]);
+		if (v !== null) out.push(v);
+	}
+	return out;
+}
+
 export function computeStats(values: number[]): { min: number; max: number; mean: number; n: number } {
 	const min = values.reduce((a, b) => (b < a ? b : a), values[0]);
 	const max = values.reduce((a, b) => (b > a ? b : a), values[0]);
@@ -111,9 +131,10 @@ export interface TemporalSeriesEntry {
 	col: string;
 	temporal: string;
 	values: number[];
-	mean: number;
-	min: number;
-	max: number;
+	/** null when no feature has a value for this period */
+	mean: number | null;
+	min: number | null;
+	max: number | null;
 }
 
 // col_groups is keyed by resource name (one per year, e.g. "esa_land_cover_2000").
@@ -158,14 +179,10 @@ export function getTemporalSeries(data: VizPayload, datasetKey: string, fieldTra
 		: allCols;
 	return cols
 		.map(col => {
-			const vals: number[] = [];
-			for (const f of Object.values(data.features)) {
-				const v = Number(f[col]);
-				if (!isNaN(v)) vals.push(v);
-			}
-			const mean = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-			const min = vals.length ? vals.reduce((a, b) => Math.min(a, b), vals[0]) : 0;
-			const max = vals.length ? vals.reduce((a, b) => Math.max(a, b), vals[0]) : 0;
+			const vals = columnValues(data, col);
+			const mean = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+			const min = vals.length ? vals.reduce((a, b) => Math.min(a, b), vals[0]) : null;
+			const max = vals.length ? vals.reduce((a, b) => Math.max(a, b), vals[0]) : null;
 			return { col, temporal: data.col_temporal[col], values: vals, mean, min, max };
 		})
 		.sort((a, b) => a.temporal.localeCompare(b.temporal));
@@ -175,9 +192,10 @@ export function detectBinary(values: number[]): boolean {
 	return values.length > 0 && values.every(v => v === 0 || v === 1);
 }
 
+/** Pearson's r for paired values; NaN when it's undefined (fewer than two pairs, or no variance). */
 export function pearsonCorrelation(xs: number[], ys: number[]): number {
 	const n = Math.min(xs.length, ys.length);
-	if (n < 2) return 0;
+	if (n < 2) return NaN;
 	const mx = xs.slice(0, n).reduce((a, b) => a + b, 0) / n;
 	const my = ys.slice(0, n).reduce((a, b) => a + b, 0) / n;
 	let num = 0, dx2 = 0, dy2 = 0;
@@ -185,12 +203,22 @@ export function pearsonCorrelation(xs: number[], ys: number[]): number {
 		const dx = xs[i] - mx, dy = ys[i] - my;
 		num += dx * dy; dx2 += dx * dx; dy2 += dy * dy;
 	}
-	return dx2 > 0 && dy2 > 0 ? num / Math.sqrt(dx2 * dy2) : 0;
+	return dx2 > 0 && dy2 > 0 ? num / Math.sqrt(dx2 * dy2) : NaN;
 }
 
+/**
+ * Correlation matrix over pairwise-complete features: each (i, j) cell uses only the
+ * features that have a value in both columns, so pairs always come from the same feature.
+ */
 export function pearsonMatrix(data: VizPayload, cols: string[]): number[][] {
-	const series = cols.map(col =>
-		Object.values(data.features).map(f => Number(f[col])).filter(n => !isNaN(n))
-	);
-	return cols.map((_, i) => cols.map((_, j) => pearsonCorrelation(series[i], series[j])));
+	const features = Object.values(data.features);
+	const values = cols.map(col => features.map(f => numericValue(f[col])));
+	return cols.map((_, i) => cols.map((_, j) => {
+		const xs: number[] = [], ys: number[] = [];
+		for (let k = 0; k < features.length; k++) {
+			const x = values[i][k], y = values[j][k];
+			if (x !== null && y !== null) { xs.push(x); ys.push(y); }
+		}
+		return pearsonCorrelation(xs, ys);
+	}));
 }
