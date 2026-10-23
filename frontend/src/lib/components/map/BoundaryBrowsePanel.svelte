@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { type BoundaryResult, type BoundaryPreset } from '$lib/api';
 	import { Button } from '$lib/components/ui/button';
+	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { ChevronDown, Plus } from '@lucide/svelte';
 	import * as Collapsible from '$lib/components/ui/collapsible';
 	import { Separator } from '$lib/components/ui/separator';
@@ -177,17 +178,19 @@
 				{#each [...groupedBoundaries.entries()] as [groupName, boundaries] (groupName)}
 					<Collapsible.Root>
 						<div class="flex items-center gap-2">
-							<Collapsible.Trigger class="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-								<ChevronDown class="h-3 w-3" />
+							<Collapsible.Trigger>
+								{#snippet child({ props })}
+									<Button {...props} variant="ghost" size="icon-sm" class="size-6 text-muted-foreground" aria-label="Show boundaries in {groupName}">
+										<ChevronDown class="size-3.5" />
+									</Button>
+								{/snippet}
 							</Collapsible.Trigger>
-							<label class="flex-1 flex items-center gap-2 cursor-pointer text-xs font-medium hover:text-foreground">
-								<input
-									type="checkbox"
-									class="rounded h-3.5 w-3.5 cursor-pointer"
+							<label class="flex-1 flex items-center gap-2 cursor-pointer text-xs font-bold hover:text-foreground">
+								<Checkbox
 									checked={boundaries.every((b) => selectedIds.has(b.id))}
 									indeterminate={boundaries.some((b) => selectedIds.has(b.id)) &&
 										!boundaries.every((b) => selectedIds.has(b.id))}
-									onchange={() => toggleGroup(boundaries.map((b) => b.id))}
+									onCheckedChange={() => toggleGroup(boundaries.map((b) => b.id))}
 								/>
 								<span class="truncate">
 									{typeof groupName === 'number' ? `Level ${groupName}` : groupName}
@@ -201,11 +204,9 @@
 									class="flex items-center gap-2 text-xs cursor-pointer hover:text-foreground"
 									title={attributionTitle(boundary)}
 								>
-									<input
-										type="checkbox"
-										class="rounded h-3.5 w-3.5 cursor-pointer"
+									<Checkbox
 										checked={selectedIds.has(boundary.id)}
-										onchange={() => toggleBoundary(boundary.id)}
+										onCheckedChange={() => toggleBoundary(boundary.id)}
 									/>
 									<span class="truncate flex-1">{boundary.title || boundary.name}</span>
 								</label>

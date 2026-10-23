@@ -272,7 +272,7 @@
 	<!-- Top bar with back navigation and selection info -->
 	<div class="flex items-center gap-3 border-b bg-muted/30 px-4 py-2">
 		<Button variant="ghost" size="sm" onclick={() => goto('/')}>
-			<ChevronLeft class="mr-1 h-4 w-4" />
+			<ChevronLeft />
 			Back to Map
 		</Button>
 		<span class="text-sm text-muted-foreground">|</span>
@@ -284,18 +284,18 @@
 			<div class="ml-auto">
 				<Button size="sm" href="/review">
 					Review Request ({$cartCount})
-					<ArrowRight class="ml-1 h-4 w-4" />
+					<ArrowRight />
 				</Button>
 			</div>
 		{/if}
 	</div>
 
 	{#if isCustomMode}
-		<div class="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
-			<TriangleAlert class="h-3.5 w-3.5 shrink-0 text-amber-600" />
+		<div class="flex items-center gap-2 bg-warning-bg px-4 py-2 text-sm text-foreground" role="note">
+			<TriangleAlert class="size-4 shrink-0 text-warning-text" aria-hidden="true" />
 			<span>
 				<strong>Custom boundary:</strong> Precise coverage cannot be verified. All datasets are shown.
-				Datasets flagged <span class="font-medium">out of range</span> likely have no data for your area.
+				Datasets flagged <span class="font-bold">out of range</span> likely have no data for your area.
 			</span>
 		</div>
 	{/if}
@@ -309,7 +309,7 @@
 		<!-- Error state -->
 		<div class="flex flex-1 items-center justify-center">
 			<div class="max-w-md text-center">
-				<p class="text-lg font-medium text-destructive">Failed to load datasets</p>
+				<p class="text-lg font-bold text-destructive">Failed to load datasets</p>
 				<p class="mt-2 text-sm text-muted-foreground">{loadError}</p>
 			</div>
 		</div>
@@ -344,7 +344,7 @@
 				{:else if selectedDatasetDetail}
 					<!-- Dataset title bar -->
 					<div class="border-b bg-muted/30 px-4 py-3">
-						<h2 class="font-semibold">
+						<h2 class="">
 							{selectedDatasetDetail.title ?? selectedDatasetDetail.name}
 						</h2>
 						{#if selectedDatasetDetail.description}

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { goto } from "$app/navigation";
     import { Badge } from "$lib/components/ui/badge";
+    import * as Alert from "$lib/components/ui/alert";
     import { Button } from "$lib/components/ui/button";
     import { Input } from "$lib/components/ui/input";
     import { Separator } from "$lib/components/ui/separator";
@@ -16,7 +17,7 @@
         type ProviderAccount,
         loginWithGitHub
     } from "$lib/allauth";
-    import { ArrowLeft, History, LogIn, Mail, Plus } from "@lucide/svelte";
+    import { ArrowLeft, CircleAlert, CircleCheck, Clock, History, LogIn, Mail, Plus } from "@lucide/svelte";
     import { page } from "$app/state";
     import { DEFAULT_NEXT, navigateNext, readNext } from "$lib/utils/nextDestination";
 
@@ -85,27 +86,27 @@
 <div class="container mx-auto max-w-2xl px-4 py-8">
     <div class="mb-6">
         <Button variant="ghost" onclick={() => goto("/")}>
-            <ArrowLeft class="mr-1 h-4 w-4" />
+            <ArrowLeft />
             Back to Map
         </Button>
     </div>
 
     {#if $auth.status === "loading"}
-        <div class="rounded-lg border bg-card p-6 shadow-sm">
+        <div class="card-surface p-6">
             <p class="text-center text-muted-foreground">Loading…</p>
         </div>
     {:else if $auth.status === "anonymous"}
-        <div class="rounded-lg border bg-card p-6 shadow-sm text-center">
-            <h1 class="mb-2 text-2xl font-semibold">Account</h1>
+        <div class="card-surface p-6 text-center">
+            <h1 class="mb-2 text-h2">Account</h1>
             <p class="mb-6 text-muted-foreground">Sign in to manage your account and past requests.</p>
             <Button onclick={() => loginWithGitHub(nextDestination)}>
-                <LogIn class="mr-1 h-4 w-4" />
+                <LogIn />
                 Sign in with GitHub
             </Button>
         </div>
     {:else}
-        <div class="rounded-lg border bg-card p-6 shadow-sm">
-            <h1 class="mb-6 text-2xl font-semibold">Account</h1>
+        <div class="card-surface p-6">
+            <h1 class="mb-6 text-h2">Account</h1>
 
             {#if providers.length > 0}
                 <div class="mb-6 flex flex-wrap items-center gap-2">
@@ -119,7 +120,7 @@
 
             <Separator class="mb-6" />
 
-            <h2 class="mb-1 text-lg font-semibold">Email addresses</h2>
+            <h2 class="mb-1 text-h4">Email addresses</h2>
             <p class="mb-4 text-sm text-muted-foreground">
                 Used GeoQuery before? Add and verify an email address you submitted requests
                 with, and those requests will be linked to your account automatically.
@@ -133,14 +134,14 @@
                         <div class="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
                             <div class="flex min-w-0 items-center gap-2">
                                 <Mail class="h-4 w-4 shrink-0 text-muted-foreground" />
-                                <span class="truncate text-sm font-medium">{item.email}</span>
+                                <span class="truncate text-sm font-bold">{item.email}</span>
                                 {#if item.primary}
                                     <Badge>primary</Badge>
                                 {/if}
                                 {#if item.verified}
-                                    <Badge variant="secondary" class="bg-green-100 text-green-800">verified</Badge>
+                                    <Badge variant="success"><CircleCheck aria-hidden="true" />verified</Badge>
                                 {:else}
-                                    <Badge variant="secondary" class="bg-yellow-100 text-yellow-800">unverified</Badge>
+                                    <Badge variant="warning"><Clock aria-hidden="true" />unverified</Badge>
                                 {/if}
                             </div>
                             <div class="flex shrink-0 gap-1">
@@ -191,31 +192,38 @@
                         type="email"
                         bind:value={newEmail}
                         placeholder="another@email.com"
+                        aria-label="Email address to add"
                         class="flex-1"
                     />
                     <Button type="submit" disabled={!isValidEmail || busy}>
-                        <Plus class="mr-1 h-4 w-4" />
+                        <Plus />
                         Add email
                     </Button>
                 </form>
 
                 {#if notice}
-                    <p class="mt-4 text-sm text-green-700">{notice}</p>
+                    <Alert.Root variant="success" role="status" class="mt-4">
+                        <CircleCheck />
+                        <Alert.Description>{notice}</Alert.Description>
+                    </Alert.Root>
                 {/if}
                 {#if error}
-                    <p class="mt-4 text-sm text-destructive">{error}</p>
+                    <Alert.Root variant="destructive" class="mt-4">
+                        <CircleAlert />
+                        <Alert.Description>{error}</Alert.Description>
+                    </Alert.Root>
                 {/if}
             {/if}
         </div>
 
         <a
             href="/requests"
-            class="mt-4 flex items-center gap-3 rounded-lg border bg-card px-5 py-3 shadow-sm transition-colors hover:bg-muted/50"
+            class="card-surface mt-4 flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted/50"
         >
             <History class="h-5 w-5 shrink-0 text-muted-foreground" />
             <div class="flex-1">
-                <p class="text-sm font-medium">My Requests</p>
-                <p class="text-xs text-muted-foreground">View requests linked to your account</p>
+                <p class="text-sm font-bold">My Requests</p>
+                <p class="text-sm text-muted-foreground">View requests linked to your account</p>
             </div>
             <ArrowLeft class="h-4 w-4 rotate-180 text-muted-foreground" />
         </a>

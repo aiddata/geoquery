@@ -1,5 +1,5 @@
 import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
 
 /** Convert a kwargs dict (filter_and_agg style) to a human-readable string.
  *  Range: "year: 2000–2020"   Categorical: "flow_class: ODA, OOF"
@@ -18,6 +18,17 @@ export function formatKwargs(kwargs: Record<string, unknown>): string {
 		})
 		.join('; ');
 }
+
+// Teach tailwind-merge the design system's named sizes and shadow (layout.css @theme),
+// so `text-h3` merges as a font size rather than replacing `text-foreground`.
+const twMerge = extendTailwindMerge({
+	extend: {
+		theme: {
+			text: ["h1", "h2", "h3", "h4", "field", "standfirst"],
+			shadow: ["card"],
+		},
+	},
+});
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));

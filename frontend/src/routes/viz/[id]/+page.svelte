@@ -1,14 +1,23 @@
 <script lang="ts">
 	import { onMount, onDestroy, tick } from 'svelte';
+	import { get } from 'svelte/store';
 	import { page } from '$app/state';
 	import maplibregl from 'maplibre-gl';
 	import 'maplibre-gl/dist/maplibre-gl.css';
-	import { layers, namedFlavor } from '@protomaps/basemaps';
 	import { fetchVisualizationData, fetchConfig, boundaryTileUrl, type VisualizationData } from '$lib/api';
 	import {
-		PALETTES, quantileBreaks, equalBreaks, buildColorExpression,
+		PALETTES, DEFAULT_PALETTE, NO_VALUE_COLOR, quantileBreaks, equalBreaks, buildColorExpression,
 		fmt, prettyColumn, escapeHtml, computeStats,
 	} from '$lib/viz';
+	import { basemapStyle, followTheme } from '$lib/map/basemap';
+	import { addChoroplethLayers, refreshChoroplethTheme, fcFillId, fcLineId } from '$lib/map/choropleth';
+	import { exportMapImage as drawMapExport } from '$lib/map/exportMapImage';
+	import { resolvedTheme } from '$lib/stores/theme';
+	import { Button } from '$lib/components/ui/button';
+	import { Checkbox } from '$lib/components/ui/checkbox';
+	import { Input } from '$lib/components/ui/input';
+	import * as Select from '$lib/components/ui/select';
+	import MapLegend from '$lib/components/viz/MapLegend.svelte';
 	import { parseFormula, evaluateFormula, formulaColumns } from '$lib/formula';
 	import { GripVertical, AlertCircle, Plus, X, Download, ChartColumn, Map as MapIcon } from '@lucide/svelte';
 	import ChartPanel from '$lib/components/viz/ChartPanel.svelte';
@@ -28,13 +37,20 @@
 	let checkedColumns = $state<Set<string>>(new Set());
 	let activeColumn = $state<string | null>(null);
 
-	let currentPalette = $state<string>('YlOrRd');
+	let currentPalette = $state<string>(DEFAULT_PALETTE);
 	let currentMethod = $state<'quantile' | 'equal' | 'jenks'>('quantile');
 	let currentBreaks = $state<number[] | null>(null);
 	let hiddenFCs = $state<Set<string>>(new Set());
 	let fcOrder = $state<string[]>([]);
 	let stats = $state<{ min: number; max: number; mean: number; n: number } | null>(null);
 	let popup: maplibregl.Popup | null = null;
+	let stopTheme: (() => void) | undefined;
+
+	const METHOD_LABELS = {
+		quantile: 'Quantile',
+		equal: 'Equal interval',
+		jenks: 'Natural Breaks (Jenks)'
+	} as const;
 
 	let activeTab = $state<'map' | 'charts'>('map');
 
@@ -97,6 +113,18 @@
 		next.delete(key);
 		checkedColumns = next;
 		if (activeColumn === key) activeColumn = [...checkedColumns][0] ?? null;
+	}
+
+	function setColumnChecked(key: string, checked: boolean) {
+		const next = new Set(checkedColumns);
+		if (checked) {
+			next.add(key);
+			activeColumn = key;
+		} else {
+			next.delete(key);
+			if (activeColumn === key) activeColumn = [...next][0] ?? null;
+		}
+		checkedColumns = next;
 	}
 
 	function insertColumn(col: string) {
@@ -164,20 +192,7 @@
 		map = new maplibregl.Map({
 			container: mapContainer,
 			preserveDrawingBuffer: true,
-			style: {
-				version: 8,
-				glyphs: 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf',
-				sprite: 'https://protomaps.github.io/basemaps-assets/sprites/v4/light',
-				sources: {
-					protomaps: {
-						type: 'vector',
-						tiles: [`https://api.protomaps.com/tiles/v4/{z}/{x}/{y}.mvt?key=${config.protomaps_api_key}`],
-						maxzoom: 15,
-						attribution: '<a href="https://protomaps.com">Protomaps</a> &copy; <a href="https://openstreetmap.org">OpenStreetMap</a>'
-					}
-				},
-				layers: layers('protomaps', namedFlavor('light'), { lang: 'en' })
-			},
+			style: basemapStyle(get(resolvedTheme), config.protomaps_api_key),
 			center: [0, 20],
 			zoom: 2
 		});
@@ -189,30 +204,16 @@
 			mapReady = true;
 			void applyColors();
 		});
+
+		stopTheme = followTheme(map, config.protomaps_api_key, () => {
+			if (map && data) refreshChoroplethTheme(map, data.fc_names);
+		});
 	}
 
 	function addFeatureLayers() {
 		if (!map || !data) return;
 		for (const fc of data.fc_names) {
-			map.addSource(`fc-${fc}`, {
-				type: 'vector',
-				tiles: [boundaryTileUrl(fc)],
-				minzoom: 0, maxzoom: 12,
-				promoteId: { [fc]: 'id' }
-			});
-			map.addLayer({
-				id: `fc-fill-${fc}`, type: 'fill',
-				source: `fc-${fc}`, 'source-layer': fc,
-				paint: {
-					'fill-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#fff', '#cbd5e1'],
-					'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.9, 0.75]
-				}
-			});
-			map.addLayer({
-				id: `fc-line-${fc}`, type: 'line',
-				source: `fc-${fc}`, 'source-layer': fc,
-				paint: { 'line-color': '#334155', 'line-width': 0.75 }
-			});
+			addChoroplethLayers(map, fc, boundaryTileUrl(fc));
 		}
 	}
 
@@ -239,7 +240,7 @@
 		if (values.length === 0) {
 			stats = null; currentBreaks = null;
 			for (const fc of data.fc_names) {
-				map.setPaintProperty(`fc-fill-${fc}`, 'fill-color', '#cbd5e1');
+				map.setPaintProperty(fcFillId(fc), 'fill-color', NO_VALUE_COLOR);
 			}
 			return;
 		}
@@ -252,9 +253,7 @@
 		const palette = PALETTES[currentPalette].colors;
 		for (const fc of data.fc_names) {
 			const expr = buildColorExpression(fc, activeColumn, breaks, palette, data.features, overrides);
-			map.setPaintProperty(`fc-fill-${fc}`, 'fill-color', [
-				'case', ['boolean', ['feature-state', 'hover'], false], '#fff', expr
-			]);
+			map.setPaintProperty(fcFillId(fc), 'fill-color', expr as maplibregl.ExpressionSpecification);
 		}
 		currentBreaks = breaks;
 		stats = computeStats(values);
@@ -280,8 +279,8 @@
 		if (visible) next.delete(fc); else next.add(fc);
 		hiddenFCs = next;
 		const vis = visible ? 'visible' : 'none';
-		map.setLayoutProperty(`fc-fill-${fc}`, 'visibility', vis);
-		map.setLayoutProperty(`fc-line-${fc}`, 'visibility', vis);
+		map.setLayoutProperty(fcFillId(fc), 'visibility', vis);
+		map.setLayoutProperty(fcLineId(fc), 'visibility', vis);
 	}
 
 	$effect(() => {
@@ -289,8 +288,8 @@
 		const m = map; const order = fcOrder;
 		for (let i = order.length - 1; i >= 0; i--) {
 			const fc = order[i];
-			if (m.getLayer(`fc-fill-${fc}`)) m.moveLayer(`fc-fill-${fc}`);
-			if (m.getLayer(`fc-line-${fc}`)) m.moveLayer(`fc-line-${fc}`);
+			if (m.getLayer(fcFillId(fc))) m.moveLayer(fcFillId(fc));
+			if (m.getLayer(fcLineId(fc))) m.moveLayer(fcLineId(fc));
 		}
 	});
 
@@ -304,7 +303,7 @@
 			if (cancelled || !fcListEl) return;
 			sortable?.destroy();
 			sortable = Sortable.create(fcListEl, {
-				animation: 150, filter: 'input[type="checkbox"]', preventOnFilter: false,
+				animation: 150, filter: '[data-slot="checkbox"]', preventOnFilter: false,
 				ghostClass: 'fc-row-ghost', chosenClass: 'fc-row-chosen',
 				onEnd: () => {
 					if (!fcListEl) return;
@@ -368,145 +367,22 @@
 		return lines.join('');
 	}
 
-	onDestroy(() => { map?.remove(); map = null; popup?.remove(); popup = null; sortable?.destroy(); });
+	onDestroy(() => { stopTheme?.(); map?.remove(); map = null; popup?.remove(); popup = null; sortable?.destroy(); });
 
 	function exportMapImage() {
 		if (!map || !data) return;
 		const col = (activeColumn ?? 'map').replace(/^~/, '');
 		const date = new Date().toISOString().slice(0, 10);
-
-		map.once('render', () => {
-			const mapCanvas = map!.getCanvas();
-			const dpr = window.devicePixelRatio || 1;
-			const cssW = mapCanvas.width / dpr;
-			const cssH = mapCanvas.height / dpr;
-
-			const out = document.createElement('canvas');
-			out.width = mapCanvas.width;
-			out.height = mapCanvas.height;
-			const ctx = out.getContext('2d')!;
-			ctx.scale(dpr, dpr);
-
-			// Map
-			ctx.drawImage(mapCanvas, 0, 0, cssW, cssH);
-
-			// ── Legend panel ───────────────────────────────────────────────
-			const pad = 12;
-			const swatchSz = 12;
-			const rowH = 18;
-			const panelW = 220;
-			const palette = PALETTES[currentPalette].colors;
-			const legendRows = currentBreaks ? palette.length + 1 : 0; // +1 no-data
-
-			// Measure panel height
-			let panelH = pad * 2
-				+ 15 + 4   // title
-				+ (activeColumn ? 14 + 6 : 0) // column label
-				+ 12 + 2   // "LEGEND" header
-				+ legendRows * rowH
-				+ (stats ? 10 + 12 + 6 : 0); // stats header + values
-
-			const panelX = pad;
-			const panelY = cssH - panelH - pad;
-
-			// Panel bg
-			ctx.save();
-			ctx.globalAlpha = 0.93;
-			ctx.fillStyle = '#ffffff';
-			ctx.beginPath();
-			(ctx as CanvasRenderingContext2D & { roundRect: (...a: unknown[]) => void })
-				.roundRect(panelX, panelY, panelW, panelH, 6);
-			ctx.fill();
-			ctx.restore();
-
-			let y = panelY + pad;
-
-			// Title
-			ctx.fillStyle = '#0f172a';
-			ctx.font = `bold 13px Roboto, system-ui, sans-serif`;
-			ctx.fillText(
-				data!.selection_label || data!.request_name || '',
-				panelX + pad, y + 12, panelW - pad * 2
-			);
-			y += 15 + 4;
-
-			// Column label
-			if (activeColumn) {
-				const label = activeColumn.startsWith('~') ? activeColumn.slice(1) : prettyColumn(activeColumn);
-				ctx.fillStyle = '#64748b';
-				ctx.font = `11px Roboto, system-ui, sans-serif`;
-				ctx.fillText(label, panelX + pad, y + 11, panelW - pad * 2);
-				y += 14 + 6;
-			}
-
-			// "LEGEND" header
-			ctx.fillStyle = '#94a3b8';
-			ctx.font = `600 9px Roboto, system-ui, sans-serif`;
-			ctx.fillText('LEGEND', panelX + pad, y + 9);
-			y += 12 + 2;
-
-			// Swatches
-			if (currentBreaks) {
-				ctx.font = `11px Roboto, system-ui, sans-serif`;
-				for (let i = 0; i < palette.length; i++) {
-					ctx.fillStyle = palette[i];
-					ctx.beginPath();
-					(ctx as CanvasRenderingContext2D & { roundRect: (...a: unknown[]) => void })
-						.roundRect(panelX + pad, y + (rowH - swatchSz) / 2, swatchSz, swatchSz, 2);
-					ctx.fill();
-					ctx.strokeStyle = 'rgba(0,0,0,0.08)';
-					ctx.lineWidth = 0.5;
-					ctx.stroke();
-
-					ctx.fillStyle = '#475569';
-					ctx.fillText(
-						`${fmt(currentBreaks[i])} – ${fmt(currentBreaks[i + 1])}`,
-						panelX + pad + swatchSz + 6, y + rowH / 2 + 4,
-						panelW - pad * 2 - swatchSz - 6
-					);
-					y += rowH;
-				}
-
-				// No-data row
-				ctx.save();
-				ctx.globalAlpha = 0.55;
-				ctx.fillStyle = '#cbd5e1';
-				ctx.beginPath();
-				(ctx as CanvasRenderingContext2D & { roundRect: (...a: unknown[]) => void })
-					.roundRect(panelX + pad, y + (rowH - swatchSz) / 2, swatchSz, swatchSz, 2);
-				ctx.fill();
-				ctx.strokeStyle = 'rgba(0,0,0,0.08)';
-				ctx.lineWidth = 0.5;
-				ctx.stroke();
-				ctx.restore();
-				ctx.fillStyle = '#475569';
-				ctx.font = `11px Roboto, system-ui, sans-serif`;
-				ctx.fillText('No data', panelX + pad + swatchSz + 6, y + rowH / 2 + 4);
-				y += rowH;
-			}
-
-			// Stats
-			if (stats) {
-				y += 6;
-				ctx.fillStyle = '#94a3b8';
-				ctx.font = `600 9px Roboto, system-ui, sans-serif`;
-				ctx.fillText('STATISTICS', panelX + pad, y + 9);
-				y += 12;
-				ctx.fillStyle = '#475569';
-				ctx.font = `11px Roboto, system-ui, sans-serif`;
-				ctx.fillText(
-					`Min ${fmt(stats.min)}   Max ${fmt(stats.max)}   Mean ${fmt(stats.mean)}   n=${stats.n}`,
-					panelX + pad, y + 11, panelW - pad * 2
-				);
-			}
-
-			// Download
-			const a = document.createElement('a');
-			a.href = out.toDataURL('image/png');
-			a.download = `geoquery-${requestId.slice(0, 8)}-${col}-${date}.png`;
-			a.click();
+		void drawMapExport(map, {
+			title: data.selection_label || data.request_name || '',
+			columnLabel: activeColumn
+				? activeColumn.startsWith('~') ? activeColumn.slice(1) : prettyColumn(activeColumn)
+				: null,
+			palette: PALETTES[currentPalette].colors,
+			breaks: currentBreaks,
+			stats,
+			filename: `geoquery-${requestId.slice(0, 8)}-${col}-${date}.png`
 		});
-		map.triggerRepaint();
 	}
 
 	function fcFeatureCount(fc: string): number {
@@ -528,19 +404,19 @@
 		</div>
 	{:else if loadError}
 		<div class="flex w-full items-center justify-center gap-2 text-sm text-destructive">
-			<AlertCircle class="h-4 w-4" />{loadError}
+			<AlertCircle class="size-4" aria-hidden="true" />{loadError}
 		</div>
 	{:else if data && data.request_status !== 1}
 		<div class="mx-auto flex max-w-md flex-col items-center justify-center gap-3 px-6 text-center">
-			<AlertCircle class="h-6 w-6 text-amber-500" />
-			<p class="text-base font-semibold">Request not yet complete</p>
+			<AlertCircle class="size-6 text-warning-text" aria-hidden="true" />
+			<p class="text-base font-bold">Request not yet complete</p>
 			<p class="text-sm text-muted-foreground">Check back once it finishes.</p>
-			<a href={`/requests/${requestId}`} class="text-sm text-primary underline hover:no-underline">View request status →</a>
+			<a href={`/requests/${requestId}`} class="text-sm text-link underline hover:text-link-hover">View request status →</a>
 		</div>
 	{:else if data && data.columns.length === 0}
 		<div class="mx-auto flex max-w-md flex-col items-center justify-center gap-3 px-6 text-center">
-			<AlertCircle class="h-6 w-6 text-amber-500" />
-			<p class="text-base font-semibold">No visualization data</p>
+			<AlertCircle class="size-6 text-warning-text" aria-hidden="true" />
+			<p class="text-base font-bold">No visualization data</p>
 			<p class="text-sm text-muted-foreground">This request completed but no extract values were produced.</p>
 		</div>
 	{:else if data}
@@ -549,24 +425,30 @@
 		<!-- Top bar: request label + tab switcher -->
 		<div class="flex items-center justify-between border-b px-4 py-2.5 shrink-0 bg-card gap-4">
 			<div class="min-w-0">
-				<p class="truncate text-sm font-semibold">{data.selection_label || data.request_name}</p>
-				<p class="font-mono text-[10px] text-muted-foreground">Request {data.request_id.slice(0, 8)}…</p>
+				<p class="truncate text-sm font-bold">{data.selection_label || data.request_name}</p>
+				<p class="text-xs text-muted-foreground">Request <span class="font-ui font-bold">{data.request_id.slice(0, 8)}…</span></p>
 			</div>
 			<div class="flex items-center gap-1 shrink-0">
-				<button
+				<Button
+					variant="ghost"
+					size="sm"
 					onclick={() => (activeTab = 'map')}
-					class="flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors {activeTab === 'map' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}"
+					aria-pressed={activeTab === 'map'}
+					class={activeTab === 'map' ? 'bg-muted text-foreground' : 'text-muted-foreground'}
 				>
-					<MapIcon class="h-3.5 w-3.5" />
+					<MapIcon />
 					Map
-				</button>
-				<button
+				</Button>
+				<Button
+					variant="ghost"
+					size="sm"
 					onclick={() => (activeTab = 'charts')}
-					class="flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors {activeTab === 'charts' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}"
+					aria-pressed={activeTab === 'charts'}
+					class={activeTab === 'charts' ? 'bg-muted text-foreground' : 'text-muted-foreground'}
 				>
-					<ChartColumn class="h-3.5 w-3.5" />
+					<ChartColumn />
 					Charts
-				</button>
+				</Button>
 			</div>
 		</div>
 
@@ -578,27 +460,17 @@
 			<!-- Column picker (checkboxes) -->
 			<div class="border-b px-4 py-3">
 				<div class="panel-title">Data Columns</div>
-				<p class="mb-2 text-[10px] text-muted-foreground">Check to include in popup · click name to set map layer</p>
+				<p class="mb-2 text-xs text-muted-foreground">Check to include in popup · click name to set map layer</p>
 				<div class="space-y-2">
 					{#each Object.entries(data.col_groups) as [group, cols]}
 						<div>
-							<p class="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">{group}</p>
+							<p class="mb-1 text-xs font-bold text-muted-foreground/70">{group}</p>
 							{#each cols as col}
-								<label class="col-row {activeColumn === col ? 'col-row-active' : ''}">
-									<input
-										type="checkbox"
+								<div class="col-row {activeColumn === col ? 'col-row-active' : ''}">
+									<Checkbox
 										checked={checkedColumns.has(col)}
-										onchange={(e) => {
-											const next = new Set(checkedColumns);
-											if ((e.target as HTMLInputElement).checked) {
-												next.add(col);
-												activeColumn = col;
-											} else {
-												next.delete(col);
-												if (activeColumn === col) activeColumn = [...next][0] ?? null;
-											}
-											checkedColumns = next;
-										}}
+										onCheckedChange={(checked) => setColumnChecked(col, checked)}
+										aria-label="Include {prettyColumn(col)} in popup"
 									/>
 									<button
 										class="col-name flex-1 text-left"
@@ -608,28 +480,18 @@
 									{#if activeColumn === col}
 										<span class="active-badge">map</span>
 									{/if}
-								</label>
+								</div>
 							{/each}
 						</div>
 					{/each}
 
 					<!-- Custom indices -->
 					{#each customIndices as ci}
-						<label class="col-row {activeColumn === `~${ci.name}` ? 'col-row-active' : ''}">
-							<input
-								type="checkbox"
+						<div class="col-row {activeColumn === `~${ci.name}` ? 'col-row-active' : ''}">
+							<Checkbox
 								checked={checkedColumns.has(`~${ci.name}`)}
-								onchange={(e) => {
-									const key = `~${ci.name}`;
-									const next = new Set(checkedColumns);
-									if ((e.target as HTMLInputElement).checked) {
-										next.add(key); activeColumn = key;
-									} else {
-										next.delete(key);
-										if (activeColumn === key) activeColumn = [...next][0] ?? null;
-									}
-									checkedColumns = next;
-								}}
+								onCheckedChange={(checked) => setColumnChecked(`~${ci.name}`, checked)}
+								aria-label="Include {ci.name} in popup"
 							/>
 							<button
 								class="col-name flex-1 text-left italic"
@@ -639,99 +501,99 @@
 							{#if activeColumn === `~${ci.name}`}
 								<span class="active-badge">map</span>
 							{/if}
-							<button
+							<Button
+								variant="ghost"
+								size="icon-sm"
 								onclick={() => removeCustomIndex(ci.name)}
-								class="ml-1 text-muted-foreground hover:text-destructive"
-								title="Remove index"
-							><X class="h-3 w-3" /></button>
-						</label>
+								class="size-6 text-muted-foreground hover:text-destructive"
+								aria-label="Remove index {ci.name}"
+							><X class="size-3.5" /></Button>
+						</div>
 					{/each}
 				</div>
 
 				<!-- Index builder toggle -->
-				<button
-					class="mt-2 flex items-center gap-1 text-[11px] text-primary hover:underline"
+				<Button
+					variant="link"
+					size="xs"
+					class="mt-1 px-0"
 					onclick={() => { showIndexBuilder = !showIndexBuilder; indexError = ''; }}
 				>
-					<Plus class="h-3 w-3" />
+					<Plus />
 					{showIndexBuilder ? 'Cancel' : 'Add custom index'}
-				</button>
+				</Button>
 
 				{#if showIndexBuilder}
-					<div class="mt-2 space-y-1.5 rounded-md border bg-muted/30 p-2">
-						<input
+					<div class="mt-2 space-y-1.5 rounded-md bg-muted p-2">
+						<Input
 							type="text"
 							placeholder="Index name"
+							aria-label="Index name"
 							bind:value={indexName}
-							class="viz-input"
+							class="min-h-8"
 						/>
 						<textarea
 							placeholder="Formula, e.g. [pop_count] / [land_area]"
+							aria-label="Formula"
 							bind:value={indexFormula}
 							rows="2"
-							class="viz-input resize-none font-mono text-[11px]"
+							class="formula-input"
 						></textarea>
 						<!-- Column insert chips -->
 						<div class="flex flex-wrap gap-1">
 							{#each data.columns as col}
 								{@const meta = [data.col_dataset_titles[col], data.col_temporal[col]].filter(Boolean).join(' · ')}
 								<button
-									class="rounded bg-muted px-1.5 py-0.5 text-left text-muted-foreground hover:bg-accent"
+									class="rounded-sm bg-card px-1.5 py-0.5 text-left text-muted-foreground hover:bg-accent hover:text-accent-foreground"
 									onclick={() => insertColumn(col)}
 								>
-									{#if meta}<span class="block text-[9px] opacity-60">{meta}</span>{/if}
-									<span class="block text-[10px]">{prettyColumn(col)}</span>
+									{#if meta}<span class="block text-xs opacity-60">{meta}</span>{/if}
+									<span class="block text-xs">{prettyColumn(col)}</span>
 								</button>
 							{/each}
 						</div>
 						{#if indexError}
-							<p class="text-[11px] text-destructive">{indexError}</p>
+							<p class="text-xs text-danger-text">{indexError}</p>
 						{/if}
-						<button class="viz-btn-primary" onclick={addCustomIndex}>Add index</button>
+						<Button size="sm" onclick={addCustomIndex}>Add index</Button>
 					</div>
 				{/if}
 			</div>
 
 			<!-- Palette -->
 			<div class="border-b px-4 py-3">
-				<div class="panel-title">Color Palette</div>
-				<select bind:value={currentPalette} class="viz-select">
-					{#each Object.entries(PALETTES) as [key, p]}
-						<option value={key}>{p.label}</option>
-					{/each}
-				</select>
+				<div class="panel-title" id="palette-label">Color Palette</div>
+				<Select.Root type="single" bind:value={currentPalette}>
+					<Select.Trigger size="sm" class="w-full" aria-labelledby="palette-label">
+						{PALETTES[currentPalette].label}
+					</Select.Trigger>
+					<Select.Content>
+						{#each Object.entries(PALETTES) as [key, p] (key)}
+							<Select.Item value={key} label={p.label} />
+						{/each}
+					</Select.Content>
+				</Select.Root>
 			</div>
 
 			<!-- Classification -->
 			<div class="border-b px-4 py-3">
-				<div class="panel-title">Classification</div>
-				<select bind:value={currentMethod} class="viz-select">
-					<option value="quantile">Quantile</option>
-					<option value="equal">Equal interval</option>
-					<option value="jenks">Natural Breaks (Jenks)</option>
-				</select>
+				<div class="panel-title" id="method-label">Classification</div>
+				<Select.Root type="single" value={currentMethod} onValueChange={(v) => (currentMethod = v as typeof currentMethod)}>
+					<Select.Trigger size="sm" class="w-full" aria-labelledby="method-label">
+						{METHOD_LABELS[currentMethod]}
+					</Select.Trigger>
+					<Select.Content>
+						{#each Object.entries(METHOD_LABELS) as [key, label] (key)}
+							<Select.Item value={key} {label} />
+						{/each}
+					</Select.Content>
+				</Select.Root>
 			</div>
 
 			<!-- Legend -->
 			<div class="border-b px-4 py-3">
 				<div class="panel-title">Legend</div>
-				{#if currentBreaks}
-					{@const palette = PALETTES[currentPalette].colors}
-					<div class="space-y-1">
-						{#each palette as color, i}
-							<div class="legend-item">
-								<span class="legend-swatch" style="background: {color}"></span>
-								<span>{fmt(currentBreaks[i])} – {fmt(currentBreaks[i + 1])}</span>
-							</div>
-						{/each}
-						<div class="legend-item legend-nodata">
-							<span class="legend-swatch" style="background: #cbd5e1"></span>
-							<span>No data</span>
-						</div>
-					</div>
-				{:else}
-					<p class="text-[11px] text-muted-foreground">No numeric data for this column.</p>
-				{/if}
+				<MapLegend palette={PALETTES[currentPalette].colors} breaks={currentBreaks} />
 			</div>
 
 			<!-- Stats -->
@@ -751,15 +613,16 @@
 				<div bind:this={fcListEl} class="space-y-0.5">
 					{#each fcOrder as fc (fc)}
 						<div class="fc-row" data-fc={fc}>
-							<span class="fc-grip"><GripVertical class="h-3.5 w-3.5" /></span>
-							<input type="checkbox" checked={!hiddenFCs.has(fc)}
-								onchange={(e) => toggleFC(fc, (e.target as HTMLInputElement).checked)} />
+							<span class="fc-grip" aria-hidden="true"><GripVertical class="size-3.5" /></span>
+							<Checkbox checked={!hiddenFCs.has(fc)}
+								onCheckedChange={(checked) => toggleFC(fc, checked)}
+								aria-label="Show {fc}" />
 							<span class="fc-name" title={fc}>{fc}</span>
 							<span class="fc-count">{fcFeatureCount(fc)}</span>
 						</div>
 					{/each}
 				</div>
-				<p class="mt-2 text-[10px] text-muted-foreground">Drag to reorder — top draws on top.</p>
+				<p class="mt-2 text-xs text-muted-foreground">Drag to reorder — top draws on top.</p>
 			</div>
 		</aside>
 		{/if}
@@ -770,14 +633,16 @@
 					class="h-full w-full {activeTab !== 'map' ? 'invisible pointer-events-none' : ''}"
 				></div>
 				{#if mapReady && activeTab === 'map'}
-					<button
+					<Button
+						variant="outline"
+						size="sm"
 						onclick={exportMapImage}
-						class="absolute right-2 top-2 z-10 flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm hover:bg-white transition-colors"
+						class="absolute right-2 top-2 z-10 bg-card shadow-card"
 						title="Save map as PNG"
 					>
-						<Download class="h-3.5 w-3.5" />
+						<Download />
 						Save image
-					</button>
+					</Button>
 				{/if}
 				{#if activeTab === 'charts'}
 					<div class="absolute inset-0 bg-background z-10">
@@ -792,60 +657,39 @@
 
 <style>
 	.panel-title {
-		font-size: 10px; font-weight: 600; text-transform: uppercase;
-		letter-spacing: 0.07em; color: #94a3b8; margin-bottom: 6px;
+		font-family: var(--font-heading); font-size: var(--text-sm); font-weight: 700;
+		color: var(--foreground); margin-bottom: 6px;
 	}
-	.viz-select {
-		width: 100%; padding: 5px 8px; border: 1px solid #e2e8f0;
-		border-radius: 6px; font-size: 12px; background: #fff; color: #1e293b; cursor: pointer;
+	.formula-input {
+		width: 100%; min-height: 4rem; resize: none; padding: 6px 10px;
+		border: 1px solid var(--input); border-radius: var(--radius);
+		background: var(--background); color: var(--foreground);
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: var(--text-field);
 	}
-	.viz-select:focus { outline: 2px solid #3b82f6; outline-offset: -1px; }
-	.viz-input {
-		width: 100%; padding: 4px 7px; border: 1px solid #e2e8f0;
-		border-radius: 5px; font-size: 12px; background: #fff; color: #1e293b;
-	}
-	.viz-input:focus { outline: 2px solid #3b82f6; outline-offset: -1px; }
-	.viz-btn-primary {
-		padding: 4px 10px; background: #3b82f6; color: #fff;
-		border-radius: 5px; font-size: 12px; font-weight: 500;
-	}
-	.viz-btn-primary:hover { background: #2563eb; }
 
 	.col-row {
-		display: flex; align-items: center; gap: 5px;
-		padding: 2px 4px; border-radius: 4px; font-size: 12px; cursor: pointer;
+		display: flex; align-items: center; gap: 6px;
+		padding: 2px 4px; border-radius: 4px; font-size: var(--text-sm);
 	}
-	.col-row:hover { background: #f8fafc; }
-	.col-row-active { background: #eff6ff; }
-	.col-row input[type="checkbox"] { flex-shrink: 0; accent-color: #3b82f6; cursor: pointer; }
-	.col-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1e293b; background: none; border: none; padding: 0; font-size: inherit; cursor: pointer; }
-	.active-badge { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #2563eb; background: #dbeafe; border-radius: 3px; padding: 1px 5px; flex-shrink: 0; line-height: 1.4; }
+	.col-row:hover { background: var(--muted); }
+	.col-row-active { background: var(--accent); }
+	.col-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--foreground); background: none; border: none; padding: 0; font-size: inherit; cursor: pointer; }
+	.active-badge {
+		font-family: var(--font-ui); font-size: var(--text-xs); font-weight: 700; line-height: 1.4;
+		color: var(--primary-foreground); background: var(--primary); border-radius: 9999px; padding: 0 6px; flex-shrink: 0;
+	}
 
 	.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-	.stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; }
-	.stat-value { font-size: 13px; font-weight: 500; color: #1e293b; font-variant-numeric: tabular-nums; }
+	.stat-label { font-size: var(--text-xs); color: var(--muted-foreground); }
+	.stat-value { font-family: var(--font-ui); font-size: var(--text-sm); font-weight: 700; color: var(--foreground); font-variant-numeric: tabular-nums; }
 
-	.legend-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #475569; font-variant-numeric: tabular-nums; }
-	.legend-item.legend-nodata { opacity: 0.55; }
-	.legend-swatch { width: 13px; height: 13px; border-radius: 2px; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.08); }
-
-	.fc-row { display: flex; align-items: center; gap: 6px; padding: 3px 2px; border-radius: 4px; font-size: 12px; cursor: grab; user-select: none; }
+	.fc-row { display: flex; align-items: center; gap: 6px; padding: 3px 2px; border-radius: 4px; font-size: var(--text-sm); cursor: grab; user-select: none; }
 	.fc-row:active { cursor: grabbing; }
-	.fc-row:hover { background: #f8fafc; }
-	.fc-row input[type="checkbox"] { flex-shrink: 0; cursor: pointer; accent-color: #3b82f6; }
-	.fc-row .fc-grip { flex-shrink: 0; color: #cbd5e1; display: inline-flex; }
+	.fc-row:hover { background: var(--muted); }
+	.fc-row .fc-grip { flex-shrink: 0; color: var(--muted-foreground); display: inline-flex; }
 	.fc-row .fc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
-	.fc-row .fc-count { font-size: 10px; color: #94a3b8; flex-shrink: 0; }
+	.fc-row .fc-count { font-family: var(--font-ui); font-size: var(--text-xs); font-weight: 700; color: var(--muted-foreground); flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
-	:global(.fc-row-ghost) { opacity: 0.4; background: #eff6ff; }
-	:global(.fc-row-chosen) { background: #f1f5f9; }
-
-	:global(.maplibregl-popup-content) { font-size: 12px; padding: 8px 10px; border-radius: 6px; }
-	:global(.popup-name) { font-weight: 600; color: #0f172a; }
-	:global(.popup-fc) { font-size: 10px; color: #94a3b8; margin-bottom: 4px; }
-	:global(.popup-row) { display: flex; gap: 8px; justify-content: space-between; margin-top: 2px; }
-	:global(.popup-row-active) { font-weight: 500; }
-	:global(.popup-col) { color: #64748b; }
-	:global(.popup-val) { font-weight: 500; color: #1e293b; font-variant-numeric: tabular-nums; }
-	:global(.popup-desc) { font-size: 10px; color: #94a3b8; margin-top: 2px; }
+	:global(.fc-row-ghost) { opacity: 0.4; background: var(--accent); }
+	:global(.fc-row-chosen) { background: var(--muted); }
 </style>

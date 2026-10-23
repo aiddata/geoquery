@@ -17,7 +17,7 @@ function mdToHtml(text: string): string {
 			// bold
 			.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
 			// links
-			.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary underline" target="_blank" rel="noopener noreferrer">$1</a>')
+			.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-link underline hover:text-link-hover" target="_blank" rel="noopener noreferrer">$1</a>')
 	);
 }
 

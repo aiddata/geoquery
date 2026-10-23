@@ -61,7 +61,7 @@
 
 <div class="flex h-full flex-col">
 	<div class="min-h-0 flex-1 overflow-y-auto space-y-4 p-4">
-		<h3 class="text-sm font-semibold">Selection Summary</h3>
+		<h3 class="text-sm">Selection Summary</h3>
 
 		{#if !dataset}
 			<p class="text-sm text-muted-foreground">Select a dataset to begin configuring your query.</p>
@@ -97,11 +97,11 @@
 	{#if dataset}
 		<div class="mt-auto space-y-2 border-t p-4">
 			<Button class="w-full" disabled={!canAdd} onclick={() => onAddToRequest(customName)}>
-				<ShoppingCart class="mr-2 h-4 w-4" />
+				<ShoppingCart />
 				Add to Request
 			</Button>
 			<Button variant="outline" class="w-full" onclick={onReset}>
-				<RotateCcw class="mr-2 h-4 w-4" />
+				<RotateCcw />
 				Reset
 			</Button>
 		</div>

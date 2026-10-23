@@ -14,7 +14,7 @@
 
 {#if entries.length > 1}
 	<div class="p-4 pb-0">
-		<p class="mb-2 text-sm font-medium">Outcome</p>
+		<p class="mb-2 text-sm font-bold">Outcome</p>
 		<div class="flex flex-wrap gap-3">
 			{#each entries as [key, label]}
 				{@const isSelected = selected === key}
@@ -25,7 +25,7 @@
 				>
 					<div class="flex h-4 w-4 items-center justify-center rounded-full border-2 {isSelected ? 'border-primary bg-primary' : 'border-muted-foreground'}">
 						{#if isSelected}
-							<div class="h-1.5 w-1.5 rounded-full bg-white"></div>
+							<div class="h-1.5 w-1.5 rounded-full bg-primary-foreground"></div>
 						{/if}
 					</div>
 					<Label class="cursor-pointer text-xs">{label}</Label>

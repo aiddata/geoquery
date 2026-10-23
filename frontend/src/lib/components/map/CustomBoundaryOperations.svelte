@@ -2,6 +2,10 @@
 	import { customBoundary, type Operation, type OperationType } from '$lib/stores/customBoundary';
 	import { Button } from '$lib/components/ui/button';
 	import * as Collapsible from '$lib/components/ui/collapsible';
+	import * as Select from '$lib/components/ui/select';
+	import * as Alert from '$lib/components/ui/alert';
+	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import { ChevronDown, Trash2, RefreshCw, Save, ArrowRight, TriangleAlert } from '@lucide/svelte';
 	import { tick } from 'svelte';
 	import type { FeatureCollection, Feature, Polygon, MultiPolygon } from 'geojson';
@@ -26,6 +30,13 @@
 	let addType = $state<OperationType>('buffer');
 	let bufferDistance = $state(10);
 	let bufferUnits = $state<'kilometers' | 'miles' | 'meters'>('kilometers');
+
+	const typeLabels: Record<OperationType, string> = {
+		buffer: 'Buffer',
+		simplify: 'Simplify',
+		union: 'Union (merge all polygons)'
+	};
+	const unitLabels = { kilometers: 'Kilometers', miles: 'Miles', meters: 'Meters' } as const;
 	let simplifyTolerance = $state(0.01);
 	let applying = $state(false);
 	let applyError = $state('');
@@ -123,9 +134,9 @@
 	}
 </script>
 
-<div class="rounded-lg border bg-card shadow-lg">
+<div class="card-surface">
 	<div class="flex items-center justify-between border-b px-4 py-3">
-		<p class="text-sm font-semibold">Edit Boundary</p>
+		<p class="text-sm font-bold">Edit Boundary</p>
 		<button
 			class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
 			onclick={onBack}
@@ -138,7 +149,7 @@
 
 		<!-- File summary -->
 		<div class="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-xs">
-			<span class="truncate font-medium">{$customBoundary.fileName}</span>
+			<span class="truncate font-bold">{$customBoundary.fileName}</span>
 			<span class="ml-2 shrink-0 text-muted-foreground">
 				{$customBoundary.featureCount} feature{$customBoundary.featureCount === 1 ? '' : 's'}
 			</span>
@@ -147,24 +158,28 @@
 		<!-- Applied operations list -->
 		{#if $customBoundary.operations.length > 0}
 			<div class="space-y-1">
-				<p class="text-xs font-medium text-muted-foreground">Applied operations (in order)</p>
+				<p class="text-xs font-bold text-muted-foreground">Applied operations (in order)</p>
 				{#each $customBoundary.operations as op, i (op.id)}
 					<Collapsible.Root>
 						<div class="flex items-center gap-2 rounded-md border bg-background px-3 py-1.5">
 							<span class="text-xs text-muted-foreground w-4 shrink-0">{i + 1}.</span>
-							<span class="flex-1 text-xs font-medium">{operationLabel[op.type]}</span>
-							<Collapsible.Trigger
-								class="text-xs text-muted-foreground hover:text-foreground"
-							>
-								<ChevronDown class="h-3.5 w-3.5" />
+							<span class="flex-1 text-xs font-bold">{operationLabel[op.type]}</span>
+							<Collapsible.Trigger>
+								{#snippet child({ props })}
+									<Button {...props} variant="ghost" size="icon-sm" class="size-7 text-muted-foreground" aria-label="Show details">
+										<ChevronDown />
+									</Button>
+								{/snippet}
 							</Collapsible.Trigger>
-							<button
+							<Button
+								variant="ghost"
+								size="icon-sm"
 								onclick={() => customBoundary.removeOperation(op.id)}
-								class="text-muted-foreground hover:text-destructive"
-								aria-label="Remove"
+								class="size-7 text-muted-foreground hover:text-destructive"
+								aria-label="Remove {operationLabel[op.type]}"
 							>
-								<Trash2 class="h-3.5 w-3.5" />
-							</button>
+								<Trash2 />
+							</Button>
 						</div>
 						<Collapsible.Content>
 							<p class="px-3 pb-1.5 pt-0.5 text-xs text-muted-foreground">
@@ -181,43 +196,49 @@
 		{/if}
 
 		<!-- Add operation form -->
-		<div class="space-y-2 rounded-md border bg-muted/30 p-3">
-			<p class="text-xs font-medium">Add operation</p>
+		<div class="space-y-2 rounded-md bg-muted p-3">
+			<p class="text-sm font-bold" id="add-operation-label">Add operation</p>
 
-			<select
-				bind:value={addType}
-				class="w-full rounded-md border bg-background px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-ring"
-			>
-				<option value="buffer">Buffer</option>
-				<option value="simplify">Simplify</option>
-				<option value="union">Union (merge all polygons)</option>
-			</select>
+			<Select.Root type="single" value={addType} onValueChange={(v) => (addType = v as OperationType)}>
+				<Select.Trigger size="sm" class="w-full" aria-labelledby="add-operation-label">
+					{typeLabels[addType]}
+				</Select.Trigger>
+				<Select.Content>
+					{#each Object.entries(typeLabels) as [value, label] (value)}
+						<Select.Item {value} {label} />
+					{/each}
+				</Select.Content>
+			</Select.Root>
 
 			{#if addType === 'buffer'}
 				<div class="flex gap-2">
-					<input
+					<Input
 						type="number"
 						bind:value={bufferDistance}
 						min="0.001"
 						step="1"
-						class="w-24 rounded-md border bg-background px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-ring"
+						aria-label="Buffer distance"
+						class="min-h-8 w-24"
 					/>
-					<select
-						bind:value={bufferUnits}
-						class="flex-1 rounded-md border bg-background px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-ring"
-					>
-						<option value="kilometers">Kilometers</option>
-						<option value="miles">Miles</option>
-						<option value="meters">Meters</option>
-					</select>
+					<Select.Root type="single" value={bufferUnits} onValueChange={(v) => (bufferUnits = v as typeof bufferUnits)}>
+						<Select.Trigger size="sm" class="flex-1" aria-label="Buffer units">
+							{unitLabels[bufferUnits]}
+						</Select.Trigger>
+						<Select.Content>
+							{#each Object.entries(unitLabels) as [value, label] (value)}
+								<Select.Item {value} {label} />
+							{/each}
+						</Select.Content>
+					</Select.Root>
 				</div>
 			{:else if addType === 'simplify'}
 				<div class="space-y-1">
 					<div class="flex items-center justify-between">
-						<label class="text-xs text-muted-foreground">Tolerance</label>
-						<span class="text-xs font-medium">{simplifyTolerance}</span>
+						<Label for="simplify-tolerance" class="text-sm">Tolerance</Label>
+						<span class="font-ui text-xs font-bold tabular-nums">{simplifyTolerance}</span>
 					</div>
 					<input
+						id="simplify-tolerance"
 						type="range"
 						bind:value={simplifyTolerance}
 						min="0.0001"
@@ -235,10 +256,10 @@
 		</div>
 
 		{#if applyError}
-			<div class="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-				<TriangleAlert class="mt-0.5 h-3.5 w-3.5 shrink-0" />
-				{applyError}
-			</div>
+			<Alert.Root variant="destructive">
+				<TriangleAlert />
+				<Alert.Description>{applyError}</Alert.Description>
+			</Alert.Root>
 		{/if}
 
 		<!-- Action bar -->
@@ -250,7 +271,7 @@
 				disabled={applying}
 				onclick={() => customBoundary.clearOperations()}
 			>
-				<RefreshCw class="h-3.5 w-3.5" />
+				<RefreshCw />
 				Reset
 			</Button>
 			<Button
@@ -274,9 +295,9 @@
 				<span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
 				Applying…
 			{:else}
-				<Save class="h-4 w-4" />
+				<Save />
 				Save Boundary
-				<ArrowRight class="h-4 w-4" />
+				<ArrowRight />
 			{/if}
 		</Button>
 

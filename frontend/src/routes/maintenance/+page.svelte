@@ -15,13 +15,13 @@
 		<Wrench class="h-8 w-8 text-muted-foreground" />
 	</div>
 
-	<h1 class="mb-3 text-2xl font-semibold text-foreground">{maintenance.heading}</h1>
+	<h1 class="mb-3 text-h2 text-foreground">{maintenance.heading}</h1>
 
 	<p class="mb-4 max-w-md text-muted-foreground">{maintenance.message}</p>
 
 	{#if maintenance.estimatedReturn}
 		<p class="text-sm text-muted-foreground">
-			Expected back: <span class="font-medium text-foreground">{maintenance.estimatedReturn}</span>
+			Expected back: <span class="font-bold text-foreground">{maintenance.estimatedReturn}</span>
 		</p>
 	{/if}
 </div>

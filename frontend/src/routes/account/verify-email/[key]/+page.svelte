@@ -17,13 +17,13 @@
 </script>
 
 <div class="container mx-auto max-w-2xl px-4 py-8">
-    <div class="rounded-lg border bg-card p-6 text-center shadow-sm">
+    <div class="card-surface p-6 text-center">
         {#if status === "verifying"}
             <LoaderCircle class="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
             <p class="mt-4 text-muted-foreground">Verifying your email address…</p>
         {:else if status === "success"}
-            <CircleCheck class="mx-auto h-8 w-8 text-green-600" />
-            <h1 class="mt-4 text-2xl font-semibold">Email verified</h1>
+            <CircleCheck class="mx-auto size-8 text-success-text" aria-hidden="true" />
+            <h1 class="mt-4 text-h2">Email verified</h1>
             <p class="mt-2 text-muted-foreground">
                 Any past GeoQuery requests submitted under this address are now linked to
                 your account.
@@ -34,7 +34,7 @@
             </div>
         {:else}
             <TriangleAlert class="mx-auto h-8 w-8 text-destructive" />
-            <h1 class="mt-4 text-2xl font-semibold">Verification failed</h1>
+            <h1 class="mt-4 text-h2">Verification failed</h1>
             <p class="mt-2 text-muted-foreground">
                 This verification link is invalid or has expired. You can request a new one
                 from your account page.

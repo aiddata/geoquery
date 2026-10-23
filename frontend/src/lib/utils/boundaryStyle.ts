@@ -1,31 +1,22 @@
 /**
  * Per-FC styling helpers used by the map and the chip UI.
  *
- * Colors cycle through a fixed palette by index. Line width is driven by
- * group_level when available so coarser admin levels (ADM0) render with
- * thicker borders than finer ones (ADM2). Boundaries without a level
- * fall back to a neutral default that still composes with the cycling.
+ * Colors are the design system's four chart series (design-system.md §11),
+ * returned as CSS variables so chips follow the theme; MapFrame resolves them
+ * for MapLibre. Past four collections the colors repeat, and line width
+ * (driven by group_level, so ADM0 is thicker than ADM2) and the chip labels
+ * tell collections apart.
  */
 
-const PALETTE = [
-	'#2563eb', // blue
-	'#d97706', // amber
-	'#059669', // emerald
-	'#7c3aed', // violet
-	'#dc2626', // rose
-	'#0891b2', // cyan
-	'#65a30d', // lime
-	'#c026d3', // fuchsia
-] as const;
+const SERIES_COUNT = 4;
 
 const DEFAULT_LINE_WIDTH = 1.5;
 
-/** Pick a stable color for a given chip index, cycling through the palette. */
+/** Pick a stable color for a given chip index: `var(--chart-1)` … `var(--chart-4)`, cycling. */
 export function colorForIndex(index: number): string {
-	const len = PALETTE.length;
 	// guard against negative or fractional indices
-	const i = ((Math.floor(index) % len) + len) % len;
-	return PALETTE[i];
+	const i = ((Math.floor(index) % SERIES_COUNT) + SERIES_COUNT) % SERIES_COUNT;
+	return `var(--chart-${i + 1})`;
 }
 
 /**

@@ -4,6 +4,10 @@
 	import { afterNavigate } from '$app/navigation';
 	import { gtagEvent } from '$lib/analytics';
 	import { initAuth } from '$lib/stores/auth';
+	import '@fontsource/barlow/400.css';
+	import '@fontsource/barlow/400-italic.css';
+	import '@fontsource/barlow/700.css';
+	import '@fontsource/noto-sans/700.css';
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 
@@ -33,17 +37,11 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<link rel="preconnect" href="https://fonts.googleapis.com" />
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-	<link
-		href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,700;1,400&display=swap"
-		rel="stylesheet"
-	/>
 	<title>GeoQuery - AidData</title>
 </svelte:head>
 
 <TooltipProvider>
-	<div class="flex min-h-screen flex-col font-sans">
+	<div class="flex min-h-screen flex-col">
 		<StatusBanner />
 		<Header {showSteps} />
 

@@ -4,6 +4,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import { Button } from '$lib/components/ui/button';
+	import { Badge } from '$lib/components/ui/badge';
 	import { Search, ArrowUpDown, ChevronDown, ChevronUp, ExternalLink } from '@lucide/svelte';
 	import type { DatasetSummary, DatasetCategory } from '$lib/api';
 
@@ -152,27 +153,30 @@
 					>
 						<div class="flex items-start justify-between gap-2">
 							<div class="flex-1">
-								<p class="text-sm font-medium leading-snug">
+								<p class="text-sm font-bold leading-snug">
 									{dataset.title ?? dataset.name}
 								</p>
 								<div class="mt-0.5 flex items-center gap-1.5">
 									<p class="text-xs text-muted-foreground">{dataset.processing_class === 'filter_and_agg' ? 'Feature' : 'Raster'}</p>
 									{#if outOfRangeNames.has(dataset.name)}
-										<span class="rounded px-1 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700">out of range</span>
+										<Badge variant="warning">out of range</Badge>
 									{/if}
 								</div>
 							</div>
-							<button
-								class="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								class="-mt-1 shrink-0 text-muted-foreground"
 								onclick={(e: MouseEvent) => { e.stopPropagation(); toggleExpand(dataset.name); }}
 								aria-label="Toggle details"
+								aria-expanded={expandedDataset === dataset.name}
 							>
 								{#if expandedDataset === dataset.name}
-									<ChevronUp class="h-4 w-4" />
+									<ChevronUp />
 								{:else}
-									<ChevronDown class="h-4 w-4" />
+									<ChevronDown />
 								{/if}
-							</button>
+							</Button>
 						</div>
 
 						{#if expandedDataset === dataset.name}
@@ -188,7 +192,7 @@
 												href={dataset.source_url}
 												target="_blank"
 												rel="noopener noreferrer"
-												class="inline-flex items-center gap-1 text-primary hover:underline"
+												class="inline-flex items-center gap-1 text-link hover:text-link-hover hover:underline"
 												onclick={(e: MouseEvent) => e.stopPropagation()}
 											>
 												<ExternalLink class="h-3 w-3" />
@@ -207,7 +211,7 @@
 												href={dataset.license_url}
 												target="_blank"
 												rel="noopener noreferrer"
-												class="inline-flex items-center gap-1 text-primary hover:underline"
+												class="inline-flex items-center gap-1 text-link hover:text-link-hover hover:underline"
 												onclick={(e: MouseEvent) => e.stopPropagation()}
 											>
 												{dataset.license}
@@ -221,7 +225,7 @@
 									{/if}
 								</p>
 								{#if dataset.citation}
-									<p class="text-[11px] leading-snug">Cite as: {dataset.citation}</p>
+									<p class="text-xs leading-snug">Cite as: {dataset.citation}</p>
 								{/if}
 							</div>
 						{/if}

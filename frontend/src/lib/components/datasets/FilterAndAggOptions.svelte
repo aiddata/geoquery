@@ -107,7 +107,7 @@
 										onCheckedChange={() => setSelection(key, { type: 'categorical', selected: allSelected ? [] : [...filter.categories] })}
 									/>
 								</span>
-								<Label class="cursor-pointer text-xs font-medium">All</Label>
+								<Label class="cursor-pointer text-xs font-bold">All</Label>
 							</div>
 
 							{#each filter.categories as category}

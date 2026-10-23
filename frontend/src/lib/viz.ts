@@ -2,6 +2,13 @@ import type { VizPayload } from '$lib/api';
 
 // Shared utilities for the /viz/[id] and /viz/explore map renderers.
 
+// YlGn and BrBG are the design system's `seq` and `div` ramps (design-system.md §3).
+// RdYlGn is retired: its second and fourth steps merge under colorblind simulation.
+export const DEFAULT_PALETTE = 'YlGn';
+
+/** Missing values: `--no-value` (pewter), the same in both themes. Never a ramp step. */
+export const NO_VALUE_COLOR = '#7b8985';
+
 export const PALETTES: Record<string, { label: string; colors: string[] }> = {
 	YlOrRd:  { label: 'Yellow → Orange → Red',  colors: ['#ffffb2','#fecc5c','#fd8d3c','#f03b20','#bd0026'] },
 	Blues:   { label: 'Blues',                   colors: ['#eff3ff','#bdd7e7','#6baed6','#3182bd','#08519c'] },
@@ -9,7 +16,6 @@ export const PALETTES: Record<string, { label: string; colors: string[] }> = {
 	Purples: { label: 'Purples',                 colors: ['#f2f0f7','#cbc9e2','#9e9ac8','#756bb1','#54278f'] },
 	Oranges: { label: 'Oranges',                 colors: ['#feedde','#fdbe85','#fd8d3c','#e6550d','#a63603'] },
 	YlGn:    { label: 'Yellow → Green',          colors: ['#ffffcc','#c2e699','#78c679','#31a354','#006837'] },
-	RdYlGn:  { label: 'Red → Yellow → Green ↔', colors: ['#d7191c','#fdae61','#ffffbf','#a6d96a','#1a9641'] },
 	RdBu:    { label: 'Red → Blue ↔',           colors: ['#ca0020','#f4a582','#f7f7f7','#92c5de','#0571b0'] },
 	PuOr:    { label: 'Purple → Orange ↔',      colors: ['#5e3696','#b2abd2','#f7f7f7','#fdb863','#e66101'] },
 	BrBG:    { label: 'Brown → Blue-Green ↔',   colors: ['#8c510a','#d8b365','#f5f5f5','#5ab4ac','#01665e'] },
@@ -35,7 +41,7 @@ export function equalBreaks(values: number[], n: number): number[] {
 }
 
 export function getColor(value: unknown, breaks: number[], palette: string[]): string {
-	if (value === null || value === undefined || isNaN(Number(value))) return '#cbd5e1';
+	if (value === null || value === undefined || isNaN(Number(value))) return NO_VALUE_COLOR;
 	const v = Number(value);
 	for (let i = 1; i < breaks.length; i++) {
 		if (v <= breaks[i]) return palette[i - 1];
@@ -59,7 +65,7 @@ export function buildColorExpression(
 		const val = overrides ? (overrides[idStr] ?? null) : feat[column];
 		expr.push(parseInt(idStr), getColor(val, breaks, palette));
 	}
-	expr.push('#cbd5e1');
+	expr.push(NO_VALUE_COLOR);
 	return expr;
 }
 

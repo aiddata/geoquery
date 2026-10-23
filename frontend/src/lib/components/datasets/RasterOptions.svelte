@@ -112,7 +112,7 @@
 					<span onclick={(e) => e.stopPropagation()}>
 						<Checkbox checked={allExtractsSelected} onCheckedChange={toggleAllExtracts} />
 					</span>
-					<Label class="cursor-pointer text-xs font-medium">All Extract Options</Label>
+					<Label class="cursor-pointer text-xs font-bold">All Extract Options</Label>
 				</div>
 
 				{#each dataset.extract_types as type}
@@ -168,7 +168,7 @@
 							<span onclick={(e) => e.stopPropagation()}>
 								<Checkbox checked={allResourcesSelected} onCheckedChange={toggleAllResources} />
 							</span>
-							<Label class="cursor-pointer text-xs font-medium">All Time Periods</Label>
+							<Label class="cursor-pointer text-xs font-bold">All Time Periods</Label>
 						</div>
 
 						{#each dataset.resources as resource, i}

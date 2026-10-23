@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { customBoundary } from '$lib/stores/customBoundary';
 	import { Button } from '$lib/components/ui/button';
+	import * as Alert from '$lib/components/ui/alert';
 	import { Upload, FileCheck, X, AlertCircle } from '@lucide/svelte';
 	import type { FeatureCollection, Geometry } from 'geojson';
 	import CustomBoundaryOperations from './CustomBoundaryOperations.svelte';
@@ -171,7 +172,7 @@
 			>
 				<Upload class="h-8 w-8 text-muted-foreground" />
 				<div>
-					<p class="text-sm font-medium">Drop a GeoJSON file here</p>
+					<p class="text-sm font-bold">Drop a GeoJSON file here</p>
 					<p class="text-xs text-muted-foreground">or click to browse</p>
 				</div>
 				<p class="text-xs text-muted-foreground">.geojson or .json · max 50 MB</p>
@@ -185,29 +186,31 @@
 			/>
 
 			{#if error}
-				<div class="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-					<AlertCircle class="mt-0.5 h-3.5 w-3.5 shrink-0" />
-					<span>{error}</span>
-				</div>
+				<Alert.Root variant="destructive">
+					<AlertCircle />
+					<Alert.Description>{error}</Alert.Description>
+				</Alert.Root>
 			{/if}
 
 		{:else}
 			<!-- Upload success state -->
-			<div class="flex items-start gap-3 rounded-md border border-green-200 bg-green-50 px-3 py-2.5">
-				<FileCheck class="mt-0.5 h-4 w-4 shrink-0 text-green-700" />
+			<div class="flex items-start gap-3 rounded-lg bg-alert-bg px-3 py-2.5" role="status">
+				<FileCheck class="mt-0.5 size-4 shrink-0 text-success-text" aria-hidden="true" />
 				<div class="min-w-0 flex-1">
-					<p class="truncate text-sm font-medium text-green-900">{$customBoundary.fileName}</p>
-					<p class="text-xs text-green-700">
+					<p class="truncate text-sm font-bold text-foreground">{$customBoundary.fileName}</p>
+					<p class="text-sm text-muted-foreground">
 						{$customBoundary.featureCount} feature{$customBoundary.featureCount === 1 ? '' : 's'} loaded
 					</p>
 				</div>
-				<button
+				<Button
+					variant="ghost"
+					size="icon-sm"
 					onclick={() => customBoundary.clearUpload()}
-					class="text-green-700 hover:text-green-900"
+					class="-mt-1 -mr-1"
 					aria-label="Remove file"
 				>
-					<X class="h-4 w-4" />
-				</button>
+					<X />
+				</Button>
 			</div>
 
 			<Button class="w-full" onclick={() => { step = 'operations'; }}>

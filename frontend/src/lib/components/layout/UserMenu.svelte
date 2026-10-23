@@ -30,28 +30,28 @@
 			{#snippet child({ props })}
 				<Button {...props} variant="ghost">
 					<UserRound />
-					<span class="hidden max-w-40 truncate sm:inline">
+					<span class="sr-only max-w-40 truncate sm:not-sr-only">
 						Account
 					</span>
 				</Button>
 			{/snippet}
 		</DropdownMenu.Trigger>
 		<DropdownMenu.Content align="end" class="w-56">
-			<DropdownMenu.Label class="truncate font-normal text-muted-foreground">
+			<DropdownMenu.Label class="truncate font-normal">
 				{$auth.user.email}
 			</DropdownMenu.Label>
 			<DropdownMenu.Separator />
 			<DropdownMenu.Item onclick={() => goto('/account')}>
-				<UserRound class="mr-2 h-4 w-4" />
+				<UserRound />
 				Account
 			</DropdownMenu.Item>
 			<DropdownMenu.Item onclick={() => goto('/requests')}>
-				<History class="mr-2 h-4 w-4" />
+				<History />
 				My Requests
 			</DropdownMenu.Item>
 			<DropdownMenu.Separator />
 			<DropdownMenu.Item onclick={handleSignOut}>
-				<LogOut class="mr-2 h-4 w-4" />
+				<LogOut />
 				Sign out
 			</DropdownMenu.Item>
 		</DropdownMenu.Content>
@@ -59,6 +59,6 @@
 {:else if $auth.status === 'anonymous'}
 	<Button variant="ghost" onclick={handleSignIn} disabled={signingIn}>
 		<LogIn />
-		<span class="hidden sm:inline">Sign in</span>
+		<span class="sr-only sm:not-sr-only">Sign in</span>
 	</Button>
 {/if}

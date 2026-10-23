@@ -9,7 +9,7 @@
 <Dialog.Root bind:open>
 	<Dialog.Content class="sm:max-w-xl gap-6 p-8">
 		<Dialog.Header class="gap-3">
-			<Dialog.Title class="text-2xl">Welcome to GeoQuery</Dialog.Title>
+			<Dialog.Title class="text-h2">Welcome to GeoQuery</Dialog.Title>
 			<Dialog.Description class="text-base">
 				Get a simple-to-use file where every row is a unit of analysis and every column is the
 				data you want — no special training required.

@@ -39,7 +39,6 @@ const PALETTES: Record<string, string[]> = {
 	Purples: ['#f2f0f7', '#cbc9e2', '#9e9ac8', '#756bb1', '#54278f'],
 	Oranges: ['#feedde', '#fdbe85', '#fd8d3c', '#e6550d', '#a63603'],
 	YlGn: ['#ffffcc', '#c2e699', '#78c679', '#31a354', '#006837'],
-	RdYlGn: ['#d7191c', '#fdae61', '#ffffbf', '#a6d96a', '#1a9641'],
 	RdBu: ['#ca0020', '#f4a582', '#f7f7f7', '#92c5de', '#0571b0'],
 	PuOr: ['#5e3696', '#b2abd2', '#f7f7f7', '#fdb863', '#e66101'],
 	BrBG: ['#8c510a', '#d8b365', '#f5f5f5', '#5ab4ac', '#01665e']
@@ -105,7 +104,7 @@ function renderLegend(breaks: number[], palette: string[]): void {
 function paint(): void {
 	if (!state || !map?.getLayer('features-fill')) return;
 	const breaks = computeBreaks();
-	const palette = PALETTES[state.palette.name] ?? state.palette.colors ?? PALETTES.YlOrRd;
+	const palette = PALETTES[state.palette.name] ?? state.palette.colors ?? PALETTES.YlGn;
 	const values = state.column ? state.values[state.column] ?? {} : {};
 	const expression: unknown[] = ['match', ['id']];
 	let hasValues = false;

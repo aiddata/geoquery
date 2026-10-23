@@ -17,8 +17,9 @@
 	import WelcomeModal from '$lib/components/map/WelcomeModal.svelte';
 	import CustomBoundaryPanel from '$lib/components/map/CustomBoundaryPanel.svelte';
 	import { Button } from '$lib/components/ui/button';
+	import * as Alert from '$lib/components/ui/alert';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { PlusCircle, ArrowRight } from '@lucide/svelte';
+	import { PlusCircle, ArrowRight, TriangleAlert } from '@lucide/svelte';
 	import { customBoundary } from '$lib/stores/customBoundary';
 	import { bbox as turfBbox } from '@turf/bbox';
 
@@ -428,10 +429,10 @@
 
 		{#if staged && !addingAnother && !$customBoundary.active}
 			<!-- Staged selection summary (shown when there's a committed selection) -->
-			<div class="rounded-lg border bg-card p-4 shadow-lg">
+			<div class="card-surface p-4">
 				<div class="flex items-start justify-between gap-2">
 					<div class="min-w-0">
-						<p class="truncate font-semibold">{stagedSummary?.label}</p>
+						<p class="truncate font-bold">{stagedSummary?.label}</p>
 						<p class="text-sm text-muted-foreground">{stagedSummary?.detail}</p>
 						<p class="mt-0.5 text-xs text-muted-foreground">
 							{#if datasetCountLoading}
@@ -458,9 +459,12 @@
 				{/if}
 
 				{#if selectionModified && $cartCount > 0}
-					<p class="mt-2 text-xs text-amber-700 dark:text-amber-400">
-						Your selection has changed. Actual dataset coverage may vary across selected features.
-					</p>
+					<Alert.Root variant="warning" role="status" class="mt-2">
+						<TriangleAlert />
+						<Alert.Description>
+							Your selection has changed. Actual dataset coverage may vary across selected features.
+						</Alert.Description>
+					</Alert.Root>
 				{/if}
 
 				<div class="mt-3 flex gap-2">
@@ -480,7 +484,7 @@
 								browseBoundaries = allBoundaries.filter((b) => stagedIds.has(b.id));
 							}}
 						>
-							<PlusCircle class="mr-1 h-3.5 w-3.5" />
+							<PlusCircle />
 							Add Boundary
 						</Button>
 					{/if}
@@ -491,12 +495,12 @@
 							onclick={() => { stagedNeedsConfirm = false; }}
 						>
 							{staged.featureIds.length > 0 ? 'Save Selected' : 'Save All'}
-							<ArrowRight class="ml-1 h-3.5 w-3.5" />
+							<ArrowRight />
 						</Button>
 					{:else}
 						<Button size="sm" class="flex-1" disabled={findingData} onclick={() => { findDataError = null; handleFindData(); }}>
 							{findingData ? 'Loading…' : 'Find Data'}
-							{#if !findingData}<ArrowRight class="ml-1 h-3.5 w-3.5" />{/if}
+							{#if !findingData}<ArrowRight />{/if}
 						</Button>
 						{#if findDataError}
 							<p class="text-xs text-destructive mt-1 w-full">{findDataError}</p>
@@ -506,10 +510,10 @@
 			</div>
 		{:else}
 			<!-- Tabbed selection card -->
-			<div class="rounded-lg border bg-card shadow-lg flex flex-col min-h-0">
+			<div class="card-surface flex flex-col min-h-0">
 				<div class="p-4 pb-2 shrink-0">
 					<div class="flex items-start justify-between gap-2 mb-3">
-						<h2 class="text-lg font-semibold text-primary">
+						<h2 class="text-h4 text-primary">
 							Select Boundaries to Begin
 						</h2>
 						{#if browseBoundaries.length > 0 || $customBoundary.fileName || $customBoundary.active}
@@ -526,19 +530,22 @@
 					<!-- Tabs -->
 					<div class="grid grid-cols-3 gap-1 rounded-md bg-muted p-1">
 						<button
-							class="rounded px-2 py-1.5 text-xs font-medium transition-colors {activeTab === 'explore' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+							class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'explore' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
+							aria-pressed={activeTab === 'explore'}
 							onclick={() => switchTab('explore')}
 						>
 							Explore
 						</button>
 						<button
-							class="rounded px-2 py-1.5 text-xs font-medium transition-colors {activeTab === 'browse' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+							class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'browse' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
+							aria-pressed={activeTab === 'browse'}
 							onclick={() => switchTab('browse')}
 						>
 							Browse All
 						</button>
 						<button
-							class="rounded px-2 py-1.5 text-xs font-medium transition-colors {activeTab === 'custom' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+							class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'custom' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
+							aria-pressed={activeTab === 'custom'}
 							onclick={() => switchTab('custom')}
 						>
 							Custom
@@ -593,7 +600,7 @@
 							<div class="mt-4 pt-3 border-t flex justify-end">
 								<Button size="sm" onclick={() => handleProceed(browseBoundaries)}>
 									Find Data
-									<ArrowRight class="ml-1 h-4 w-4" />
+									<ArrowRight />
 								</Button>
 							</div>
 						{/if}
@@ -605,12 +612,14 @@
 				<!-- Cancel "addingAnother" footer -->
 				{#if addingAnother}
 					<div class="shrink-0 border-t px-4 py-2">
-						<button
-							class="text-xs text-muted-foreground underline hover:text-foreground"
+						<Button
+							variant="link"
+							size="xs"
+							class="min-h-0 px-0 font-body text-muted-foreground underline hover:text-foreground"
 							onclick={() => { addingAnother = false; pendingBoundary = null; previewBoundaries = []; }}
 						>
 							Cancel adding another boundary
-						</button>
+						</Button>
 					</div>
 				{/if}
 			</div>
@@ -620,7 +629,7 @@
 	<!-- Zoom Controls -->
 	<div class="absolute right-4 top-4 z-10 flex flex-col items-center gap-1">
 		<ZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
-		<div class="rounded bg-white/80 px-1.5 py-0.5 text-xs text-gray-600 shadow dark:bg-gray-900/80 dark:text-gray-300">
+		<div class="rounded-md bg-card/85 px-1.5 py-0.5 font-ui text-xs font-bold tabular-nums text-muted-foreground shadow-card">
 			{mapZoom.toFixed(1)}
 		</div>
 	</div>

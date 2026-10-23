@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import { Badge } from '$lib/components/ui/badge';
 	import UserMenu from '$lib/components/layout/UserMenu.svelte';
+	import ThemeMenu from '$lib/components/layout/ThemeMenu.svelte';
 	import { openSidebar, currentStep, type Step } from '$lib/stores/ui';
 	import { CircleHelp, History, BookOpen, Map } from '@lucide/svelte';
 	import aiddataTriangles from '$lib/assets/aiddata_triangles.svg';
@@ -20,48 +22,49 @@
 	];
 </script>
 
-<header class="sticky top-0 z-50 w-full border-b bg-background">
+<header class="sticky top-0 z-50 w-full bg-card shadow-card">
 	<!-- Main Header -->
-	<div class="flex h-20 items-center justify-between px-4">
+	<div class="flex min-h-20 items-center justify-between px-4">
 		<!-- Logo -->
 		<a href="/" class="flex shrink-0 items-start gap-3" aria-label="AidData GeoQuery home">
 			<img src={aiddataTriangles} alt="" class="h-10 w-auto" />
-			<img src={aiddataWordmark} alt="" class="hidden h-10 w-auto xl:block" />
+			<img src={aiddataWordmark} alt="" class="hidden h-10 w-auto xl:block dark:brightness-0 dark:invert" />
 			<span class="hidden h-10 w-px bg-border xl:block" aria-hidden="true"></span>
-			<img src={geoqueryText} alt="" class="hidden h-10 w-auto md:block" />
+			<img src={geoqueryText} alt="" class="hidden h-10 w-auto md:block dark:brightness-0 dark:invert" />
 		</a>
 
 		<!-- Navigation Buttons -->
 		<div class="flex items-center gap-2">
 			<Button variant="ghost" href="https://aiddata.github.io/geoquery/" target="_blank" rel="noopener noreferrer">
 				<BookOpen />
-				<span class="hidden sm:inline">Docs</span>
+				<span class="sr-only sm:not-sr-only">Docs</span>
 			</Button>
 
-<Button variant="ghost" onclick={() => openSidebar('help')}>
+			<Button variant="ghost" onclick={() => openSidebar('help')}>
 				<CircleHelp />
-				<span class="hidden sm:inline">Help</span>
+				<span class="sr-only sm:not-sr-only">Help</span>
 			</Button>
 
 			<Button variant="ghost" href="/requests">
 				<History />
-				<span class="hidden sm:inline">Past Requests</span>
+				<span class="sr-only sm:not-sr-only">Past Requests</span>
 			</Button>
 
+			<ThemeMenu />
 			<UserMenu />
 		</div>
 	</div>
 
 	<!-- Step Indicator (only on workflow pages) -->
 	{#if showSteps}
-		<div class="flex h-12 items-center justify-between border-t bg-muted/50 px-4">
+		<div class="flex min-h-12 items-center justify-between bg-band px-4">
 			<div class="flex items-center gap-1 sm:gap-2">
 				{#each steps as step, i}
 					{#if i > 0}
 						<span class="text-muted-foreground">/</span>
 					{/if}
 					<span
-						class="flex items-center rounded-md px-2 py-1.5 text-sm font-medium sm:px-3
+						class="flex items-center rounded-md px-2 py-1.5 text-sm font-bold sm:px-3
 							{$currentStep === step.id
 							? 'bg-primary text-primary-foreground'
 							: 'text-muted-foreground'}"
@@ -71,16 +74,16 @@
 				{/each}
 			</div>
 
-			<a
+			<Button
+				variant="ghost"
+				size="sm"
 				href="/viz/explore"
-				class="hidden items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:flex mr-4"
+				class="hidden font-body text-muted-foreground lg:inline-flex"
 			>
-				<Map class="h-4 w-4 shrink-0" />
-				<span class="relative">
-					Map and Visualize Data
-					<span class="absolute -top-2.5 -right-6 rounded bg-blue-500 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-white">new</span>
-				</span>
-			</a>
+				<Map />
+				Map and Visualize Data
+				<Badge variant="new">new</Badge>
+			</Button>
 		</div>
 	{/if}
 </header>

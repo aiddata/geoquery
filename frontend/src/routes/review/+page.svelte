@@ -14,7 +14,9 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as Collapsible from '$lib/components/ui/collapsible';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { ChevronLeft, ChevronRight, Trash2, Send, CheckCircle } from '@lucide/svelte';
+	import * as Alert from '$lib/components/ui/alert';
+	import { Checkbox } from '$lib/components/ui/checkbox';
+	import { ChevronLeft, ChevronRight, Trash2, Send, CheckCircle, CircleAlert, TriangleAlert } from '@lucide/svelte';
 	import { formatKwargs } from '$lib/utils';
 
 	$effect(() => {
@@ -156,7 +158,7 @@
 	<div class="flex items-center gap-3 border-b bg-muted/30 px-4 py-2">
 		{#if !submitted}
 			<Button variant="ghost" size="sm" onclick={() => history.back()}>
-				<ChevronLeft class="mr-1 h-4 w-4" />
+				<ChevronLeft />
 				Back
 			</Button>
 			<span class="text-sm text-muted-foreground">|</span>
@@ -165,7 +167,7 @@
 				{$cartCount === 1 ? 'dataset' : 'datasets'})
 			</span>
 		{:else}
-			<span class="text-sm font-medium">Request Submitted</span>
+			<span class="text-sm font-bold">Request Submitted</span>
 		{/if}
 	</div>
 
@@ -173,23 +175,26 @@
 	{#if submitted}
 		<div class="flex flex-1 items-center justify-center p-8">
 			<div class="max-w-md space-y-4 text-center">
-				<CheckCircle class="mx-auto h-12 w-12 text-green-500" />
-				<h2 class="text-xl font-semibold">Request Submitted!</h2>
+				<CheckCircle class="mx-auto size-12 text-success-text" aria-hidden="true" />
+				<h2 class="text-h3">Request Submitted!</h2>
 				<p class="text-muted-foreground">
 					Your request has been queued. We'll send a download link to
 					<strong>{email}</strong> when your data is ready.
 				</p>
 				{#if submitted.warnings && submitted.warnings.length > 0}
-					<div class="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-left text-sm text-yellow-800">
-						<p class="font-medium">Some items could not be added:</p>
-						<ul class="mt-1 list-inside list-disc space-y-0.5">
-							{#each submitted.warnings as w}
-								<li>{w}</li>
-							{/each}
-						</ul>
-					</div>
+					<Alert.Root variant="warning" class="text-left">
+						<TriangleAlert />
+						<Alert.Title>Some items could not be added:</Alert.Title>
+						<Alert.Description>
+							<ul class="mt-1 list-inside list-disc space-y-0.5">
+								{#each submitted.warnings as w}
+									<li>{w}</li>
+								{/each}
+							</ul>
+						</Alert.Description>
+					</Alert.Root>
 				{/if}
-				<p class="text-xs text-muted-foreground">Request ID: {submitted.id}</p>
+				<p class="text-xs text-muted-foreground">Request ID: <span class="font-ui font-bold">{submitted.id}</span></p>
 				<div class="flex flex-col gap-2 sm:flex-row sm:justify-center">
 					<Button href="/requests/{submitted.id}">View Request</Button>
 					<Button variant="outline" onclick={() => goto('/')}>Start a New Request</Button>
@@ -209,14 +214,14 @@
 						<Card.Header class="pb-3">
 							<div class="flex items-start justify-between gap-2">
 								<div class="min-w-0 flex-1">
-									<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Custom Boundary</p>
-									<p class="mt-1 truncate font-semibold">{$customBoundary.fileName}</p>
+									<p class="text-xs font-bold text-muted-foreground">Custom Boundary</p>
+									<p class="mt-1 truncate font-bold">{$customBoundary.fileName}</p>
 									<p class="text-sm text-muted-foreground">
 										{$customBoundary.featureCount} feature{$customBoundary.featureCount === 1 ? '' : 's'}
 									</p>
 									{#if $customBoundary.operations.length > 0}
 										<div class="mt-2">
-											<p class="text-xs font-medium text-muted-foreground">
+											<p class="text-xs font-bold text-muted-foreground">
 												Operations applied ({$customBoundary.operations.length})
 											</p>
 											<ol class="mt-1 space-y-0.5 pl-4 text-xs text-muted-foreground list-decimal">
@@ -238,12 +243,12 @@
 						<Card.Header class="pb-3">
 							<div class="min-w-0 flex items-start justify-between gap-2">
 								<div class="min-w-0 flex-1">
-									<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Geographic Selection</p>
+									<p class="text-xs font-bold text-muted-foreground">Geographic Selection</p>
 									{#if $selection?.mode === 'multi' && $selection.fcs.length > 1}
 										<Tooltip.Provider>
 											<Tooltip.Root>
 												<Tooltip.Trigger class="mt-1 w-full text-left">
-													<p class="truncate font-semibold">{$selectionSummary.label}</p>
+													<p class="truncate font-bold">{$selectionSummary.label}</p>
 												</Tooltip.Trigger>
 												<Tooltip.Content>
 													<ul class="space-y-0.5 text-xs">
@@ -255,7 +260,7 @@
 											</Tooltip.Root>
 										</Tooltip.Provider>
 									{:else}
-										<p class="mt-1 truncate font-semibold">{$selectionSummary.label}</p>
+										<p class="mt-1 truncate font-bold">{$selectionSummary.label}</p>
 									{/if}
 									<p class="truncate text-sm text-muted-foreground">{$selectionSummary.detail}</p>
 									{#if resolvedFeatureIds.length > 0}
@@ -273,7 +278,7 @@
 				{/if}
 
 				<div class="flex items-center justify-between">
-					<h2 class="text-lg font-semibold">Your Selections</h2>
+					<h2 class="text-h4">Your Selections</h2>
 					<Button variant="outline" size="sm" onclick={() => goto(customizeUrl())}>
 						Add Another Dataset
 					</Button>
@@ -295,44 +300,51 @@
 							<div class="min-w-0 flex items-center gap-3">
 								<Collapsible.Root class="min-w-0 flex-1">
 									<div class="min-w-0 flex items-center gap-3">
-										<Collapsible.Trigger
-											class="flex items-center text-muted-foreground hover:text-foreground"
-										>
-											<ChevronRight class="h-4 w-4 transition-transform [[data-state=open]_&]:rotate-90" />
+										<Collapsible.Trigger>
+											{#snippet child({ props })}
+												<Button {...props} variant="ghost" size="icon-sm" class="text-muted-foreground" aria-label="Show details">
+													<ChevronRight class="transition-transform [[data-state=open]_&]:rotate-90" />
+												</Button>
+											{/snippet}
 										</Collapsible.Trigger>
-										<input
+										<label for="review-item-name-{i}" class="sr-only">Selection name</label>
+										<Input
+											id="review-item-name-{i}"
 											type="text"
 											value={item.customName}
 											oninput={(e) =>
 												cart.updateItemName(i, (e.target as HTMLInputElement).value)}
-											class="flex-1 cursor-default bg-transparent text-sm font-medium outline-none"
+											class="flex-1 font-bold"
 										/>
-										<button
+										<Button
+											variant="ghost"
+											size="icon-sm"
 											onclick={() => cart.removeItem(i)}
-											class="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+											class="text-muted-foreground hover:text-destructive"
+											aria-label="Remove {item.customName || item.datasetTitle}"
 										>
-											<Trash2 class="h-4 w-4" />
-										</button>
+											<Trash2 />
+										</Button>
 									</div>
 
 									<Collapsible.Content class="mt-3 space-y-1 pl-7 text-sm text-muted-foreground">
-										<p><span class="font-medium">Dataset:</span> {item.datasetTitle}</p>
-										<p><span class="font-medium">Type:</span> {item.datasetType}</p>
+										<p><span class="font-bold">Dataset:</span> {item.datasetTitle}</p>
+										<p><span class="font-bold">Type:</span> {item.datasetType}</p>
 										{#if item.extractTypes && item.extractTypes.length > 0}
 											<p>
-												<span class="font-medium">Extract types:</span>
+												<span class="font-bold">Extract types:</span>
 												{item.extractTypes.join(', ')}
 											</p>
 										{/if}
 										{#if item.resources && item.resources.length > 0}
 											<p>
-												<span class="font-medium">Time periods:</span>
+												<span class="font-bold">Time periods:</span>
 												{formatResources(item.resources, item.resourceLabels)}
 											</p>
 										{/if}
 										{#if item.kwargs}
 											<p>
-												<span class="font-medium">Filters:</span>
+												<span class="font-bold">Filters:</span>
 												{formatKwargs(item.kwargs)}
 											</p>
 										{/if}
@@ -347,7 +359,7 @@
 
 		<!-- Right: Submit form -->
 		<div class="shrink-0 overflow-auto border-t bg-card p-4 md:w-96 md:border-l md:border-t-0 md:p-6">
-			<h2 class="text-lg font-semibold">Review &amp; Submit</h2>
+			<h2 class="text-h4">Review &amp; Submit</h2>
 			<Separator class="my-4" />
 
 			<div class="space-y-4">
@@ -394,8 +406,10 @@
 				</p>
 
 				{#if isCustomMode}
-					<div class="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-3">
-						<p class="font-semibold">Custom boundary data notice</p>
+					<Alert.Root variant="warning" role="note" class="p-3">
+						<TriangleAlert />
+						<Alert.Title>Custom boundary data notice</Alert.Title>
+						<Alert.Description class="space-y-3">
 						<p>
 							Your uploaded boundary data will be stored on GeoQuery's servers and included with your
 							request results. Anyone with your request link can view it — results pages are not
@@ -404,25 +418,23 @@
 						<p>
 							Result files are stored on W&amp;M's computing infrastructure and are not publically available but also not protected by  security measures other than standard file system permissions. The uploaded data will not be used for any purpose other than processing your request without your explicit permission.
 						</p>
-						<label class="flex items-start gap-2 cursor-pointer">
-							<input
-								type="checkbox"
-								bind:checked={boundaryConsent}
-								class="mt-0.5 shrink-0 accent-amber-700"
-							/>
-							<span>I understand, confirm I have permission to upload this data, and consent to my boundary data being stored and shared as described above.</span>
-						</label>
-					</div>
+						<div class="flex items-start gap-2">
+							<Checkbox id="boundary-consent" bind:checked={boundaryConsent} class="mt-0.5 shrink-0" />
+							<label for="boundary-consent" class="cursor-pointer font-bold">I understand, confirm I have permission to upload this data, and consent to my boundary data being stored and shared as described above.</label>
+						</div>
+						</Alert.Description>
+					</Alert.Root>
 				{/if}
 
 				{#if submitError}
-					<p class="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-						{submitError}
-					</p>
+					<Alert.Root variant="destructive">
+						<CircleAlert />
+						<Alert.Description>{submitError}</Alert.Description>
+					</Alert.Root>
 				{/if}
 
 				<Button class="w-full" size="lg" disabled={!canSubmit} onclick={handleSubmit}>
-					<Send class="mr-2 h-4 w-4" />
+					<Send />
 					{submitting ? 'Submitting…' : 'Submit Request'}
 				</Button>
 			</div>

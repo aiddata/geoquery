@@ -2,6 +2,9 @@
     import { page } from "$app/state";
     import { goto } from "$app/navigation";
     import { Button } from "$lib/components/ui/button";
+    import { Input } from "$lib/components/ui/input";
+    import * as Alert from "$lib/components/ui/alert";
+    import StatusBadge, { requestStatusMeaning } from "$lib/components/StatusBadge.svelte";
     import { ArrowLeft, Search, Mail, BarChart2, LogIn } from "@lucide/svelte";
     import { requestHistoryLink, fetchRequestsByToken, fetchMyRequests, type PastRequest } from "$lib/api";
     import { auth } from "$lib/stores/auth";
@@ -74,30 +77,30 @@
 <div class="container mx-auto max-w-2xl px-4 py-8">
     <div class="mb-6">
         <Button variant="ghost" onclick={() => goto("/")}>
-            <ArrowLeft class="mr-1 h-4 w-4" />
+            <ArrowLeft />
             Back to Map
         </Button>
     </div>
 
-    <div class="rounded-lg border bg-card p-6 shadow-sm">
+    <div class="card-surface p-6">
 
         {#if loading || (!token && $auth.status === "loading")}
             <p class="text-center text-muted-foreground">Loading your requests…</p>
 
         {:else if !token && !showingMine}
-            <h1 class="mb-2 text-2xl font-semibold">Past Requests</h1>
+            <h1 class="mb-2 text-h2">Past Requests</h1>
             <p class="mb-6 text-muted-foreground">
                 Enter your email and we'll send you a personal link to your request history.
             </p>
 
             {#if sent}
-                <div class="flex items-start gap-3 rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-                    <Mail class="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>Link sent! Check your inbox for an email with your request history link.</span>
-                </div>
+                <Alert.Root variant="success" role="status">
+                    <Mail />
+                    <Alert.Description>Link sent! Check your inbox for an email with your request history link.</Alert.Description>
+                </Alert.Root>
                 <p class="mt-4 text-center text-sm text-muted-foreground">
                     Didn't receive it?
-                    <button class="underline" onclick={() => { sent = false; }}>Try again</button>
+                    <Button variant="link" class="h-auto min-h-0 p-0 align-baseline font-body text-sm font-normal underline" onclick={() => { sent = false; }}>Try again</Button>
                 </p>
             {:else}
                 <form
@@ -106,12 +109,13 @@
                 >
                     <div class="flex gap-2">
                         <div class="relative flex-1">
-                            <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                            <input
+                            <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                            <Input
                                 type="email"
                                 bind:value={email}
                                 placeholder="your@email.com"
-                                class="w-full rounded-md border bg-background py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-ring"
+                                aria-label="Email address"
+                                class="pl-10"
                                 required
                             />
                         </div>
@@ -127,24 +131,24 @@
 
                 <div class="mt-6 border-t pt-4 text-center text-sm text-muted-foreground">
                     Or
-                    <button class="inline-flex items-center gap-1 underline" onclick={() => loginWithGitHub("/requests")}>
-                        <LogIn class="h-3.5 w-3.5" />
+                    <Button variant="link" class="h-auto min-h-0 gap-1 p-0 align-baseline font-body text-sm font-normal underline" onclick={() => loginWithGitHub("/requests")}>
+                        <LogIn />
                         sign in with GitHub
-                    </button>
+                    </Button>
                     to see your requests automatically.
                 </div>
             {/if}
 
         {:else if expired}
-            <h1 class="mb-2 text-2xl font-semibold">Link Expired</h1>
+            <h1 class="mb-2 text-h2">Link Expired</h1>
             <p class="mb-6 text-muted-foreground">
                 This link has expired. Request a new one below.
             </p>
             {#if sent}
-                <div class="flex items-start gap-3 rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-                    <Mail class="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>Link sent! Check your inbox.</span>
-                </div>
+                <Alert.Root variant="success" role="status">
+                    <Mail />
+                    <Alert.Description>Link sent! Check your inbox.</Alert.Description>
+                </Alert.Root>
             {:else}
                 <form
                     onsubmit={(e) => { e.preventDefault(); sendLink(); }}
@@ -152,12 +156,13 @@
                 >
                     <div class="flex gap-2">
                         <div class="relative flex-1">
-                            <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                            <input
+                            <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                            <Input
                                 type="email"
                                 bind:value={email}
                                 placeholder="your@email.com"
-                                class="w-full rounded-md border bg-background py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-ring"
+                                aria-label="Email address"
+                                class="pl-10"
                                 required
                             />
                         </div>
@@ -172,18 +177,18 @@
             {/if}
 
         {:else if error}
-            <h1 class="mb-2 text-2xl font-semibold">Invalid Link</h1>
+            <h1 class="mb-2 text-h2">Invalid Link</h1>
             <p class="text-muted-foreground">{error}</p>
             <div class="mt-4">
                 <Button variant="outline" onclick={() => goto("/requests")}>Request a new link</Button>
             </div>
 
         {:else}
-            <h1 class="mb-2 text-2xl font-semibold">Your Requests</h1>
+            <h1 class="mb-2 text-h2">Your Requests</h1>
             <p class="mb-6 text-muted-foreground">
                 {requests.length} request{requests.length === 1 ? "" : "s"} found.
                 {#if showingMine}
-                    Missing older requests? <a href="/account" class="underline">Verify another
+                    Missing older requests? <a href="/account" class="text-link underline hover:text-link-hover">Verify another
                     email address</a> to link them to your account.
                 {/if}
             </p>
@@ -193,31 +198,22 @@
             {:else}
                 <div class="space-y-3">
                     {#each requests as request}
-                        <button
-                            class="block w-full rounded-md border p-4 text-left transition-colors hover:bg-muted/50"
-                            onclick={() => goto(`/requests/${request.id}`)}
+                        <a
+                            href="/requests/{request.id}"
+                            class="block w-full rounded-md border p-4 text-left transition-colors hover:bg-muted"
                         >
-                            <div class="flex items-center justify-between">
-                                <div class="font-medium">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="font-bold">
                                     {request.name || "Unnamed Request"}
                                 </div>
-                                <span
-                                    class="rounded-full px-2 py-0.5 text-xs font-medium
-                                    {request.status_label === 'completed'
-                                        ? 'bg-green-100 text-green-800'
-                                        : request.status_label === 'processing' || request.status_label === 'preparing'
-                                          ? 'bg-yellow-100 text-yellow-800'
-                                          : request.status_label === 'error'
-                                            ? 'bg-red-100 text-red-800'
-                                            : 'bg-gray-100 text-gray-800'}"
-                                >
+                                <StatusBadge meaning={requestStatusMeaning(request.status)}>
                                     {request.status_label}
-                                </span>
+                                </StatusBadge>
                             </div>
                             <div class="mt-1 text-sm text-muted-foreground">
                                 {new Date(request.submit_time).toLocaleDateString()}
                             </div>
-                        </button>
+                        </a>
                     {/each}
                 </div>
             {/if}
@@ -227,12 +223,12 @@
 
     <a
         href="/stats"
-        class="mt-4 flex items-center gap-3 rounded-lg border bg-card px-5 py-3 shadow-sm transition-colors hover:bg-muted/50"
+        class="card-surface mt-4 flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted"
     >
         <BarChart2 class="h-5 w-5 shrink-0 text-muted-foreground" />
         <div class="flex-1">
-            <p class="text-sm font-medium">System Status</p>
-            <p class="text-xs text-muted-foreground">View processing queue and system stats</p>
+            <p class="text-sm font-bold">System Status</p>
+            <p class="text-sm text-muted-foreground">View processing queue and system stats</p>
         </div>
         <ArrowLeft class="h-4 w-4 rotate-180 text-muted-foreground" />
     </a>

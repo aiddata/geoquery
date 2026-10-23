@@ -10,11 +10,11 @@
 	let { onZoomIn, onZoomOut }: Props = $props();
 </script>
 
-<div class="flex flex-col gap-1 rounded-md border bg-background shadow-md">
+<div class="card-surface flex flex-col gap-1">
 	<Button variant="ghost" size="icon" onclick={onZoomIn} aria-label="Zoom in">
-		<Plus class="h-4 w-4" />
+		<Plus />
 	</Button>
 	<Button variant="ghost" size="icon" onclick={onZoomOut} aria-label="Zoom out">
-		<Minus class="h-4 w-4" />
+		<Minus />
 	</Button>
 </div>

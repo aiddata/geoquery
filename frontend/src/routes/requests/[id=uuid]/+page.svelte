@@ -5,7 +5,9 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Collapsible from '$lib/components/ui/collapsible';
-	import { ArrowLeft, Download, RefreshCw, ChevronRight, Map } from '@lucide/svelte';
+	import * as Alert from '$lib/components/ui/alert';
+	import StatusBadge, { requestStatusMeaning } from '$lib/components/StatusBadge.svelte';
+	import { ArrowLeft, Download, RefreshCw, ChevronRight, CircleAlert, Map } from '@lucide/svelte';
 	import { formatKwargs } from '$lib/utils';
 
 	const TERMINAL_STATUSES = new Set([1, -2]);
@@ -33,13 +35,6 @@
 		const interval = setInterval(load, 15000);
 		return () => clearInterval(interval);
 	});
-
-	function statusClass(label: string) {
-		if (label === 'completed') return 'bg-green-100 text-green-800';
-		if (label === 'processing' || label === 'preparing') return 'bg-yellow-100 text-yellow-800';
-		if (label === 'error') return 'bg-red-100 text-red-800';
-		return 'bg-gray-100 text-gray-800';
-	}
 
 	function fmt(dateStr: string | null) {
 		if (!dateStr) return '—';
@@ -78,7 +73,7 @@
 <div class="container mx-auto max-w-2xl px-4 py-8">
 	<div class="mb-6">
 		<Button variant="ghost" onclick={() => goto('/requests')}>
-			<ArrowLeft class="mr-1 h-4 w-4" />
+			<ArrowLeft />
 			Back
 		</Button>
 	</div>
@@ -86,52 +81,52 @@
 	{#if loading && !request}
 		<p class="text-muted-foreground">Loading…</p>
 	{:else if error}
-		<p class="text-destructive">{error}</p>
+		<p class="text-danger-text">{error}</p>
 	{:else if request}
 		<div class="space-y-4">
 
 			<!-- Header -->
-			<div class="rounded-lg border bg-card p-6 shadow-sm">
+			<div class="card-surface p-6">
 				<div class="flex items-start justify-between gap-4">
 					<div>
-						<h1 class="text-xl font-semibold">{request.name || 'Unnamed Request'}</h1>
-						<p class="mt-0.5 text-xs text-muted-foreground">ID: {request.id}</p>
+						<h1 class="text-h3">{request.name || 'Unnamed Request'}</h1>
+						<p class="mt-0.5 text-xs text-muted-foreground">ID: <span class="font-ui font-bold">{request.id}</span></p>
 					</div>
 					<div class="flex items-center gap-2">
-						<span class="rounded-full px-3 py-1 text-xs font-medium {statusClass(request.status_label)}">
+						<StatusBadge meaning={requestStatusMeaning(request.status)}>
 							{request.status_label}
-						</span>
+						</StatusBadge>
 						{#if !TERMINAL_STATUSES.has(request.status)}
-							<button onclick={load} class="text-muted-foreground hover:text-foreground" title="Refresh">
-								<RefreshCw class="h-4 w-4" />
-							</button>
+							<Button variant="ghost" size="icon-sm" onclick={load} class="text-muted-foreground" aria-label="Refresh status">
+								<RefreshCw />
+							</Button>
 						{/if}
 					</div>
 				</div>
 
 				<div class="mt-4 grid grid-cols-2 gap-3 text-sm">
 					<div>
-						<p class="text-xs font-medium text-muted-foreground">Submitted</p>
+						<p class="text-xs font-bold text-muted-foreground">Submitted</p>
 						<p>{fmt(request.submit_time)}</p>
 					</div>
 					<div>
-						<p class="text-xs font-medium text-muted-foreground">Completed</p>
+						<p class="text-xs font-bold text-muted-foreground">Completed</p>
 						<p>{fmt(request.complete_time)}</p>
 					</div>
 				</div>
 
 				{#if request.download_url}
-					<div class="mt-4 rounded-md border border-green-200 bg-green-50 p-4">
-						<p class="mb-3 text-sm font-medium text-green-800">Your data is ready to download.</p>
-						<div class="flex flex-col gap-3">
+					<Alert.Root variant="success" role="status" class="mt-4 p-4">
+						<Alert.Title class="mb-2">Your data is ready to download.</Alert.Title>
+						<Alert.Description class="flex flex-col gap-3">
 							<div class="flex flex-wrap gap-2">
 								<Button href={request.download_url} target="_blank" rel="noopener noreferrer">
-									<Download class="mr-2 h-4 w-4" />
+									<Download />
 									Download Results
 								</Button>
 								{#if request.visualization_url}
 									<Button variant="outline" href={request.visualization_url}>
-										<Map class="mr-2 h-4 w-4" />
+										<Map />
 										Visualize Data
 									</Button>
 								{/if}
@@ -149,8 +144,8 @@
 									<img src="https://marimo.io/molab-shield.svg" alt="Open in molab" />
 								</a>
 							</div>
-						</div>
-					</div>
+						</Alert.Description>
+					</Alert.Root>
 				{:else if request.status_label === 'completed'}
 					<p class="mt-4 text-sm text-muted-foreground">Your data is ready. Check your email for a download link.</p>
 				{:else if request.status !== -2}
@@ -158,20 +153,23 @@
 				{/if}
 
 				{#if request.status === -2}
-					<p class="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-						This request encountered an error during processing. Please contact support if this persists.
-					</p>
+					<Alert.Root variant="destructive" class="mt-4">
+						<CircleAlert />
+						<Alert.Description>
+							This request encountered an error during processing. Please contact support if this persists.
+						</Alert.Description>
+					</Alert.Root>
 				{/if}
 			</div>
 
 			<!-- Geographic selection -->
 			{#if request.data?.selection_label}
-				<Card.Root class="bg-muted/40">
+				<Card.Root>
 					<Card.Header class="pb-3">
-						<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+						<p class="text-xs font-bold text-muted-foreground">
 							{request.data.is_custom_boundary ? 'Custom Boundary' : 'Geographic Selection'}
 						</p>
-						<p class="mt-1 truncate font-semibold" title={request.data.selection_label}>{request.data.selection_label}</p>
+						<p class="mt-1 truncate font-bold" title={request.data.selection_label}>{request.data.selection_label}</p>
 						{#if request.data.selection_detail}
 							<p class="truncate text-sm text-muted-foreground">{request.data.selection_detail}</p>
 						{/if}
@@ -182,7 +180,7 @@
 						{/if}
 						{#if request.data.boundary_operations?.length > 0}
 							<div class="mt-2 border-t pt-2">
-								<p class="text-xs font-medium text-muted-foreground">
+								<p class="text-xs font-bold text-muted-foreground">
 									Operations applied ({request.data.boundary_operations.length})
 								</p>
 								<ol class="mt-1 space-y-0.5 pl-4 text-xs text-muted-foreground list-decimal">
@@ -204,31 +202,35 @@
 							<Card.Header class="pb-3">
 								<Collapsible.Root class="min-w-0">
 									<div class="min-w-0 flex items-center gap-3">
-										<Collapsible.Trigger class="flex items-center text-muted-foreground hover:text-foreground">
-											<ChevronRight class="h-4 w-4 transition-transform [[data-state=open]_&]:rotate-90" />
+										<Collapsible.Trigger>
+											{#snippet child({ props })}
+												<Button {...props} variant="ghost" size="icon-sm" class="text-muted-foreground" aria-label="Show details for {item.dataset_name}">
+													<ChevronRight class="transition-transform [[data-state=open]_&]:rotate-90" />
+												</Button>
+											{/snippet}
 										</Collapsible.Trigger>
-										<p class="min-w-0 flex-1 truncate text-sm font-medium">{item.dataset_name}</p>
+										<p class="min-w-0 flex-1 truncate text-sm font-bold">{item.dataset_name}</p>
 									</div>
 
 									<Collapsible.Content class="mt-3 space-y-1 pl-7 text-sm text-muted-foreground">
 										{#if item.dataset_type}
-											<p><span class="font-medium">Type:</span> {item.dataset_type}</p>
+											<p><span class="font-bold">Type:</span> {item.dataset_type}</p>
 										{/if}
 										{#if item.extract_types && item.extract_types.length > 0}
 											<p>
-												<span class="font-medium">Extract types:</span>
+												<span class="font-bold">Extract types:</span>
 												{item.extract_types.join(', ')}
 											</p>
 										{/if}
 										{#if item.resources && item.resources.length > 0}
 											<p>
-												<span class="font-medium">Time periods:</span>
+												<span class="font-bold">Time periods:</span>
 												{formatResources(item.resources, item.resource_labels)}
 											</p>
 										{/if}
 										{#if item.kwargs}
 											<p>
-												<span class="font-medium">Filters:</span>
+												<span class="font-bold">Filters:</span>
 												{formatKwargs(item.kwargs)}
 											</p>
 										{/if}

@@ -14,7 +14,7 @@
 <Sheet.Root bind:open={$sidebarOpen} onOpenChange={(open) => !open && closeSidebar()}>
 	<Sheet.Content side="right" class="w-[400px] sm:w-[450px]">
 		<Sheet.Header>
-			<Sheet.Title class="text-2xl font-bold tracking-tight">
+			<Sheet.Title>
 				{$sidebarPanel && $sidebarPanel in titles ? titles[$sidebarPanel as keyof typeof titles] : ''}
 			</Sheet.Title>
 		</Sheet.Header>

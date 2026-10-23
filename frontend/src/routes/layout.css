@@ -4,101 +4,216 @@
 
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
-
-:root {
-    --radius: 0.625rem;
-    --font-sans: "Roboto", ui-sans-serif, system-ui, sans-serif;
-
-    /* AidData Brand Colors */
-    --aiddata-navy: oklch(0.18 0.03 260);
-    --aiddata-steel: oklch(0.42 0.03 240);
-    --aiddata-lime: oklch(0.7 0.15 130);
-    --wm-green: #004E38;
-    --wm-gold: #B79257;
-    --wm-silver: #D8DCDB;
-
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: var(--wm-green);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.646 0.222 41.116);
-    --chart-2: oklch(0.6 0.118 184.704);
-    --chart-3: oklch(0.398 0.07 227.392);
-    --chart-4: oklch(0.828 0.189 84.429);
-    --chart-5: oklch(0.769 0.188 70.08);
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+/* Dark theme follows data-theme, and the system preference when data-theme is unset */
+@custom-variant dark {
+    &:where([data-theme="dark"], [data-theme="dark"] *) {
+        @slot;
+    }
+    @media (prefers-color-scheme: dark) {
+        &:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *) {
+            @slot;
+        }
+    }
 }
 
-.dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.488 0.243 264.376);
-    --chart-2: oklch(0.696 0.17 162.48);
-    --chart-3: oklch(0.769 0.188 70.08);
-    --chart-4: oklch(0.627 0.265 303.9);
-    --chart-5: oklch(0.645 0.246 16.439);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+/* Design system tokens (design-system.md §6, §7). Dark values sit under @variant dark beside each group. */
+:root {
+    color-scheme: light;
+
+    /* Surfaces */
+    --background: #f3f5f4; /* page */
+    --card: #ffffff; /* raised */
+    --band: #eaefed; /* sunken */
+    --muted: #eaefed; /* subtle fills */
+    --popover: #ffffff;
+    --secondary: #eaefed;
+    --accent: #eaefed;
+    --card-shadow: 0 1px 2px rgba(0, 35, 27, 0.06), 0 6px 16px -8px rgba(0, 35, 27, 0.14);
+    --radius: 6px; /* buttons, inputs */
+    --radius-card: 10px; /* cards, figure frames */
+
+    /* Text */
+    --foreground: #00231b;
+    --card-foreground: #00231b;
+    --popover-foreground: #00231b;
+    --secondary-foreground: #00231b;
+    --accent-foreground: #00231b;
+    --muted-foreground: #495965;
+    --eyebrow: #7a5600;
+    --danger-text: #b3122a;
+
+    /* Lines and controls */
+    --border: #d8dcdb;
+    --input: #7b8985;
+
+    /* Actions */
+    --primary: #00795e;
+    --primary-foreground: #ffffff;
+    --primary-hover: #00664f;
+    --destructive: #b3122a;
+    --destructive-foreground: #ffffff;
+    --ring: #00795e;
+    --link: #00795e;
+    --link-hover: #00664f;
+
+    /* Always-dark bands */
+    --hero-bg: #00231b;
+    --footer-bg: #00231b;
+
+    /* Status (§11): pill and alert fills, and the text that sits on them */
+    --alert-bg: #e9f4e6;
+    --warning-bg: #fff5de;
+    --danger-bg: #f9ecee;
+    --success-text: #00664f;
+    --warning-text: #7a5600;
+
+    /* Charts */
+    --chart-1: #00795e;
+    --chart-1-ink: #ffffff;
+    --chart-2: #fdb714;
+    --chart-2-ink: #00231b;
+    --chart-3: #0d3e4a;
+    --chart-3-ink: #ffffff;
+    --chart-4: #70cacb;
+    --chart-4-ink: #00231b;
+    --chart-edge: #00231b;
+    --chart-grid: #d8dcdb; /* silver: gridlines */
+    --chart-axis: #7b8985; /* pewter: baselines, tooltip borders */
+
+    /* Ramps (§3): the same in both themes */
+    --seq-1: #ffffcc;
+    --seq-2: #c2e699;
+    --seq-3: #78c679;
+    --seq-4: #31a354;
+    --seq-5: #006837;
+    --seq-1-ink: #00231b;
+    --seq-2-ink: #00231b;
+    --seq-3-ink: #00231b;
+    --seq-4-ink: #00231b;
+    --seq-5-ink: #ffffff;
+    --div-1: #8c510a;
+    --div-2: #d8b365;
+    --div-3: #f5f5f5;
+    --div-4: #5ab4ac;
+    --div-5: #01665e;
+    --div-1-ink: #ffffff;
+    --div-2-ink: #00231b;
+    --div-3-ink: #00231b;
+    --div-4-ink: #00231b;
+    --div-5-ink: #ffffff;
+    --no-value: #7b8985; /* pewter: missing values on maps and charts */
+
+    /* Brand constants */
+    --forest: #00231b;
+    --emerald: #00795e;
+    --gold: #fdb714;
+    --teal: #00b18f;
+    --sage: #b8ddb1;
+    --sky: #70cacb;
+    --leaf: #67963a;
+    --lemon: #d6c152;
+    --sage-gray: #70a095;
+    --cream: #fcfbfa;
+    --silver: #d8dcdb;
+    --danger: #b3122a;
+
+    @variant dark {
+        color-scheme: dark;
+
+        --background: #00231b;
+        --card: #123a30;
+        --band: #001a14;
+        --muted: #0c3027;
+        --popover: #123a30;
+        --secondary: #3d5c52;
+        --accent: #3d5c52;
+        --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 20px -10px rgba(0, 0, 0, 0.6);
+
+        --foreground: #fcfbfa;
+        --card-foreground: #fcfbfa;
+        --popover-foreground: #fcfbfa;
+        --secondary-foreground: #fcfbfa;
+        --accent-foreground: #fcfbfa;
+        --muted-foreground: #d8dcdb;
+        --eyebrow: #fdb714;
+        --danger-text: #ff9aa6;
+
+        --border: #3d5c52;
+        --input: #70a095;
+
+        --primary: #fdb714;
+        --primary-foreground: #00231b;
+        --primary-hover: #ffc83d;
+        --destructive: #ff9aa6;
+        --destructive-foreground: #00231b;
+        --ring: #fdb714;
+        --link: #b8ddb1;
+        --link-hover: #ffffff;
+
+        --footer-bg: #001a14;
+
+        --alert-bg: #0c3027;
+        --warning-bg: #0c3027;
+        --danger-bg: #0c3027;
+        --success-text: #b8ddb1;
+        --warning-text: #fdb714;
+
+        --chart-1: #67963a;
+        --chart-1-ink: #00231b;
+        --chart-2: #fdb714;
+        --chart-2-ink: #00231b;
+        --chart-3: #4fa8c4;
+        --chart-3-ink: #00231b;
+        --chart-4: #fcfbfa;
+        --chart-4-ink: #00231b;
+        --chart-edge: #fcfbfa;
+        --chart-grid: #3d5c52;
+        --chart-axis: #70a095;
+    }
+}
+
+/* Increased contrast (§5) */
+@media (prefers-contrast: more) {
+    :root {
+        --muted-foreground: #2e3b44;
+        --link: #00664f;
+        --eyebrow: #5c4100;
+        --warning-text: #5c4100;
+        --border: #7b8985;
+        --input: #00231b;
+        --chart-axis: #00231b;
+        --chart-grid: #7b8985;
+
+        @variant dark {
+            --muted-foreground: #eef0ef;
+            --link: #d4ecd0;
+            --eyebrow: #ffc83d;
+            --warning-text: #ffc83d;
+            --border: #70a095;
+            --input: #b8ddb1;
+            --chart-axis: #b8ddb1;
+            --chart-grid: #70a095;
+        }
+    }
 }
 
 @theme inline {
-    --font-sans: var(--font-sans);
-    --radius-sm: calc(var(--radius) - 4px);
-    --radius-md: calc(var(--radius) - 2px);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) + 4px);
+    --radius-sm: 4px; /* checkboxes, tooltips */
+    --radius-md: var(--radius); /* buttons, inputs, menus: 6px */
+    --radius-lg: var(--radius-card); /* dialogs, sheets, popovers: 10px */
+    --radius-xl: var(--radius-card); /* cards, figure frames: 10px */
+    --shadow-card: var(--card-shadow);
+
     --color-background: var(--background);
     --color-foreground: var(--foreground);
     --color-card: var(--card);
     --color-card-foreground: var(--card-foreground);
+    --color-band: var(--band);
     --color-popover: var(--popover);
     --color-popover-foreground: var(--popover-foreground);
     --color-primary: var(--primary);
     --color-primary-foreground: var(--primary-foreground);
+    --color-primary-hover: var(--primary-hover);
     --color-secondary: var(--secondary);
     --color-secondary-foreground: var(--secondary-foreground);
     --color-muted: var(--muted);
@@ -106,34 +221,239 @@
     --color-accent: var(--accent);
     --color-accent-foreground: var(--accent-foreground);
     --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);
+    --color-link: var(--link);
+    --color-link-hover: var(--link-hover);
+    --color-eyebrow: var(--eyebrow);
+    --color-danger-text: var(--danger-text);
+    --color-success-text: var(--success-text);
+    --color-warning-text: var(--warning-text);
+    --color-alert-bg: var(--alert-bg);
+    --color-warning-bg: var(--warning-bg);
+    --color-danger-bg: var(--danger-bg);
+    --color-hero-bg: var(--hero-bg);
+    --color-footer-bg: var(--footer-bg);
+
     --color-chart-1: var(--chart-1);
     --color-chart-2: var(--chart-2);
     --color-chart-3: var(--chart-3);
     --color-chart-4: var(--chart-4);
-    --color-chart-5: var(--chart-5);
-    --color-sidebar: var(--sidebar);
-    --color-sidebar-foreground: var(--sidebar-foreground);
-    --color-sidebar-primary: var(--sidebar-primary);
-    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-    --color-sidebar-accent: var(--sidebar-accent);
-    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-    --color-sidebar-border: var(--sidebar-border);
-    --color-sidebar-ring: var(--sidebar-ring);
+    --color-chart-1-ink: var(--chart-1-ink);
+    --color-chart-2-ink: var(--chart-2-ink);
+    --color-chart-3-ink: var(--chart-3-ink);
+    --color-chart-4-ink: var(--chart-4-ink);
+    --color-chart-edge: var(--chart-edge);
+    --color-chart-grid: var(--chart-grid);
+    --color-chart-axis: var(--chart-axis);
+    --color-no-value: var(--no-value);
+
+    --color-forest: var(--forest);
+    --color-emerald: var(--emerald);
+    --color-gold: var(--gold);
+    --color-teal: var(--teal);
+    --color-sage: var(--sage);
+    --color-sky: var(--sky);
+    --color-leaf: var(--leaf);
+    --color-lemon: var(--lemon);
+    --color-sage-gray: var(--sage-gray);
+    --color-cream: var(--cream);
+    --color-silver: var(--silver);
+    --color-danger: var(--danger);
+}
+
+/* Typography (§8) */
+@theme {
+    --font-heading: "Avenir Next", Avenir, "Helvetica Neue", Helvetica, Arial, Roboto, sans-serif;
+    --font-body: "Barlow", "DIN Next", "DIN Alternate", "Helvetica Neue", Arial, sans-serif;
+    --font-ui: "Noto Sans", "Helvetica Neue", Arial, sans-serif;
+    --font-sans: var(--font-body);
+
+    --text-xs: 0.8125rem; /* 13px floor: hint, pill, chart label */
+    --text-xs--line-height: 1.45;
+    --text-sm: 0.875rem; /* 14px: small, label, button, nav */
+    --text-sm--line-height: 1.45;
+    --text-field: 0.9375rem; /* 15px: input text */
+    --text-field--line-height: 1.45;
+    --text-base: 1.0625rem; /* 17px: body */
+    --text-base--line-height: 1.6;
+    --text-h4: 1.0625rem;
+    --text-h4--line-height: 1.4;
+    --text-h3: 1.25rem;
+    --text-h3--line-height: 1.3;
+    --text-standfirst: 1.25rem;
+    --text-standfirst--line-height: 1.5;
+    --text-h2: 1.75rem;
+    --text-h2--line-height: 1.2;
+    --text-h1: clamp(1.9rem, 4vw, 2.6rem);
+    --text-h1--line-height: 1.12;
+    --text-h1--letter-spacing: -0.01em;
+}
+
+/* Raised card surface (§2) for elements that aren't the Card component: panels, list rows, floating boxes */
+@utility card-surface {
+    background-color: var(--card);
+    color: var(--card-foreground);
+    border-radius: var(--radius-card);
+    box-shadow: var(--card-shadow);
+    @media (prefers-contrast: more) {
+        border: 1px solid var(--border);
+        box-shadow: none;
+    }
+    @media (forced-colors: active) {
+        border: 1px solid CanvasText;
+    }
 }
 
 @layer base {
     * {
-        @apply border-border outline-ring/50;
+        @apply border-border outline-ring;
+    }
+    /* Focus ring (§3, §7): 2px, offset 2px, emerald on light and gold on dark */
+    :focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 2px;
     }
     body {
-        @apply bg-background text-foreground;
+        @apply bg-background font-body text-base text-foreground;
+    }
+    h1,
+    h2,
+    h3,
+    h4 {
+        font-family: var(--font-heading);
+        font-weight: 700;
+        text-wrap: balance;
+    }
+    p {
+        text-wrap: pretty;
+    }
+    table {
+        font-variant-numeric: tabular-nums;
     }
     button,
     a,
     [role="button"] {
         cursor: pointer;
     }
+
+    @media (prefers-contrast: more) {
+        a:not([data-slot]) {
+            text-decoration-line: underline;
+        }
+    }
+
+    /* Reduced motion (§5): bits-ui still receives animationend at 0.01ms */
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        ::before,
+        ::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+        }
+    }
+
+    /* Forced colors (§5): backgrounds and shadows disappear, so surfaces get a border */
+    @media (forced-colors: active) {
+        [data-slot="card"],
+        [data-slot="button"],
+        [data-slot="badge"],
+        [data-slot="alert"],
+        [data-slot="dialog-content"],
+        [data-slot="sheet-content"],
+        [data-slot="floating-panel"] {
+            border: 1px solid CanvasText;
+        }
+        [data-slot="checkbox"][data-state="checked"] {
+            background: Highlight;
+            color: HighlightText;
+        }
+        .maplibregl-canvas,
+        [data-swatch] {
+            forced-color-adjust: none;
+        }
+    }
+}
+
+/* MapLibre controls and popups on the token surfaces */
+.maplibregl-popup .maplibregl-popup-content {
+    background: var(--card);
+    color: var(--card-foreground);
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    line-height: var(--text-sm--line-height);
+    padding: 0.5rem 0.75rem;
+}
+.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+    border-bottom-color: var(--card);
+}
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+    border-top-color: var(--card);
+}
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+    border-right-color: var(--card);
+}
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+    border-left-color: var(--card);
+}
+.maplibregl-popup .maplibregl-popup-close-button {
+    color: var(--muted-foreground);
+    min-width: 24px;
+    min-height: 24px;
+}
+.maplibregl-ctrl.maplibregl-ctrl-attrib {
+    background: color-mix(in srgb, var(--card) 85%, transparent);
+    color: var(--muted-foreground);
+    font-family: var(--font-body);
+    font-size: var(--text-xs);
+}
+.maplibregl-ctrl-attrib a {
+    color: inherit;
+}
+
+/* Choropleth popups on the viz pages (rendered as HTML strings, so styled globally) */
+.popup-name {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    color: var(--foreground);
+}
+.popup-fc,
+.popup-desc {
+    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+}
+.popup-fc {
+    margin-bottom: 4px;
+}
+.popup-desc {
+    margin-top: 2px;
+}
+.popup-row {
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    margin-top: 2px;
+}
+.popup-col {
+    color: var(--muted-foreground);
+}
+.popup-row-active .popup-col {
+    color: var(--foreground);
+    font-weight: 700;
+}
+.popup-val {
+    font-family: var(--font-ui);
+    font-weight: 700;
+    color: var(--foreground);
+    font-variant-numeric: tabular-nums;
 }

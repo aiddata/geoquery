@@ -44,19 +44,19 @@
 
 	<div class="text-7xl font-bold text-muted-foreground/30 mb-2">{status}</div>
 
-	<h1 class="mb-3 text-2xl font-semibold text-foreground">{config.heading}</h1>
+	<h1 class="mb-3 text-h2 text-foreground">{config.heading}</h1>
 
 	<p class="mb-8 max-w-md text-muted-foreground">{config.description}</p>
 
 	<div class="flex items-center gap-3">
 		{#if config.showBack}
 			<Button variant="outline" onclick={() => history.back()}>
-				<ArrowLeft class="mr-2 h-4 w-4" />
+				<ArrowLeft />
 				Go back
 			</Button>
 		{/if}
 		<Button onclick={() => goto('/')}>
-			<Home class="mr-2 h-4 w-4" />
+			<Home />
 			Back to Map
 		</Button>
 	</div>

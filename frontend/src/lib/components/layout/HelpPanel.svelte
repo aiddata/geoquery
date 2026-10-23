@@ -8,13 +8,13 @@
 
 <div class="space-y-6 p-4">
 	<section>
-		<h3 class="font-semibold">Frequently Asked Questions</h3>
-		<p class="mt-1 text-xs text-muted-foreground">
+		<h3 class="text-h4">Frequently Asked Questions</h3>
+		<p class="mt-1 text-sm text-muted-foreground">
 			See the full <a
 				href="https://aiddata.github.io/geoquery/faq/"
 				target="_blank"
 				rel="noopener noreferrer"
-				class="text-primary underline">FAQ page in the docs</a
+				class="text-link underline hover:text-link-hover">FAQ page in the docs</a
 			> for more detail.
 		</p>
 	</section>
@@ -24,7 +24,7 @@
 			<Separator />
 		{/if}
 		<section>
-			<h4 class="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+			<h4 class="mb-3 text-sm text-muted-foreground">
 				{section.title}
 			</h4>
 			<div class="space-y-4">
@@ -33,8 +33,8 @@
 						<Separator />
 					{/if}
 					<div>
-						<p class="mb-1 text-sm font-semibold">{entry.question}</p>
-						<div class="text-sm text-muted-foreground [&_a]:text-primary [&_a]:underline [&_ul]:mt-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1">
+						<p class="mb-1 text-sm font-bold">{entry.question}</p>
+						<div class="text-sm text-muted-foreground [&_a]:text-link [&_a]:underline [&_a:hover]:text-link-hover [&_ul]:mt-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1">
 							{@html entry.answerHtml}
 						</div>
 					</div>
