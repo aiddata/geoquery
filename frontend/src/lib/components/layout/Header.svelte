@@ -3,7 +3,9 @@
 	import UserMenu from '$lib/components/layout/UserMenu.svelte';
 	import { openSidebar, currentStep, type Step } from '$lib/stores/ui';
 	import { CircleHelp, History, BookOpen, Map } from '@lucide/svelte';
-	import geoqueryLogo from '$lib/assets/aiddata_geoquery_wordmark.png';
+	import aiddataTriangles from '$lib/assets/aiddata_triangles.svg';
+	import aiddataWordmark from '$lib/assets/aiddata_wordmark.svg';
+	import geoqueryText from '$lib/assets/geoquery_text.png';
 
 	interface Props {
 		showSteps?: boolean;
@@ -22,8 +24,11 @@
 	<!-- Main Header -->
 	<div class="flex h-20 items-center justify-between px-4">
 		<!-- Logo -->
-		<a href="/" class="flex items-center -ml-7">
-			<img src={geoqueryLogo} alt="GeoQuery" class="h-14 w-auto sm:h-18 md:h-24" />
+		<a href="/" class="flex shrink-0 items-start gap-3" aria-label="AidData GeoQuery home">
+			<img src={aiddataTriangles} alt="" class="h-10 w-auto" />
+			<img src={aiddataWordmark} alt="" class="hidden h-10 w-auto xl:block" />
+			<span class="hidden h-10 w-px bg-border xl:block" aria-hidden="true"></span>
+			<img src={geoqueryText} alt="" class="hidden h-10 w-auto md:block" />
 		</a>
 
 		<!-- Navigation Buttons -->
