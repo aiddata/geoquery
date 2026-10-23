@@ -20,7 +20,7 @@ from mcp_server.apps.map import (
     MAP_APP_URI,
     build_map_payload,
 )
-from mcp_server.data.palette import PALETTES
+from mcp_server.data.palette import DEFAULT_PALETTE, PALETTES
 from mcp_server.schemas import (
     BOUNDARIES_DESC,
     Classification,
@@ -97,7 +97,7 @@ def register(mcp, user_dep):
         palette: Annotated[
             str,
             Field(description="Colour scheme: " + ", ".join(PALETTES) + "."),
-        ] = "YlOrRd",
+        ] = DEFAULT_PALETTE,
         classification: Annotated[
             Classification,
             Field(

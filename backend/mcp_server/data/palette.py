@@ -40,10 +40,6 @@ PALETTES: dict[str, dict] = {
         "label": "Yellow → Green",
         "colors": ["#ffffcc", "#c2e699", "#78c679", "#31a354", "#006837"],
     },
-    "RdYlGn": {
-        "label": "Red → Yellow → Green ↔",
-        "colors": ["#d7191c", "#fdae61", "#ffffbf", "#a6d96a", "#1a9641"],
-    },
     "RdBu": {
         "label": "Red → Blue ↔",
         "colors": ["#ca0020", "#f4a582", "#f7f7f7", "#92c5de", "#0571b0"],
@@ -58,11 +54,12 @@ PALETTES: dict[str, dict] = {
     },
 }
 
-DEFAULT_PALETTE = "YlOrRd"
+# The design system's sequential ramp (design-system.md §3).
+DEFAULT_PALETTE = "YlGn"
 
 # What the web app paints a feature with no value. Reused here so a null on the
 # MCP map is the same grey as a null in the app.
-NO_DATA_COLOR = "#cbd5e1"
+NO_DATA_COLOR = "#7b8985"
 
 CLASSIFICATIONS = ("quantile", "equal")
 

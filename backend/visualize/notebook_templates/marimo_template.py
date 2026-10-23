@@ -149,7 +149,7 @@ def _(df, joined):
 
     fig, ax = plt.subplots(figsize=(12, 7))
     plot_joined = joined.copy()
-    plot_joined.plot(column=col, legend=True, cmap="YlOrRd", ax=ax)
+    plot_joined.plot(column=col, legend=True, cmap="YlGn", ax=ax)
     ax.set_title(col or "Features")
     ax.axis("off")
     plt.tight_layout()

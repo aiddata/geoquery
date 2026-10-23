@@ -80,7 +80,7 @@ class MapPayloadTests(ReplicaReadsTestMixin, TestCase):
         payload = self.build(classification="jenks", palette="Viridis")
 
         self.assertEqual(payload["classification"], "quantile")
-        self.assertEqual(payload["palette"]["name"], "YlOrRd")
+        self.assertEqual(payload["palette"]["name"], "YlGn")
         self.assertEqual(len(payload["palette"]["colors"]), 5)
 
     def test_classes_are_clamped_to_a_drawable_range(self):
