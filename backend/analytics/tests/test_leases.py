@@ -12,6 +12,7 @@ from django.db import connection
 from django.db.models.expressions import RawSQL
 from django.test import TestCase, override_settings
 from django.utils import timezone
+from prometheus_client import REGISTRY
 
 from analytics.coverage import run_coverage_chunk
 from analytics.models import (
@@ -248,6 +249,21 @@ class CompleteTests(LeaseTestCase):
         self.assertFalse(ExtractData.objects.filter(
             dataset_id=self.dataset.id, extract_task_id=request_task.id).exists())
         self.assertEqual(self.tasks().filter(status=1).count(), 9)
+
+    def test_committed_features_are_counted_by_dataset_and_outcome(self):
+        def count(outcome):
+            labels = {"dataset_id": str(self.dataset.id), "outcome": outcome}
+            return REGISTRY.get_sample_value("geoquery_extract_lease_features_total", labels) or 0
+
+        before = {outcome: count(outcome) for outcome in ("completed", "conflict")}
+        lease = claim_lease()
+        ExtractTask.objects.create(
+            dataset_id=self.dataset.id, resource_ids=[self.resource.id], fm=self.fms[4],
+            po=self.po, priority=1,
+        )
+        self.run_page(lease)
+        self.assertEqual(count("completed") - before["completed"], 9)
+        self.assertEqual(count("conflict") - before["conflict"], 1)
 
     def test_a_stale_token_writes_nothing(self):
         lease = claim_lease()

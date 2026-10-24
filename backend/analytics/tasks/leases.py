@@ -988,7 +988,7 @@ def _complete_once(lease, outcomes):
                 "DELETE FROM extract_task_leases WHERE id = %s AND token = %s",
                 [lease.id, lease.token],
             )
-            _record_features(outcomes, inserted)
+            _record_features(lease, outcomes, inserted)
             return "completed"
 
 
@@ -1032,17 +1032,18 @@ def _complete_with_savepoints(lease, outcomes):
                 "DELETE FROM extract_task_leases WHERE id = %s AND token = %s",
                 [lease.id, lease.token],
             )
-            _record_features(outcomes, inserted_all)
+            _record_features(lease, outcomes, inserted_all)
             return "completed"
 
 
-def _record_features(outcomes, inserted):
+def _record_features(lease, outcomes, inserted):
     def committed():
         for outcome in outcomes:
             if outcome.fm_id not in inserted:
-                metrics.LEASE_FEATURES.labels("conflict").inc()
+                label = "conflict"
             else:
-                metrics.LEASE_FEATURES.labels("completed" if outcome.status == 1 else "failed").inc()
+                label = "completed" if outcome.status == 1 else "failed"
+            metrics.LEASE_FEATURES.labels(str(lease.dataset_id), label).inc()
 
     transaction.on_commit(committed)
 

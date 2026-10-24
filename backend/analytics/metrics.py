@@ -123,9 +123,10 @@ LEASE_PAGES = Counter(
 
 LEASE_FEATURES = Counter(
     "geoquery_extract_lease_features",
-    "Features in committed lease pages. completed = status 1; failed = "
-    "status -1; conflict = a request's task already existed and was kept.",
-    ["outcome"],
+    "Features in committed lease pages, by dataset and outcome. completed = "
+    "status 1; failed = status -1; conflict = a request's task already "
+    "existed and was kept.",
+    ["dataset_id", "outcome"],
 )
 
 LEASE_PHASE_SECONDS = Histogram(
