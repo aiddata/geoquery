@@ -122,7 +122,7 @@ extra_css = ["stylesheets/geoquery.css"]
 # ----------------------------------------------------------------------------
 [project.theme]
 logo = "assets/images/aiddata-mark.svg"
-favicon = "assets/images/aiddata-mark.svg"
+favicon = "assets/images/favicon.svg"
 
 # change this to "classic" to use the traditional Material for MkDocs look.
 #variant = "classic"
