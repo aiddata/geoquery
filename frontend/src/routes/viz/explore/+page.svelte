@@ -17,10 +17,11 @@
 	import { resolvedTheme } from '$lib/stores/theme';
 	import BoundaryBrowsePanel from '$lib/components/map/BoundaryBrowsePanel.svelte';
 	import {
-		searchBoundaries, fetchBoundaryPresets, fetchExploreAvailable, fetchExploreData, fetchConfig,
+		searchBoundaries, fetchBoundaryPresets, fetchExploreAvailable, fetchExploreData,
 		boundaryTileUrl,
 		type BoundaryResult, type BoundaryPreset, type ExploreDataset, type VizPayload,
 	} from '$lib/api';
+	import { protomapsApiKey } from '$lib/map/protomapsKey';
 	import {
 		PALETTES, DEFAULT_PALETTE, NO_VALUE_COLOR, quantileBreaks, equalBreaks, buildColorExpression,
 		fmt, prettyColumn, escapeHtml, computeStats,
@@ -296,26 +297,28 @@
 
 	// ── Map init ──────────────────────────────────────────────────────────────
 	onMount(async () => {
-		// Load all boundaries and presets in parallel
-		const [allB, p] = await Promise.allSettled([
+		// Load all boundaries and presets in parallel, creating the map while they arrive
+		const lists = Promise.allSettled([
 			searchBoundaries('', 0),
 			fetchBoundaryPresets(),
 		]);
-		allBoundaries = allB.status === 'fulfilled' ? allB.value : [];
-		presets = p.status === 'fulfilled' ? p.value : [];
-		browsePanelLoading = false;
 
-		const config = await fetchConfig();
+		const key = await protomapsApiKey();
 		map = new maplibregl.Map({
 			container: mapContainer,
 			preserveDrawingBuffer: true,
-			style: basemapStyle(get(resolvedTheme), config.protomaps_api_key),
+			style: basemapStyle(get(resolvedTheme), key),
 			center: [0, 20], zoom: 2
 		});
 		map.on('load', () => { mapReady = true; });
-		stopTheme = followTheme(map, config.protomaps_api_key, () => {
+		stopTheme = followTheme(map, key, () => {
 			if (map) refreshChoroplethTheme(map, fcOrder);
 		});
+
+		const [allB, p] = await lists;
+		allBoundaries = allB.status === 'fulfilled' ? allB.value : [];
+		presets = p.status === 'fulfilled' ? p.value : [];
+		browsePanelLoading = false;
 
 		// After the map exists: addFCToMap waits on `load`, and loadExploreData
 		// paints as soon as the layers are there.

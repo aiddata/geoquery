@@ -223,6 +223,7 @@ services:
       - ./docs:/app/docs
     environment:
       - API_URL=http://backend:8000
+      - PUBLIC_PROTOMAPS_API_KEY=${PROTOMAPS_API_KEY}
     depends_on:
       - backend
 

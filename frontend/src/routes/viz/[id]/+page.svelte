@@ -4,7 +4,8 @@
 	import { page } from '$app/state';
 	import maplibregl from 'maplibre-gl';
 	import 'maplibre-gl/dist/maplibre-gl.css';
-	import { fetchVisualizationData, fetchConfig, boundaryTileUrl, type VisualizationData } from '$lib/api';
+	import { fetchVisualizationData, boundaryTileUrl, type VisualizationData } from '$lib/api';
+	import { protomapsApiKey } from '$lib/map/protomapsKey';
 	import {
 		PALETTES, DEFAULT_PALETTE, NO_VALUE_COLOR, quantileBreaks, equalBreaks, buildColorExpression,
 		fmt, prettyColumn, escapeHtml, computeStats,
@@ -193,11 +194,11 @@
 	});
 
 	async function initMap() {
-		const config = await fetchConfig();
+		const key = await protomapsApiKey();
 		map = new maplibregl.Map({
 			container: mapContainer,
 			preserveDrawingBuffer: true,
-			style: basemapStyle(get(resolvedTheme), config.protomaps_api_key),
+			style: basemapStyle(get(resolvedTheme), key),
 			center: [0, 20],
 			zoom: 2
 		});
@@ -210,7 +211,7 @@
 			void applyColors();
 		});
 
-		stopTheme = followTheme(map, config.protomaps_api_key, () => {
+		stopTheme = followTheme(map, key, () => {
 			if (map && data) refreshChoroplethTheme(map, data.fc_names);
 		});
 	}

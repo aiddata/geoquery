@@ -3,7 +3,8 @@
 	import maplibregl from 'maplibre-gl';
 	import 'maplibre-gl/dist/maplibre-gl.css';
 	import { get } from 'svelte/store';
-	import { boundaryTileUrl, fetchConfig } from '$lib/api';
+	import { boundaryTileUrl } from '$lib/api';
+	import { protomapsApiKey } from '$lib/map/protomapsKey';
 	import { basemapStyle, followTheme } from '$lib/map/basemap';
 	import { resolvedTheme } from '$lib/stores/theme';
 	import { readTokens, resolveColor } from '$lib/theme/tokens';
@@ -79,10 +80,10 @@
 
 	onMount(() => {
 		let stopTheme: (() => void) | undefined;
-		fetchConfig().then((config) => {
+		protomapsApiKey().then((key) => {
 			map = new maplibregl.Map({
 				container: mapContainer,
-				style: basemapStyle(get(resolvedTheme), config.protomaps_api_key, ATTRIBUTION),
+				style: basemapStyle(get(resolvedTheme), key, ATTRIBUTION),
 				center: [0, 20],
 				zoom: 2
 			});
@@ -92,7 +93,7 @@
 				onZoomChange?.(map!.getZoom());
 			});
 
-			stopTheme = followTheme(map, config.protomaps_api_key, () => themeTick++, ATTRIBUTION);
+			stopTheme = followTheme(map, key, () => themeTick++, ATTRIBUTION);
 
 			map.on('zoom', () => {
 				onZoomChange?.(map!.getZoom());

@@ -10,6 +10,9 @@
 				if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
 			} catch (e) {}
 		</script>
+		<!-- MapLibre fetches basemap tiles, glyphs and sprites in CORS mode, hence crossorigin -->
+		<link rel="preconnect" href="https://api.protomaps.com" crossorigin />
+		<link rel="preconnect" href="https://protomaps.github.io" crossorigin />
 		%sveltekit.head%
 		<!-- Google tag (gtag.js) -->
 		<script async src="https://www.googletagmanager.com/gtag/js?id=G-XZ0HS7XED1"></script>
