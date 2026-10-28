@@ -8,7 +8,7 @@
 	import { CircleHelp, History, BookOpen, Map } from '@lucide/svelte';
 	import aiddataTriangles from '$lib/assets/aiddata_triangles.svg';
 	import aiddataWordmark from '$lib/assets/aiddata_wordmark.svg';
-	import geoqueryText from '$lib/assets/geoquery_text.png';
+	import geoqueryText from '$lib/assets/geoquery_text.svg';
 
 	interface Props {
 		showSteps?: boolean;
@@ -31,7 +31,7 @@
 			<img src={aiddataTriangles} alt="" class="h-10 w-auto" />
 			<img src={aiddataWordmark} alt="" class="hidden h-10 w-auto xl:block dark:brightness-0 dark:invert" />
 			<span class="hidden h-10 w-px bg-border xl:block" aria-hidden="true"></span>
-			<img src={geoqueryText} alt="" class="hidden h-10 w-auto md:block dark:brightness-0 dark:invert" />
+			<img src={geoqueryText} alt="" class="hidden h-10 w-auto brightness-0 md:block dark:invert" />
 		</a>
 
 		<!-- Navigation Buttons -->
