@@ -197,6 +197,23 @@ def _pg(prefix, fallback=None):
             val = os.getenv(f"{fallback}_{suffix}")
         return default if val is None else val
 
+    options = {"sslmode": os.getenv("PG_SSL_MODE", "prefer")}
+
+    # Client-side pool of connections to pgBouncer, one per alias per process.
+    # Without it every request pays a fresh connect and login (~20 ms against
+    # the prod poolers, measured from a backend pod), and CONN_MAX_AGE cannot
+    # stand in for it under ASGI: Django runs each request on its own thread,
+    # so a persistent thread-local connection is never reused. Opt-in per
+    # process, set only for the web backend: Celery and processing workers run
+    # many processes per pod, and a pool in each would hold pgBouncer client
+    # slots for no gain.
+    pool_max_size = int(os.getenv("PG_POOL_MAX_SIZE", "0"))
+    if pool_max_size > 0:
+        options["pool"] = {
+            "min_size": min(2, pool_max_size),
+            "max_size": pool_max_size,
+        }
+
     return {
         "ENGINE": "django_prometheus.db.backends.postgis"
         if PROMETHEUS_ENABLED
@@ -206,10 +223,14 @@ def _pg(prefix, fallback=None):
         "PASSWORD": env("PASSWORD", ""),
         "HOST": env("HOST", "localhost"),
         "PORT": env("PORT", "5432"),
-        "OPTIONS": {
-            "sslmode": os.getenv("PG_SSL_MODE", "prefer"),
-        },
-        "CONN_MAX_AGE": 0,  # New connection per request; pgBouncer holds the pool
+        "OPTIONS": options,
+        # Must stay 0: Django rejects persistent connections with a pool, and
+        # without one a connection lives for a single request.
+        "CONN_MAX_AGE": 0,
+        # Applies to pooled connections only: check one before handing it out,
+        # so a connection broken by a pgBouncer restart is replaced rather
+        # than failing the request that drew it.
+        "CONN_HEALTH_CHECKS": pool_max_size > 0,
         # Server-side cursors are connection-local, so they break under
         # pgBouncer's transaction pooling. Django falls back to a client-side
         # fetch. Load-bearing for the .iterator() in
