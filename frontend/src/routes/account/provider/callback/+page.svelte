@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { refreshAuth, setAuthSession } from '$lib/stores/auth';
@@ -36,10 +37,29 @@
 	let signupEmail = $state('');
 	let signupError = $state('');
 	let submitting = $state(false);
+	// Verified addresses GitHub offered. The user picks which to keep; the rest
+	// are never stored. Empty when GitHub offered none, which falls back to
+	// typing an address.
+	let offeredEmails = $state<string[]>([]);
+	let keptEmails = $state<string[]>([]);
+	let primaryEmail = $state('');
+	let typingEmail = $state(false);
 
 	const nextDestination = $derived(readNext(page.url));
 	const normalizedEmail = $derived(signupEmail.trim());
-	const emailIsValid = $derived(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail));
+	const picking = $derived(offeredEmails.length > 0 && !typingEmail);
+	const emailIsValid = $derived(
+		picking
+			? keptEmails.includes(primaryEmail)
+			: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)
+	);
+
+	function setKept(email: string, keep: boolean) {
+		keptEmails = keep
+			? offeredEmails.filter((item) => item === email || keptEmails.includes(item))
+			: keptEmails.filter((item) => item !== email);
+		if (!keptEmails.includes(primaryEmail)) primaryEmail = keptEmails[0] ?? '';
+	}
 
 	function showError(
 		message: string,
@@ -69,6 +89,12 @@
 				details.user.email ??
 				'';
 			if (!signupEmail) signupEmail = suggestedEmail;
+			offeredEmails = details.email.map((item) => item.email);
+			// Start from the GitHub primary only; other addresses are opt-in.
+			if (!keptEmails.length && offeredEmails.includes(suggestedEmail)) {
+				keptEmails = [suggestedEmail];
+				primaryEmail = suggestedEmail;
+			}
 			signupError = '';
 			view = 'provider-signup';
 		} catch (cause) {
@@ -159,7 +185,14 @@
 		signupError = '';
 
 		try {
-			await handleSession(await submitProviderSignup(normalizedEmail));
+			await handleSession(
+				picking
+					? await submitProviderSignup(
+							primaryEmail,
+							keptEmails.filter((item) => item !== primaryEmail)
+						)
+					: await submitProviderSignup(normalizedEmail)
+			);
 		} catch (cause) {
 			if (cause instanceof AllauthRequestError && cause.status === 409) {
 				// The POST may have completed even if its response was lost.
@@ -181,7 +214,8 @@
 				showError(describeAuthError('signup_closed', null), 'none', 'signup_closed');
 			} else if (cause instanceof AllauthRequestError && cause.status === 400) {
 				signupError =
-					cause.errors.find((item) => item.param === 'email')?.message ??
+					cause.errors.find((item) => item.param === 'email' || item.param === 'emails')
+						?.message ??
 					cause.message;
 			} else {
 				signupError =
@@ -210,20 +244,88 @@
 				<Card.Header>
 					<Card.Title>Finish setting up your account</Card.Title>
 					<Card.Description>
-						GitHub needs an email address to finish creating your GeoQuery account.
+						{#if picking}
+							Choose which of your GitHub email addresses GeoQuery may use. Only the
+							addresses you select are saved, and any past GeoQuery requests submitted
+							under them will be linked to your account. You can change this later on
+							your account page.
+						{:else}
+							GitHub needs an email address to finish creating your GeoQuery account.
+						{/if}
 					</Card.Description>
 				</Card.Header>
 				<Card.Content class="space-y-2">
-					<Label for="provider-signup-email">Email address</Label>
-					<Input
-						id="provider-signup-email"
-						type="email"
-						autocomplete="email"
-						required
-						bind:value={signupEmail}
-						aria-invalid={Boolean(signupError)}
-						aria-describedby={signupError ? 'provider-signup-error' : undefined}
-					/>
+					{#if picking}
+						<fieldset
+							class="space-y-2"
+							aria-describedby={signupError ? 'provider-signup-error' : undefined}
+						>
+							<legend class="sr-only">Email addresses to use</legend>
+							{#each offeredEmails as email, index (email)}
+								{@const kept = keptEmails.includes(email)}
+								<div class="flex items-center gap-2">
+									<Checkbox
+										id="provider-signup-email-{index}"
+										checked={kept}
+										onCheckedChange={(checked) => setKept(email, checked)}
+									/>
+									<label
+										for="provider-signup-email-{index}"
+										class="min-w-0 flex-1 cursor-pointer truncate text-sm"
+									>
+										{email}
+									</label>
+									{#if kept && email === primaryEmail}
+										<span class="text-xs text-muted-foreground">Primary</span>
+									{:else if kept}
+										<Button
+											type="button"
+											variant="link"
+											size="sm"
+											class="h-auto p-0 text-xs"
+											onclick={() => (primaryEmail = email)}
+										>
+											Make primary
+										</Button>
+									{/if}
+								</div>
+							{/each}
+						</fieldset>
+						<p class="text-xs text-muted-foreground">
+							GeoQuery sends request notifications to your primary address by default.
+						</p>
+						<Button
+							type="button"
+							variant="link"
+							size="sm"
+							class="h-auto p-0"
+							onclick={() => (typingEmail = true)}
+						>
+							Use a different email address instead
+						</Button>
+					{:else}
+						<Label for="provider-signup-email">Email address</Label>
+						<Input
+							id="provider-signup-email"
+							type="email"
+							autocomplete="email"
+							required
+							bind:value={signupEmail}
+							aria-invalid={Boolean(signupError)}
+							aria-describedby={signupError ? 'provider-signup-error' : undefined}
+						/>
+						{#if offeredEmails.length}
+							<Button
+								type="button"
+								variant="link"
+								size="sm"
+								class="h-auto p-0"
+								onclick={() => (typingEmail = false)}
+							>
+								Choose from your GitHub addresses
+							</Button>
+						{/if}
+					{/if}
 					{#if signupError}
 						<p id="provider-signup-error" class="text-sm text-destructive">{signupError}</p>
 					{/if}

@@ -2,11 +2,15 @@ from unittest import mock
 
 from allauth.account.models import EmailAddress
 from allauth.account.signals import email_confirmed, user_signed_up
+from allauth.socialaccount.adapter import get_adapter as get_social_adapter
+from allauth.socialaccount.models import SocialAccount, SocialLogin
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser, Group, Permission
-from django.test import TestCase
+from django.contrib.sessions.middleware import SessionMiddleware
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
+from accounts.adapter import SocialAccountAdapter
 from accounts.claims import claim_requests_for_email, claim_requests_for_user
 from accounts.features import BETA_FEATURES, CUSTOM_BOUNDARIES, has_feature
 from analytics.models import Request
@@ -141,6 +145,155 @@ class MyRequestsViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), [])
 
+
+
+class GitHubSignupEmailTests(TestCase):
+    """GitHub signup stores only the addresses the user chose."""
+
+    signup_url = "/api/_allauth/browser/v1/auth/provider/signup"
+
+    def sociallogin(self, *addresses, profile_email=""):
+        """A GitHub login carrying ``(email, verified, primary)`` addresses."""
+        return SocialLogin(
+            user=User(email=profile_email),
+            account=SocialAccount(provider="github", uid="12345", extra_data={}),
+            email_addresses=[
+                EmailAddress(email=email, verified=verified, primary=primary)
+                for email, verified, primary in addresses
+            ],
+            provider=get_social_adapter().get_provider(None, "github"),
+        )
+
+    def request(self):
+        request = RequestFactory().get("/")
+        SessionMiddleware(lambda request: None).process_request(request)
+        return request
+
+    def start_pending_signup(self, sociallogin):
+        session = self.client.session
+        session["socialaccount_sociallogin"] = sociallogin.serialize()
+        session.save()
+
+    def stored_emails(self):
+        user = User.objects.get()
+        return {
+            address.email: (address.verified, address.primary)
+            for address in EmailAddress.objects.filter(user=user)
+        }
+
+    def test_drops_noreply_and_unverified_addresses(self):
+        sociallogin = self.sociallogin(
+            ("alice@example.com", True, True),
+            ("12345+alice@users.noreply.github.com", True, False),
+            ("unconfirmed@example.com", False, False),
+        )
+
+        SocialAccountAdapter().pre_social_login(self.request(), sociallogin)
+
+        self.assertEqual(
+            [address.email for address in sociallogin.email_addresses],
+            ["alice@example.com"],
+        )
+
+    def test_auto_signup_only_with_a_single_address(self):
+        adapter = SocialAccountAdapter()
+        one = self.sociallogin(("alice@example.com", True, True))
+        two = self.sociallogin(
+            ("alice@example.com", True, True), ("work@example.org", True, False)
+        )
+
+        self.assertTrue(adapter.is_auto_signup_allowed(self.request(), one))
+        self.assertFalse(adapter.is_auto_signup_allowed(self.request(), two))
+
+    def test_pending_signup_offers_filtered_addresses(self):
+        sociallogin = self.sociallogin(
+            ("alice@example.com", True, True),
+            ("work@example.org", True, False),
+            ("12345+alice@users.noreply.github.com", True, False),
+        )
+        SocialAccountAdapter().pre_social_login(self.request(), sociallogin)
+        self.start_pending_signup(sociallogin)
+
+        response = self.client.get(self.signup_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [item["email"] for item in response.json()["data"]["email"]],
+            ["alice@example.com", "work@example.org"],
+        )
+
+    def test_signup_stores_only_selected_addresses(self):
+        kept = Request.objects.create(contact="work@example.org", status=1)
+        skipped = Request.objects.create(contact="private@example.net", status=1)
+        self.start_pending_signup(
+            self.sociallogin(
+                ("alice@example.com", True, True),
+                ("work@example.org", True, False),
+                ("private@example.net", True, False),
+            )
+        )
+
+        response = self.client.post(
+            self.signup_url,
+            {"email": "work@example.org", "emails": ["alice@example.com"]},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(
+            self.stored_emails(),
+            {"work@example.org": (True, True), "alice@example.com": (True, False)},
+        )
+        self.assertEqual(User.objects.get().email, "work@example.org")
+        kept.refresh_from_db()
+        skipped.refresh_from_db()
+        self.assertEqual(kept.user, User.objects.get())
+        self.assertIsNone(skipped.user)
+
+    def test_signup_rejects_addresses_github_did_not_offer(self):
+        self.start_pending_signup(
+            self.sociallogin(
+                ("alice@example.com", True, True), ("work@example.org", True, False)
+            )
+        )
+
+        response = self.client.post(
+            self.signup_url,
+            {"email": "alice@example.com", "emails": ["someone@example.net"]},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(User.objects.exists())
+
+    def test_typed_address_needs_verification(self):
+        self.start_pending_signup(
+            self.sociallogin(
+                ("alice@example.com", True, True), ("work@example.org", True, False)
+            )
+        )
+
+        self.client.post(
+            self.signup_url,
+            {"email": "other@example.net"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(self.stored_emails(), {"other@example.net": (False, True)})
+
+    def test_auto_signup_ignores_filtered_profile_email(self):
+        sociallogin = self.sociallogin(
+            ("alice@example.com", True, True),
+            profile_email="12345+alice@users.noreply.github.com",
+        )
+        request = self.request()
+        adapter = SocialAccountAdapter()
+        adapter.pre_social_login(request, sociallogin)
+
+        user = adapter.save_user(request, sociallogin)
+
+        self.assertEqual(user.email, "alice@example.com")
+        self.assertEqual(self.stored_emails(), {"alice@example.com": (True, True)})
 
 
 class BetaTesterFlagTests(TestCase):

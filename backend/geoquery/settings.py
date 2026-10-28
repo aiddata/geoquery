@@ -355,6 +355,8 @@ ACCOUNT_CHANGE_EMAIL = False
 ACCOUNT_MAX_EMAIL_ADDRESSES = 5
 ACCOUNT_EMAIL_SUBJECT_PREFIX = "[GeoQuery] "
 ACCOUNT_ADAPTER = "accounts.adapter.AccountAdapter"
+# Adds the "which provider addresses to keep" field to GitHub signup.
+ACCOUNT_SIGNUP_FORM_CLASS = "accounts.forms.SignupForm"
 SOCIALACCOUNT_ADAPTER = "accounts.adapter.SocialAccountAdapter"
 
 SOCIALACCOUNT_PROVIDERS = {

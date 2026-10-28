@@ -195,12 +195,19 @@ export async function getProviderSignup(): Promise<ProviderSignupDetails> {
 	return parseData<ProviderSignupDetails>(response);
 }
 
-/** Supply the missing email and return the resulting auth or pending state. */
-export async function submitProviderSignup(email: string): Promise<AuthSession> {
+/**
+ * Finish a provider signup. `email` becomes the primary address; `emails` are
+ * the other provider addresses to keep. Provider addresses left out are never
+ * stored. Returns the resulting auth or pending state.
+ */
+export async function submitProviderSignup(
+	email: string,
+	emails: string[] = []
+): Promise<AuthSession> {
 	const response = await apiFetch(`${BASE}/auth/provider/signup`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ email })
+		body: JSON.stringify({ email, emails })
 	});
 	return parseAuthSession(response);
 }
