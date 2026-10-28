@@ -11,6 +11,7 @@
 	import { searchBoundaries, fetchFeatureIds, fetchDatasetsForFeatures, fetchBoundaryPresets, type BoundaryResult, type BoundaryPreset } from '$lib/api';
 	import GeographySearch from '$lib/components/map/GeographySearch.svelte';
 	import BoundaryBrowsePanel from '$lib/components/map/BoundaryBrowsePanel.svelte';
+	import CoverageStatus from '$lib/components/map/CoverageStatus.svelte';
 	import ZoomControls from '$lib/components/map/ZoomControls.svelte';
 	import MapFrame, { type FcStyle } from '$lib/components/map/MapFrame.svelte';
 	import { colorForIndex, lineWidthForLevel } from '$lib/utils/boundaryStyle';
@@ -18,51 +19,82 @@
 	import CustomBoundaryPanel from '$lib/components/map/CustomBoundaryPanel.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Alert from '$lib/components/ui/alert';
-	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { PlusCircle, ArrowRight, TriangleAlert } from '@lucide/svelte';
+	import { ArrowRight, TriangleAlert } from '@lucide/svelte';
 	import { customBoundary } from '$lib/stores/customBoundary';
 	import { features } from '$lib/stores/features';
 	import { bbox as turfBbox } from '@turf/bbox';
 
-	// ── Local staged selection types ────────────────────────────────────────────
-	// The map page edits a local "staged" selection. Nothing is written to the
-	// store until the user confirms via "Find Data" in the selection panel.
+	// ── Working selection ────────────────────────────────────────────────────────
+	// The map page edits a local selection: the boundary chips plus, when exactly
+	// one boundary is chosen, any features clicked on the map. Coverage is checked
+	// live as it changes. Nothing is written to the store until "Find Data".
 
-	interface StagedSingleFC {
-		mode: 'single';
-		fc: FCRef;
-		featureIds: number[];
-	}
-	interface StagedMultiFC {
-		mode: 'multi';
-		fcs: FCRef[];
-	}
-	type StagedSelection = StagedSingleFC | StagedMultiFC | null;
+	type Bbox = [number, number, number, number];
 
-	// ── Initialise staged + bbox from the committed store on mount ───────────────
-	function initFromStore(): { staged: StagedSelection; bbox: [number, number, number, number] | null } {
+	function unionBbox(bboxes: (Bbox | null | undefined)[]): Bbox | null {
+		const valid = bboxes.filter(Boolean) as Bbox[];
+		if (valid.length === 0) return null;
+		return [
+			Math.min(...valid.map((b) => b[0])),
+			Math.min(...valid.map((b) => b[1])),
+			Math.max(...valid.map((b) => b[2])),
+			Math.max(...valid.map((b) => b[3]))
+		];
+	}
+
+	function fcRefToBoundary(fc: FCRef): BoundaryResult {
+		return {
+			id: fc.id,
+			name: fc.name,
+			title: fc.title,
+			short_name: fc.short_name,
+			description: null,
+			bbox: fc.bbox ?? null,
+			group_name: null,
+			group_title: null,
+			group_class: null,
+			group_level: null,
+			source_name: null,
+			source_url: null,
+			license: null,
+			license_url: null,
+			citation: null,
+			tags: [],
+			date_added: null
+		};
+	}
+
+	function boundaryToFcRef(b: BoundaryResult): FCRef {
+		return { id: b.id, name: b.name, title: b.title, short_name: b.short_name, bbox: b.bbox ?? null };
+	}
+
+	/** Identifies a selection: FC ids, plus feature ids for a single-FC selection. */
+	function selectionKeyOf(fcIds: number[], featureIds: number[]): string {
+		return `${fcIds.join(',')}|${fcIds.length === 1 ? featureIds.join(',') : ''}`;
+	}
+
+	// ── Initialise the working selection from the committed store on mount ──────
+	function initFromStore(): { boundaries: BoundaryResult[]; featureIds: number[]; bbox: Bbox | null } {
 		const sel = get(selection);
-		if (!sel) return { staged: null, bbox: null };
+		if (!sel) return { boundaries: [], featureIds: [], bbox: null };
 		if (sel.mode === 'single') {
 			return {
-				staged: { mode: 'single', fc: sel.fc, featureIds: [...sel.featureIds] },
+				boundaries: [fcRefToBoundary(sel.fc)],
+				featureIds: [...sel.featureIds],
 				bbox: sel.fc.bbox ?? null
 			};
 		}
-		const bboxes = sel.fcs.map((fc) => fc.bbox).filter(Boolean) as [number, number, number, number][];
-		const bbox: [number, number, number, number] | null = bboxes.length
-			? [
-					Math.min(...bboxes.map((b) => b[0])),
-					Math.min(...bboxes.map((b) => b[1])),
-					Math.max(...bboxes.map((b) => b[2])),
-					Math.max(...bboxes.map((b) => b[3]))
-				]
-			: null;
-		return { staged: { mode: 'multi', fcs: [...sel.fcs] }, bbox };
+		return {
+			boundaries: sel.fcs.map(fcRefToBoundary),
+			featureIds: [],
+			bbox: unionBbox(sel.fcs.map((fc) => fc.bbox))
+		};
 	}
 
 	// Don't restore a standard boundary if custom mode is active — the two are mutually exclusive
-	const _init = get(customBoundary).active ? { staged: null, bbox: null } : initFromStore();
+	const _init = get(customBoundary).active
+		? { boundaries: [], featureIds: [], bbox: null }
+		: initFromStore();
 
 	onMount(() => {
 		currentStep.set('map');
@@ -93,15 +125,11 @@
 
 	function switchTab(tab: SelectionTab) {
 		if (tab === 'custom') {
-			// Activate custom mode; clear staged standard selection
+			// Activate custom mode; clear the standard selection
 			customBoundary.activate();
 			selection.clear();
-			staged = null;
-			selectionModified = false;
-			stagedNeedsConfirm = false;
-			pendingBoundary = null;
+			browseBoundaries = [];
 			pendingFeatureIds = [];
-			previewBoundaries = [];
 		} else {
 			// Leaving custom mode
 			customBoundary.deactivate();
@@ -111,14 +139,9 @@
 
 	/** Reset all boundary selection state and return to the Explore tab. */
 	function resetAll() {
-		staged = null;
-		selectionModified = false;
-		stagedNeedsConfirm = false;
-		addingAnother = false;
-		pendingBoundary = null;
-		pendingFeatureIds = [];
-		previewBoundaries = [];
 		browseBoundaries = [];
+		pendingFeatureIds = [];
+		findDataError = null;
 		selection.clear();
 		customBoundary.reset();
 		activeTab = 'explore';
@@ -160,85 +183,81 @@
 	let mapFrame: MapFrame;
 	let mapZoom = $state(2);
 
-	// Local staged selection (not yet committed to store)
-	let staged = $state<StagedSelection>(_init.staged);
-	// True when the user has picked a new boundary via GeographySearch since last commit
-	let selectionModified = $state(false);
-
-	// Browse/search shared selection state (synced between GeographySearch and BrowsePanel)
-	let browseBoundaries = $state<BoundaryResult[]>([]);
-
-	// Search preview state
-	let pendingBoundary = $state<BoundaryResult | null>(null);
-	let previewBoundaries = $state<BoundaryResult[]>([]); // Multi-boundary preview for map tiles
-	let pendingFeatureIds = $state<number[]>([]);
-	let currentBbox = $state<[number, number, number, number] | null>(_init.bbox);
+	// Selected boundaries (shared between GeographySearch and BrowsePanel)
+	let browseBoundaries = $state<BoundaryResult[]>(_init.boundaries);
+	// Features clicked on the map; only meaningful when exactly one boundary is selected
+	let pendingFeatureIds = $state<number[]>(_init.featureIds);
+	let currentBbox = $state<Bbox | null>(_init.bbox);
 
 	let userBbox = $derived.by(() => {
 		if (!$customBoundary.active) return null;
 		const fc = $customBoundary.finalFeatures;
 		if (!fc || fc.features.length === 0) return null;
-		try { return turfBbox(fc) as [number, number, number, number]; } catch { return null; }
+		try { return turfBbox(fc) as Bbox; } catch { return null; }
 	});
-	let addingAnother = $state(false);
 
 	// Async state
 	let findingData = $state(false);
 	let findDataError = $state<string | null>(null);
-	// True when features have been changed post-commit; requires re-confirmation before Find Data
-	let stagedNeedsConfirm = $state(false);
 
-	// Running dataset count based on current staged coverage
+	let selectionKey = $derived(
+		selectionKeyOf(browseBoundaries.map((b) => b.id), pendingFeatureIds)
+	);
+
+	// Key of the selection last committed to the store, to warn when the working
+	// selection no longer matches the one the cart was built from.
+	let committedKey = $derived.by(() => {
+		const sel = $selection;
+		if (!sel) return null;
+		if (sel.mode === 'single') return selectionKeyOf([sel.fc.id], sel.featureIds);
+		return selectionKeyOf(sel.fcs.map((fc) => fc.id), []);
+	});
+	let selectionChanged = $derived(browseBoundaries.length > 0 && selectionKey !== committedKey);
+
+	// Running dataset count for the current working selection
 	let datasetCount = $state<number | null>(null);
 	let datasetCountLoading = $state(false);
+	let datasetCountError = $state(false);
+	// Flat Feature.id list resolved by the coverage check, reused on "Find Data"
+	let resolvedIds: { key: string; ids: number[] } | null = null;
 
 	$effect(() => {
-		const s = staged;
-		if (!s) { datasetCount = null; datasetCountLoading = false; return; }
+		const key = selectionKey;
+		const fcIds = browseBoundaries.map((b) => b.id);
+		const featureIds = fcIds.length === 1 ? [...pendingFeatureIds] : [];
+		datasetCountError = false;
+		if (fcIds.length === 0) { datasetCount = null; datasetCountLoading = false; return; }
 
 		datasetCountLoading = true;
 		let cancelled = false;
 
 		const timer = setTimeout(async () => {
 			try {
-				let ids: number[];
-				if (s.mode === 'single') {
-					ids = s.featureIds.length > 0 ? s.featureIds : await fetchFeatureIds([s.fc.id]);
-				} else {
-					ids = await fetchFeatureIds(s.fcs.map((fc) => fc.id));
-				}
+				const ids = featureIds.length > 0 ? featureIds : await fetchFeatureIds(fcIds);
 				if (cancelled) return;
+				resolvedIds = { key, ids };
 				const datasets = await fetchDatasetsForFeatures(ids);
 				if (!cancelled) { datasetCount = datasets.length; datasetCountLoading = false; }
 			} catch {
-				if (!cancelled) { datasetCount = null; datasetCountLoading = false; }
+				if (!cancelled) { datasetCount = null; datasetCountError = true; datasetCountLoading = false; }
 			}
 		}, 400);
 
 		return () => { cancelled = true; clearTimeout(timer); };
 	});
 
-	let hasIndividualFeatures = $derived(
-		staged?.mode === 'single' && staged.featureIds.length > 0
+	// Nothing to find once coverage has confirmed there are no datasets
+	let findDataDisabled = $derived(
+		findingData || (!datasetCountLoading && datasetCount === 0)
 	);
 
 	// ── Derived map display values ───────────────────────────────────────────────
 
-	let mapFcNames = $derived.by(() => {
-		const names: string[] = [];
-		if (staged?.mode === 'single') names.push(staged.fc.name);
-		else if (staged?.mode === 'multi') names.push(...staged.fcs.map((fc) => fc.name));
-		// Show preview tiles for multi-boundary selection (before commit)
-		for (const b of previewBoundaries) {
-			if (!names.includes(b.name)) names.push(b.name);
-		}
-		if (pendingBoundary && !names.includes(pendingBoundary.name))
-			names.push(pendingBoundary.name);
-		return names;
-	});
+	let mapFcNames = $derived(browseBoundaries.map((b) => b.name));
 
-	// Per-FC display styles: distinct color cycled by index, line width by ADM level.
-	// Falls back gracefully for boundaries without a group_level.
+	// Per-FC display styles: distinct color cycled by index (matching the chip
+	// swatches), line width by ADM level. Falls back gracefully for boundaries
+	// without a group_level.
 	let mapFcStyles = $derived.by<FcStyle[]>(() => {
 		return mapFcNames.map((name, idx) => {
 			const meta = allBoundaries.find((b) => b.name === name);
@@ -250,156 +269,67 @@
 		});
 	});
 
-	// Pending boundary preview takes priority over the committed staged FC so
-	// feature clicking is immediately available once a boundary is typed.
-	let activeFcName = $derived.by(() => {
-		if (pendingBoundary && !addingAnother) return pendingBoundary.name;
-		if (staged?.mode === 'single') return staged.fc.name;
-		return null;
-	});
-
-	let displaySelectedFeatureIds = $derived.by(() => {
-		if (pendingBoundary && !addingAnother) return pendingFeatureIds;
-		if (staged?.mode === 'single') return staged.featureIds;
-		return [];
-	});
-
-	let stagedSummary = $derived.by(() => {
-		if (!staged) return null;
-		if (staged.mode === 'single') {
-			const count = staged.featureIds.length;
-			return {
-				label: staged.fc.title ?? staged.fc.name,
-				detail: count === 0 ? 'All features' : `${count} feature${count === 1 ? '' : 's'} selected`
-			};
-		}
-		return {
-			label: `${staged.fcs.length} collection${staged.fcs.length === 1 ? '' : 's'}`,
-			detail: staged.fcs.map((fc) => fc.title ?? fc.name).join(', ')
-		};
-	});
+	// Feature clicking is available whenever exactly one boundary is selected.
+	let activeFcName = $derived(browseBoundaries.length === 1 ? browseBoundaries[0].name : null);
+	let displaySelectedFeatureIds = $derived(activeFcName ? pendingFeatureIds : []);
 
 	// ── Handlers ─────────────────────────────────────────────────────────────────
 
-	function handleBrowseSelection(boundaries: BoundaryResult[]) {
-		browseBoundaries = boundaries;
-		handleSelect(boundaries);
-	}
-
 	function handleBrowsePanelSelection(selectedIds: Set<number>) {
 		// Convert selected IDs from BrowsePanel back to BoundaryResult array
-		const boundaries = allBoundaries.filter((b) => selectedIds.has(b.id));
-		browseBoundaries = boundaries;
-		handleSelect(boundaries);
+		handleSelect(allBoundaries.filter((b) => selectedIds.has(b.id)));
 	}
 
 	function handleSelect(boundaries: BoundaryResult[]) {
-		// When multiple boundaries are selected, clear feature-level selection since
-		// feature selection only applies to single-boundary mode
-		if (boundaries.length > 1) pendingFeatureIds = [];
+		// Feature selection only applies to a single boundary; keep it only while
+		// that same boundary remains the sole selection.
+		const keepFeatures =
+			boundaries.length === 1 &&
+			browseBoundaries.length === 1 &&
+			boundaries[0].id === browseBoundaries[0].id;
+		if (!keepFeatures) pendingFeatureIds = [];
 
-		previewBoundaries = boundaries; // Store for map tile preview
+		browseBoundaries = boundaries;
+		findDataError = null;
 
-		if (boundaries.length === 1) {
-			pendingBoundary = boundaries[0];
-			if (boundaries[0].bbox) currentBbox = boundaries[0].bbox;
-		} else {
-			pendingBoundary = null;
-			// Calculate bbox union for multi-select
-			const bboxes = boundaries.map((b) => b.bbox).filter(Boolean) as [number, number, number, number][];
-			if (bboxes.length > 0) {
-				currentBbox = [
-					Math.min(...bboxes.map((b) => b[0])),
-					Math.min(...bboxes.map((b) => b[1])),
-					Math.max(...bboxes.map((b) => b[2])),
-					Math.max(...bboxes.map((b) => b[3]))
-				];
-			}
-		}
-	}
-
-	function handleProceed(boundaries: BoundaryResult[]) {
-		// Use provided boundaries or fall back to browseBoundaries
-		const selected = boundaries.length > 0 ? boundaries : browseBoundaries;
-
-		// Convert BoundaryResults to FCRefs
-		const fcs: FCRef[] = selected.map((b) => ({
-			id: b.id,
-			name: b.name,
-			title: b.title,
-			short_name: b.short_name,
-			bbox: b.bbox ?? null
-		}));
-
-		if (addingAnother) {
-			// When adding another boundary, merge into staged selection
-			if (staged?.mode === 'single') {
-				// Convert single-FC to multi-FC and add new boundaries
-				staged = { mode: 'multi', fcs: [staged.fc, ...fcs] };
-			} else if (staged?.mode === 'multi') {
-				// Append to existing multi-FC, avoiding duplicates
-				const existingIds = new Set(staged.fcs.map((f) => f.id));
-				const newFcs = fcs.filter((f) => !existingIds.has(f.id));
-				staged = { ...staged, fcs: [...staged.fcs, ...newFcs] };
-			} else {
-				// No prior staged selection
-				staged = fcs.length === 1 ? { mode: 'single', fc: fcs[0], featureIds: [] } : { mode: 'multi', fcs };
-			}
-			addingAnother = false;
-		} else {
-			// Initial selection
-			if (fcs.length === 1) {
-				staged = { mode: 'single', fc: fcs[0], featureIds: [...pendingFeatureIds] };
-			} else {
-				staged = { mode: 'multi', fcs };
-			}
-		}
-
-		selectionModified = true;
-		stagedNeedsConfirm = false;
-		pendingFeatureIds = [];
-		pendingBoundary = null;
-		previewBoundaries = [];
+		const bbox = unionBbox(boundaries.map((b) => b.bbox));
+		if (bbox) currentBbox = bbox;
 	}
 
 	async function handleFindData() {
-		if (!staged || findingData) return;
-		await commitAndNavigate();
-	}
-
-	async function commitAndNavigate() {
+		if (browseBoundaries.length === 0 || findDataDisabled) return;
+		findDataError = null;
 		findingData = true;
 		try {
 			// Deactivate custom boundary mode when committing a standard boundary
 			customBoundary.deactivate();
 
-			// Write staged selection to the store
+			const fcs = browseBoundaries.map(boundaryToFcRef);
+			const featureIds = fcs.length === 1 ? [...pendingFeatureIds] : [];
+
+			// Write the working selection to the store
 			selection.clear();
-			if (staged!.mode === 'single') {
-				selection.setSingleFC(staged!.fc);
-				for (const id of staged!.featureIds) selection.toggleFeature(id);
+			selection.setSingleFC(fcs[0]);
+			if (fcs.length === 1) {
+				for (const id of featureIds) selection.toggleFeature(id);
 			} else {
-				selection.setSingleFC(staged!.fcs[0]);
-				for (let i = 1; i < staged!.fcs.length; i++) selection.addFC(staged!.fcs[i]);
+				for (const fc of fcs.slice(1)) selection.addFC(fc);
 			}
 
-			// Resolve flat Feature.id list for coverage checks and request submission
-			const fcIds =
-				staged!.mode === 'single'
-					? [staged!.fc.id]
-					: staged!.fcs.map((fc) => fc.id);
+			// Resolve flat Feature.id list for coverage checks and request submission,
+			// reusing the list from the live coverage check when it is current
 			const ids =
-				staged!.mode === 'single' && staged!.featureIds.length > 0
-					? staged!.featureIds
-					: await fetchFeatureIds(fcIds);
+				resolvedIds?.key === selectionKey
+					? resolvedIds.ids
+					: featureIds.length > 0
+						? featureIds
+						: await fetchFeatureIds(fcs.map((fc) => fc.id));
 			selection.setResolvedFeatureIds(ids);
 
-			selectionModified = false;
-
-			if (staged!.mode === 'single') {
+			if (fcs.length === 1) {
 				goto('/customize?selection');
 			} else {
-				goto(`/customize?fc=${staged!.fcs.map((fc) => fc.id).join(',')}`);
+				goto(`/customize?fc=${fcs.map((fc) => fc.id).join(',')}`);
 			}
 		} catch (err) {
 			console.error('Failed to commit selection:', err);
@@ -410,21 +340,10 @@
 	}
 
 	function handleFeatureClick(featureId: number) {
-		if (pendingBoundary && !addingAnother) {
-			pendingFeatureIds = pendingFeatureIds.includes(featureId)
-				? pendingFeatureIds.filter((id) => id !== featureId)
-				: [...pendingFeatureIds, featureId];
-		} else if (staged?.mode === 'single') {
-			const ids = staged.featureIds;
-			staged = {
-				...staged,
-				featureIds: ids.includes(featureId)
-					? ids.filter((id) => id !== featureId)
-					: [...ids, featureId]
-			};
-			selectionModified = true;
-			stagedNeedsConfirm = true;
-		}
+		if (!activeFcName) return;
+		pendingFeatureIds = pendingFeatureIds.includes(featureId)
+			? pendingFeatureIds.filter((id) => id !== featureId)
+			: [...pendingFeatureIds, featureId];
 	}
 
 	function handleZoomIn() {
@@ -436,215 +355,133 @@
 	}
 </script>
 
+{#snippet coverageStatus()}
+	<CoverageStatus loading={datasetCountLoading} count={datasetCount} error={datasetCountError} />
+{/snippet}
+
 <WelcomeModal bind:open={showWelcome} />
 
 <div class="relative flex h-[calc(100vh-8rem)] flex-col">
 	<!-- Left panel: search + selection status -->
 	<div class="absolute left-4 top-4 bottom-4 z-10 w-96 max-w-[calc(100vw-2rem)] space-y-2 flex flex-col">
-
-		{#if staged && !addingAnother && !$customBoundary.active}
-			<!-- Staged selection summary (shown when there's a committed selection) -->
-			<div class="card-surface p-4">
-				<div class="flex items-start justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate font-bold">{stagedSummary?.label}</p>
-						<p class="text-sm text-muted-foreground">{stagedSummary?.detail}</p>
-						<p class="mt-0.5 text-xs text-muted-foreground">
-							{#if datasetCountLoading}
-								Checking coverage…
-							{:else if datasetCount !== null}
-								<strong>{datasetCount}</strong> dataset{datasetCount === 1 ? '' : 's'} available
-							{/if}
-						</p>
-					</div>
-					<Button
-						size="sm"
-						variant="ghost"
-						onclick={resetAll}
-						class="shrink-0 text-muted-foreground hover:text-destructive"
-					>
-						Restart
-					</Button>
-				</div>
-
-				{#if staged.mode === 'single'}
-					<p class="mt-2 text-xs text-muted-foreground">
-						Click features on the map to sub-select, or leave all to use the entire collection.
-					</p>
-				{/if}
-
-				{#if selectionModified && $cartCount > 0}
-					<Alert.Root variant="warning" role="status" class="mt-2">
-						<TriangleAlert />
-						<Alert.Description>
-							Your selection has changed. Actual dataset coverage may vary across selected features.
-						</Alert.Description>
-					</Alert.Root>
-				{/if}
-
-				<div class="mt-3 flex gap-2">
-					{#if !hasIndividualFeatures && !stagedNeedsConfirm}
+		<!-- Tabbed selection card -->
+		<div class="card-surface flex flex-col min-h-0">
+			<div class="p-4 pb-2 shrink-0">
+				<div class="flex items-start justify-between gap-2 {canBrowse || canCustom ? 'mb-3' : ''}">
+					<h2 class="text-h4 text-primary">
+						Select Boundaries to Begin
+					</h2>
+					{#if browseBoundaries.length > 0 || $customBoundary.fileName || $customBoundary.active}
 						<Button
 							size="sm"
-							variant="outline"
-							onclick={() => {
-								addingAnother = true;
-								pendingBoundary = null;
-								// Re-hydrate browseBoundaries from staged so chips and dedup work
-								const stagedIds = new Set(
-									staged?.mode === 'single'
-										? [staged.fc.id]
-										: (staged?.fcs.map((f) => f.id) ?? [])
-								);
-								browseBoundaries = allBoundaries.filter((b) => stagedIds.has(b.id));
-							}}
+							variant="ghost"
+							onclick={resetAll}
+							class="shrink-0 text-xs text-muted-foreground hover:text-destructive -mr-1 -mt-1"
 						>
-							<PlusCircle />
-							Add Boundary
+							Restart
 						</Button>
-					{/if}
-					{#if stagedNeedsConfirm && staged?.mode === 'single'}
-						<Button
-							size="sm"
-							class="flex-1"
-							onclick={() => { stagedNeedsConfirm = false; }}
-						>
-							{staged.featureIds.length > 0 ? 'Save Selected' : 'Save All'}
-							<ArrowRight />
-						</Button>
-					{:else}
-						<Button size="sm" class="flex-1" disabled={findingData} onclick={() => { findDataError = null; handleFindData(); }}>
-							{findingData ? 'Loading…' : 'Find Data'}
-							{#if !findingData}<ArrowRight />{/if}
-						</Button>
-						{#if findDataError}
-							<p class="text-xs text-destructive mt-1 w-full">{findDataError}</p>
-						{/if}
 					{/if}
 				</div>
-			</div>
-		{:else}
-			<!-- Tabbed selection card -->
-			<div class="card-surface flex flex-col min-h-0">
-				<div class="p-4 pb-2 shrink-0">
-					<div class="flex items-start justify-between gap-2 {canBrowse || canCustom ? 'mb-3' : ''}">
-						<h2 class="text-h4 text-primary">
-							Select Boundaries to Begin
-						</h2>
-						{#if browseBoundaries.length > 0 || $customBoundary.fileName || $customBoundary.active}
-							<Button
-								size="sm"
-								variant="ghost"
-								onclick={resetAll}
-								class="shrink-0 text-xs text-muted-foreground hover:text-destructive -mr-1 -mt-1"
-							>
-								Restart
-							</Button>
-						{/if}
-					</div>
-					<!-- Tabs -->
-					{#if canBrowse || canCustom}
-						<div class="grid {canBrowse && canCustom ? 'grid-cols-3' : 'grid-cols-2'} gap-1 rounded-md bg-muted p-1">
+				<!-- Tabs -->
+				{#if canBrowse || canCustom}
+					<div class="grid {canBrowse && canCustom ? 'grid-cols-3' : 'grid-cols-2'} gap-1 rounded-md bg-muted p-1">
+						<button
+							class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'explore' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
+							aria-pressed={activeTab === 'explore'}
+							onclick={() => switchTab('explore')}
+						>
+							Explore
+						</button>
+						{#if canBrowse}
 							<button
-								class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'explore' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
-								aria-pressed={activeTab === 'explore'}
-								onclick={() => switchTab('explore')}
+								class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'browse' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
+								aria-pressed={activeTab === 'browse'}
+								onclick={() => switchTab('browse')}
 							>
-								Explore
+								Browse All
 							</button>
-							{#if canBrowse}
-								<button
-									class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'browse' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
-									aria-pressed={activeTab === 'browse'}
-									onclick={() => switchTab('browse')}
-								>
-									Browse All
-								</button>
-							{/if}
-							{#if canCustom}
-								<button
-									class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'custom' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
-									aria-pressed={activeTab === 'custom'}
-									onclick={() => switchTab('custom')}
-								>
-									Custom
-								</button>
+						{/if}
+						{#if canCustom}
+							<button
+								class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'custom' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
+								aria-pressed={activeTab === 'custom'}
+								onclick={() => switchTab('custom')}
+							>
+								Custom
+							</button>
+						{/if}
+					</div>
+				{/if}
+			</div>
+
+			<!-- Tab content (scrolls if too tall; explore tab needs overflow-visible so its dropdown isn't clipped) -->
+			<div class="px-4 pb-4 pt-2 min-h-0 flex-1 {activeTab === 'explore' ? 'overflow-visible' : 'overflow-y-auto'}">
+				{#if activeTab === 'explore'}
+					<GeographySearch
+						featuredBoundaries={featuredBoundaries}
+						selectedBoundaries={browseBoundaries}
+						proceedLabel={findingData ? 'Loading…' : 'Find Data'}
+						proceedDisabled={findDataDisabled}
+						onSelect={handleSelect}
+						onProceed={handleFindData}
+						belowSelection={coverageStatus}
+					/>
+
+					<!-- Feature-selection hint once a single boundary is selected -->
+					{#if browseBoundaries.length === 1}
+						<div class="mt-3 rounded-md border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+							{#if pendingFeatureIds.length === 0}
+								Click features on the map to narrow your selection, or press
+								<strong>Find Data</strong> to use the entire collection.
+							{:else}
+								<strong>{pendingFeatureIds.length}</strong>
+								{pendingFeatureIds.length === 1 ? 'feature' : 'features'} selected — click more to
+								add, or click a selected feature to deselect it.
 							{/if}
 						</div>
 					{/if}
-				</div>
-
-				<!-- Tab content (scrolls if too tall; explore tab needs overflow-visible so its dropdown isn't clipped) -->
-				<div class="px-4 pb-4 pt-2 min-h-0 flex-1 {activeTab === 'explore' ? 'overflow-visible' : 'overflow-y-auto'}">
-					{#if activeTab === 'explore'}
-						<GeographySearch
-							featuredBoundaries={addingAnother ? [] : featuredBoundaries}
-							selectedBoundaries={browseBoundaries}
-							proceedLabel={browseBoundaries.length === 1 && pendingFeatureIds.length > 0
-								? 'Save Selected Features'
-								: 'Find Data'}
-							proceedTooltip={browseBoundaries.length > 1 && pendingFeatureIds.length > 0
-								? 'Individual feature selections are limited to one boundary collection.'
-								: undefined}
-							onSelect={handleBrowseSelection}
-							onProceed={handleProceed}
+				{:else if activeTab === 'browse'}
+					{#if boundaryLoadError}
+						<p class="text-sm text-destructive py-2">{boundaryLoadError}</p>
+					{:else}
+						<BoundaryBrowsePanel
+							allBoundaries={allBoundaries}
+							selectedIds={new Set(browseBoundaries.map((b) => b.id))}
+							presets={boundaryPresets}
+							onSelectionChange={handleBrowsePanelSelection}
+							loading={boundaryLoading}
 						/>
-
-						<!-- Feature-selection hint once a single boundary is selected -->
-						{#if browseBoundaries.length === 1 && !addingAnother}
-							<div class="mt-3 rounded-md border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-								{#if pendingFeatureIds.length === 0}
-									Click features on the map to narrow your selection, then press
-									<strong>Save Selected Features</strong>. Or press <strong>Find Data</strong> to use
-									the entire collection.
-								{:else}
-									<strong>{pendingFeatureIds.length}</strong>
-									{pendingFeatureIds.length === 1 ? 'feature' : 'features'} selected — click more to
-									add, or click a selected feature to deselect it.
-								{/if}
-							</div>
-						{/if}
-					{:else if activeTab === 'browse'}
-						{#if boundaryLoadError}
-							<p class="text-sm text-destructive py-2">{boundaryLoadError}</p>
-						{:else}
-							<BoundaryBrowsePanel
-								allBoundaries={allBoundaries}
-								selectedIds={new Set(browseBoundaries.map((b) => b.id))}
-								presets={boundaryPresets}
-								onSelectionChange={handleBrowsePanelSelection}
-								loading={boundaryLoading}
-							/>
-						{/if}
-
-						{#if browseBoundaries.length > 0}
-							<div class="mt-4 pt-3 border-t flex justify-end">
-								<Button size="sm" onclick={() => handleProceed(browseBoundaries)}>
-									Find Data
-									<ArrowRight />
-								</Button>
-							</div>
-						{/if}
-					{:else if activeTab === 'custom'}
-						<CustomBoundaryPanel />
 					{/if}
-				</div>
 
-				<!-- Cancel "addingAnother" footer -->
-				{#if addingAnother}
-					<div class="shrink-0 border-t px-4 py-2">
-						<Button
-							variant="link"
-							size="xs"
-							class="min-h-0 px-0 font-body text-muted-foreground underline hover:text-foreground"
-							onclick={() => { addingAnother = false; pendingBoundary = null; previewBoundaries = []; }}
-						>
-							Cancel adding another boundary
-						</Button>
-					</div>
+					{#if browseBoundaries.length > 0}
+						<div class="mt-4 pt-3 border-t flex items-center justify-between gap-2">
+							{@render coverageStatus()}
+							<Button size="sm" disabled={findDataDisabled} onclick={handleFindData}>
+								{findingData ? 'Loading…' : 'Find Data'}
+								{#if !findingData}<ArrowRight />{/if}
+							</Button>
+						</div>
+					{/if}
+				{:else if activeTab === 'custom'}
+					<CustomBoundaryPanel />
+				{/if}
+
+				{#if activeTab !== 'custom'}
+					{#if findDataError}
+						<p class="mt-2 text-xs text-destructive">{findDataError}</p>
+					{/if}
+
+					{#if selectionChanged && $cartCount > 0}
+						<Alert.Root variant="warning" role="status" class="mt-3">
+							<TriangleAlert />
+							<Alert.Description>
+								Your selection has changed. Actual dataset coverage may vary across selected features.
+							</Alert.Description>
+						</Alert.Root>
+					{/if}
 				{/if}
 			</div>
-		{/if}
+		</div>
 	</div>
 
 	<!-- Zoom Controls -->

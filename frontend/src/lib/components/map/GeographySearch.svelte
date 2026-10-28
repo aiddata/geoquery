@@ -3,6 +3,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { ChevronLeft, ChevronRight, Search, X } from '@lucide/svelte';
+	import type { Snippet } from 'svelte';
 	import { searchBoundaries, type BoundaryResult } from '$lib/api';
 	import { colorForIndex } from '$lib/utils/boundaryStyle';
 
@@ -10,18 +11,23 @@
 		featuredBoundaries?: BoundaryResult[];
 		proceedLabel?: string;
 		proceedTooltip?: string;
+		proceedDisabled?: boolean;
 		selectedBoundaries?: BoundaryResult[]; // External selection state (optional)
 		onSelect?: (boundaries: BoundaryResult[]) => void;
 		onProceed?: (boundaries: BoundaryResult[]) => void;
+		/** Rendered directly under the selected chips, e.g. a coverage status line. */
+		belowSelection?: Snippet;
 	}
 
 	let {
 		featuredBoundaries = [],
 		proceedLabel = 'Find Data',
 		proceedTooltip,
+		proceedDisabled = false,
 		selectedBoundaries: externalSelection = undefined,
 		onSelect,
-		onProceed
+		onProceed,
+		belowSelection
 	}: Props = $props();
 
 	let internalSelection = $state<BoundaryResult[]>([]);
@@ -96,7 +102,7 @@
 	}
 
 	function proceed() {
-		if (selectedBoundaries.length > 0) {
+		if (selectedBoundaries.length > 0 && !proceedDisabled) {
 			onProceed?.(selectedBoundaries);
 		}
 	}
@@ -127,6 +133,7 @@
 				</div>
 			{/each}
 		</div>
+		{@render belowSelection?.()}
 	{/if}
 
 	<!-- Search Input -->
@@ -202,7 +209,7 @@
 			{#if proceedTooltip}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
-						<Button size="sm" onclick={proceed}>
+						<Button size="sm" disabled={proceedDisabled} onclick={proceed}>
 							{proceedLabel}
 							<ChevronRight />
 						</Button>
@@ -210,7 +217,7 @@
 					<Tooltip.Content>{proceedTooltip}</Tooltip.Content>
 				</Tooltip.Root>
 			{:else}
-				<Button size="sm" onclick={proceed}>
+				<Button size="sm" disabled={proceedDisabled} onclick={proceed}>
 					{proceedLabel}
 					<ChevronRight />
 				</Button>
