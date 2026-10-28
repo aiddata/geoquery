@@ -9,6 +9,7 @@
 	import StatusBadge, { requestStatusMeaning } from '$lib/components/StatusBadge.svelte';
 	import { ArrowLeft, Download, RefreshCw, ChevronRight, CircleAlert, Map } from '@lucide/svelte';
 	import { formatKwargs } from '$lib/utils';
+	import { features } from '$lib/stores/features';
 
 	const TERMINAL_STATUSES = new Set([1, -2]);
 
@@ -136,14 +137,16 @@
 									</Button>
 								{/if}
 							</div>
-							<div class="flex items-center gap-2">
-								<a href={`/api/visualize/request/${request.id}/export/?format=colab`} target="_blank" rel="noopener noreferrer">
-									<img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab" />
-								</a>
-								<a href={`/api/visualize/request/${request.id}/export/?format=marimo`} target="_blank" rel="noopener noreferrer">
-									<img src="https://marimo.io/molab-shield.svg" alt="Open in molab" />
-								</a>
-							</div>
+							{#if $features.has('notebook_export')}
+								<div class="flex items-center gap-2">
+									<a href={`/api/visualize/request/${request.id}/export/?format=colab`} target="_blank" rel="noopener noreferrer">
+										<img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab" />
+									</a>
+									<a href={`/api/visualize/request/${request.id}/export/?format=marimo`} target="_blank" rel="noopener noreferrer">
+										<img src="https://marimo.io/molab-shield.svg" alt="Open in molab" />
+									</a>
+								</div>
+							{/if}
 						</Alert.Description>
 					</Alert.Root>
 				{:else if request.status_label === 'completed'}

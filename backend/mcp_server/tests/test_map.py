@@ -6,18 +6,18 @@ from geoquery.testing import ReplicaReadsTestMixin
 from mcp_server.apps.map import MAP_APP_URI, build_map_payload
 from mcp_server.data.selection import SelectionError
 
-from .factories import World
+from .factories import World, make_beta_tester
 
 
 class MapPayloadTests(ReplicaReadsTestMixin, TestCase):
     def setUp(self):
         self.world = World().fill().simplify()
 
-    def build(self, **kwargs):
+    def build(self, user=None, **kwargs):
         kwargs.setdefault("boundaries", [self.world.fc.name])
         kwargs.setdefault("dataset", "esa_landcover")
         kwargs.setdefault("extract_type", "mean")
-        return build_map_payload(None, **kwargs)
+        return build_map_payload(user, **kwargs)
 
     def test_geojson_is_valid_and_carries_only_names(self):
         payload = self.build()
@@ -114,7 +114,9 @@ class MapPayloadTests(ReplicaReadsTestMixin, TestCase):
         self.assertIn("Protomaps", basemap["attribution"])
 
     def test_viz_url_matches_the_rendered_styling(self):
-        payload = self.build(palette="Blues", classification="equal")
+        payload = self.build(
+            make_beta_tester(), palette="Blues", classification="equal"
+        )
 
         self.assertIn("palette=Blues", payload["viz_url"])
         self.assertIn("scheme=equal", payload["viz_url"])
@@ -126,9 +128,12 @@ class MapPayloadTests(ReplicaReadsTestMixin, TestCase):
         self.assertIn("ESA Land Cover", payload["attribution"]["text"])
         self.assertIn("geoBoundaries", payload["attribution"]["text"])
 
+    def test_no_viz_url_without_the_visualize_feature(self):
+        self.assertIsNone(self.build()["viz_url"])
+
     @override_settings(MCP_MAP_MAX_FEATURES=1)
     def test_over_the_feature_cap_drops_geometry_and_says_so(self):
-        payload = self.build()
+        payload = self.build(make_beta_tester())
 
         self.assertIsNone(payload["geojson"])
         self.assertTrue(payload["truncated"])

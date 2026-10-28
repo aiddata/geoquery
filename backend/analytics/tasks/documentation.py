@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from django.conf import settings
+from django.conf import settings  # noqa: F401 -- for the commented-out visualization link
 
 from datasets.models import Dataset
 from analytics.models import ProcessingOption
@@ -80,15 +80,18 @@ class DocBuilder:
                 "Download", f'<a href="{self._esc(dl_url)}">{self._esc(dl_url)}</a>'
             ),
         ]
-        frontend_base = getattr(settings, "FRONTEND_BASE_URL", "").rstrip("/")
-        if frontend_base:
-            viz_url = f"{frontend_base}/viz/{req.id}"
-            rows.append(
-                self._kv(
-                    "Visualization",
-                    f'<a href="{self._esc(viz_url)}">{self._esc(viz_url)}</a>',
-                )
-            )
+        # Visualization is in beta (accounts.features.VISUALIZE). This page is
+        # generated once and shared with whoever gets the zip, so it can't
+        # check the reader -- restore the link once the feature is released.
+        # frontend_base = getattr(settings, "FRONTEND_BASE_URL", "").rstrip("/")
+        # if frontend_base:
+        #     viz_url = f"{frontend_base}/viz/{req.id}"
+        #     rows.append(
+        #         self._kv(
+        #             "Visualization",
+        #             f'<a href="{self._esc(viz_url)}">{self._esc(viz_url)}</a>',
+        #         )
+        #     )
         return f"<section><h2>Request Info</h2>{self._table(rows)}</section>"
 
     @staticmethod

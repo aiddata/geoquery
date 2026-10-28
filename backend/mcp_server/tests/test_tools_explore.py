@@ -29,12 +29,13 @@ from mcp_server.tools.explore import (
     _fit_model_payload,
     _get_data,
     _json_size,
+    _or_open,
     gap_lines,
     viz_url,
 )
 from mcp_server.data.selection import resolve_selection
 
-from .factories import World, make_dataset, make_fc, square
+from .factories import World, make_beta_tester, make_dataset, make_fc, square
 
 User = get_user_model()
 
@@ -567,11 +568,11 @@ class GetDataTableTests(ReplicaReadsTestMixin, TestCase):
     def setUp(self):
         self.world = World().fill()
 
-    def get(self, **kwargs):
+    def get(self, user=None, **kwargs):
         kwargs.setdefault("boundaries", [self.world.fc.name])
         kwargs.setdefault("dataset", "esa_landcover")
         kwargs.setdefault("extract_type", "mean")
-        return _get_data(None, **kwargs)
+        return _get_data(user, **kwargs)
 
     def test_returns_one_row_per_feature_with_the_selected_columns(self):
         payload = self.get()
@@ -693,7 +694,7 @@ class GetDataTableTests(ReplicaReadsTestMixin, TestCase):
         self.assertCountEqual(values, [4.0, None])
 
     def test_viz_url_carries_the_selection(self):
-        payload = self.get()
+        payload = self.get(make_beta_tester())
 
         self.assertIn(f"fc={self.world.fc.id}", payload["viz_url"])
         self.assertIn("col=esa_lc_2015.mean", payload["viz_url"])
@@ -733,12 +734,12 @@ class GetDataGeoJsonTests(ReplicaReadsTestMixin, TestCase):
     def setUp(self):
         self.world = World().fill().simplify()
 
-    def get(self, **kwargs):
+    def get(self, user=None, **kwargs):
         kwargs.setdefault("boundaries", [self.world.fc.name])
         kwargs.setdefault("dataset", "esa_landcover")
         kwargs.setdefault("extract_type", "mean")
         kwargs["format"] = "geojson"
-        return _get_data(None, **kwargs)
+        return _get_data(user, **kwargs)
 
     def test_is_a_valid_feature_collection_with_real_geometry(self):
         collection = self.get()["geojson"]
@@ -782,7 +783,7 @@ class GetDataGeoJsonTests(ReplicaReadsTestMixin, TestCase):
 
     @override_settings(MCP_MAP_MAX_FEATURES=1)
     def test_over_the_cap_drops_geometry_but_keeps_every_feature(self):
-        payload = self.get()
+        payload = self.get(make_beta_tester())
 
         self.assertTrue(payload["truncated"])
         self.assertTrue(payload["geometry_omitted"])
@@ -826,7 +827,7 @@ class VizUrlTests(TestCase):
 
     def test_explore_url_lists_fc_and_po_ids(self):
         selection = resolve_selection(
-            None,
+            make_beta_tester(),
             boundaries=[self.world.fc.name],
             dataset="esa_landcover",
             extract_type="mean",
@@ -840,13 +841,27 @@ class VizUrlTests(TestCase):
 
     def test_request_url_is_the_request_route(self):
         request = self.world.make_request()
-        selection = resolve_selection(None, request_id=str(request.id))
+        selection = resolve_selection(make_beta_tester(), request_id=str(request.id))
 
         url = viz_url(selection, col="x")
 
         self.assertIn(f"/viz/{request.id}?col=x", url)
 
     def test_empty_parameters_are_dropped(self):
-        selection = resolve_selection(None, request_id=str(self.world.make_request().id))
+        selection = resolve_selection(
+            make_beta_tester(), request_id=str(self.world.make_request().id)
+        )
 
         self.assertNotIn("formula", viz_url(selection, col="x", formula=None))
+
+    def test_no_url_without_the_visualize_feature(self):
+        selection = resolve_selection(None, request_id=str(self.world.make_request().id))
+
+        self.assertIsNone(viz_url(selection, col="x"))
+
+    def test_result_text_only_offers_the_link_when_there_is_one(self):
+        self.assertEqual(_or_open({"viz_url": None}), "")
+        self.assertEqual(
+            _or_open({"viz_url": "http://x/viz/1"}, " for more"),
+            ", or open http://x/viz/1 for more",
+        )

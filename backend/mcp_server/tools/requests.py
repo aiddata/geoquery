@@ -163,7 +163,7 @@ def _plan_attribution(plan, fc) -> dict:
     return attribution_for([r.dataset for r in plan.resolved], [fc])
 
 
-def _status_payload(request: Request) -> dict:
+def _status_payload(request: Request, user) -> dict:
     completed, total = request_progress(request)
     return {
         "request_id": str(request.id),
@@ -177,14 +177,15 @@ def _status_payload(request: Request) -> dict:
         "tasks_completed": completed,
         "tasks_total": total,
         "progress": round(completed / total, 3) if total else 0.0,
-        **request_links(request),
+        **request_links(request, user),
         "attribution": attribution_for_request(request),
     }
 
 
 def _get_request_status(user, request_id: str) -> dict:
     return _status_payload(
-        get_request_or_error(request_id, "Use list_my_requests to see your exports.")
+        get_request_or_error(request_id, "Use list_my_requests to see your exports."),
+        user,
     )
 
 
@@ -202,7 +203,7 @@ def _list_my_requests(user, limit=20, offset=0, status=None) -> dict:
                 "status": r.status,
                 "status_label": STATUS_LABELS.get(r.status, "unknown"),
                 "submitted": r.submit_time.isoformat() if r.submit_time else None,
-                **request_links(r),
+                **request_links(r, user),
             }
             for r in rows
         ],
@@ -441,7 +442,7 @@ def register(mcp, user_dep):
             ) from exc
 
         payload = {
-            **_status_payload(created.request),
+            **_status_payload(created.request, user),
             "task_count": created.task_count,
             "warnings": created.warnings,
         }
@@ -460,9 +461,11 @@ def register(mcp, user_dep):
     ):
         """Progress of an export, and its links once it finishes.
 
-        A completed export gains `download_url` (the zip), `documentation_url`
-        (its citations and licenses) and `visualization_url`. Its results can
-        also be read directly with get_data or show_map using `request_id`.
+        A completed export gains `download_url` (the zip) and
+        `documentation_url` (its citations and licenses), plus
+        `visualization_url` for accounts with visualization enabled. Its
+        results can also be read directly with get_data or show_map using
+        `request_id`.
         """
         payload = _get_request_status(user, request_id)
         lines = [

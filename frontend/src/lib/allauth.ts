@@ -12,6 +12,8 @@ export interface AllauthUser {
 	email: string;
 	username?: string;
 	has_usable_password?: boolean;
+	/** Whether the user may use features in beta (see $lib/stores/features). */
+	is_beta_tester?: boolean;
 }
 
 export interface EmailAddress {

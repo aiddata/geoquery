@@ -9,8 +9,9 @@ and unlike ``show_map`` it needs no app support.
 
 Caps are deliberate and reported rather than silently applied. When a
 selection is too big the right move is to narrow it or hand the user
-``viz_url``, which opens the whole thing in GeoQuery's own map -- not to page
-a million rows through a chat window.
+``viz_url`` (when the caller may use /viz, a beta feature), which opens the
+whole thing in GeoQuery's own map -- not to page a million rows through a
+chat window.
 """
 
 from __future__ import annotations
@@ -62,10 +63,10 @@ def viz_url(selection: Selection, **params) -> str | None:
 
     The escape hatch for everything the caps cut off: every truncated result
     carries one, so "too much data for chat" always has an answer better than
-    "try a smaller query".
+    "try a smaller query". None while /viz is a beta feature the caller lacks.
     """
     base = getattr(settings, "FRONTEND_BASE_URL", "").rstrip("/")
-    if not base:
+    if not base or not selection.can_visualize:
         return None
 
     if selection.request_id:
@@ -437,6 +438,12 @@ def _geojson(selection, payload, features, selected, status, attribution) -> dic
     }
 
 
+def _or_open(payload: dict, suffix: str = "") -> str:
+    """Result-text clause pointing at ``viz_url``, or "" when there is no link."""
+    url = payload.get("viz_url")
+    return f", or open {url}{suffix}" if url else ""
+
+
 def gap_lines(columns: list[dict]) -> list[str]:
     """Say which columns have holes, and which kind.
 
@@ -623,8 +630,9 @@ def register(mcp, user_dep):
         returns boundary geometry with the values attached, and its own
         `attribution` member.
 
-        Results are capped. If `truncated` is true, narrow the selection or
-        give the user `viz_url`, which opens the whole thing in GeoQuery.
+        Results are capped. If `truncated` is true, narrow the selection or,
+        when the result includes a `viz_url`, give it to the user; it opens the
+        whole thing in GeoQuery.
         Results include `attribution`; relay the sources, licenses and
         citations to the user.
         """
@@ -657,7 +665,7 @@ def register(mcp, user_dep):
                 lines.append(
                     f"Over the {settings.MCP_MAP_MAX_FEATURES:,}-feature limit, so "
                     "geometry was omitted and only values are included. Narrow "
-                    f"the selection, or open {payload['viz_url']}."
+                    f"the selection{_or_open(payload)}."
                 )
         elif shape == "long":
             lines = [
@@ -676,8 +684,7 @@ def register(mcp, user_dep):
                 )
             if payload["truncated"]:
                 lines.append(
-                    "More features available — raise `offset`, or open "
-                    f"{payload['viz_url']}."
+                    f"More features available — raise `offset`{_or_open(payload)}."
                 )
         else:
             lines = [
@@ -687,7 +694,7 @@ def register(mcp, user_dep):
             ]
             if payload["truncated"]:
                 lines.append(
-                    f"More rows available — raise `offset`, or open {payload['viz_url']}."
+                    f"More rows available — raise `offset`{_or_open(payload)}."
                 )
         lines.extend(gap_lines(payload["columns"]))
         if payload["columns_omitted"]:
@@ -699,6 +706,6 @@ def register(mcp, user_dep):
             returned = payload.get("returned_rows", payload.get("returned_features", 0))
             lines.append(
                 f"The response-size limit retained {returned:,} records. Narrow "
-                f"the selection or open {payload['viz_url']} for the full result."
+                f"the selection{_or_open(payload, ' for the full result')}."
             )
         return result(lines, payload, data_block=_data_block(payload, shape))

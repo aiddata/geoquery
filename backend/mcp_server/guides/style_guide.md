@@ -158,8 +158,8 @@ page. Do not summarise data while dropping where it came from.
   by hand.
 - Cite GeoQuery itself: Goodman, BenYishay, Lv and Runfola (2019), Computers &
   Geosciences 122, 103-112.
-- Where a selection was truncated, link the `viz_url` from the result so the
-  reader can open the full selection in GeoQuery.
+- Where a selection was truncated and the result includes a `viz_url`, link it
+  so the reader can open the full selection in GeoQuery.
 
 ## Interaction and accessibility
 

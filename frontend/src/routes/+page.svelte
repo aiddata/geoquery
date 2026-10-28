@@ -21,6 +21,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { PlusCircle, ArrowRight, TriangleAlert } from '@lucide/svelte';
 	import { customBoundary } from '$lib/stores/customBoundary';
+	import { features } from '$lib/stores/features';
 	import { bbox as turfBbox } from '@turf/bbox';
 
 	// ── Local staged selection types ────────────────────────────────────────────
@@ -75,6 +76,20 @@
 	// Active tab in the selection panel. 'custom' mirrors customBoundary.active.
 	type SelectionTab = 'explore' | 'browse' | 'custom';
 	let activeTab = $state<SelectionTab>($customBoundary.active ? 'custom' : 'explore');
+
+	// Browse All and Custom are beta features. Without either, the tab bar is
+	// hidden and only the Explore search remains.
+	let canBrowse = $derived($features.has('browse_boundaries'));
+	let canCustom = $derived($features.has('custom_boundaries'));
+
+	// Drop back to Explore once features resolve without access to the current
+	// tab (e.g. a custom boundary left active from before signing out).
+	$effect(() => {
+		if (!$features.ready) return;
+		if ((activeTab === 'browse' && !canBrowse) || (activeTab === 'custom' && !canCustom)) {
+			switchTab('explore');
+		}
+	});
 
 	function switchTab(tab: SelectionTab) {
 		if (tab === 'custom') {
@@ -512,7 +527,7 @@
 			<!-- Tabbed selection card -->
 			<div class="card-surface flex flex-col min-h-0">
 				<div class="p-4 pb-2 shrink-0">
-					<div class="flex items-start justify-between gap-2 mb-3">
+					<div class="flex items-start justify-between gap-2 {canBrowse || canCustom ? 'mb-3' : ''}">
 						<h2 class="text-h4 text-primary">
 							Select Boundaries to Begin
 						</h2>
@@ -528,29 +543,35 @@
 						{/if}
 					</div>
 					<!-- Tabs -->
-					<div class="grid grid-cols-3 gap-1 rounded-md bg-muted p-1">
-						<button
-							class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'explore' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
-							aria-pressed={activeTab === 'explore'}
-							onclick={() => switchTab('explore')}
-						>
-							Explore
-						</button>
-						<button
-							class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'browse' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
-							aria-pressed={activeTab === 'browse'}
-							onclick={() => switchTab('browse')}
-						>
-							Browse All
-						</button>
-						<button
-							class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'custom' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
-							aria-pressed={activeTab === 'custom'}
-							onclick={() => switchTab('custom')}
-						>
-							Custom
-						</button>
-					</div>
+					{#if canBrowse || canCustom}
+						<div class="grid {canBrowse && canCustom ? 'grid-cols-3' : 'grid-cols-2'} gap-1 rounded-md bg-muted p-1">
+							<button
+								class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'explore' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
+								aria-pressed={activeTab === 'explore'}
+								onclick={() => switchTab('explore')}
+							>
+								Explore
+							</button>
+							{#if canBrowse}
+								<button
+									class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'browse' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
+									aria-pressed={activeTab === 'browse'}
+									onclick={() => switchTab('browse')}
+								>
+									Browse All
+								</button>
+							{/if}
+							{#if canCustom}
+								<button
+									class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'custom' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
+									aria-pressed={activeTab === 'custom'}
+									onclick={() => switchTab('custom')}
+								>
+									Custom
+								</button>
+							{/if}
+						</div>
+					{/if}
 				</div>
 
 				<!-- Tab content (scrolls if too tall; explore tab needs overflow-visible so its dropdown isn't clipped) -->

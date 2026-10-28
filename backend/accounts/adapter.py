@@ -1,7 +1,11 @@
+import dataclasses
 import logging
 
 from allauth.account.adapter import DefaultAccountAdapter
+from allauth.headless.adapter import DefaultHeadlessAdapter
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
+
+from accounts.features import is_beta_tester
 
 logger = logging.getLogger(__name__)
 
@@ -44,3 +48,39 @@ class AccountAdapter(DefaultAccountAdapter):
 
     def is_open_for_signup(self, request):
         return False
+
+
+class HeadlessAdapter(DefaultHeadlessAdapter):
+    """Headless adapter that adds the beta-tester flag to the user payload.
+
+    The SPA reads the user from allauth's session responses, so the flag
+    reaches the frontend without a separate request. Which features are in
+    beta comes from ``/api/config/``. Both are UI hints only -- every gated
+    action is enforced again by the view that performs it (see
+    ``accounts.features``).
+    """
+
+    def get_user_dataclass(self):
+        base = super().get_user_dataclass()
+        return dataclasses.make_dataclass(
+            base.__name__,
+            [
+                (
+                    "is_beta_tester",
+                    bool,
+                    dataclasses.field(
+                        default=False,
+                        metadata={
+                            "description": "Whether the user may use beta features.",
+                            "example": False,
+                        },
+                    ),
+                )
+            ],
+            bases=(base,),
+        )
+
+    def user_as_dataclass(self, user):
+        dc = super().user_as_dataclass(user)
+        dc.is_beta_tester = bool(user.pk and is_beta_tester(user))
+        return dc

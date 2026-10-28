@@ -5,7 +5,7 @@ from django.db.models.expressions import RawSQL
 from django.test import TestCase
 from django.urls import reverse
 
-from analytics.models import ExtractTask, ProcessingOption, RequestMap
+from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
 from analytics.services import materialize_request
 from datasets.models import Dataset, DatasetResource
 from features.models import Feature, FeatMap, FeatureCollection
@@ -250,3 +250,103 @@ class RequestViewStandardSubmissionTest(TestCase):
         self.assertEqual(mock_get.call_count, 2)
         for call in mock_get.call_args_list:
             self.assertEqual(call.kwargs, expected_get_kwargs)
+
+
+class RequestViewCustomBoundaryPermissionTest(TestCase):
+    """Custom boundary submissions are limited to beta testers while in beta."""
+
+    def setUp(self):
+        self.url = reverse("request-list-create")
+        self.payload = {
+            "email": "a@example.com",
+            "datasets": [{"datasetName": "ds"}],
+            "customBoundary": {
+                "fileName": "upload.geojson",
+                "featureCount": 1,
+                "features": {
+                    "type": "FeatureCollection",
+                    "features": [
+                        {
+                            "type": "Feature",
+                            "properties": {},
+                            "geometry": {"type": "Point", "coordinates": [0, 0]},
+                        }
+                    ],
+                },
+            },
+        }
+
+    def submit(self):
+        return self.client.post(
+            self.url, data=self.payload, content_type="application/json"
+        )
+
+    def make_user(self, username):
+        from django.contrib.auth import get_user_model
+
+        return get_user_model().objects.create_user(
+            username=username, email=f"{username}@example.com"
+        )
+
+    def test_anonymous_is_rejected(self):
+        resp = self.submit()
+
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(Request.objects.exists())
+
+    def test_user_without_permission_is_rejected(self):
+        self.client.force_login(self.make_user("plain"))
+
+        resp = self.submit()
+
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(Request.objects.exists())
+
+    @mock.patch("analytics.views.ingest_custom_boundary_task.delay")
+    def test_beta_tester_is_accepted(self, delay):
+        from django.contrib.auth.models import Permission
+
+        user = self.make_user("tester")
+        user.user_permissions.add(Permission.objects.get(codename="beta_tester"))
+        self.client.force_login(user)
+
+        resp = self.submit()
+
+        self.assertEqual(resp.status_code, 201)
+        delay.assert_called_once()
+
+    @mock.patch("accounts.features.BETA_FEATURES", frozenset())
+    @mock.patch("analytics.views.ingest_custom_boundary_task.delay")
+    def test_anonymous_is_accepted_once_released(self, delay):
+        resp = self.submit()
+
+        self.assertEqual(resp.status_code, 201)
+        delay.assert_called_once()
+
+
+class RequestDetailVisualizationLinkTest(TestCase):
+    """The detail view resolves the session so the viz link follows the viewer."""
+
+    def setUp(self):
+        self.req = Request.objects.create(contact="a@example.com", status=1, data={})
+        self.url = reverse("request-detail", args=[self.req.id])
+
+    def test_link_hidden_from_anonymous_viewers(self):
+        resp = self.client.get(self.url)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn("visualization_url", resp.json())
+
+    def test_link_shown_to_beta_testers(self):
+        from django.contrib.auth import get_user_model
+        from django.contrib.auth.models import Permission
+
+        user = get_user_model().objects.create_user(
+            username="tester", email="tester@example.com"
+        )
+        user.user_permissions.add(Permission.objects.get(codename="beta_tester"))
+        self.client.force_login(user)
+
+        resp = self.client.get(self.url)
+
+        self.assertIn(f"/viz/{self.req.id}", resp.json()["visualization_url"])

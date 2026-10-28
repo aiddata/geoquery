@@ -127,8 +127,8 @@ def register(mcp, user_dep):
         another tool call, so ask for the whole selection rather than one map
         per year.
 
-        If the client cannot render the map, the text summary and `viz_url`
-        still describe the selection. Results include `attribution`; relay
+        If the client cannot render the map, the text summary (and `viz_url`,
+        when included) still describe the selection. Results include `attribution`; relay
         the sources, licenses and citations to the user.
         """
         payload = build_map_payload(

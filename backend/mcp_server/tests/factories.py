@@ -54,6 +54,18 @@ def make_dataset(name="esa_landcover", **kwargs):
     return Dataset.objects.create(name=name, **kwargs)
 
 
+def make_beta_tester(username="tester"):
+    """A user holding the beta permission, e.g. so results carry ``viz_url``."""
+    from django.contrib.auth import get_user_model
+    from django.contrib.auth.models import Permission
+
+    user = get_user_model().objects.create_user(
+        username=username, email=f"{username}@x.test", password="x"
+    )
+    user.user_permissions.add(Permission.objects.get(codename="beta_tester"))
+    return user
+
+
 def square(x: float, y: float, size: float = 1.0) -> Polygon:
     return Polygon(
         ((x, y), (x + size, y), (x + size, y + size), (x, y + size), (x, y)),

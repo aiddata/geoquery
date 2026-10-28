@@ -24,7 +24,7 @@ from mcp_server.tools.requests import (
     _to_web_spec,
 )
 
-from .factories import World
+from .factories import World, make_beta_tester
 
 User = get_user_model()
 
@@ -344,7 +344,7 @@ class RequestStatusTests(TestCase):
     def test_reports_progress_and_links_for_a_finished_export(self):
         request = self.world.make_request()
 
-        payload = _get_request_status(None, str(request.id))
+        payload = _get_request_status(make_beta_tester(), str(request.id))
 
         self.assertEqual(payload["status_label"], "completed")
         self.assertEqual(payload["tasks_completed"], 3)
@@ -353,6 +353,14 @@ class RequestStatusTests(TestCase):
         self.assertIn(str(request.id), payload["download_url"])
         self.assertIn(str(request.id), payload["documentation_url"])
         self.assertIn(str(request.id), payload["visualization_url"])
+
+    def test_no_visualization_url_without_the_visualize_feature(self):
+        request = self.world.make_request()
+
+        payload = _get_request_status(None, str(request.id))
+
+        self.assertIn("download_url", payload)
+        self.assertNotIn("visualization_url", payload)
 
     def test_an_unfinished_export_has_no_links(self):
         request = self.world.make_request(status=0)

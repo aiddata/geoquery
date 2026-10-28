@@ -72,8 +72,8 @@ before publishing.
 
 Results are capped in size on purpose. When a result comes back truncated,
 narrow the selection (fewer boundaries, fewer years, one extract type) rather
-than paging through everything -- or hand the user the `viz_url` in the
-result, which opens the full selection in GeoQuery's own map.
+than paging through everything -- or, when the result includes a `viz_url`,
+hand it to the user; it opens the full selection in GeoQuery's own map.
 """
 
 

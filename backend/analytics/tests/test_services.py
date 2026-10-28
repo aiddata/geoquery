@@ -8,6 +8,7 @@ history endpoint.
 """
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser, Permission
 from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
@@ -448,14 +449,20 @@ class RequestProgressAndLinksTests(SubmissionFixture):
         )
 
     def test_incomplete_request_has_no_links(self):
-        self.assertEqual(request_links(self.created.request), {})
+        self.assertEqual(request_links(self.created.request, None), {})
 
-    def test_completed_request_links_to_download_docs_and_viz(self):
+    def complete(self):
         req = self.created.request
         Request.objects.filter(pk=req.pk).update(status=1)
         req.refresh_from_db()
+        return req
 
-        links = request_links(req)
+    def test_completed_request_links_to_download_docs_and_viz(self):
+        req = self.complete()
+        tester = User.objects.create_user(username="tester", email="t@x.test")
+        tester.user_permissions.add(Permission.objects.get(codename="beta_tester"))
+
+        links = request_links(req, tester)
 
         self.assertEqual(links["download_url"], f"http://localhost:8000/requests/{req.id}/{req.id}.zip")
         self.assertEqual(
@@ -463,6 +470,16 @@ class RequestProgressAndLinksTests(SubmissionFixture):
             f"http://localhost:8000/requests/{req.id}/{req.id}_documentation.html",
         )
         self.assertEqual(links["visualization_url"], f"http://localhost:5173/viz/{req.id}")
+
+    def test_viz_link_needs_the_visualize_feature(self):
+        req = self.complete()
+        plain = User.objects.create_user(username="plain", email="p@x.test")
+
+        for viewer in (None, AnonymousUser(), plain):
+            with self.subTest(viewer=viewer):
+                links = request_links(req, viewer)
+                self.assertIn("download_url", links)
+                self.assertNotIn("visualization_url", links)
 
 
 class RequestsForUserTests(TestCase):

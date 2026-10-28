@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 
+from accounts.features import VISUALIZE, has_feature
 from analytics.models import ExtractTask, Request
 from catalog.access import visible_feature_collections, visible_processing_options
 from datasets.models import Dataset, DatasetResource
@@ -57,6 +58,9 @@ class Selection:
     extract_type: str | None = None
     datasets: list[Dataset] = field(default_factory=list)
     feature_collections: list[FeatureCollection] = field(default_factory=list)
+    # Whether the caller may open it in /viz, which is a beta feature. Decides
+    # whether results carry a viz_url at all.
+    can_visualize: bool = False
 
     @property
     def source(self) -> str:
@@ -209,6 +213,7 @@ def resolve_selection(
             request_id=str(req.id),
             datasets=[by_name[n] for n in dict.fromkeys(names) if n in by_name],
             feature_collections=fcs,
+            can_visualize=has_feature(user, VISUALIZE),
         )
 
     if not dataset:
@@ -229,6 +234,7 @@ def resolve_selection(
         extract_type=extract_type,
         datasets=[pos[0].dataset],
         feature_collections=fcs,
+        can_visualize=has_feature(user, VISUALIZE),
     )
 
 

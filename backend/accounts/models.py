@@ -14,5 +14,10 @@ class User(AbstractUser):
 
     email = models.EmailField("email address", unique=True)
 
+    class Meta(AbstractUser.Meta):
+        # The beta allowlist: grant to individual users or to a group in the
+        # Django admin. Superusers hold it implicitly. See accounts.features.
+        permissions = [("beta_tester", "Can use features in beta")]
+
     def __str__(self):
         return self.email or self.username

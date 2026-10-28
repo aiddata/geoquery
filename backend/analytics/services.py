@@ -28,6 +28,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q, QuerySet
 from django.db.models.expressions import RawSQL
 
+from accounts.features import VISUALIZE, has_feature
 from catalog.access import (
     visible_datasets,
     visible_feature_collections,
@@ -640,13 +641,14 @@ def request_progress(request: Request) -> tuple[int, int]:
     return len(completed), len(completed) + pending
 
 
-def request_links(request: Request) -> dict:
+def request_links(request: Request, user) -> dict:
     """Download, documentation and visualization URLs for a completed request.
 
     Empty until the request completes: the zip and the documentation page do
     not exist before then, and a link to a half-built visualization is worse
     than no link. Each base URL is checked independently because a deployment
-    may configure one and not the other.
+    may configure one and not the other. The visualization link is shown only
+    to ``user`` -- the viewer, not the request's owner -- if they may use it.
     """
     if request.status != 1:
         return {}
@@ -659,6 +661,6 @@ def request_links(request: Request) -> dict:
             f"{base}/requests/{request.id}/{request.id}_documentation.html"
         )
     frontend_base = getattr(settings, "FRONTEND_BASE_URL", "").rstrip("/")
-    if frontend_base:
+    if frontend_base and has_feature(user, VISUALIZE):
         links["visualization_url"] = f"{frontend_base}/viz/{request.id}"
     return links

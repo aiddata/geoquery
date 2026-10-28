@@ -4,6 +4,7 @@
 	import UserMenu from '$lib/components/layout/UserMenu.svelte';
 	import ThemeMenu from '$lib/components/layout/ThemeMenu.svelte';
 	import { openSidebar, currentStep, type Step } from '$lib/stores/ui';
+	import { features } from '$lib/stores/features';
 	import { CircleHelp, History, BookOpen, Map } from '@lucide/svelte';
 	import aiddataTriangles from '$lib/assets/aiddata_triangles.svg';
 	import aiddataWordmark from '$lib/assets/aiddata_wordmark.svg';
@@ -74,16 +75,18 @@
 				{/each}
 			</div>
 
-			<Button
-				variant="ghost"
-				size="sm"
-				href="/viz/explore"
-				class="hidden font-body text-muted-foreground lg:inline-flex"
-			>
-				<Map />
-				Map and Visualize Data
-				<Badge variant="new">new</Badge>
-			</Button>
+			{#if $features.has('visualize')}
+				<Button
+					variant="ghost"
+					size="sm"
+					href="/viz/explore"
+					class="hidden font-body text-muted-foreground lg:inline-flex"
+				>
+					<Map />
+					Map and Visualize Data
+					<Badge variant="new">new</Badge>
+				</Button>
+			{/if}
 		</div>
 	{/if}
 </header>

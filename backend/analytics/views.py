@@ -11,6 +11,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.features import CUSTOM_BOUNDARIES, has_feature
 from analytics.tasks.ingest import ingest_custom_boundary_task
 from analytics.tasks.email import GeoEmail
 from analytics.throttles import RequestSubmitThrottle, RequestTokenThrottle
@@ -75,6 +76,11 @@ class RequestView(APIView):
 
         # ── Custom boundary submission path ───────────────────────────────────────
         if custom_boundary:
+            if not has_feature(user, CUSTOM_BOUNDARIES):
+                return Response(
+                    {"error": "Custom boundary requests are not enabled for this account."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
             geojson_fc = custom_boundary.get("features")
             if not geojson_fc or geojson_fc.get("type") != "FeatureCollection":
                 return Response(
@@ -180,7 +186,9 @@ class RequestDetailView(APIView):
     GET /api/analytics/requests/{id}/ — retrieve a single request by UUID
     """
 
-    authentication_classes = []
+    # Session auth only so request_links can see the viewer; access is still
+    # by UUID alone, and a GET is never CSRF-checked.
+    authentication_classes = [SessionAuthentication]
     permission_classes = [AllowAny]
 
     def get(self, request, pk):
@@ -241,7 +249,7 @@ class RequestDetailView(APIView):
             },
         }
 
-        data.update(request_links(req))
+        data.update(request_links(req, request.user))
 
         return Response(data)
 

@@ -4,6 +4,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.features import NOTEBOOK_EXPORT, VISUALIZE, has_feature
 from analytics.models import Request
 from catalog.access import (
     visible_feature_collections,
@@ -12,6 +13,8 @@ from catalog.access import (
 
 from .data import build_explore_available, build_explore_data, build_request_data
 from .export import GistExporter
+
+BETA_ONLY = {"error": "This feature is in beta and not enabled for this account."}
 
 
 class RequestVisualizationDataView(APIView):
@@ -23,10 +26,13 @@ class RequestVisualizationDataView(APIView):
     so improvements to the renderer apply retroactively to all past requests.
     """
 
-    authentication_classes = []
+    # Authentication left at the project default so the beta gate can see
+    # the signed-in user.
     permission_classes = [AllowAny]
 
     def get(self, request, id):
+        if not has_feature(request.user, VISUALIZE):
+            return Response(BETA_ONLY, status=403)
         try:
             req = Request.objects.get(id=id)
         except Request.DoesNotExist:
@@ -47,6 +53,8 @@ class ExploreAvailableView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        if not has_feature(request.user, VISUALIZE):
+            return Response(BETA_ONLY, status=403)
         fc_param = request.query_params.get("fc", "").strip()
         if not fc_param:
             return Response({"error": "fc parameter is required"}, status=400)
@@ -82,6 +90,8 @@ class ExploreDataView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        if not has_feature(request.user, VISUALIZE):
+            return Response(BETA_ONLY, status=403)
         fc_param = request.query_params.get("fc", "").strip()
         po_param = request.query_params.get("po", "").strip()
         if not fc_param or not po_param:
@@ -110,6 +120,8 @@ class ExploreDataView(APIView):
 
 
 def request_export(request, id):
+    if not has_feature(request.user, NOTEBOOK_EXPORT):
+        return JsonResponse(BETA_ONLY, status=403)
     fmt = request.GET.get("format", "").strip()
     if fmt not in ("colab", "marimo"):
         return JsonResponse({"error": "format must be 'colab' or 'marimo'"}, status=400)

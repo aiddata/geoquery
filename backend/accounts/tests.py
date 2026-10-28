@@ -1,10 +1,14 @@
+from unittest import mock
+
 from allauth.account.models import EmailAddress
 from allauth.account.signals import email_confirmed, user_signed_up
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser, Group, Permission
 from django.test import TestCase
 from django.urls import reverse
 
 from accounts.claims import claim_requests_for_email, claim_requests_for_user
+from accounts.features import BETA_FEATURES, CUSTOM_BOUNDARIES, has_feature
 from analytics.models import Request
 
 User = get_user_model()
@@ -136,3 +140,60 @@ class MyRequestsViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), [])
+
+
+
+class BetaTesterFlagTests(TestCase):
+    url = "/api/_allauth/browser/v1/auth/session"
+
+    def flag(self, user):
+        self.client.force_login(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        return response.json()["data"]["user"]["is_beta_tester"]
+
+    def test_false_without_permission(self):
+        self.assertIs(self.flag(make_user("alice", "alice@example.com")), False)
+
+    def test_true_with_permission(self):
+        user = make_user("bob", "bob@example.com")
+        user.user_permissions.add(Permission.objects.get(codename="beta_tester"))
+
+        self.assertIs(self.flag(user), True)
+
+    def test_true_via_group(self):
+        user = make_user("carol", "carol@example.com")
+        group = Group.objects.create(name="Beta testers")
+        group.permissions.add(Permission.objects.get(codename="beta_tester"))
+        user.groups.add(group)
+
+        self.assertIs(self.flag(user), True)
+
+    def test_true_for_superuser(self):
+        user = User.objects.create_superuser(
+            username="root", email="root@example.com", password="x"
+        )
+
+        self.assertIs(self.flag(user), True)
+
+
+class HasFeatureTests(TestCase):
+    def test_beta_feature_requires_beta_tester(self):
+        user = make_user("alice", "alice@example.com")
+        self.assertFalse(has_feature(None, CUSTOM_BOUNDARIES))
+        self.assertFalse(has_feature(AnonymousUser(), CUSTOM_BOUNDARIES))
+        self.assertFalse(has_feature(user, CUSTOM_BOUNDARIES))
+
+        user.user_permissions.add(Permission.objects.get(codename="beta_tester"))
+        user = User.objects.get(pk=user.pk)  # drop the cached permission set
+        self.assertTrue(has_feature(user, CUSTOM_BOUNDARIES))
+
+    def test_released_feature_is_open_to_everyone(self):
+        with mock.patch("accounts.features.BETA_FEATURES", frozenset()):
+            self.assertTrue(has_feature(None, CUSTOM_BOUNDARIES))
+            self.assertTrue(has_feature(AnonymousUser(), CUSTOM_BOUNDARIES))
+
+    def test_config_lists_beta_features(self):
+        response = self.client.get("/api/config/")
+
+        self.assertEqual(response.json()["beta_features"], sorted(BETA_FEATURES))
