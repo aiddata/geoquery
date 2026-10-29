@@ -8,7 +8,7 @@ from pathlib import Path
 from django.db.models import Count
 from django.db.models.functions import TruncDay, TruncMonth, TruncYear
 
-from analytics.models import ExtractTask, Request
+from analytics.models import ExtractTask, LegacyRequest, Request
 from datasets.models import Dataset
 
 # Map DB status codes → display groupings
@@ -126,11 +126,18 @@ class StatsBuilder:
             "total": sum(extract_raw.values()),
         }
 
+        # Requests imported from the previous version of GeoQuery. Reported as
+        # its own figure rather than folded into the counts above: those
+        # describe the current system's throughput, and a decade of another
+        # system's history would distort every chart built from them.
+        legacy_request_count = LegacyRequest.objects.using(_DB).count()
+
         return {
             "total": total,
             "status_counts": status_counts,
             "extract_counts": extract_counts,
             "time_series": time_series,
             "extract_time_series": extract_time_series,
+            "legacy_request_count": legacy_request_count,
             "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         }

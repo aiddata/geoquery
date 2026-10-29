@@ -1,11 +1,13 @@
+from datetime import timedelta
 from unittest import mock
 
 from django.db import IntegrityError
 from django.db.models.expressions import RawSQL
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
-from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
+from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap, RequestToken
 from analytics.services import materialize_request
 from datasets.models import Dataset, DatasetResource
 from features.models import Feature, FeatMap, FeatureCollection
@@ -354,3 +356,31 @@ class RequestDetailVisualizationLinkTest(TestCase):
         resp = self.client.get(self.url)
 
         self.assertIn(f"/viz/{self.req.id}", resp.json()["visualization_url"])
+
+
+class RequestHistoryCaseSensitivityTests(TestCase):
+    """The magic-link history must match contact the way ownership does.
+
+    ``contact`` is whatever the submitter typed, so an exact match hid a
+    user's own requests from their own history link while
+    ``requests_for_user`` -- which matches case-insensitively -- still listed
+    them. The two ownership paths disagreeing is worse than either rule.
+    """
+
+    def test_history_matches_contact_case_insensitively(self):
+        req = Request.objects.create(contact="Alice@Example.com", status=1)
+        _, raw = RequestToken.create_for_email(
+            "alice@example.com", timezone.now() + timedelta(days=1)
+        )
+
+        body = self.client.get(f"/api/analytics/history/{raw}/").json()
+
+        self.assertEqual([r["id"] for r in body], [str(req.id)])
+
+    def test_history_still_excludes_other_addresses(self):
+        Request.objects.create(contact="bob@example.com", status=1)
+        _, raw = RequestToken.create_for_email(
+            "alice@example.com", timezone.now() + timedelta(days=1)
+        )
+
+        self.assertEqual(self.client.get(f"/api/analytics/history/{raw}/").json(), [])
