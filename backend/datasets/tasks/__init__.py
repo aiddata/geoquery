@@ -16,15 +16,15 @@ def ensure_dataset_partitions_task(self, dataset_id):
 
     Retries rather than giving up, because the thing most likely to stop it
     is a lock_timeout waiting for ACCESS EXCLUSIVE on extract_tasks, and that
-    clears on its own. Five attempts two minutes apart covers a busy spell;
-    past that the periodic ensure-dataset-partitions sweep is the backstop,
-    and the DEFAULT partition is holding the rows throughout either way.
+    clears on its own. Five attempts two minutes apart covers a busy spell.
+    Sync makes the same attempt each run before creating the dataset's pairs,
+    and the periodic ensure-dataset-partitions sweep is the last backstop.
 
     Does not retry when rows are already parked in DEFAULT for this dataset
     -- that is the one failure retrying cannot fix, since Postgres will keep
     refusing to re-point the DEFAULT constraint until those rows are moved.
-    It is logged as an error by ensure_all_dataset_partitions' sibling check
-    and left for a human.
+    The sweep (ensure_all_dataset_partitions) logs it as an error and leaves
+    it for a human.
     """
     from datasets.models import Dataset
     from datasets.partitions import (

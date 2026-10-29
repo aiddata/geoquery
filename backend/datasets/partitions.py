@@ -10,17 +10,16 @@ Dataset is created later. This module is that missing piece.
 Why it matters that this runs promptly, rather than being left to the DEFAULT
 partition:
 
-  * DEFAULT never drains. Per-dataset partitions do: a dataset's tasks are
-    built, processed, and then that partition sits idle forever, which is
-    what makes a one-off VACUUM on it permanent (see
-    ensure_dataset_partitions' sibling maintenance work). Rows parked in
-    DEFAULT keep churning as long as *any* unpartitioned dataset is being
-    processed, so DEFAULT's status=0 partial index bloats continuously and
-    nothing ever cleans it up for good.
+  * DEFAULT never drains. A per-dataset partition is written while its
+    pairs are built and then sits idle, so one VACUUM settles it for good.
+    DEFAULT is written for as long as *any* unpartitioned dataset is being
+    processed, by lease inserts and by every reset sync performs.
 
-  * The claim path prunes on dataset_id (processing.claim_pending_tasks
-    passes an explicit `t.dataset_id = ANY(...)`). Rows in DEFAULT cannot be
-    pruned to a per-dataset partition, so they are scanned on every claim.
+  * Readers prune on dataset_id: the request claim path
+    (processing.claim_pending_tasks), sync's resets and the lease
+    completions all name the dataset. Rows in DEFAULT cannot be pruned to a
+    per-dataset partition, so every unpartitioned dataset's rows are scanned
+    whenever any one of them is read.
 
   * It is a ratchet. CREATE TABLE ... PARTITION OF has to prove that no row
     already in DEFAULT belongs in the new partition, and it holds ACCESS
@@ -61,9 +60,10 @@ PARTITIONED_PARENTS = ("extract_tasks", "extract_data")
 #   extract_tasks_default  ACCESS EXCLUSIVE
 #   extract_data           SHARE ROW EXCLUSIVE   (inbound FK from extract_data)
 #
-# So it stalls both halves of the worker loop at once: ACCESS EXCLUSIVE on
-# extract_tasks blocks every claim, and SHARE ROW EXCLUSIVE on extract_data
-# conflicts with ROW EXCLUSIVE, which is what every result write takes. The
+# So it stalls every worker at once: ACCESS EXCLUSIVE on extract_tasks blocks
+# every lease page scan and lease completion (both read or write it) and every
+# request task claim, and SHARE ROW EXCLUSIVE on extract_data conflicts with
+# ROW EXCLUSIVE, which every result write, COPY included, takes. The
 # reverse holds too -- creating an extract_data partition needs a lock on
 # extract_tasks to inherit that same FK -- so the two parents cannot be
 # treated as independent, and contention on either blocks both.
@@ -75,7 +75,8 @@ PARTITIONED_PARENTS = ("extract_tasks", "extract_data")
 #
 # Nothing is lost by giving up: the DEFAULT partition already accepts the
 # rows, so this is an optimisation to be retried, never a correctness
-# requirement. Retries come from
+# requirement. Retries come from sync (analytics.sync._partitions_ready, which
+# holds a new dataset's pairs back until its partitions exist),
 # datasets.tasks.ensure_dataset_partitions_task and the periodic
 # ensure-dataset-partitions beat entry.
 DEFAULT_LOCK_TIMEOUT = "3s"
@@ -102,14 +103,21 @@ def _checked_id(dataset_id):
     return dataset_id
 
 
-def missing_partitions(dataset_id):
+def missing_partitions(dataset_id, lock_timeout=DEFAULT_LOCK_TIMEOUT):
     """Return [(parent, child)] for this dataset's partitions that don't exist.
 
-    A catalog lookup, deliberately: it takes no lock on the partitioned
-    parents. `CREATE TABLE IF NOT EXISTS` would be shorter but would mean
-    reaching for ACCESS EXCLUSIVE on extract_tasks every time something asks
-    whether a partition is already there -- and in steady state the answer is
-    always yes, for every dataset, on every sweep.
+    A catalog lookup by name first, deliberately: it takes no lock on the
+    partitioned parents. `CREATE TABLE IF NOT EXISTS` would be shorter but
+    would mean reaching for ACCESS EXCLUSIVE on extract_tasks every time
+    something asks whether a partition is already there -- and in steady state
+    the answer is always yes, for every dataset, on every sweep.
+
+    A name that is missing is then checked by partition bound, because a
+    partition for this dataset_id under any other name still holds its rows
+    and a second one would fail as an overlap. Reading a bound opens the
+    partition, so that check can wait on a lock; it gives up after
+    lock_timeout and reports the partition missing, which only means the
+    caller tries (and times out on) the CREATE as well.
     """
     dataset_id = _checked_id(dataset_id)
     wanted = {partition_name(p, dataset_id): p for p in PARTITIONED_PARENTS}
@@ -119,7 +127,28 @@ def missing_partitions(dataset_id):
             [list(wanted)],
         )
         existing = {row[0] for row in cursor.fetchall()}
-    return [(parent, child) for child, parent in wanted.items() if child not in existing]
+    missing = [(parent, child) for child, parent in wanted.items() if child not in existing]
+    if not missing:
+        return []
+    try:
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute("SET LOCAL lock_timeout = %s", [lock_timeout])
+                cursor.execute(
+                    """
+                    SELECT parent.relname
+                    FROM pg_inherits i
+                    JOIN pg_class parent ON parent.oid = i.inhparent
+                    JOIN pg_class child ON child.oid = i.inhrelid
+                    WHERE parent.relname = ANY(%s)
+                      AND pg_get_expr(child.relpartbound, child.oid) = %s
+                    """,
+                    [[parent for parent, _ in missing], f"FOR VALUES IN ({dataset_id})"],
+                )
+                bound = {row[0] for row in cursor.fetchall()}
+    except OperationalError:
+        bound = set()
+    return [(parent, child) for parent, child in missing if parent not in bound]
 
 
 def rows_parked_in_default(dataset_id):
@@ -160,7 +189,7 @@ def ensure_dataset_partitions(dataset_id, lock_timeout=DEFAULT_LOCK_TIMEOUT):
     """
     dataset_id = _checked_id(dataset_id)
     created = []
-    for parent, child in missing_partitions(dataset_id):
+    for parent, child in missing_partitions(dataset_id, lock_timeout=lock_timeout):
         try:
             with transaction.atomic():
                 with connection.cursor() as cursor:
@@ -191,8 +220,8 @@ def ensure_dataset_partitions(dataset_id, lock_timeout=DEFAULT_LOCK_TIMEOUT):
 def ensure_all_dataset_partitions(lock_timeout=DEFAULT_LOCK_TIMEOUT):
     """Create missing partitions for every Dataset. Returns (created, blocked).
 
-    The safety net behind the post_save signal, and the backfill path for
-    datasets that predate this module. ``blocked`` lists dataset ids whose
+    The safety net behind sync and the post_save signal, and the backfill
+    path for datasets that predate this module. ``blocked`` lists dataset ids whose
     rows are already in DEFAULT, which no amount of retrying will fix -- they
     are surfaced rather than retried silently.
     """
@@ -200,7 +229,7 @@ def ensure_all_dataset_partitions(lock_timeout=DEFAULT_LOCK_TIMEOUT):
 
     created, blocked = [], []
     for dataset_id in Dataset.objects.values_list("id", flat=True).order_by("id"):
-        if not missing_partitions(dataset_id):
+        if not missing_partitions(dataset_id, lock_timeout=lock_timeout):
             continue
         parked = rows_parked_in_default(dataset_id)
         if any(parked.values()):

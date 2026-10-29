@@ -699,16 +699,14 @@ CELERY_BEAT_SCHEDULE = {
     #     "task": "features.tasks.build_boundary_docs_task",
     #     "schedule": crontab(hour=2, minute=15),
     # },
-    # Backstop for datasets.signals.on_dataset_created, which is the primary
-    # path -- a new Dataset gets its extract_tasks/extract_data partitions
-    # from the signal, not from here. This catches what the signal cannot: a
-    # lock_timeout that outlived the task's retries, a dataset created while
-    # Celery was down, and any dataset predating the signal existing at all.
-    # Daily is frequent enough because nothing is broken while a partition is
-    # missing -- the DEFAULT partition accepts the rows regardless -- but it
-    # does need to land before build_extract_tasks writes a new dataset's
-    # rows into DEFAULT, which is what makes them unprunable and makes adding
-    # the partition progressively more expensive (see datasets.partitions).
+    # Backstop only. A new Dataset gets its extract_tasks/extract_data
+    # partitions from datasets.signals.on_dataset_created, and sync will not
+    # create its pairs -- the step that lets workers write its rows -- until
+    # they exist (analytics.sync._partitions_ready). This catches the rest:
+    # a dataset whose inputs never changed after the signal's retries ran
+    # out, and any dataset predating the signal. Daily is enough because
+    # nothing is broken while a partition is missing; the DEFAULT partition
+    # accepts the rows regardless (see datasets.partitions).
     "ensure-dataset-partitions": {
         "task": "datasets.tasks.ensure_all_dataset_partitions_task",
         "schedule": crontab(hour=1, minute=30),

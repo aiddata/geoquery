@@ -107,6 +107,23 @@ class EnsureDatasetPartitionsTests(TestCase):
         ensure_dataset_partitions(self.dataset.id)
         self.assertEqual(ensure_dataset_partitions(self.dataset.id), [])
 
+    def test_a_partition_under_another_name_counts(self):
+        # Matched on the bound: a second partition for the same dataset_id
+        # would fail as an overlap, whatever it was called.
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"CREATE TABLE extract_tasks_renamed PARTITION OF extract_tasks "
+                f"FOR VALUES IN ({self.dataset.id})"
+            )
+        self.assertEqual(
+            missing_partitions(self.dataset.id),
+            [("extract_data", partition_name("extract_data", self.dataset.id))],
+        )
+        self.assertEqual(
+            ensure_dataset_partitions(self.dataset.id),
+            [partition_name("extract_data", self.dataset.id)],
+        )
+
     def test_rows_route_to_the_new_partition_not_default(self):
         # The point of the whole module: with the partition in place, this
         # dataset's rows stop landing in DEFAULT.
@@ -254,8 +271,8 @@ class PartitionLockTimeoutTests(TransactionTestCase):
     """A blocked DDL has to give up, not queue.
 
     ACCESS EXCLUSIVE queues ahead of the statements arriving behind it, so a
-    partition create left waiting on a conflicting lock stalls every claim in
-    the fleet, not just itself. Giving up is the whole safety property, since
+    partition create left waiting on a conflicting lock stalls every lease and
+    claim in the fleet, not just itself. Giving up is the whole safety property, since
     the DEFAULT partition keeps accepting rows either way.
 
     Needs TransactionTestCase for a genuine second connection to hold the
