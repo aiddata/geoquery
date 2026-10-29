@@ -15,7 +15,7 @@ from celery.signals import worker_init
 from analytics.metrics import start_worker_exporter
 from prometheus_client import Counter, Gauge, Histogram
 
-JOBS = ("extract_sync", "request_sweep", "task_reaper",
+JOBS = ("extract_sync", "request_sweep", "task_reaper", "error_sweep",
         "request_reaper", "materialize", "boundary_ingest")
 JOB_RUNS = Counter("geoquery_background_job_runs", "Finished job invocations", ["job_name", "outcome"])
 JOB_SECONDS = Histogram(

@@ -364,6 +364,17 @@ class FailureRecordingTests(ErrorSweepFixture):
         self.assertEqual(delta[work("tasks_discarded")], 1)
         self.assertEqual(delta[work("tasks_retried")], 0)
 
+    def test_the_scheduled_sweep_is_a_background_job(self):
+        # In background_metrics.JOBS, so a sweep that stops running or keeps
+        # raising shows on the job panels instead of only as missing metrics.
+        from analytics.tasks.maintenance import manage_processing_task_errors
+
+        success = ("geoquery_background_job_runs_total",
+                   (("job_name", "error_sweep"), ("outcome", "success")))
+        delta = Delta(success)
+        manage_processing_task_errors()
+        self.assertEqual(delta[success], 1)
+
     def test_records_how_many_were_returned_to_pending(self):
         self.errored_task_with("MemoryError()")
         self.errored_task_with("MemoryError()")

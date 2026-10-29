@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task
 @tagged("sweep.errors")
+@observe_job("error_sweep")
 def manage_processing_task_errors():
     """Reset errored extract tasks (status=-1) back to pending for retry."""
     from analytics.management.commands.manage_processing_task_errors import (
