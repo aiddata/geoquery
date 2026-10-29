@@ -76,6 +76,7 @@ nav = [
         { "Development" = "get-involved/contributing/dev/development.md" },
         { "Database" = "get-involved/contributing/dev/database.md" },
         { "Request Lifecycle" = "get-involved/contributing/dev/request-lifecycle.md" },
+        { "Extraction Workflow" = "get-involved/contributing/dev/extraction-workflow.md" },
         { "GitHub Deploy Setup" = "get-involved/contributing/dev/gh_deploy_setup.md" },
         { "Deploying" = [
           { "Kubernetes" = [
