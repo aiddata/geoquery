@@ -699,6 +699,18 @@ CELERY_BEAT_SCHEDULE = {
     #     "task": "features.tasks.build_boundary_docs_task",
     #     "schedule": crontab(hour=2, minute=15),
     # },
+    # Backstop only. A new Dataset gets its extract_tasks/extract_data
+    # partitions from datasets.signals.on_dataset_created, and sync will not
+    # create its pairs -- the step that lets workers write its rows -- until
+    # they exist (analytics.sync._partitions_ready). This catches the rest:
+    # a dataset whose inputs never changed after the signal's retries ran
+    # out, and any dataset predating the signal. Daily is enough because
+    # nothing is broken while a partition is missing; the DEFAULT partition
+    # accepts the rows regardless (see datasets.partitions).
+    "ensure-dataset-partitions": {
+        "task": "datasets.tasks.ensure_all_dataset_partitions_task",
+        "schedule": crontab(hour=1, minute=30),
+    },
     "process-user-requests": {
         "task": "analytics.tasks.maintenance.process_user_requests",
         "schedule": crontab(minute="2,7,12,17,22,27,32,37,42,47,52,57"),

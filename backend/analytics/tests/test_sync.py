@@ -452,6 +452,46 @@ class RobustnessTests(TestCase):
         self.assertEqual(s.generation, s.applied_generation)
 
 
+class PartitionGateTests(TestCase):
+    """A new dataset's pairs wait for its extract_tasks/extract_data partitions."""
+
+    def _partitions(self, dataset):
+        from datasets.partitions import missing_partitions
+
+        return missing_partitions(dataset.id)
+
+    def test_sync_creates_the_partitions_before_the_pairs(self):
+        dataset, po, (r,) = make_dataset("parts")
+        self.assertTrue(self._partitions(dataset))
+        settle_inputs()
+        self.assertEqual(self._partitions(dataset), [])
+        self.assertEqual(current_sets(dataset), {((r.id,), po.id)})
+
+    def test_a_partition_that_cannot_be_created_yet_defers_the_pairs(self):
+        dataset, _, _ = make_dataset("busy")
+        with mock.patch("datasets.partitions.ensure_dataset_partitions", return_value=[]):
+            stats = sync.sync_extract_work()
+        self.assertEqual(stats["errors"], 0)
+        self.assertFalse(ExtractTaskBuildProgress.objects.filter(dataset_id=dataset.id).exists())
+        s = state("dataset", dataset.id)
+        self.assertNotEqual(s.generation, s.applied_generation)
+        # Deferred, not failed: no backoff, so the next run tries again.
+        self.assertIsNone(s.last_error)
+        self.assertLessEqual(s.retry_after, dj_timezone.now())
+
+        settle_inputs()
+        self.assertEqual(self._partitions(dataset), [])
+        self.assertTrue(ExtractTaskBuildProgress.objects.filter(dataset_id=dataset.id).exists())
+
+    def test_rows_already_in_default_do_not_hold_the_pairs_back(self):
+        dataset, po, (r,) = make_dataset("parked")
+        with mock.patch("datasets.partitions.ensure_dataset_partitions", return_value=[]), \
+                mock.patch("datasets.partitions.rows_parked_in_default",
+                           return_value={"extract_tasks": 1, "extract_data": 0}):
+            settle_inputs()
+        self.assertEqual(current_sets(dataset), {((r.id,), po.id)})
+
+
 class ConcurrentSyncTests(TransactionTestCase):
     def hold(self, sql, params, ready, release):
         try:

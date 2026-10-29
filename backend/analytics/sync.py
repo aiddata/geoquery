@@ -153,7 +153,7 @@ def sync_extract_work(max_chunks=None):
             _record_failure(kind, object_id, exc)
             record_work("sync_errors", 1)
             continue
-        if outcome in ("locked", "clean"):
+        if outcome in ("locked", "clean", "deferred"):
             stats["skipped"] += 1
             continue
         stats["chunks"] += 1
@@ -214,11 +214,14 @@ def _run_chunk(kind, object_id):
     """One transaction of work on one scope.
 
     Returns "locked" (another transaction holds it), "clean" (nothing to
-    do), "progress"
+    do), "deferred" (its partitions could not be created yet), "progress"
     or "published".
     """
-    if _peek(kind, object_id) is None:
+    scope = _peek(kind, object_id)
+    if scope is None:
         return "clean"
+    if kind == DATASET and scope.position()[0] == "pairs" and not _partitions_ready(object_id):
+        return "deferred"
     # A collection's publish needs no dataset state: it touches only pair,
     # watermark and lease rows, whose own row locks serialize it against a
     # dataset's sync, and its LEAST rewinds commute with theirs.
@@ -299,6 +302,37 @@ def _record_failure(kind, object_id, exc):
 
 
 # -- pairs ---------------------------------------------------------------------
+
+
+def _partitions_ready(dataset_id):
+    """Whether the dataset's pairs may be created: its partitions exist first.
+
+    The first pairs phase is what lets workers write a dataset's rows, within
+    a sync interval of it being created, so this is the last moment a missing
+    partition is cheap to add (see datasets.partitions). Runs outside the
+    scope's transaction: the DDL takes ACCESS EXCLUSIVE on extract_tasks, which
+    must be held only for the CREATE, not for a whole chunk. A lock_timeout
+    defers the scope to the next run. Rows already parked in DEFAULT make the
+    CREATE impossible and cannot be fixed by waiting, so they do not hold the
+    pairs back; ensure-dataset-partitions reports them.
+    """
+    from datasets.partitions import (
+        ensure_dataset_partitions,
+        missing_partitions,
+        rows_parked_in_default,
+    )
+
+    if not missing_partitions(dataset_id):
+        return True
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT 1 FROM datasets WHERE id = %s", [dataset_id])
+        if cursor.fetchone() is None:
+            return True
+    if any(rows_parked_in_default(dataset_id).values()):
+        return True
+    ensure_dataset_partitions(dataset_id)
+    return not missing_partitions(dataset_id)
+
 
 
 _DATASET_SQL = "SELECT id, task_group_period FROM datasets WHERE id = %s"
