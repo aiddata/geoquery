@@ -25,4 +25,11 @@ urlpatterns = [
         views.feature_collection_vector_tiles,
         name="feature-collection-tiles",
     ),
+    # Its own prefix, so tiles/<fc_name>/... cannot capture a collection
+    # literally named "multi".
+    path(
+        "multitiles/<int:z>/<int:x>/<int:y>.mvt",
+        views.multi_feature_collection_vector_tiles,
+        name="feature-collection-multi-tiles",
+    ),
 ]

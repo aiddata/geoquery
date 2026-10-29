@@ -22,6 +22,7 @@ from catalog.access import (
     accessible_catalog_ids,
     filter_processing_options,
     resolve_feature_collection_for_tiles,
+    resolve_feature_collections_for_tiles,
     visible_datasets,
     visible_processing_options,
     visible_processing_options_for_dataset,
@@ -362,6 +363,79 @@ class TileVisibilityTests(ReplicaReadsTestMixin, TestCase):
 
     def test_upload_tile_endpoint_runs_dynamic_simplify_builder(self):
         response = self.client.get("/api/features/tiles/user_upload_abc/2/1/1.mvt")
+        self.assertEqual(response.status_code, 200)
+
+    # -- Multi-collection endpoint --------------------------------------------
+
+    def _all_ids(self):
+        return [
+            self.public_fc.id,
+            self.private_fc.id,
+            self.upload_fc.id,
+            self.inactive_fc.id,
+        ]
+
+    def _multi_url(self, ids, zxy="2/1/1"):
+        return f"/api/features/multitiles/{zxy}.mvt?fc={','.join(map(str, ids))}"
+
+    def test_multi_resolver_keeps_only_public_for_anonymous(self):
+        self.assertEqual(
+            resolve_feature_collections_for_tiles(AnonymousUser(), self._all_ids()),
+            [self.public_fc],
+        )
+
+    def test_multi_resolver_adds_granted_private(self):
+        self.assertEqual(
+            {fc.id for fc in resolve_feature_collections_for_tiles(self.user, self._all_ids())},
+            {self.public_fc.id, self.private_fc.id},
+        )
+
+    def test_multi_resolver_never_serves_uploads_by_id(self):
+        # Upload ids are guessable; only the unguessable name protects them,
+        # so they stay on the per-name endpoint even when named in a catalog.
+        self.catalog.feature_collections.add(self.upload_fc)
+        self.assertEqual(
+            resolve_feature_collections_for_tiles(self.user, [self.upload_fc.id]), []
+        )
+
+    def test_multi_endpoint_rejects_missing_invalid_and_oversized_fc(self):
+        for query in ("", "?fc=", "?fc=1,abc", "?fc=,"):
+            with self.subTest(query=query):
+                response = self.client.get(f"/api/features/multitiles/2/1/1.mvt{query}")
+                self.assertEqual(response.status_code, 400)
+        too_many = list(range(1, 1002))
+        self.assertEqual(self.client.get(self._multi_url(too_many)).status_code, 400)
+
+    def test_multi_endpoint_all_public_has_no_cache_header(self):
+        response = self.client.get(self._multi_url([self.public_fc.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("Cache-Control", response)
+
+    def test_multi_endpoint_with_granted_private_is_private(self):
+        self.client.force_login(self.user)
+        response = self.client.get(
+            self._multi_url([self.public_fc.id, self.private_fc.id])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Cache-Control"], "private, no-store")
+        self.assertIn("Cookie", response.get("Vary", ""))
+
+    def test_multi_endpoint_with_hidden_id_is_private(self):
+        # The anonymous tile silently drops priv-fc; a granted caller's tile
+        # would include it, so the response must not be shared under this URL.
+        response = self.client.get(
+            self._multi_url([self.public_fc.id, self.private_fc.id])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Cache-Control"], "private, no-store")
+
+    def test_multi_endpoint_with_nothing_visible_returns_empty_tile(self):
+        response = self.client.get(self._multi_url([self.upload_fc.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"")
+
+    def test_multi_endpoint_at_high_zoom_uses_raw_sql_builder(self):
+        response = self.client.get(self._multi_url([self.public_fc.id], "13/100/100"))
         self.assertEqual(response.status_code, 200)
 
 

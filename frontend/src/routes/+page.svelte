@@ -15,6 +15,7 @@
 	import ZoomControls from '$lib/components/map/ZoomControls.svelte';
 	import MapFrame, { type FcStyle } from '$lib/components/map/MapFrame.svelte';
 	import { colorForIndex, lineWidthForLevel } from '$lib/utils/boundaryStyle';
+	import { unionBbox, type Bbox } from '$lib/utils/bbox';
 	import WelcomeModal from '$lib/components/map/WelcomeModal.svelte';
 	import CustomBoundaryPanel from '$lib/components/map/CustomBoundaryPanel.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -28,19 +29,6 @@
 	// The map page edits a local selection: the boundary chips plus, when exactly
 	// one boundary is chosen, any features clicked on the map. Coverage is checked
 	// live as it changes. Nothing is written to the store until "Find Data".
-
-	type Bbox = [number, number, number, number];
-
-	function unionBbox(bboxes: (Bbox | null | undefined)[]): Bbox | null {
-		const valid = bboxes.filter(Boolean) as Bbox[];
-		if (valid.length === 0) return null;
-		return [
-			Math.min(...valid.map((b) => b[0])),
-			Math.min(...valid.map((b) => b[1])),
-			Math.max(...valid.map((b) => b[2])),
-			Math.max(...valid.map((b) => b[3]))
-		];
-	}
 
 	function fcRefToBoundary(fc: FCRef): BoundaryResult {
 		return {
@@ -253,16 +241,20 @@
 
 	// ── Derived map display values ───────────────────────────────────────────────
 
-	let mapFcNames = $derived(browseBoundaries.map((b) => b.name));
+	// Full boundary metadata by name. Boundaries restored from the store carry
+	// no group_level, so styles look it up here.
+	let boundariesByName = $derived(new Map(allBoundaries.map((b) => [b.name, b])));
 
 	// Per-FC display styles: distinct color cycled by index (matching the chip
 	// swatches), line width by ADM level. Falls back gracefully for boundaries
 	// without a group_level.
 	let mapFcStyles = $derived.by<FcStyle[]>(() => {
-		return mapFcNames.map((name, idx) => {
-			const meta = allBoundaries.find((b) => b.name === name);
+		return browseBoundaries.map((b, idx) => {
+			const meta = boundariesByName.get(b.name);
 			return {
-				name,
+				id: b.id,
+				name: b.name,
+				bbox: meta?.bbox ?? b.bbox ?? null,
 				color: colorForIndex(idx),
 				lineWidth: lineWidthForLevel(meta?.group_level)
 			};

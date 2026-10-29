@@ -114,6 +114,19 @@ export function boundaryTileUrl(boundaryName: string): string {
 	return `${base}/api/features/tiles/${boundaryName}/{z}/{x}/{y}.mvt`;
 }
 
+/** MVT layer name of the multi-collection tiles (MULTI_TILE_LAYER in backend/features/views.py). */
+export const MULTI_TILE_LAYER = 'boundaries';
+
+/**
+ * Tiles holding several boundaries in one layer, each feature tagged with its `fc_id`.
+ * Ids are sorted and deduplicated so a selection always maps to the same URL.
+ */
+export function multiBoundaryTileUrl(fcIds: number[]): string {
+	const base = typeof window !== 'undefined' ? window.location.origin : '';
+	const ids = [...new Set(fcIds)].sort((a, b) => a - b);
+	return `${base}/api/features/multitiles/{z}/{x}/{y}.mvt?fc=${ids.join(',')}`;
+}
+
 // ── Dataset types ──────────────────────────────────────────────
 
 export interface DatasetSummary {

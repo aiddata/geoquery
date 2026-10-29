@@ -181,3 +181,68 @@ class FeatureRepresentativePointTests(TestCase):
 
         feature = Feature.objects.get(pk=feature_id)
         self.assertEqual(feature.representative_point, Point(1, 1, srid=4326))
+
+
+class MultiCollectionTileTests(ReplicaReadsTestMixin, TestCase):
+    # Tile geometry is read through the "replica" alias.
+
+    @staticmethod
+    def _square(x, y):
+        return Polygon(((x, y), (x + 1, y), (x + 1, y + 1), (x, y + 1), (x, y)), srid=4326)
+
+    def setUp(self):
+        from features.matviews import update_simplified_geometries
+        from features.models import FeatMap
+
+        self.fcs = []
+        # Both squares sit inside z2 tile 2/1/1 (lon 0..90, lat 0..66.5).
+        for name, x in (("fc-west", 1.0), ("fc-east", 10.0)):
+            fc = make_feature_collection(name=name, path=name)
+            feature = Feature.objects.create(shape=self._square(x, 1.0))
+            FeatMap.objects.create(fc=fc, geom=feature, name=f"{name} unit")
+            update_simplified_geometries(fc.id)
+            self.fcs.append(fc)
+
+    def _get(self, zxy, ids):
+        return self.client.get(
+            f"/api/features/multitiles/{zxy}.mvt?fc={','.join(str(i) for i in ids)}"
+        )
+
+    def test_tile_holds_every_selected_collection_in_one_layer(self):
+        response = self._get("2/2/1", [fc.id for fc in self.fcs])
+        self.assertEqual(response.status_code, 200)
+        body = response.content
+        # MVT stores layer names, keys and string values verbatim.
+        self.assertIn(b"boundaries", body)
+        self.assertIn(b"fc_id", body)
+        self.assertIn(b"fc-west unit", body)
+        self.assertIn(b"fc-east unit", body)
+
+    def test_unselected_collections_are_left_out(self):
+        body = self._get("2/2/1", [self.fcs[0].id]).content
+        self.assertIn(b"fc-west unit", body)
+        self.assertNotIn(b"fc-east unit", body)
+
+    def test_tile_away_from_the_features_is_empty(self):
+        response = self._get("2/0/0", [fc.id for fc in self.fcs])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"")
+
+    def test_per_collection_endpoint_keeps_its_layer_name(self):
+        body = self.client.get("/api/features/tiles/fc-west/2/2/1.mvt").content
+        self.assertIn(b"fc-west", body)
+        self.assertNotIn(b"boundaries", body)
+
+    def test_simplified_tables_have_composite_fc_shape_index(self):
+        tables = [
+            "features_simplified_z0_5",
+            "features_simplified_z6_9",
+            "features_simplified_z10_12",
+        ]
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT tablename FROM pg_indexes"
+                " WHERE indexname = tablename || '_fc_id_shape_idx'"
+                " AND indexdef ILIKE '%%USING gist (fc_id, shape)%%'"
+            )
+            self.assertEqual(sorted(r[0] for r in cursor.fetchall()), sorted(tables))

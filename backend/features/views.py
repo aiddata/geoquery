@@ -2,7 +2,7 @@ from pathlib import Path
 import yaml
 from django.db import connections
 from django.db.models import Q
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.utils.cache import patch_vary_headers
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny
@@ -11,12 +11,21 @@ from rest_framework.views import APIView
 
 from catalog.access import (
     resolve_feature_collection_for_tiles,
+    resolve_feature_collections_for_tiles,
     visible_feature_collections,
 )
 
 from .models import FeatMap, FeatureCollection
 
 _MVT_CONTENT_TYPE = "application/vnd.mapbox-vector-tile"
+
+# MVT layer name of the multi-collection endpoint. The frontend matches on it
+# via `source-layer` (MULTI_TILE_LAYER in frontend/src/lib/api.ts).
+MULTI_TILE_LAYER = "boundaries"
+
+# Every collection in the catalog fits (719 today), and the comma-separated
+# list stays well under nginx's 8 KB request line.
+MAX_MULTI_TILE_FCS = 1000
 
 
 class FeatureCollectionAutocompleteView(generics.ListAPIView):
@@ -124,14 +133,8 @@ def feature_collection_vector_tiles(request, fc_name, z, x, y):
         else:
             sql = _mvt_sql_user_upload_raw()
     else:
-        if z <= 5:
-            sql = _mvt_sql_simplified("features_simplified_z0_5")
-        elif z <= 9:
-            sql = _mvt_sql_simplified("features_simplified_z6_9")
-        elif z <= 12:
-            sql = _mvt_sql_simplified("features_simplified_z10_12")
-        else:
-            sql = _mvt_sql_raw()
+        table = _simplified_table_for_zoom(z)
+        sql = _mvt_sql_simplified(table) if table else _mvt_sql_raw()
 
     # Param order: layer_name, z/x/y (AsMVTGeom), fc_id, z/x/y (&&), z/x/y (Intersects).
     # The first param stays the *name*: it is the MVT layer name, which the
@@ -155,11 +158,133 @@ def feature_collection_vector_tiles(request, fc_name, z, x, y):
     return response
 
 
+def multi_feature_collection_vector_tiles(request, z, x, y):
+    """
+    Return one MVT tile covering several feature collections at once.
+
+    Query parameters:
+    - fc: comma-separated FeatureCollection ids
+
+    All features go into a single layer, MULTI_TILE_LAYER, each carrying `id`
+    (Feature.id), `fc_id` and `name`, so the map styles the selection with one
+    source and data-driven expressions instead of a source per collection.
+
+    Ids the caller may not see are dropped, as are user uploads (see
+    catalog.access.resolve_feature_collections_for_tiles).
+    """
+    raw = request.GET.get("fc", "").strip()
+    if not raw:
+        return HttpResponseBadRequest("fc parameter is required")
+    try:
+        requested = sorted({int(v) for v in raw.split(",") if v.strip()})
+    except ValueError:
+        return HttpResponseBadRequest("fc must be a comma-separated list of integers")
+    if not requested:
+        return HttpResponseBadRequest("fc parameter is required")
+    if len(requested) > MAX_MULTI_TILE_FCS:
+        return HttpResponseBadRequest(
+            f"fc may list at most {MAX_MULTI_TILE_FCS} feature collections"
+        )
+
+    fcs = resolve_feature_collections_for_tiles(request.user, requested)
+
+    if fcs:
+        table = _simplified_table_for_zoom(z)
+        sql = _mvt_sql_multi(table) if table else _mvt_sql_multi_raw()
+        # Param order: layer_name, z/x/y (AsMVTGeom), fc_ids, z/x/y (&&), z/x/y (Intersects).
+        params = [MULTI_TILE_LAYER, z, x, y, [fc.id for fc in fcs], z, x, y, z, x, y]
+        with connections["replica"].cursor() as cursor:
+            cursor.execute(sql, params)
+            result = cursor.fetchone()
+        body = bytes(result[0]) if result and result[0] else b""
+    else:
+        body = b""
+
+    response = HttpResponse(body, content_type=_MVT_CONTENT_TYPE)
+    # The tile is the same for every caller only when every requested id is a
+    # public collection. Otherwise its content depends on the caller's grants
+    # -- a granted private collection is in it, an ungranted one is silently
+    # missing -- so no shared cache may store it.
+    public_ids = {fc.id for fc in fcs if fc.public}
+    if len(public_ids) < len(requested):
+        response["Cache-Control"] = "private, no-store"
+        patch_vary_headers(response, ["Cookie"])
+    return response
+
+
 _SIMPLIFIED_VIEWS = frozenset({
     "features_simplified_z0_5",
     "features_simplified_z6_9",
     "features_simplified_z10_12",
 })
+
+
+def _simplified_table_for_zoom(z):
+    """Pre-simplified geometry table for zoom z, or None above z12, where
+    tiles come from the raw geometry instead."""
+    if z <= 5:
+        return "features_simplified_z0_5"
+    if z <= 9:
+        return "features_simplified_z6_9"
+    if z <= 12:
+        return "features_simplified_z10_12"
+    return None
+
+
+def _mvt_sql_multi(view_name):
+    """Like _mvt_sql_simplified, for a list of fc ids. One layer for all of
+    them, with fc_id so the frontend can style per collection; no attr.
+
+    fc_id = ANY(...) together with the envelope test is a bitmap scan on the
+    (fc_id, shape) GiST index. Measured on a copy of production's z0_5 table,
+    joining unnest(ids) instead was never meaningfully faster, and for large
+    selections it planned a nested loop per collection, up to 250x slower.
+    """
+    assert view_name in _SIMPLIFIED_VIEWS, f"Unknown simplified view: {view_name!r}"
+    return f"""
+        SELECT ST_AsMVT(mvtgeoms.*, %s) AS mvt FROM (
+            SELECT
+                ST_AsMVTGeom(
+                    sv.shape,
+                    ST_TileEnvelope(%s, %s, %s),
+                    4096, 256, true
+                ) AS geom,
+                sv.geom_id AS id,
+                sv.fc_id,
+                sv.name
+            FROM {view_name} sv
+            WHERE sv.fc_id = ANY(%s)
+                AND sv.shape && ST_TileEnvelope(%s, %s, %s)
+                AND ST_Intersects(sv.shape, ST_TileEnvelope(%s, %s, %s))
+        ) mvtgeoms
+        WHERE mvtgeoms.geom IS NOT NULL
+    """
+
+
+def _mvt_sql_multi_raw():
+    """Like _mvt_sql_raw, for a list of fc ids (see _mvt_sql_multi)."""
+    return """
+        SELECT ST_AsMVT(mvtgeoms.*, %s) AS mvt FROM (
+            SELECT
+                ST_AsMVTGeom(
+                    ST_Transform(f.shape, 3857),
+                    ST_TileEnvelope(%s, %s, %s),
+                    4096, 256, true
+                ) AS geom,
+                f.id,
+                fm.fc_id,
+                fm.name
+            FROM feat_map fm
+            JOIN features f ON fm.geom_id = f.id
+            WHERE fm.fc_id = ANY(%s)
+                AND f.shape && ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
+                AND ST_Intersects(
+                    f.shape,
+                    ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
+                )
+        ) mvtgeoms
+        WHERE mvtgeoms.geom IS NOT NULL
+    """
 
 
 def _mvt_sql_simplified(view_name):

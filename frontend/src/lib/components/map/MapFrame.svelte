@@ -3,7 +3,8 @@
 	import maplibregl from 'maplibre-gl';
 	import 'maplibre-gl/dist/maplibre-gl.css';
 	import { get } from 'svelte/store';
-	import { boundaryTileUrl } from '$lib/api';
+	import { boundaryTileUrl, multiBoundaryTileUrl, MULTI_TILE_LAYER } from '$lib/api';
+	import { unionBbox, type Bbox } from '$lib/utils/bbox';
 	import { protomapsApiKey } from '$lib/map/protomapsKey';
 	import { basemapStyle, followTheme } from '$lib/map/basemap';
 	import { resolvedTheme } from '$lib/stores/theme';
@@ -12,7 +13,10 @@
 	import type { FeatureCollection } from 'geojson';
 
 	export interface FcStyle {
+		id: number;
 		name: string;
+		/** Extent of the collection; tiles outside it are never requested. */
+		bbox: Bbox | null;
 		/** A CSS color or `var(--token)`; resolved before it reaches MapLibre. */
 		color: string;
 		lineWidth: number;
@@ -23,7 +27,7 @@
 		fcStyles?: FcStyle[];
 		activeFcName?: string | null;
 		selectedFeatureIds?: number[];
-		bbox?: [number, number, number, number] | null;
+		bbox?: Bbox | null;
 		onFeatureClick?: (featureId: number) => void;
 		onZoomChange?: (zoom: number) => void;
 		userGeoJSON?: FeatureCollection | null;
@@ -60,6 +64,28 @@
 	const fcFillId = (name: string) => `fc-fill-${name}`;
 	const fcLineId = (name: string) => `fc-line-${name}`;
 	const fcCasingId = (name: string) => `fc-casing-${name}`;
+
+	// Two or more boundaries share one source: a single tile request per map tile
+	// instead of one per boundary, styled per boundary on each feature's fc_id.
+	// Hover, click and selection need exactly one boundary, so this mode has none.
+	const MULTI_SOURCE = 'fc-multi';
+	const MULTI_FILL = 'fc-multi-fill';
+	const MULTI_CASING = 'fc-multi-casing';
+	const MULTI_LINE = 'fc-multi-line';
+	// Sorted ids of the selection the multi source was built for
+	let multiKeyOnMap: string | null = null;
+
+	/** A paint value per boundary, matched on the fc_id each multi-tile feature carries. */
+	function byFc(
+		styles: FcStyle[],
+		value: (s: FcStyle) => string | number
+	): maplibregl.ExpressionSpecification {
+		// match labels must be unique
+		const unique = [...new Map(styles.map((s) => [s.id, s])).values()];
+		const branches = unique.flatMap((s) => [s.id, value(s)]);
+		// The spec's tuple type can't describe a variable number of branches
+		return ['match', ['get', 'fc_id'], ...branches, value(unique[0])] as unknown as maplibregl.ExpressionSpecification;
+	}
 
 	// A selected feature gets a heavier outline, so selection doesn't rest on fill opacity alone (§11)
 	const SELECTED_EXTRA_WIDTH = 1.5;
@@ -110,79 +136,152 @@
 		};
 	});
 
-	// Sync FC tile sources/layers when fcNames changes
+	function addFc(m: maplibregl.Map, style: FcStyle) {
+		const { name, color, lineWidth: width, bbox: bounds } = style;
+
+		m.addSource(fcSourceId(name), {
+			type: 'vector',
+			tiles: [boundaryTileUrl(name)],
+			minzoom: 0,
+			maxzoom: 12,
+			promoteId: { [name]: 'id' },
+			...(bounds ? { bounds } : {})
+		});
+
+		const resolved = resolveColor(color);
+
+		m.addLayer({
+			id: fcFillId(name),
+			type: 'fill',
+			source: fcSourceId(name),
+			'source-layer': name,
+			paint: {
+				'fill-color': resolved,
+				'fill-opacity': [
+					'case',
+					['boolean', ['feature-state', 'selected'], false],
+					0.5,
+					['boolean', ['feature-state', 'hover'], false],
+					0.35,
+					0.15
+				]
+			}
+		});
+
+		m.addLayer({
+			id: fcCasingId(name),
+			type: 'line',
+			source: fcSourceId(name),
+			'source-layer': name,
+			paint: {
+				'line-color': readTokens().forest,
+				'line-width': lineWidth(width, CASING_EXTRA_WIDTH)
+			}
+		});
+
+		m.addLayer({
+			id: fcLineId(name),
+			type: 'line',
+			source: fcSourceId(name),
+			'source-layer': name,
+			paint: {
+				'line-color': resolved,
+				'line-width': lineWidth(width)
+			}
+		});
+	}
+
+	function removeFc(m: maplibregl.Map, name: string) {
+		if (m.getLayer(fcLineId(name))) m.removeLayer(fcLineId(name));
+		if (m.getLayer(fcCasingId(name))) m.removeLayer(fcCasingId(name));
+		if (m.getLayer(fcFillId(name))) m.removeLayer(fcFillId(name));
+		if (m.getSource(fcSourceId(name))) m.removeSource(fcSourceId(name));
+	}
+
+	function addMulti(m: maplibregl.Map, styles: FcStyle[], key: string) {
+		const bounds = unionBbox(styles.map((s) => s.bbox));
+
+		m.addSource(MULTI_SOURCE, {
+			type: 'vector',
+			tiles: [multiBoundaryTileUrl(styles.map((s) => s.id))],
+			minzoom: 0,
+			maxzoom: 12,
+			...(bounds ? { bounds } : {})
+		});
+
+		const color = byFc(styles, (s) => resolveColor(s.color));
+
+		m.addLayer({
+			id: MULTI_FILL,
+			type: 'fill',
+			source: MULTI_SOURCE,
+			'source-layer': MULTI_TILE_LAYER,
+			paint: { 'fill-color': color, 'fill-opacity': 0.15 }
+		});
+
+		m.addLayer({
+			id: MULTI_CASING,
+			type: 'line',
+			source: MULTI_SOURCE,
+			'source-layer': MULTI_TILE_LAYER,
+			paint: {
+				'line-color': readTokens().forest,
+				'line-width': byFc(styles, (s) => s.lineWidth + CASING_EXTRA_WIDTH)
+			}
+		});
+
+		m.addLayer({
+			id: MULTI_LINE,
+			type: 'line',
+			source: MULTI_SOURCE,
+			'source-layer': MULTI_TILE_LAYER,
+			paint: {
+				'line-color': color,
+				'line-width': byFc(styles, (s) => s.lineWidth)
+			}
+		});
+
+		multiKeyOnMap = key;
+	}
+
+	function removeMulti(m: maplibregl.Map) {
+		if (m.getLayer(MULTI_LINE)) m.removeLayer(MULTI_LINE);
+		if (m.getLayer(MULTI_CASING)) m.removeLayer(MULTI_CASING);
+		if (m.getLayer(MULTI_FILL)) m.removeLayer(MULTI_FILL);
+		if (m.getSource(MULTI_SOURCE)) m.removeSource(MULTI_SOURCE);
+		multiKeyOnMap = null;
+	}
+
+	// Sync FC tile sources/layers with the selection: a source per boundary for
+	// one boundary, the shared multi source for two or more
 	$effect(() => {
 		if (!map || !mapReady) return;
 		const m = map;
-		const names = [...fcNames];
+		const styles = [...fcStyles];
+		const names = styles.map((s) => s.name);
+		const multiKey =
+			styles.length >= 2
+				? [...new Set(styles.map((s) => s.id))].sort((a, b) => a - b).join(',')
+				: null;
 
-		const existingSources = Object.keys(m.getStyle()?.sources ?? {});
-		const existingFcNames = existingSources
+		const existingFcNames = Object.keys(m.getStyle()?.sources ?? {})
 			.filter((s) => s.startsWith('fc-tiles-'))
 			.map((s) => s.slice('fc-tiles-'.length));
 
 		for (const name of existingFcNames) {
-			if (!names.includes(name)) {
-				if (m.getLayer(fcLineId(name))) m.removeLayer(fcLineId(name));
-				if (m.getLayer(fcCasingId(name))) m.removeLayer(fcCasingId(name));
-				if (m.getLayer(fcFillId(name))) m.removeLayer(fcFillId(name));
-				if (m.getSource(fcSourceId(name))) m.removeSource(fcSourceId(name));
-			}
+			if (multiKey !== null || !names.includes(name)) removeFc(m, name);
 		}
 
-		for (const style of fcStyles) {
-			const { name, color, lineWidth: width } = style;
-			if (existingFcNames.includes(name)) continue;
+		// Rebuilt rather than updated: the tile URL and bounds both follow the selection
+		if (m.getSource(MULTI_SOURCE) && multiKey !== multiKeyOnMap) removeMulti(m);
 
-			m.addSource(fcSourceId(name), {
-				type: 'vector',
-				tiles: [boundaryTileUrl(name)],
-				minzoom: 0,
-				maxzoom: 12,
-				promoteId: { [name]: 'id' }
-			});
+		if (multiKey !== null) {
+			if (!m.getSource(MULTI_SOURCE)) addMulti(m, styles, multiKey);
+			return;
+		}
 
-			const resolved = resolveColor(color);
-
-			m.addLayer({
-				id: fcFillId(name),
-				type: 'fill',
-				source: fcSourceId(name),
-				'source-layer': name,
-				paint: {
-					'fill-color': resolved,
-					'fill-opacity': [
-						'case',
-						['boolean', ['feature-state', 'selected'], false],
-						0.5,
-						['boolean', ['feature-state', 'hover'], false],
-						0.35,
-						0.15
-					]
-				}
-			});
-
-			m.addLayer({
-				id: fcCasingId(name),
-				type: 'line',
-				source: fcSourceId(name),
-				'source-layer': name,
-				paint: {
-					'line-color': readTokens().forest,
-					'line-width': lineWidth(width, CASING_EXTRA_WIDTH)
-				}
-			});
-
-			m.addLayer({
-				id: fcLineId(name),
-				type: 'line',
-				source: fcSourceId(name),
-				'source-layer': name,
-				paint: {
-					'line-color': resolved,
-					'line-width': lineWidth(width)
-				}
-			});
+		for (const style of styles) {
+			if (!existingFcNames.includes(style.name)) addFc(m, style);
 		}
 	});
 
@@ -209,6 +308,18 @@
 				m.setPaintProperty(lineId, 'line-color', color);
 				m.setPaintProperty(lineId, 'line-width', lineWidth(style.lineWidth));
 			}
+		}
+		if (m.getLayer(MULTI_FILL) && fcStyles.length >= 2) {
+			const color = byFc(fcStyles, (s) => resolveColor(s.color));
+			m.setPaintProperty(MULTI_FILL, 'fill-color', color);
+			m.setPaintProperty(MULTI_CASING, 'line-color', forest);
+			m.setPaintProperty(
+				MULTI_CASING,
+				'line-width',
+				byFc(fcStyles, (s) => s.lineWidth + CASING_EXTRA_WIDTH)
+			);
+			m.setPaintProperty(MULTI_LINE, 'line-color', color);
+			m.setPaintProperty(MULTI_LINE, 'line-width', byFc(fcStyles, (s) => s.lineWidth));
 		}
 		if (m.getLayer(USER_FILL)) m.setPaintProperty(USER_FILL, 'fill-color', readTokens().ring);
 		if (m.getLayer(USER_LINE)) m.setPaintProperty(USER_LINE, 'line-color', readTokens().ring);

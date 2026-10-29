@@ -164,6 +164,24 @@ def resolve_feature_collection_for_tiles(user, name: str):
     return fc if granted else None
 
 
+def resolve_feature_collections_for_tiles(user, ids) -> list[FeatureCollection]:
+    """Resolve a list of feature collection ids for the multi-collection MVT
+    endpoint, keeping only those the caller may see.
+
+    Unlike ``resolve_feature_collection_for_tiles``, user uploads are never
+    served here: their only protection is the unguessable name, and ids are
+    sequential. They keep going through the per-name endpoint.
+
+    Like the single-name resolver, this reads the primary so a freshly revoked
+    catalog grant takes effect immediately.
+    """
+    return list(
+        visible_feature_collections(user)
+        .filter(id__in=ids, is_user_upload=False)
+        .only("id", "public")
+    )
+
+
 # -- Processing options ------------------------------------------------------
 
 
