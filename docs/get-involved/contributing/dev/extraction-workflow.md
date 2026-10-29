@@ -416,9 +416,12 @@ timeout:
     - have **no task row** with the same dataset, option, hash, fm_id, null
       kwargs and full resource array. This lookup uses the unique index.
 
-    The query is ordered by fm_id and limited to the **page size**: lease
-    duration ÷ 4 ÷ pace, capped at 256. With no pace yet, it's 256 ÷ the
-    number of resources, so 21 for a 12-month bucket.
+    The query is ordered by fm_id and limited to the **page size**:
+    `EXTRACT_TASK_LEASE_PAGE_SECONDS` (60 s) ÷ pace, never more than a
+    quarter of the lease, capped at `EXTRACT_TASK_LEASE_PAGE_SIZE` (256).
+    With no pace yet, it's the cap ÷ the number of resources, so 21 for a
+    12-month bucket. A slot only looks for request tasks between units, so
+    this bounds how long a new request waits behind background work.
 7. **Check for hash collisions.** If the 32-bit hash points to a task with a
    *different* array, nothing is leased, the cursor stays put, and the pair
    gets `last_error` and a 300 s `retry_after`.
