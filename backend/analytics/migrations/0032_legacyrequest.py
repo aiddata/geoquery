@@ -10,7 +10,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('analytics', '0030_extracttaskbuildrun_worker_tracking'),
+        ('analytics', '0031_pair_cursor_leases'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

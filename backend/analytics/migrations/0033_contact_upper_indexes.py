@@ -51,7 +51,7 @@ class Migration(migrations.Migration):
     atomic = False
 
     dependencies = [
-        ("analytics", "0031_legacyrequest"),
+        ("analytics", "0032_legacyrequest"),
     ]
 
     operations = [
