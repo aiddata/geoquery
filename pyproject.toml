@@ -23,8 +23,8 @@ required-environments = [
 ]
 
 [project.urls]
-"Source Code" = "https://github.com/aiddata/geoquery-update"
-"Bug Tracker" = "https://github.com/aiddata/geoquery-update/issues"
+"Source Code" = "https://github.com/aiddata/geoquery"
+"Bug Tracker" = "https://github.com/aiddata/geoquery/issues"
 
 [tool.uv.workspace]
 members = ["backend"]

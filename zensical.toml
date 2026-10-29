@@ -362,7 +362,7 @@ code = "JetBrains Mono"
 # ----------------------------------------------------------------------------
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
-link = "https://github.com/aiddata/geoquery-update"
+link = "https://github.com/aiddata/geoquery"
 
 [project.extra.analytics]
 provider = "google"
