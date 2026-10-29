@@ -33,19 +33,21 @@ WORK = Counter(
 )
 TASK_FAILURES = Counter(
     "geoquery_extract_task_failures",
-    "Extract task failures, by exception class, counted as the error sweep "
-    "returns them to pending. Recorded here rather than in the worker because "
-    "the sweep is the only path out of the error status, so it sees every "
-    "failure exactly once -- and it runs six times an hour over a handful of "
-    "rows, where the worker runs thousands of tasks a second.",
+    "Extract task failures -- a lease's failed features and a request task's "
+    "failed chunks alike -- by exception class, counted as the error sweep "
+    "retries them or deletes them (a retired pair's). Recorded at the sweep "
+    "rather than in the workers because every failure that is ever retried "
+    "passes through it exactly once, and it runs every ten minutes over a "
+    "handful of rows, where the workers compute thousands of features a second.",
     ["exception"],
 )
 TASKS_EXHAUSTED = Gauge(
     "geoquery_extract_tasks_exhausted",
-    "Extract tasks left at the error status having used every retry. These are "
-    "never retried again and _check_request_tasks treats them as "
-    "finished-but-failed, so a request containing one completes WITHOUT that "
-    "column rather than waiting -- a silent partial result. Query across pods "
+    "Extract tasks left at the error status having used every retry, including "
+    "lease features recorded as failed once their page ran out of assignments. "
+    "They are never retried again: a request containing one is failed, and a "
+    "background pair's feature stays without a value until its inputs change. "
+    "Query across pods "
     "with max(): every background-worker pod exports its own series and only "
     "the one that last ran the sweep is fresh, so a non-zero reading can lag "
     "the count dropping back to zero by a sweep interval.",

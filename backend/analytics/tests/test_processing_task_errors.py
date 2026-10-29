@@ -249,10 +249,29 @@ class ExhaustedTaskFailsItsRequestTests(ErrorSweepFixture):
 class ExceptionClassTests(SimpleTestCase):
     """The metric label is derived from error text, so it must stay bounded.
 
-    extract_tasks.error is repr(exc)[:100], which leads with the class name and
-    then carries a message full of file paths and coordinates. Labelling with
-    the whole thing would give the counter unbounded cardinality.
+    extract_tasks.error leads with a class name (after a "resource N[i]: "
+    prefix when it names the resource) and then carries a message full of file
+    paths and coordinates. Labelling with the whole thing would give the
+    counter unbounded cardinality.
     """
+
+    def test_reads_past_the_resource_prefix(self):
+        self.assertEqual(
+            _exception_class("resource 12[0]: RasterioIOError('/data/ds/r1.tif: No such file')"),
+            "RasterioIOError",
+        )
+
+    def test_labels_by_the_first_of_several_resource_failures(self):
+        self.assertEqual(
+            _exception_class("resource 12[0]: MemoryError(); resource 13[1]: ValueError('x')"),
+            "MemoryError",
+        )
+
+    def test_a_setup_failure_is_one_label(self):
+        # The text after "setup: " is a message, not a class name.
+        for error in ("setup: missing resources [12, 13]",
+                      "setup: processing option or dataset no longer exists"):
+            self.assertEqual(_exception_class(error), "setup")
 
     def test_reads_the_class_name_from_a_repr(self):
         self.assertEqual(
@@ -327,6 +346,23 @@ class FailureRecordingTests(ErrorSweepFixture):
         # Two different files, one label: the message is not part of the label.
         self.assertEqual(delta[failures("RasterioIOError")], 2)
         self.assertEqual(delta[failures("MemoryError")], 1)
+
+    def test_a_retired_pairs_deleted_failure_is_counted_too(self):
+        from analytics.models import ExtractTaskBuildProgress
+
+        retired = ExtractTaskBuildProgress.objects.create(
+            resource_ids=[self.resource.id], po=self.po, dataset_id=self.dataset.id, current=False)
+        task = self.errored_task_with("resource 1[0]: MemoryError()")
+        ExtractTask.objects.filter(pk=task.pk).update(pair_id=retired.id)
+        delta = Delta(failures("MemoryError"), work("tasks_discarded"), work("tasks_retried"))
+
+        with self.captureOnCommitCallbacks(execute=True):
+            _manage_processing_task_errors(error_values=-1)
+
+        self.assertFalse(ExtractTask.objects.filter(pk=task.pk).exists())
+        self.assertEqual(delta[failures("MemoryError")], 1)
+        self.assertEqual(delta[work("tasks_discarded")], 1)
+        self.assertEqual(delta[work("tasks_retried")], 0)
 
     def test_records_how_many_were_returned_to_pending(self):
         self.errored_task_with("MemoryError()")

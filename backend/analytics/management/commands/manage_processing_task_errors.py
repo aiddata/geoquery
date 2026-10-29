@@ -17,11 +17,20 @@ Module for handling edge-cases and errors.
 """
 
 
-# extract_tasks.error holds repr(exc)[:100] (see processing._run_extract_task),
-# so it starts with the exception's class name: RasterioIOError('/data/...').
-# Only that leading name becomes a metric label -- the rest is a message
-# carrying file paths and coordinates, which would make the label unbounded.
-# The full text still goes to the log.
+# extract_tasks.error is capped at 100 characters and comes in three shapes:
+#
+#   resource 12[0]: RasterioIOError('/data/...'); resource 13[1]: ...
+#       a feature that failed on one or more resources (processing and
+#       leases._failure_summary)
+#   setup: missing resources [12, 13]
+#       a lease that could not load its inputs at all (leases._compute_lease)
+#   RasterioIOError('/data/...')
+#       a bare repr(exc), from a request task's chunk failing outright
+#
+# Only the first exception's class name becomes a metric label -- the rest is
+# a message carrying file paths and coordinates, which would make the label
+# unbounded. The full text still goes to the log.
+_RESOURCE_PREFIX = re.compile(r"resource \d+\[\d+\]: ")
 _EXCEPTION_CLASS = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*")
 
 # A successful retry overwrites error with NULL, so this sweep is the last
@@ -40,6 +49,11 @@ def _exception_class(error):
     error = (error or "").strip()
     if not error:
         return "unrecorded"
+    if error.startswith("setup: "):
+        return "setup"
+    prefix = _RESOURCE_PREFIX.match(error)
+    if prefix:
+        error = error[prefix.end():]
     match = _EXCEPTION_CLASS.match(error)
     return match.group(0)[:60] if match else "unparsed"
 
@@ -92,22 +106,26 @@ def _manage_processing_task_errors(
     The attempts < max_attempts guard is what stops a permanently-failing task
     cycling -1 -> 0 -> -1 forever. `attempts` was incremented here long before
     anything read it; this is the reader. A task that reaches the limit is left
-    at status = -1 and _check_request_tasks treats it as finished-but-failed,
-    so a request containing one completes without that column instead of
-    waiting on it indefinitely.
+    at status = -1: _check_request_tasks counts it as failed and the request
+    holding it is failed instead of waiting on it indefinitely. A lease writes
+    a feature that ran out of page assignments at the limit directly
+    (leases._fail_terminally), so it never comes through here as a retry.
 
     Both statements name attempts as well as status so they can use
     extract_tasks_errored_idx (migration 0029), which is keyed on attempts
     precisely because exhausted tasks stay at -1 forever -- without the key
     the sweep would re-read all of them on every run.
 
-    This is also where a failure is recorded, because it is the only path out
-    of the error status: every failed task passes through here exactly once,
-    and the retry then overwrites `error` with NULL, so afterwards nothing can
-    still see why the task failed. The exception class goes to a counter and
-    the full text to the log. Deliberately not instrumented in the worker
-    instead -- that path runs thousands of tasks a second, this one runs six
-    times an hour over a handful of rows.
+    This is also where a failure is recorded. Every failure that is retried
+    passes through here exactly once, either retried or (a retired pair's,
+    which nothing can claim) deleted, and either way its `error` is gone
+    afterwards -- a retry overwrites it with NULL. (The other way out of the
+    error status is a sync reset after an input change, which recomputes the
+    task against new inputs; that is not a retry and is not counted.) The
+    exception class goes to a counter and the full text to the log.
+    Deliberately not instrumented in the workers instead -- they compute
+    thousands of features a second, this runs every ten minutes over a
+    handful of rows.
     """
     from analytics.background_metrics import (
         record_task_failures,
@@ -127,9 +145,9 @@ def _manage_processing_task_errors(
     with connection.cursor() as cursor:
         for ev in error_values:
             # Counted on both paths, not just --dry-run. An exhausted task is
-            # never retried again and _check_request_tasks lets a request
-            # containing one complete without that column, so this number is
-            # the only way anyone learns it happened.
+            # never retried again: a request holding one fails, and a
+            # background feature stays without a value until its inputs
+            # change. This number is the one place that shows how many.
             cursor.execute(
                 """
                     SELECT COUNT(*) FROM extract_tasks
@@ -179,9 +197,11 @@ def _manage_processing_task_errors(
                         )
                         DELETE FROM extract_tasks t USING doomed
                         WHERE t.dataset_id = doomed.dataset_id AND t.id = doomed.id
+                        RETURNING t.error
                         """,
                     [ev, max_attempts],
                 )
+                discarded = [row[0] for row in cursor.fetchall()]
                 cursor.execute(
                     """
                         UPDATE extract_tasks
@@ -194,7 +214,12 @@ def _manage_processing_task_errors(
                 retried = cursor.fetchall()
                 updated = len(retried)
 
-                by_exception = Counter()
+                by_exception = Counter(_exception_class(error) for error in discarded)
+                if discarded:
+                    logger.info(
+                        f"Deleted {len(discarded)} failed task(s) with status {ev} "
+                        f"of retired pairs instead of retrying them"
+                    )
                 for shown, row in enumerate(retried):
                     dataset_id, task_id, attempts, error = row
                     by_exception[_exception_class(error)] += 1
@@ -213,6 +238,7 @@ def _manage_processing_task_errors(
 
                 record_task_failures(by_exception)
                 record_work("tasks_retried", updated)
+                record_work("tasks_discarded", len(discarded))
                 logger.info(
                     f"Updated {updated} tasks with status {ev} to pending and incremented attempts"
                 )
