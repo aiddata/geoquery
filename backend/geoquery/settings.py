@@ -566,6 +566,12 @@ EXTRACT_TASK_LEASE_BLOCK_SIZE = int(os.environ.get("EXTRACT_TASK_LEASE_BLOCK_SIZ
 # running at expiry may be taken over, and its first owner's completion is
 # then discarded by the token check.
 EXTRACT_TASK_LEASE_SECONDS = int(os.environ.get("EXTRACT_TASK_LEASE_SECONDS", "1800"))
+# Seconds of computation a page aims at, at its pair's measured pace (never
+# more than a quarter of the lease). A worker slot only looks for request
+# tasks between units of work, so this bounds how long a newly submitted
+# request waits behind background extraction: at a quarter of the lease it
+# could be 7.5 minutes.
+EXTRACT_TASK_LEASE_PAGE_SECONDS = float(os.environ.get("EXTRACT_TASK_LEASE_PAGE_SECONDS", "60"))
 # feat_map ids one claim examines past a pair's cursor. Bounds a claim's scan
 # where requests already created every task.
 EXTRACT_TASK_LEASE_SCAN_WINDOW = int(os.environ.get("EXTRACT_TASK_LEASE_SCAN_WINDOW", "100000"))
@@ -594,6 +600,7 @@ for _name in (
     "EXTRACT_TASK_LEASE_PAGE_SIZE",
     "EXTRACT_TASK_LEASE_BLOCK_SIZE",
     "EXTRACT_TASK_LEASE_SECONDS",
+    "EXTRACT_TASK_LEASE_PAGE_SECONDS",
     "EXTRACT_TASK_LEASE_SCAN_WINDOW",
     "EXTRACT_TASK_LEASE_BISECT_ATTEMPT",
     "EXTRACT_TASK_LEASE_REPLICA_WAIT_SECONDS",

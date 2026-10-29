@@ -8,7 +8,7 @@ using task rows (analytics.tasks.processing).
 
 A page holds at most EXTRACT_TASK_LEASE_PAGE_SIZE features, and fewer for a
 slow pair: each pair keeps a moving average of its compute time per feature,
-and pages aim at a quarter of the lease (see _page_size).
+and pages aim at EXTRACT_TASK_LEASE_PAGE_SECONDS of work (see _page_size).
 
     claim     one short transaction: guards, pair lock, scan one window of
               the cursor, INSERT the lease, advance the cursor
@@ -116,15 +116,26 @@ class _PairCollision(Exception):
     """A task with the same hash key but a different resource array exists."""
 
 
+def _page_target_seconds():
+    """How long a page should take to compute.
+
+    A worker slot looks for request tasks only between units of work, so a
+    page's duration is how long a new request can wait behind background
+    extraction. EXTRACT_TASK_LEASE_PAGE_SECONDS keeps that short; a quarter
+    of the lease still bounds it, leaving room before a takeover.
+    """
+    return min(settings.EXTRACT_TASK_LEASE_PAGE_SECONDS, settings.EXTRACT_TASK_LEASE_SECONDS / 4)
+
+
 def _page_size(seconds_per_feature, resources):
-    """Features per page for a pair: a quarter of the lease at its observed pace.
+    """Features per page for a pair: the target duration at its observed pace.
 
     Before any page has finished, assume time grows with the resources each
     task reads, so a twelve-resource grouped pair starts at a twelfth.
     """
     cap = settings.EXTRACT_TASK_LEASE_PAGE_SIZE
     if seconds_per_feature:
-        return max(1, min(cap, int(settings.EXTRACT_TASK_LEASE_SECONDS / 4 / seconds_per_feature)))
+        return max(1, min(cap, int(_page_target_seconds() / seconds_per_feature)))
     return max(1, cap // max(1, resources))
 
 

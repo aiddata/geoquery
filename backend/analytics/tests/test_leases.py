@@ -199,12 +199,24 @@ class ClaimTests(LeaseTestCase):
         self.assertEqual(leases._page_size(None, 1), settings.EXTRACT_TASK_LEASE_PAGE_SIZE)
         # A twelve-resource grouped pair starts at a twelfth of the page.
         self.assertEqual(leases._page_size(None, 12), settings.EXTRACT_TASK_LEASE_PAGE_SIZE // 12)
-        # Once measured: a quarter of the lease at that pace, at least one.
-        quarter = settings.EXTRACT_TASK_LEASE_SECONDS / 4
-        self.assertEqual(leases._page_size(quarter / 3, 1), 3)
-        self.assertEqual(leases._page_size(quarter * 10, 1), 1)
-        ExtractTaskBuildProgress.objects.filter(id=self.pair.id).update(seconds_per_feature=quarter / 3)
+        # Once measured: the target duration at that pace, at least one.
+        target = leases._page_target_seconds()
+        self.assertEqual(leases._page_size(target / 3, 1), 3)
+        self.assertEqual(leases._page_size(target * 10, 1), 1)
+        ExtractTaskBuildProgress.objects.filter(id=self.pair.id).update(seconds_per_feature=target / 3)
         self.assertEqual(len(claim_lease().fm_ids), 3)
+
+    def test_pages_aim_at_page_seconds_not_a_quarter_of_the_lease(self):
+        # A slot finds request tasks only between units, so a page's length
+        # is how long a new request can wait behind background work.
+        with self.settings(EXTRACT_TASK_LEASE_PAGE_SECONDS=60, EXTRACT_TASK_LEASE_SECONDS=1800,
+                           EXTRACT_TASK_LEASE_PAGE_SIZE=1024):
+            self.assertEqual(leases._page_size(1.0, 1), 60)
+            self.assertEqual(leases._page_size(0.01, 1), 1024)
+
+    def test_a_quarter_of_the_lease_still_caps_the_target(self):
+        with self.settings(EXTRACT_TASK_LEASE_PAGE_SECONDS=3600, EXTRACT_TASK_LEASE_SECONDS=1800):
+            self.assertEqual(leases._page_target_seconds(), 450)
 
     def test_disabled_leases_assign_nothing(self):
         with self.settings(EXTRACT_TASK_LEASES_ENABLED=False):
@@ -451,8 +463,8 @@ class RecoveryTests(LeaseTestCase):
     def test_a_page_that_ran_out_of_time_is_cut_to_the_pairs_pace(self):
         lease = claim_lease()
         self.assertEqual(len(lease.fm_ids), len(self.fms))
-        quarter = settings.EXTRACT_TASK_LEASE_SECONDS / 4
-        ExtractTaskBuildProgress.objects.filter(id=self.pair.id).update(seconds_per_feature=quarter / 2)
+        target = leases._page_target_seconds()
+        ExtractTaskBuildProgress.objects.filter(id=self.pair.id).update(seconds_per_feature=target / 2)
         self.expire(lease, attempts=1)
         again = claim_lease()
         self.assertEqual((again.id, again.fm_ids, again.attempts), (lease.id, lease.fm_ids[:2], 1))
