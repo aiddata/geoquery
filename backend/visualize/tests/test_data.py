@@ -119,6 +119,31 @@ class VisualizeDataTestCase(ReplicaReadsTestMixin, TestCase):
             {"ds1-grp-1.mean": "2020-01", "ds1-grp-2.mean": "2020-02", "ds1-grp-3.mean": "2020-03"},
         )
 
+    def test_build_request_data_keeps_only_the_requested_positions(self):
+        # A request for two months links the bucket's task, which holds all
+        # three; the visualization shows only the months asked for.
+        resources = [
+            DatasetResource.objects.create(
+                dataset=self.dataset, name=f"ds1-req-{i}", path=f"q{i}.tif"
+            )
+            for i in (1, 2, 3)
+        ]
+        task = ExtractTask.objects.create(
+            resource_ids=[r.id for r in resources],
+            dataset_id=self.dataset.id, fm=self.fm, po=self.po, status=1,
+        )
+        ExtractData.objects.create(
+            extract_task=task, dataset_id=self.dataset.id, name="mean",
+            float_values=[10.0, 20.0, 30.0],
+        )
+        req = self._make_request(task)
+        req.data = {"datasets": [{"dataset_name": "ds1", "resource_ids": [resources[0].id, resources[2].id]}]}
+        req.save(update_fields=["data"])
+
+        result = build_request_data(req)
+
+        self.assertEqual(result["columns"], ["ds1-req-1.mean", "ds1-req-3.mean"])
+
     def test_build_request_data_grouped_task_with_null_position(self):
         # A NULL position in a completed task is nodata, and must come back
         # as None, not be dropped or mistakenly attributed to a neighboring

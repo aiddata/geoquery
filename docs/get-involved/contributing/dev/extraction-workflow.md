@@ -311,6 +311,26 @@ their epochs recorded. Then the **flush** writes every outcome together, only
 if each row is still status 2 with the same claim stamp and its epochs haven't
 changed. Tasks the slot didn't start are released back to pending.
 
+**Requests for grouped datasets share the background pair's tasks.** For a
+dataset with a `task_group_period` and no custom kwargs, request
+materialization (`_task_sets` in `analytics/services.py`) maps each requested
+resource to its bucket's current pair and links the task keyed on that pair's
+whole `resource_ids` array:
+
+- **The pair already computed it:** the request reuses it. Nothing runs.
+- **It doesn't exist yet:** the request creates it exactly as a lease would
+  (`pair_id`, `task_group_period`), at priority 1. The lease scan later finds
+  it and skips that feature.
+- **No current pair for that resource yet:** a single-resource task, as
+  before, so a request never waits on sync. Custom-kwargs requests always use
+  single-resource tasks, because no pair computes them.
+
+Asking for some months of a year computes the whole year once. The request
+records the resource ids it asked for in `data["datasets"][…]["resource_ids"]`,
+and its output (`merge_task_results`) and visualization keep only those
+positions. Single-resource tasks left over from earlier requests for grouped
+datasets are no longer used by requests.
+
 Background work reaches this path only as failures. A lease writes a failed
 feature as a status -1 task row. The error sweep returns it to pending while
 it has attempts left, and a later claim retries it here.

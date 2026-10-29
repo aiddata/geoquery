@@ -18,6 +18,7 @@ from django.db.models import Q
 from features.models import Feature, FeatMap
 from analytics.changes import only_valid
 from analytics.models import ExtractTask, ExtractTaskBuildProgress, ProcessingOption
+from analytics.services import requested_resource_ids
 from datasets.models import Dataset
 
 # Every read here is of finished extraction results and the boundaries and
@@ -155,6 +156,9 @@ _REQUEST_EXTRACT_DATA_SQL = """
     INNER JOIN datasets d ON d.id = dr.dataset_id
     WHERE rm.req_id = %s
       AND et.status = 1
+      -- A grouped task covers its whole bucket; keep the positions the
+      -- request asked for (NULL: every position, for older requests).
+      AND (%s::int[] IS NULL OR u.resource_id = ANY(%s::int[]))
 """
 
 # Same shape as _REQUEST_EXTRACT_DATA_SQL (see its comment for the unnest and
@@ -364,7 +368,9 @@ def build_request_data(request) -> dict:
         # Results with a reset pending are not served (extract_valid_tasks):
         # they are about to be recomputed.
         with connections[_DB].cursor() as cursor:
-            cursor.execute(_REQUEST_EXTRACT_DATA_SQL, [str(request.id)])
+            requested = requested_resource_ids(request)
+            requested = sorted(requested) if requested is not None else None
+            cursor.execute(_REQUEST_EXTRACT_DATA_SQL, [str(request.id), requested, requested])
             data_rows = _dictfetchall(cursor)
         bbox = _bbox_for(features)
 

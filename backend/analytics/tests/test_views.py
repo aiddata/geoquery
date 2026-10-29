@@ -200,7 +200,7 @@ class RequestViewStandardSubmissionTest(TestCase):
         # _build_tasks runs in autocommit.
         from types import SimpleNamespace
 
-        from analytics.services import _get_or_create_task
+        from analytics.services import TaskSet, _get_or_create_task
 
         resolved = SimpleNamespace(dataset=self.dataset, task_kwargs=None)
         winner = {}
@@ -226,12 +226,16 @@ class RequestViewStandardSubmissionTest(TestCase):
                 side_effect=insert_winner_then_collide,
             ) as mock_create,
         ):
-            task = _get_or_create_task(resolved, self.fm, self.resource, self.po)
+            task = _get_or_create_task(
+                resolved, self.fm, TaskSet(self.po, (self.resource.id,))
+            )
 
         self.assertEqual(task, winner["task"])
         mock_create.assert_called_once_with(
             dataset_id=self.dataset.id,
             resource_ids=[self.resource.id],
+            task_group_period=None,
+            pair_id=None,
             fm=self.fm,
             po=self.po,
             kwargs=None,

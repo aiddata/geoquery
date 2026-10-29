@@ -165,8 +165,13 @@ def merge_task_features(task_map):
     return "Success", merged_gdf
 
 
-def merge_task_results(task_map):
-    """merge processing task results for the given {task_id: dataset_id} mapping"""
+def merge_task_results(task_map, resource_ids=None):
+    """merge processing task results for the given {task_id: dataset_id} mapping
+
+    ``resource_ids`` keeps only those resources' positions: a request for some
+    months of a grouped dataset links tasks that cover the whole bucket (see
+    analytics.services.requested_resource_ids). None keeps every position.
+    """
     rows = {}
     lookups = _MergeLookups()
     # Materialised so the chunks below preserve task_map's order: `rows` is
@@ -248,6 +253,8 @@ def merge_task_results(task_map):
                     continue
 
                 for i, dr_name in enumerate(dr_names):
+                    if resource_ids is not None and task_item.resource_ids[i] not in resource_ids:
+                        continue
                     # A None at position i is a final answer, not a gap: either
                     # the extraction found nodata there, or that position failed
                     # this run (in which case the task is status=-1 and merge is

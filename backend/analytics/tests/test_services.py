@@ -16,13 +16,16 @@ from django.urls import reverse
 
 from allauth.account.models import EmailAddress
 
-from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
+from analytics.models import (
+    ExtractTask, ExtractTaskBuildProgress, ProcessingOption, Request, RequestMap,
+)
 from analytics.services import (
     NoExtractTasksError,
     create_request,
     materialize_request,
     request_links,
     request_progress,
+    requested_resource_ids,
     requests_for_user,
     resolve_request_plan,
 )
@@ -512,3 +515,159 @@ class RequestsForUserTests(TestCase):
             [r["id"] for r in response.json()],
             [str(r.id) for r in requests_for_user(self.user)],
         )
+
+
+class GroupedDatasetRequestTests(TestCase):
+    """A request for a grouped dataset shares the background pair's tasks.
+
+    Background leases compute one task per (feature, bucket, option) whose
+    resource_ids hold the whole bucket. Requests used to key on single
+    resources, so they never matched and recomputed everything; now each
+    requested resource maps to its bucket's current pair.
+    """
+
+    def setUp(self):
+        from datetime import datetime, timezone as dt_timezone
+
+        self.dataset = Dataset.objects.create(
+            name="monthly", path="/data/rasters/monthly", type="raster",
+            active=True, public=True, task_group_period="year",
+        )
+
+        def month(year, m):
+            return DatasetResource.objects.create(
+                dataset=self.dataset, name=f"monthly_{year}{m:02d}", path=f"{year}{m:02d}.tif",
+                temporal=datetime(year, m, 1, tzinfo=dt_timezone.utc),
+            )
+
+        self.y2020 = [month(2020, m) for m in (1, 2, 3)]
+        self.y2021 = [month(2021, 1)]
+        self.pos = [
+            ProcessingOption.objects.create(
+                dataset=self.dataset, short_name=name, function=f"f_{name}",
+                active=True, public=True,
+            )
+            for name in ("mean", "max")
+        ]
+        self.pairs = {}
+        for po in self.pos:
+            for bucket, resources in (("2020-01-01", self.y2020), ("2021-01-01", self.y2021)):
+                self.pairs[(po.id, bucket)] = ExtractTaskBuildProgress.objects.create(
+                    resource_ids=[r.id for r in resources], po=po, dataset_id=self.dataset.id,
+                    bucket=bucket, task_group_period="year", current=True,
+                )
+        fc = FeatureCollection.objects.create(
+            name="fc", path="/data/boundaries/fc.gpkg", active=True, public=True
+        )
+        self.features = [Feature.objects.create(shape="POINT(0 0)") for _ in range(2)]
+        self.fms = [FeatMap.objects.create(fc=fc, geom=f) for f in self.features]
+
+    def spec(self, resources, **overrides):
+        return {
+            "datasetName": self.dataset.name, "extractTypes": ["mean"],
+            "resources": [r.name for r in resources], **overrides,
+        }
+
+    def submit(self, spec):
+        created = create_request(
+            user=None, contact="a@example.com", name=None,
+            feature_ids=[f.id for f in self.features], datasets=[spec],
+        )
+        materialize_request(created.request)
+        created.request.refresh_from_db()
+        return created.request
+
+    def linked(self, request):
+        ids = RequestMap.objects.filter(request=request).values_list("task_id", flat=True)
+        return list(ExtractTask.objects.filter(dataset_id=self.dataset.id, id__in=ids))
+
+    def pair(self, bucket, po=None):
+        return self.pairs[((po or self.pos[0]).id, bucket)]
+
+    def test_plan_counts_one_task_per_feature_and_bucket(self):
+        plan = resolve_request_plan(
+            None, [f.id for f in self.features], [self.spec(self.y2020[:2] + self.y2021)]
+        )
+
+        self.assertEqual(plan.task_count, 2 * 2)
+
+    def test_reuses_the_task_the_pair_already_completed(self):
+        pair = self.pair("2020-01-01")
+        done = [
+            ExtractTask.objects.create(
+                dataset_id=self.dataset.id, resource_ids=pair.resource_ids, fm=fm,
+                po=self.pos[0], status=1, pair_id=pair.id, task_group_period="year",
+            )
+            for fm in self.fms
+        ]
+
+        request = self.submit(self.spec(self.y2020[:2]))
+
+        self.assertEqual({t.id for t in self.linked(request)}, {t.id for t in done})
+        self.assertEqual(ExtractTask.objects.count(), 2)
+
+    def test_creates_the_pairs_task_when_it_does_not_exist(self):
+        request = self.submit(self.spec(self.y2020[1:2]))
+
+        tasks = self.linked(request)
+        pair = self.pair("2020-01-01")
+        self.assertEqual(len(tasks), 2)
+        for task in tasks:
+            self.assertEqual(task.resource_ids, pair.resource_ids)
+            self.assertEqual(task.pair_id, pair.id)
+            self.assertEqual(task.task_group_period, "year")
+            self.assertEqual(task.priority, 1)
+            self.assertIsNone(task.kwargs)
+
+    def test_ignores_single_resource_tasks_of_a_grouped_dataset(self):
+        ExtractTask.objects.create(
+            dataset_id=self.dataset.id, resource_ids=[self.y2020[0].id], fm=self.fms[0],
+            po=self.pos[0], status=1,
+        )
+
+        request = self.submit(self.spec(self.y2020[:1]))
+
+        self.assertTrue(all(len(t.resource_ids) == 3 for t in self.linked(request)))
+
+    def test_resource_without_a_current_pair_keeps_its_own_task(self):
+        from datetime import datetime, timezone as dt_timezone
+
+        late = DatasetResource.objects.create(
+            dataset=self.dataset, name="monthly_202201", path="202201.tif",
+            temporal=datetime(2022, 1, 1, tzinfo=dt_timezone.utc),
+        )
+
+        request = self.submit(self.spec([late]))
+
+        tasks = self.linked(request)
+        self.assertEqual([t.resource_ids for t in tasks], [[late.id], [late.id]])
+        self.assertTrue(all(t.pair_id is None for t in tasks))
+
+    def test_custom_kwargs_keep_single_resource_tasks(self):
+        request = self.submit(self.spec(self.y2020[:2], kwargs={"band": 2}))
+
+        tasks = self.linked(request)
+        self.assertEqual(len(tasks), 2 * 2)
+        self.assertTrue(all(len(t.resource_ids) == 1 for t in tasks))
+
+    def test_each_option_uses_its_own_pair(self):
+        request = self.submit(self.spec(self.y2021, extractTypes=["mean", "max"]))
+
+        pairs = {t.pair_id for t in self.linked(request)}
+        self.assertEqual(
+            pairs, {self.pair("2021-01-01").id, self.pair("2021-01-01", self.pos[1]).id}
+        )
+
+    def test_records_the_resources_asked_for(self):
+        request = self.submit(self.spec(self.y2020[:2]))
+
+        expected = {r.id for r in self.y2020[:2]}
+        self.assertEqual(set(request.data["datasets"][0]["resource_ids"]), expected)
+        self.assertEqual(requested_resource_ids(request), expected)
+
+    def test_older_requests_keep_every_position(self):
+        request = Request.objects.create(
+            contact="a@example.com", status=1, data={"datasets": [{"dataset_name": "monthly"}]}
+        )
+
+        self.assertIsNone(requested_resource_ids(request))
