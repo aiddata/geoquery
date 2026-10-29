@@ -37,7 +37,7 @@ from catalog.access import (
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap
 
-from .models import ExtractTask, ProcessingOption, Request, RequestMap
+from .models import ExtractTask, ExtractTaskBuildProgress, ProcessingOption, Request, RequestMap
 
 # Request.status as a word. Also imported by analytics.views, which exposed
 # this mapping long before the service existed.
@@ -75,6 +75,22 @@ class NoExtractTasksError(Exception):
 
 
 @dataclass(frozen=True)
+class TaskSet:
+    """The resources one task covers, with one processing option.
+
+    A single resource for most datasets. For a grouped dataset
+    (task_group_period) it is the whole bucket the background pair computes
+    -- every resource of that period, in the pair's order -- so a request
+    reuses the pair's results instead of recomputing each resource on its own.
+    ``pair_id`` is that pair; None for a single-resource set.
+    """
+
+    po: ProcessingOption
+    resource_ids: tuple[int, ...]
+    pair_id: int | None = None
+
+
+@dataclass(frozen=True)
 class ResolvedDataset:
     """One submitted dataset spec, resolved against what the caller may see."""
 
@@ -84,12 +100,54 @@ class ResolvedDataset:
     resources: list[DatasetResource]
     fms: list[FeatMap]
     task_kwargs: dict | None
+    task_sets: tuple[TaskSet, ...] = ()
 
     @property
     def task_count(self) -> int:
-        # Every (feature, resource, option) triple is distinct, so the product
-        # is the exact task count, not an upper bound.
-        return len(self.fms) * len(self.resources) * len(self.pos)
+        # Every (feature, task set) pair is distinct, so the product is the
+        # exact task count, not an upper bound.
+        return len(self.fms) * len(self.task_sets)
+
+
+def _task_sets(dataset, pos, resources, task_kwargs) -> tuple[TaskSet, ...]:
+    """The task sets a request for these resources and options needs.
+
+    Background extraction computes a grouped dataset one bucket at a time:
+    one task per (feature, bucket, option), whose resource_ids hold every
+    resource of the bucket. A request that keyed its tasks on single
+    resources could never match those, so it recomputed everything the
+    background had already done. Instead each requested resource maps to its
+    bucket's current pair, and the request uses that pair's task: done
+    already, or computed now at request priority and then found done by the
+    lease scan. Asking for part of a bucket computes the whole bucket, which
+    the background would do anyway, once.
+
+    A resource with no current pair (sync has not reconciled it yet) keeps a
+    task of its own, so a request never waits on sync. Custom kwargs keep
+    single-resource tasks too: no pair computes them, so there is nothing to
+    share.
+    """
+    singles = lambda rs: [TaskSet(po, (r.id,)) for po in pos for r in rs]
+    if task_kwargs is not None or not dataset.task_group_period:
+        return tuple(singles(resources))
+
+    bucket_of = {}
+    for pair_id, po_id, resource_ids in ExtractTaskBuildProgress.objects.filter(
+        dataset_id=dataset.id, current=True, po_id__in=[po.id for po in pos]
+    ).values_list("id", "po_id", "resource_ids"):
+        for resource_id in resource_ids:
+            bucket_of[(po_id, resource_id)] = (tuple(resource_ids), pair_id)
+
+    sets = {}
+    for po in pos:
+        for resource in resources:
+            bucket = bucket_of.get((po.id, resource.id))
+            if bucket is None:
+                sets.setdefault((po.id, (resource.id,)), TaskSet(po, (resource.id,)))
+            else:
+                ids, pair_id = bucket
+                sets.setdefault((po.id, ids), TaskSet(po, ids, pair_id))
+    return tuple(sets.values())
 
 
 @dataclass(frozen=True)
@@ -194,13 +252,14 @@ def resolve_request_plan(user, feature_ids: list[int], datasets: list[dict]) -> 
                 resources=resource_list,
                 fms=fms,
                 task_kwargs=task_kwargs,
+                task_sets=_task_sets(dataset_obj, pos, resource_list, task_kwargs),
             )
         )
 
     return RequestPlan(resolved=resolved, warnings=warnings)
 
 
-def _get_or_create_task(resolved: ResolvedDataset, fm: FeatMap, resource, po):
+def _get_or_create_task(resolved: ResolvedDataset, fm: FeatMap, task_set: TaskSet):
     """Reuse the matching ExtractTask if there is one, else create it.
 
     The functional unique indexes (migration 0024) are:
@@ -229,14 +288,14 @@ def _get_or_create_task(resolved: ResolvedDataset, fm: FeatMap, resource, po):
     else:
         kwargs_lookup = {"kwargs": task_kwargs}
 
-    resource_ids = [resource.id]
+    resource_ids = list(task_set.resource_ids)
     resource_ids_hash = RawSQL("extract_tasks_resource_ids_hash(%s)", [resource_ids])
     lookup = {
         "dataset_id": resolved.dataset.id,
         "resource_ids": resource_ids,
         "resource_ids_hash": resource_ids_hash,
         "fm": fm,
-        "po": po,
+        "po": task_set.po,
         **kwargs_lookup,
     }
     try:
@@ -249,15 +308,28 @@ def _get_or_create_task(resolved: ResolvedDataset, fm: FeatMap, resource, po):
             # value raises an error. The savepoint keeps a conflict from
             # aborting materialize_request's enclosing transaction.
             with transaction.atomic():
-                return ExtractTask.objects.create(
-                    dataset_id=resolved.dataset.id,
-                    resource_ids=resource_ids,
-                    fm=fm,
-                    po=po,
-                    kwargs=task_kwargs,
-                )
+                return ExtractTask.objects.create(**_new_task_fields(resolved, fm, task_set))
         except IntegrityError:
             return ExtractTask.objects.get(**lookup)
+
+
+def _new_task_fields(resolved: ResolvedDataset, fm: FeatMap, task_set: TaskSet) -> dict:
+    """Column values for a task this request creates.
+
+    A grouped set is created exactly as its pair's lease would create it
+    (pair_id and task_group_period included), so the lease scan finds it and
+    skips the feature rather than computing it a second time.
+    """
+    grouped = task_set.pair_id is not None
+    return {
+        "dataset_id": resolved.dataset.id,
+        "resource_ids": list(task_set.resource_ids),
+        "task_group_period": resolved.dataset.task_group_period if grouped else None,
+        "pair_id": task_set.pair_id,
+        "fm": fm,
+        "po": task_set.po,
+        "kwargs": resolved.task_kwargs,
+    }
 
 
 def _build_tasks(plan: RequestPlan) -> tuple[dict[int, int], list[dict]]:
@@ -334,13 +406,12 @@ def _build_tasks(plan: RequestPlan) -> tuple[dict[int, int], list[dict]]:
         task_ids = []
         missing: list[tuple] = []
         for fm in resolved.fms:
-            for resource in resolved.resources:
-                for po in resolved.pos:
-                    key = (fm.id, (resource.id,), po.id)
-                    if key in existing:
-                        task_ids.append(existing[key])
-                    else:
-                        missing.append((fm, resource, po))
+            for task_set in resolved.task_sets:
+                key = (fm.id, task_set.resource_ids, task_set.po.id)
+                if key in existing:
+                    task_ids.append(existing[key])
+                else:
+                    missing.append((fm, task_set))
 
         if missing:
             # One INSERT for every task this dataset still needs, rather than
@@ -367,15 +438,8 @@ def _build_tasks(plan: RequestPlan) -> tuple[dict[int, int], list[dict]]:
             # pks, hence the re-read below.
             ExtractTask.objects.bulk_create(
                 [
-                    ExtractTask(
-                        dataset_id=resolved.dataset.id,
-                        resource_ids=[resource.id],
-                        fm=fm,
-                        po=po,
-                        kwargs=task_kwargs,
-                        priority=1,
-                    )
-                    for fm, resource, po in missing
+                    ExtractTask(**_new_task_fields(resolved, fm, task_set), priority=1)
+                    for fm, task_set in missing
                 ],
                 ignore_conflicts=True,
             )
@@ -401,8 +465,8 @@ def _build_tasks(plan: RequestPlan) -> tuple[dict[int, int], list[dict]]:
                     id__in=raced, dataset_id=resolved.dataset.id
                 ).update(priority=1)
 
-            for fm, resource, po in missing:
-                key = (fm.id, (resource.id,), po.id)
+            for fm, task_set in missing:
+                key = (fm.id, task_set.resource_ids, task_set.po.id)
                 if key in existing:
                     task_ids.append(existing[key])
                 else:
@@ -412,7 +476,7 @@ def _build_tasks(plan: RequestPlan) -> tuple[dict[int, int], list[dict]]:
                     # while this dict keys on the array itself. Vanishingly
                     # unlikely, but resolve it the old way rather than
                     # KeyError on it.
-                    task = _get_or_create_task(resolved, fm, resource, po)
+                    task = _get_or_create_task(resolved, fm, task_set)
                     if task.priority < 1:
                         ExtractTask.objects.filter(
                             id=task.id, dataset_id=task.dataset_id
@@ -429,10 +493,27 @@ def _build_tasks(plan: RequestPlan) -> tuple[dict[int, int], list[dict]]:
                 "resources": ds.get("resources") or [],
                 "resource_labels": ds.get("resourceLabels") or [],
                 "kwargs": resolved.task_kwargs,
+                # What was asked for. A grouped task covers its whole bucket,
+                # so output keeps only these positions (requested_resource_ids).
+                "resource_ids": [r.id for r in resolved.resources],
             }
         )
 
     return all_task_ids, valid_datasets
+
+
+def requested_resource_ids(request: Request) -> set[int] | None:
+    """The resources a request asked for, or None to keep every position.
+
+    A grouped task covers its whole bucket, so a request for some months of a
+    year links tasks holding all twelve; its output keeps only the positions
+    it asked for. None for requests materialized before resource ids were
+    recorded, whose tasks each cover exactly what was asked.
+    """
+    datasets = (request.data or {}).get("datasets") or []
+    if not datasets or any("resource_ids" not in d for d in datasets):
+        return None
+    return {rid for d in datasets for rid in d["resource_ids"]}
 
 
 def create_request(

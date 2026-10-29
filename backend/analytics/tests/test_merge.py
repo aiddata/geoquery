@@ -96,6 +96,27 @@ class MergeTaskResultsTestCase(TestCase):
 
     # --- None at a position is skipped, not errored or placeholder'd -----
 
+    def test_resource_filter_keeps_only_the_requested_positions(self):
+        # A request for two months of a grouped dataset links the bucket's
+        # task, which holds every month; the output shows only those asked for.
+        r0, r1, r2 = [
+            DatasetResource.objects.create(dataset=self.dataset, name=f"m-{i}", path=f"m{i}.tif")
+            for i in range(3)
+        ]
+        task = self.make_task([r0, r1, r2])
+        ExtractData.objects.create(
+            extract_task=task, dataset_id=self.dataset.id, name="mean",
+            float_values=[1.0, 2.0, 3.0],
+        )
+
+        status, df = merge_task_results({task.id: self.dataset.id}, resource_ids={r0.id, r2.id})
+
+        self.assertEqual(status, "Success")
+        row = df.iloc[0]
+        self.assertEqual(row["m-0.mean"], 1.0)
+        self.assertEqual(row["m-2.mean"], 3.0)
+        self.assertNotIn("m-1.mean", df.columns)
+
     def test_null_position_is_skipped_not_placeholder(self):
         r0, r1 = [
             DatasetResource.objects.create(
