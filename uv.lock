@@ -1094,7 +1094,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rasterio" },
-    { name = "rasterstats", git = "https://github.com/aiddata/geoquery-python-rasterstats?rev=85f58864c5f78b4c4cd314e92a4e141c693d6dc0" },
+    { name = "rasterstats", git = "https://github.com/aiddata/geoquery-python-rasterstats?rev=9ace8d4c8021561a4825035fdd791d5f9bd3e4be" },
     { name = "shapely" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.35" },
     { name = "whitenoise", extras = ["brotli"], specifier = ">=6.12.0" },
@@ -2887,7 +2887,7 @@ wheels = [
 [[package]]
 name = "rasterstats"
 version = "0.21.0"
-source = { git = "https://github.com/aiddata/geoquery-python-rasterstats?rev=85f58864c5f78b4c4cd314e92a4e141c693d6dc0#85f58864c5f78b4c4cd314e92a4e141c693d6dc0" }
+source = { git = "https://github.com/aiddata/geoquery-python-rasterstats?rev=9ace8d4c8021561a4825035fdd791d5f9bd3e4be#9ace8d4c8021561a4825035fdd791d5f9bd3e4be" }
 dependencies = [
     { name = "affine" },
     { name = "click" },
