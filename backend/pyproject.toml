@@ -40,7 +40,7 @@ dependencies = [
     "geopandas",
     "shapely",
     "rasterio",
-    "rasterstats @ git+https://github.com/aiddata/geoquery-python-rasterstats@80ab2f2a01d0aa99d935ca7fe7ed422b9f52f9b7",
+    "rasterstats @ git+https://github.com/aiddata/geoquery-python-rasterstats@85f58864c5f78b4c4cd314e92a4e141c693d6dc0",
     "loguru",
     "numpy",
     "pandas",
