@@ -1,5 +1,15 @@
 frontend/node_modules
+.venv
 backend/.venv
+backend/dev_data
+backend/boundary_data
+data
+requests
+results
+site
+.cache
+.ruff_cache
+.worktrees
 **/__pycache__
 .git
 **/.dev
