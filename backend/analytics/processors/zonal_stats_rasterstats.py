@@ -68,6 +68,46 @@ def rasterstats_default_categorical(feat, raster, **kwargs):
     return _categorical_output(stats[0], kwargs)
 
 
+# --- precise forms -----------------------------------------------------------
+#
+# Area-aware statistics from the AidData rasterstats fork. Each pixel is
+# weighted by the fraction of it the feature covers (percent cover), and mean
+# also weights each pixel row by its true area at that latitude, which assumes
+# an EPSG:4326 raster. Percent cover rasterizes every window at scale x scale
+# sub-pixels, so `limit` splits large features into tiles of at most that many
+# source pixels (~200 MB peak per tile at these defaults). Processing option
+# and task kwargs override any default here. Point features get no percent
+# cover (the fork disables it), and precise count is a float.
+
+_PRECISE_DEFAULTS = {
+    "percent_cover_weighting": True,
+    "percent_cover_scale": 10,
+    "limit": 1_000_000,
+}
+_PRECISE_STAT_DEFAULTS = {"mean": {"latitude_correction": True}}
+_PRECISE_CONVERT = {"count": float}
+
+
+def _precise_kwargs(stat, kwargs):
+    return {**_PRECISE_DEFAULTS, **_PRECISE_STAT_DEFAULTS.get(stat, {}), **kwargs}
+
+
+def rasterstats_precise_mean(feat, raster, **kwargs):
+    return _rasterstats_default(feat, raster, "mean", **_precise_kwargs("mean", kwargs))
+
+
+def rasterstats_precise_sum(feat, raster, **kwargs):
+    return _rasterstats_default(feat, raster, "sum", **_precise_kwargs("sum", kwargs))
+
+
+def rasterstats_precise_count(feat, raster, **kwargs):
+    # the fork returns int 0 for empty windows and int 1 for points
+    [(name, value)] = _rasterstats_default(
+        feat, raster, "count", **_precise_kwargs("count", kwargs)
+    )
+    return [(name, float(value))]
+
+
 # --- batch forms -------------------------------------------------------------
 #
 # The same computations over many features with the raster opened once:
@@ -127,14 +167,16 @@ def _batched(feats, raster, start_generator, to_result):
             generator.close()
 
 
-def _batch_default(stat):
+def _batch_default(stat, convert=None):
     def batch(feats, raster, **kwargs):
         kwargs = _rasterstats_kwargs(kwargs)
         return _batched(
             feats,
             raster,
             lambda rest: rs.gen_zonal_stats(rest, raster, stats=stat, **kwargs),
-            lambda stats: [(kwargs["name"], stats[stat])],
+            lambda stats: [
+                (kwargs["name"], stats[stat] if convert is None else convert(stats[stat]))
+            ],
         )
 
     batch.__name__ = f"rasterstats_default_{stat}_batch"
@@ -154,6 +196,16 @@ def rasterstats_default_categorical_batch(feats, raster, **kwargs):
     )
 
 
+def _batch_precise(stat):
+    default = _batch_default(stat, _PRECISE_CONVERT.get(stat))
+
+    def batch(feats, raster, **kwargs):
+        return default(feats, raster, **_precise_kwargs(stat, kwargs))
+
+    batch.__name__ = f"rasterstats_precise_{stat}_batch"
+    return batch
+
+
 BATCH = {
     "rasterstats_default_min": _batch_default("min"),
     "rasterstats_default_max": _batch_default("max"),
@@ -161,4 +213,7 @@ BATCH = {
     "rasterstats_default_sum": _batch_default("sum"),
     "rasterstats_default_count": _batch_default("count"),
     "rasterstats_default_categorical": rasterstats_default_categorical_batch,
+    "rasterstats_precise_mean": _batch_precise("mean"),
+    "rasterstats_precise_sum": _batch_precise("sum"),
+    "rasterstats_precise_count": _batch_precise("count"),
 }

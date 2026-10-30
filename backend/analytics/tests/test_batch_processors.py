@@ -27,6 +27,8 @@ class BatchEquivalenceTests(SimpleTestCase):
         self.features = [
             square(0, 0), square(2.5, 2.5, 3), square(9, 9), square(20, 20),  # outside: nodata
             shapely.Point(4.5, 4.5).buffer(1.5),
+            # a point must not turn off percent cover for later features
+            shapely.Point(1.5, 1.5), square(2.5, 2.5, 3),
         ]
 
     def test_every_rasterstats_processor_has_a_batch_form(self):
