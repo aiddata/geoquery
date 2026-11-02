@@ -30,6 +30,9 @@ from analytics.processors.zonal_stats_rasterstats import (
     rasterstats_default_mean,
     rasterstats_default_min,
     rasterstats_default_sum,
+    rasterstats_precise_count,
+    rasterstats_precise_mean,
+    rasterstats_precise_sum,
 )
 
 REGISTRY = {
@@ -41,6 +44,9 @@ REGISTRY = {
         rasterstats_default_sum,
         rasterstats_default_count,
         rasterstats_default_categorical,
+        rasterstats_precise_mean,
+        rasterstats_precise_sum,
+        rasterstats_precise_count,
         gcdf_v301_dynamic_filter_and_agg,
         cports_v20_dynamic_filter_and_agg,
         ged261_dynamic_filter_and_agg,
