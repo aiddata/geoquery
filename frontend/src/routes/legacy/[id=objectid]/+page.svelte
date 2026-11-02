@@ -27,15 +27,21 @@
 			});
 	});
 
-	/* The old system wrote its stage times out of order: complete_time precedes
-	   submit_time in about a fifth of the archive. Day-granularity display hides
-	   almost all of it, but a few dozen rows straddle a UTC date boundary and
-	   would render a completion before its own submission. Show nothing rather
-	   than a contradiction. */
-	const completedIsSound = $derived(
-		!!request &&
-			new Date(request.complete_time).getTime() >=
-				new Date(request.submit_time).getTime()
+	/* One date, not two. The old system wrote its stage times out of order, so
+	   complete_time precedes submit_time in about a fifth of the archive --
+	   showing both rendered a completion before its own submission, and blanking
+	   the bad half left a fifth of pages with no completion date at all.
+	   Prefer the completion date and fall back to submission when the pair is
+	   inverted: always a plausible date, never a contradiction. This is a rough
+	   indicator for people finding an old request, which is why it stays at day
+	   granularity -- see the migration spec on the stage-time inversions. */
+	const requestDate = $derived(
+		!request
+			? null
+			: new Date(request.complete_time).getTime() >=
+				  new Date(request.submit_time).getTime()
+				? request.complete_time
+				: request.submit_time
 	);
 
 	const fmt = (iso: string | null) =>
@@ -83,12 +89,8 @@
 
 			<dl class="space-y-3 text-sm">
 				<div class="flex justify-between gap-4 border-b pb-2">
-					<dt class="text-muted-foreground">Submitted</dt>
-					<dd class="text-right">{fmt(request.submit_time)}</dd>
-				</div>
-				<div class="flex justify-between gap-4 border-b pb-2">
-					<dt class="text-muted-foreground">Completed</dt>
-					<dd class="text-right">{completedIsSound ? fmt(request.complete_time) : "—"}</dd>
+					<dt class="text-muted-foreground">Request date</dt>
+					<dd class="text-right">{fmt(requestDate)}</dd>
 				</div>
 				<div class="flex justify-between gap-4 border-b pb-2">
 					<dt class="text-muted-foreground">Boundary</dt>
@@ -113,7 +115,11 @@
 
 			{#if request.download_url}
 				<div class="mt-6">
-					<Button href={request.download_url}>
+					<!-- target/rel are load-bearing, not decoration: the archive is
+					     served from the app's own origin, so without them the client
+					     router intercepts the click, matches this very route with
+					     id="<id>.zip", and requests the API instead of the file. -->
+					<Button href={request.download_url} target="_blank" rel="noopener noreferrer">
 						<Download class="mr-1 h-4 w-4" />
 						Download Results
 					</Button>
