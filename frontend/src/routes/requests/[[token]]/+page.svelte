@@ -263,7 +263,7 @@
                             {#each legacyRequests as request}
                                 <button
                                     class="block w-full rounded-md border border-dashed bg-muted/20 p-4 text-left transition-colors hover:bg-muted/50"
-                                    onclick={() => goto(`/requests/legacy/${request.id}`)}
+                                    onclick={() => goto(`/legacy/${request.id}`)}
                                 >
                                     <div class="flex items-center justify-between gap-2">
                                         <div class="font-medium text-muted-foreground">

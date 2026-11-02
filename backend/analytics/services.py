@@ -785,17 +785,33 @@ def legacy_request_links(legacy_request) -> dict:
     by default -- the empty value is the deliberate switch for deploying before
     the zips are copied.
 
-    The download host serves the archive at ``requests/legacy/``, beside the
-    ``requests/<id>/`` directories of current results. That segment is part
-    of the path rather than part of the configured base URL, so it cannot be
-    left out by a misconfiguration. It also keeps the archive out of the
-    download host's document root, where a directory listing would expose all
-    48,666 filenames at once -- the ids are derivable from one another (a
-    known id yields a neighbour's id for a third of the archive), so the
-    filenames are not the secret they look like. ``LEGACY_DOWNLOAD_BASE_URL``
-    should therefore NOT itself end in ``/requests`` or ``/legacy``.
+    Served at ``requests/legacy/<id>/<id>.zip``: inside the requests share,
+    nested exactly like the ``requests/<id>/<id>.zip`` layout of current
+    results. That reuses machinery already proven in production -- the same NFS
+    volume, the same ``^requests/`` serve pattern in ``geoquery.urls``, and the
+    same ``^/requests/[^/]+/.+`` proxy regex. A sibling directory outside the
+    share would have needed its own PV, mount, setting and routing rule.
+
+    The nesting is load-bearing. The archive used to be flat at
+    ``requests/legacy/<id>.zip`` while the detail page sat at
+    ``/requests/legacy/<id>`` -- and the proxy's current-results regex,
+    ``^/requests/[^/]+/.+``, matches anything two segments under
+    ``/requests/``, so it swallowed the page URL too. The page worked on an
+    in-app click but 404ed on refresh, since only a full page load reaches the
+    server. The page now lives at ``/legacy/<id>``, off that prefix entirely.
+
+    Nesting also keeps the archive out of the document root, where a directory
+    listing would expose all 48,666 filenames at once -- the ids are derivable
+    from one another (a known id yields a neighbour's for a third of the
+    archive), so the filenames are not the secret they look like.
+
+    The ``legacy/`` segment is part of the path rather than the configured base
+    URL, so it cannot be left out by a misconfiguration;
+    ``LEGACY_DOWNLOAD_BASE_URL`` should therefore NOT itself end in
+    ``/legacy``.
     """
     base = getattr(settings, "LEGACY_DOWNLOAD_BASE_URL", "").rstrip("/")
     if not base:
         return {}
-    return {"download_url": f"{base}/requests/legacy/{legacy_request.id}.zip"}
+    rid = legacy_request.id
+    return {"download_url": f"{base}/requests/legacy/{rid}/{rid}.zip"}
