@@ -113,7 +113,11 @@
 
 			{#if request.download_url}
 				<div class="mt-6">
-					<Button href={request.download_url}>
+					<!-- target/rel are load-bearing, not decoration: the archive is
+					     served from the app's own origin, so without them the client
+					     router intercepts the click, matches this very route with
+					     id="<id>.zip", and requests the API instead of the file. -->
+					<Button href={request.download_url} target="_blank" rel="noopener noreferrer">
 						<Download class="mr-1 h-4 w-4" />
 						Download Results
 					</Button>
