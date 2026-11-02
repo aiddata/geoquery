@@ -785,16 +785,17 @@ def legacy_request_links(legacy_request) -> dict:
     by default -- the empty value is the deliberate switch for deploying before
     the zips are copied.
 
-    The ``legacy/`` segment is part of the path rather than part of the
-    configured base URL, so it cannot be left out by a misconfiguration. That
-    keeps the archive out of the download host's document root, where a
-    directory listing would expose all 48,666 filenames at once -- the ids are
-    derivable from one another (a known id yields a neighbour's id for a third
-    of the archive), so the filenames are not the secret they look like.
-    ``LEGACY_DOWNLOAD_BASE_URL`` should therefore NOT itself end in
-    ``/legacy``.
+    The download host serves the archive at ``requests/legacy/``, beside the
+    ``requests/<id>/`` directories of current results. That segment is part
+    of the path rather than part of the configured base URL, so it cannot be
+    left out by a misconfiguration. It also keeps the archive out of the
+    download host's document root, where a directory listing would expose all
+    48,666 filenames at once -- the ids are derivable from one another (a
+    known id yields a neighbour's id for a third of the archive), so the
+    filenames are not the secret they look like. ``LEGACY_DOWNLOAD_BASE_URL``
+    should therefore NOT itself end in ``/requests`` or ``/legacy``.
     """
     base = getattr(settings, "LEGACY_DOWNLOAD_BASE_URL", "").rstrip("/")
     if not base:
         return {}
-    return {"download_url": f"{base}/legacy/{legacy_request.id}.zip"}
+    return {"download_url": f"{base}/requests/legacy/{legacy_request.id}.zip"}

@@ -124,7 +124,7 @@ class LegacyDetailTests(TestCase):
         body = self.client.get(f"/api/analytics/legacy-requests/{'a' * 24}/").json()
         self.assertEqual(
             body["download_url"],
-            f"https://archive.example.com/legacy/{'a' * 24}.zip",
+            f"https://archive.example.com/requests/legacy/{'a' * 24}.zip",
         )
 
     def test_detail_never_exposes_submitter_or_raw_data(self):
