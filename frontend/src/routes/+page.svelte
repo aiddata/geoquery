@@ -256,7 +256,8 @@
 				name: b.name,
 				bbox: meta?.bbox ?? b.bbox ?? null,
 				color: colorForIndex(idx),
-				lineWidth: lineWidthForLevel(meta?.group_level)
+				lineWidth: lineWidthForLevel(meta?.group_level),
+				title: meta?.title ?? b.title
 			};
 		});
 	});

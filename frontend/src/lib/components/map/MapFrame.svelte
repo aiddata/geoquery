@@ -3,7 +3,12 @@
 	import maplibregl from 'maplibre-gl';
 	import 'maplibre-gl/dist/maplibre-gl.css';
 	import { get } from 'svelte/store';
-	import { boundaryTileUrl, multiBoundaryTileUrl, MULTI_TILE_LAYER } from '$lib/api';
+	import {
+		boundaryTileUrl,
+		CLUSTER_TILE_LAYER,
+		multiBoundaryTileUrl,
+		MULTI_TILE_LAYER
+	} from '$lib/api';
 	import { unionBbox, type Bbox } from '$lib/utils/bbox';
 	import { protomapsApiKey } from '$lib/map/protomapsKey';
 	import { basemapStyle, followTheme } from '$lib/map/basemap';
@@ -20,6 +25,8 @@
 		/** A CSS color or `var(--token)`; resolved before it reaches MapLibre. */
 		color: string;
 		lineWidth: number;
+		/** Display name, for the cluster popup; `name` when absent. */
+		title?: string | null;
 	}
 
 	interface Props {
@@ -64,6 +71,8 @@
 	const fcFillId = (name: string) => `fc-fill-${name}`;
 	const fcLineId = (name: string) => `fc-line-${name}`;
 	const fcCasingId = (name: string) => `fc-casing-${name}`;
+	const fcClusterId = (name: string) => `fc-cluster-${name}`;
+	const fcClusterLabelId = (name: string) => `fc-cluster-label-${name}`;
 
 	// Two or more boundaries share one source: a single tile request per map tile
 	// instead of one per boundary, styled per boundary on each feature's fc_id.
@@ -72,6 +81,8 @@
 	const MULTI_FILL = 'fc-multi-fill';
 	const MULTI_CASING = 'fc-multi-casing';
 	const MULTI_LINE = 'fc-multi-line';
+	const MULTI_CLUSTER = 'fc-multi-cluster';
+	const MULTI_CLUSTER_LABEL = 'fc-multi-cluster-label';
 	// Sorted ids of the selection the multi source was built for
 	let multiKeyOnMap: string | null = null;
 
@@ -101,6 +112,195 @@
 		];
 	}
 
+	// Where a selection is too large to draw, its tiles carry counted points instead
+	// of polygons (CLUSTER_TILE_LAYER), one per spot for all the selected boundaries
+	// together: `count` features in all, fc_<id> of them from each boundary. Each is
+	// a card-colored disc with the count, ringed in the colors of the boundaries in
+	// it, each arc as long as that boundary's share.
+	const CLUSTER_FONT = ['Noto Sans Medium'];
+	const CLUSTER_RING_WIDTH = 3;
+	// Zoom levels a click on a cluster moves in by
+	const CLUSTER_CLICK_ZOOM = 2;
+
+	const CLUSTER_TEXT_SIZE = 14;
+
+	// Ring arcs are whole steps of 360 / CLUSTER_RING_STEPS degrees, so the ring
+	// images (one per distinct radius and split) stay few. A boundary with any
+	// features in the cluster gets at least one step, so it never vanishes from
+	// the ring however small its share.
+	const CLUSTER_RING_STEPS = 72;
+	const RING_IMAGE_PREFIX = 'gq-ring|';
+
+	// Just wide enough for the label: by its length in characters, which the
+	// count decides (9 · 42 · 950 · 1.5k · 30k · 300k · 1.2M)
+	const clusterRadius: maplibregl.ExpressionSpecification = [
+		'step',
+		['get', 'count'],
+		10,
+		10,
+		12,
+		100,
+		15,
+		1000,
+		18,
+		10000,
+		15,
+		100000,
+		18
+	];
+
+	// 950, 1.5k, 30k, 1.2M
+	const clusterLabel: maplibregl.ExpressionSpecification = [
+		'let',
+		'n',
+		['get', 'count'],
+		[
+			'case',
+			['>=', ['var', 'n'], 1e6],
+			['concat', ['to-string', ['/', ['round', ['/', ['var', 'n'], 1e5]], 10]], 'M'],
+			['>=', ['var', 'n'], 1e4],
+			['concat', ['to-string', ['round', ['/', ['var', 'n'], 1e3]]], 'k'],
+			['>=', ['var', 'n'], 1e3],
+			['concat', ['to-string', ['/', ['round', ['/', ['var', 'n'], 1e2]], 10]], 'k'],
+			['to-string', ['var', 'n']]
+		]
+	];
+
+	// The ring images are drawn on demand (onRingImageMissing) from these colors,
+	// index-aligned with the boundaries the ring expression was built for. A new
+	// palette gets a new version in the image ids, so no stale ring is reused.
+	let ringPalette: string[] = [];
+	let ringVersion = 0;
+	const ringImages = new Set<string>();
+
+	/**
+	 * The ring image id for a cluster: radius, then each selected boundary's arc in
+	 * steps, in selection order (0 when it has no features in the cluster).
+	 */
+	function ringImageId(styles: FcStyle[]): maplibregl.ExpressionSpecification {
+		const steps = styles.flatMap((s, i) => {
+			const key = `fc_${s.id}`;
+			const arc: maplibregl.ExpressionSpecification = [
+				'case',
+				['has', key],
+				[
+					'max',
+					1,
+					['round', ['*', CLUSTER_RING_STEPS, ['/', ['get', key], ['get', 'count']]]]
+				],
+				0
+			];
+			return i === 0 ? [['to-string', arc]] : [',', ['to-string', arc]];
+		});
+		return [
+			'concat',
+			`${RING_IMAGE_PREFIX}${ringVersion}|`,
+			['to-string', clusterRadius],
+			'|',
+			...steps
+		] as unknown as maplibregl.ExpressionSpecification;
+	}
+
+	function onRingImageMissing(m: maplibregl.Map, id: string) {
+		if (!id.startsWith(RING_IMAGE_PREFIX) || m.hasImage(id)) return;
+		const [, , radius, split] = id.split('|');
+		const r = Number(radius);
+		const steps = split.split(',').map(Number);
+		const total = steps.reduce((a, b) => a + b, 0);
+		if (!r || !total) return;
+
+		const dpr = window.devicePixelRatio || 1;
+		const size = Math.ceil(2 * r * dpr);
+		const canvas = document.createElement('canvas');
+		canvas.width = canvas.height = size;
+		const ctx = canvas.getContext('2d')!;
+		ctx.lineWidth = CLUSTER_RING_WIDTH * dpr;
+		const center = size / 2;
+		const ringRadius = (r - CLUSTER_RING_WIDTH / 2) * dpr;
+		let start = -Math.PI / 2; // clockwise from 12 o'clock
+		steps.forEach((n, i) => {
+			if (!n) return;
+			const sweep = (n / total) * 2 * Math.PI;
+			ctx.beginPath();
+			ctx.strokeStyle = ringPalette[i] ?? readTokens().forest;
+			ctx.arc(center, center, ringRadius, start, start + sweep);
+			ctx.stroke();
+			start += sweep;
+		});
+		m.addImage(id, ctx.getImageData(0, 0, size, size), { pixelRatio: dpr });
+		ringImages.add(id);
+	}
+
+	/** Point a cluster label layer at rings in these boundaries' colors. */
+	function setRingPalette(m: maplibregl.Map, labelId: string, styles: FcStyle[]) {
+		ringPalette = styles.map((s) => resolveColor(s.color));
+		ringVersion++;
+		for (const id of ringImages) if (m.hasImage(id)) m.removeImage(id);
+		ringImages.clear();
+		m.setLayoutProperty(labelId, 'icon-image', ringImageId(styles));
+	}
+
+	function addClusterLayers(
+		m: maplibregl.Map,
+		source: string,
+		circleId: string,
+		labelId: string,
+		styles: FcStyle[]
+	) {
+		const tokens = readTokens();
+		m.addLayer({
+			id: circleId,
+			type: 'circle',
+			source,
+			'source-layer': CLUSTER_TILE_LAYER,
+			paint: {
+				'circle-radius': clusterRadius,
+				'circle-color': tokens.card,
+				'circle-opacity': 0.92
+			}
+		});
+		m.addLayer({
+			id: labelId,
+			type: 'symbol',
+			source,
+			'source-layer': CLUSTER_TILE_LAYER,
+			layout: {
+				'icon-allow-overlap': true,
+				'icon-ignore-placement': true,
+				'text-field': clusterLabel,
+				'text-font': CLUSTER_FONT,
+				'text-size': CLUSTER_TEXT_SIZE,
+				'text-allow-overlap': true,
+				'text-ignore-placement': true
+			},
+			paint: { 'text-color': tokens.foreground }
+		});
+		setRingPalette(m, labelId, styles);
+	}
+
+	/** Popup body for a cluster: each selected boundary in it, largest first. */
+	function clusterPopupHtml(props: Record<string, unknown>, styles: FcStyle[]): string {
+		const rows = styles
+			.map((s) => ({ style: s, n: Number(props[`fc_${s.id}`] ?? 0) }))
+			.filter((row) => row.n > 0)
+			.sort((a, b) => b.n - a.n)
+			.map(
+				({ style, n }) =>
+					`<div style="display:flex;align-items:center;gap:6px">` +
+					`<span style="width:10px;height:10px;border-radius:9999px;flex:none;background:${resolveColor(style.color)}"></span>` +
+					`<span style="flex:1">${escapeHtml(style.title || style.name)}</span>` +
+					`<span style="font-variant-numeric:tabular-nums">${n.toLocaleString()}</span>` +
+					`</div>`
+			)
+			.join('');
+		const total = Number(props.count ?? 0).toLocaleString();
+		return `<strong>${total} features</strong><div style="margin-top:4px;display:grid;gap:2px">${rows}</div>`;
+	}
+
+	function removeLayers(m: maplibregl.Map, ...ids: string[]) {
+		for (const id of ids) if (m.getLayer(id)) m.removeLayer(id);
+	}
+
 	const ATTRIBUTION =
 		'<a href="https://protomaps.com">Protomaps</a> &copy; <a href="https://openstreetmap.org">OpenStreetMap</a> · Features simplified for visualization only';
 
@@ -124,6 +324,9 @@
 			map.on('zoom', () => {
 				onZoomChange?.(map!.getZoom());
 			});
+
+			// Cluster rings are drawn as their images are first needed
+			map.on('styleimagemissing', (e) => onRingImageMissing(map!, e.id));
 
 			map.on('error', (e) => {
 				console.error('MapLibre error:', e.error?.message || e);
@@ -189,12 +392,19 @@
 				'line-width': lineWidth(width)
 			}
 		});
+
+		addClusterLayers(m, fcSourceId(name), fcClusterId(name), fcClusterLabelId(name), [style]);
 	}
 
 	function removeFc(m: maplibregl.Map, name: string) {
-		if (m.getLayer(fcLineId(name))) m.removeLayer(fcLineId(name));
-		if (m.getLayer(fcCasingId(name))) m.removeLayer(fcCasingId(name));
-		if (m.getLayer(fcFillId(name))) m.removeLayer(fcFillId(name));
+		removeLayers(
+			m,
+			fcClusterLabelId(name),
+			fcClusterId(name),
+			fcLineId(name),
+			fcCasingId(name),
+			fcFillId(name)
+		);
 		if (m.getSource(fcSourceId(name))) m.removeSource(fcSourceId(name));
 	}
 
@@ -241,13 +451,13 @@
 			}
 		});
 
+		addClusterLayers(m, MULTI_SOURCE, MULTI_CLUSTER, MULTI_CLUSTER_LABEL, styles);
+
 		multiKeyOnMap = key;
 	}
 
 	function removeMulti(m: maplibregl.Map) {
-		if (m.getLayer(MULTI_LINE)) m.removeLayer(MULTI_LINE);
-		if (m.getLayer(MULTI_CASING)) m.removeLayer(MULTI_CASING);
-		if (m.getLayer(MULTI_FILL)) m.removeLayer(MULTI_FILL);
+		removeLayers(m, MULTI_CLUSTER_LABEL, MULTI_CLUSTER, MULTI_LINE, MULTI_CASING, MULTI_FILL);
 		if (m.getSource(MULTI_SOURCE)) m.removeSource(MULTI_SOURCE);
 		multiKeyOnMap = null;
 	}
@@ -308,6 +518,7 @@
 				m.setPaintProperty(lineId, 'line-color', color);
 				m.setPaintProperty(lineId, 'line-width', lineWidth(style.lineWidth));
 			}
+			syncClusterPaint(m, fcClusterId(style.name), fcClusterLabelId(style.name), [style]);
 		}
 		if (m.getLayer(MULTI_FILL) && fcStyles.length >= 2) {
 			const color = byFc(fcStyles, (s) => resolveColor(s.color));
@@ -320,9 +531,65 @@
 			);
 			m.setPaintProperty(MULTI_LINE, 'line-color', color);
 			m.setPaintProperty(MULTI_LINE, 'line-width', byFc(fcStyles, (s) => s.lineWidth));
+			syncClusterPaint(m, MULTI_CLUSTER, MULTI_CLUSTER_LABEL, fcStyles);
 		}
 		if (m.getLayer(USER_FILL)) m.setPaintProperty(USER_FILL, 'fill-color', readTokens().ring);
 		if (m.getLayer(USER_LINE)) m.setPaintProperty(USER_LINE, 'line-color', readTokens().ring);
+	});
+
+	function syncClusterPaint(
+		m: maplibregl.Map,
+		circleId: string,
+		labelId: string,
+		styles: FcStyle[]
+	) {
+		if (!m.getLayer(circleId)) return;
+		const tokens = readTokens();
+		m.setPaintProperty(circleId, 'circle-color', tokens.card);
+		m.setPaintProperty(labelId, 'text-color', tokens.foreground);
+		setRingPalette(m, labelId, styles);
+	}
+
+	// A cluster stands for features too small to pick out here: hovering one lists
+	// its boundaries' counts, and clicking zooms in toward where they become polygons
+	$effect(() => {
+		if (!map || !mapReady) return;
+		const m = map;
+		const layers = fcNames.length >= 2 ? [MULTI_CLUSTER] : fcNames.map(fcClusterId);
+		let clusterPopup: maplibregl.Popup | null = null;
+
+		const onClick = (e: maplibregl.MapLayerMouseEvent) => {
+			m.easeTo({ center: e.lngLat, zoom: m.getZoom() + CLUSTER_CLICK_ZOOM });
+		};
+		const onMove = (e: maplibregl.MapLayerMouseEvent) => {
+			const feature = e.features?.[0];
+			if (!feature) return;
+			m.getCanvas().style.cursor = 'pointer';
+			clusterPopup ??= new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+			const [lng, lat] = (feature.geometry as GeoJSON.Point).coordinates;
+			clusterPopup
+				.setLngLat([lng, lat])
+				.setHTML(clusterPopupHtml(feature.properties ?? {}, fcStyles))
+				.addTo(m);
+		};
+		const onLeave = () => {
+			m.getCanvas().style.cursor = '';
+			clusterPopup?.remove();
+		};
+
+		for (const id of layers) {
+			m.on('click', id, onClick);
+			m.on('mousemove', id, onMove);
+			m.on('mouseleave', id, onLeave);
+		}
+		return () => {
+			for (const id of layers) {
+				m.off('click', id, onClick);
+				m.off('mousemove', id, onMove);
+				m.off('mouseleave', id, onLeave);
+			}
+			clusterPopup?.remove();
+		};
 	});
 
 	// Hover + click handlers for the active FC

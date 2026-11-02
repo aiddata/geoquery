@@ -118,6 +118,13 @@ export function boundaryTileUrl(boundaryName: string): string {
 export const MULTI_TILE_LAYER = 'boundaries';
 
 /**
+ * MVT layer of point clusters on both boundary tile endpoints (CLUSTER_TILE_LAYER in
+ * backend/features/views.py). Where a boundary is too dense to draw in a tile, the
+ * tile holds this instead of its polygons: points carrying `count` and `fc_id`.
+ */
+export const CLUSTER_TILE_LAYER = 'clusters';
+
+/**
  * Tiles holding several boundaries in one layer, each feature tagged with its `fc_id`.
  * Ids are sorted and deduplicated so a selection always maps to the same URL.
  */

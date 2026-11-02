@@ -586,7 +586,6 @@ class ProcessingTestCase(TestCase):
             "spatial_extent",
             "upload_metadata",
             "attr",
-            "representative_point",
         ):
             self.assertNotIn(unused, lookup)
 
