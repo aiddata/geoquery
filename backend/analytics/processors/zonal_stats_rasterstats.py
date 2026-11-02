@@ -3,10 +3,25 @@ import rasterio
 import rasterstats as rs
 
 
+# A feature whose bounds cover more than `limit` source pixels is split into
+# grid-aligned tiles of at most that many and the statistics aggregated
+# (identical results, see test_split_processors), so a country-sized feature
+# over a fine global raster no longer reads its whole window at once: the
+# United States over Global Wind Atlas (0.0025 deg) is a 4.93 billion pixel
+# window that needed ~45 GiB and was OOM-killed. Peak memory runs ~10 bytes
+# per window pixel, so a 500M tile peaks near 5 GiB, within one of a worker's
+# four processes' share of its 48 GiB. At 30 arc-seconds or coarser no
+# feature's window reaches 500M (the largest is 0.44 billion), so only
+# features over finer rasters are ever split. Processing option and task
+# kwargs override it; 0 means never split.
+DEFAULT_LIMIT = 500_000_000
+
+
 def _rasterstats_kwargs(kwargs):
     default_kwargs = {
         "all_touched": True,
         "nodata": None,
+        "limit": DEFAULT_LIMIT,
     }
     # create actual kwargs by merging default_kwargs with kwargs
     for k, v in default_kwargs.items():
