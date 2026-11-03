@@ -1,3 +1,4 @@
+import math
 import struct
 from unittest import mock
 
@@ -135,6 +136,14 @@ def _fields(buf):
         yield field, wire, value
 
 
+def tile_at(z, lon, lat):
+    """z/x/y of the web mercator tile holding lon, lat."""
+    n = 2**z
+    x = int((lon + 180) / 360 * n)
+    y = int((1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * n)
+    return f"{z}/{x}/{y}"
+
+
 def _decode_value(buf):
     """An MVT Value message: string, float, double, int, uint, sint or bool."""
     ((field, _, value),) = _fields(buf)
@@ -156,7 +165,8 @@ def _decode_value(buf):
 def decode_mvt_properties(body):
     """{layer name: [properties of each feature]} from an MVT tile.
 
-    Geometry is skipped.
+    Geometry is skipped, except that a single point is given as `_point`:
+    (x, y) in tile units, 0..4096, y down.
     """
     layers = {}
     for field, _, layer in _fields(bytes(body)):
@@ -174,14 +184,20 @@ def decode_mvt_properties(body):
                 values.append(_decode_value(v))
         decoded = []
         for feature in features:
-            tags = []
+            tags, geom_type, geometry = [], None, []
             for f, wire, v in _fields(feature):
-                if f == 2:
-                    j = 0
+                if f in (2, 4):
+                    j, ints = 0, tags if f == 2 else geometry
                     while j < len(v):
                         t, j = _varint(v, j)
-                        tags.append(t)
-            decoded.append({keys[k]: values[t] for k, t in zip(tags[::2], tags[1::2])})
+                        ints.append(t)
+                elif f == 3:
+                    geom_type = v
+            props = {keys[k]: values[t] for k, t in zip(tags[::2], tags[1::2])}
+            if geom_type == 1 and len(geometry) == 3:
+                # One MoveTo: zigzag-encoded x, y in tile units, y down.
+                props["_point"] = tuple((g >> 1) ^ -(g & 1) for g in geometry[1:])
+            decoded.append(props)
         layers[name] = decoded
     return layers
 
@@ -412,23 +428,28 @@ class ClusteredTileTests(ReplicaReadsTestMixin, TestCase):
         return fc
 
     def test_high_zoom_tiles_cluster_from_points(self):
-        # Above z6 clusters come from features_points, not the stored cells.
-        # All three sit in z8 tile 8/128/127 (lon 0..1.41, lat 0..1.41).
-        fc = self._small("village", [(1.1, 1.1), (1.2, 1.1), (1.3, 1.1)])
-        layers = self._multi("8/128/127", [fc])
+        # Above the zooms features_point_cells serves, clusters come from
+        # features_points. All three sit in one tile at that zoom.
+        from features.matviews import POINT_CELLS_LEVEL
+        from features.views import _CLUSTER_GRID_BITS
+
+        z = POINT_CELLS_LEVEL - _CLUSTER_GRID_BITS + 1
+        fc = self._small("village", [(0.30, 0.30), (0.32, 0.30), (0.34, 0.30)])
+        layers = self._multi(tile_at(z, 0.32, 0.30), [fc])
         self.assertEqual(sum(c["count"] for c in layers["clusters"]), 3)
 
     def test_stored_cells_and_points_agree(self):
         # The highest zoom that reads features_point_cells, and the four
         # children of one of its tiles, which read features_points, must count
-        # the same features. All four points are inside z7 tile 7/64/63.
+        # the same features. All four points are within 1.4 degrees NE of
+        # lon 0, lat 0, so inside the parent tile up to z8.
         from features.matviews import POINT_CELLS_LEVEL
         from features.views import _CLUSTER_GRID_BITS
 
         z = POINT_CELLS_LEVEL - _CLUSTER_GRID_BITS
-        self.assertLessEqual(z, 7)
+        self.assertLessEqual(z, 8)
         x, y = 2 ** (z - 1), 2 ** (z - 1) - 1  # the tile NE of lon 0, lat 0
-        fc = self._small("village", [(1.1, 1.1), (1.2, 1.1), (2.0, 2.0), (2.7, 0.5)])
+        fc = self._small("village", [(0.3, 0.3), (0.4, 0.3), (1.0, 1.0), (1.3, 0.2)])
         with mock.patch("features.views.CLUSTER_MIN_FEATURES", 1):
             parent = self._multi(f"{z}/{x}/{y}", [fc])
             children = [
@@ -440,6 +461,22 @@ class ClusteredTileTests(ReplicaReadsTestMixin, TestCase):
         self.assertEqual(
             sum(c["count"] for t in children for c in t.get("clusters", [])), 4
         )
+
+    def test_clusters_stay_in_the_middle_of_their_cells(self):
+        # Features crowded into the corner of a cell would put the cluster
+        # there, next to its neighbor across the corner; it is held within
+        # CLUSTER_POSITION_SLACK of the cell's center instead.
+        from features.views import CLUSTER_GRID, CLUSTER_POSITION_SLACK
+
+        fc = self._small("corner", [(0.05, 0.05), (0.06, 0.06), (0.07, 0.05)])
+        cell = 4096 / CLUSTER_GRID
+        low = cell * (0.5 - CLUSTER_POSITION_SLACK)
+        high = cell * (0.5 + CLUSTER_POSITION_SLACK)
+        with mock.patch("features.views.CLUSTER_MIN_FEATURES", 1):
+            [cluster] = self._multi("2/2/1", [fc])["clusters"]
+        x, y = cluster["_point"]
+        self.assertAlmostEqual(x % cell, low, delta=1)
+        self.assertAlmostEqual(y % cell, high, delta=1)  # y runs down; lat 0 is the bottom
 
     def test_single_collection_endpoint_clusters_too(self):
         body = self.client.get("/api/features/tiles/dense/2/2/1.mvt").content

@@ -131,22 +131,22 @@
 	const CLUSTER_RING_STEPS = 72;
 	const RING_IMAGE_PREFIX = 'gq-ring|';
 
-	// Just wide enough for the label: by its length in characters, which the
-	// count decides (9 · 42 · 950 · 1.5k · 30k · 300k · 1.2M)
+	// Clusters never overlap if none is wider than half a tile cell (64 px): see
+	// CLUSTER_GRID and CLUSTER_POSITION_SLACK in backend/features/views.py.
+	const CLUSTER_MAX_RADIUS = 32;
+
+	// Grows with the logarithm of the count, from 14 px for a few features to the
+	// maximum at 100k: a cluster of 5 still shows beside one of 50,000. Never
+	// narrower than its label needs (9 · 42 · 950 · 1.5k), and whole pixels, since
+	// the radius is part of each ring image's id.
 	const clusterRadius: maplibregl.ExpressionSpecification = [
-		'step',
-		['get', 'count'],
-		10,
-		10,
-		12,
-		100,
-		15,
-		1000,
-		18,
-		10000,
-		15,
-		100000,
-		18
+		'max',
+		['step', ['get', 'count'], 11, 10, 13, 100, 16, 1000, 18],
+		[
+			'min',
+			CLUSTER_MAX_RADIUS,
+			['round', ['+', 10, ['*', 4.5, ['log10', ['max', ['get', 'count'], 1]]]]]
+		]
 	];
 
 	// 950, 1.5k, 30k, 1.2M
@@ -311,7 +311,12 @@
 				container: mapContainer,
 				style: basemapStyle(get(resolvedTheme), key, ATTRIBUTION),
 				center: [0, 20],
-				zoom: 2
+				zoom: 2,
+				// Symbols cut rather than cross-fade as tiles change. A cluster's ring
+				// and count are symbols on a disc that cannot fade, so the default
+				// 300 ms fade left half-faded rings around discs that had already
+				// gone. Map-wide: basemap labels cut too.
+				fadeDuration: 0
 			});
 
 			map.on('load', () => {

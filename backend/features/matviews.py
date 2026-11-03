@@ -75,8 +75,8 @@ WEB_MERCATOR_HALF_WIDTH = 20037508.342789244
 # features_point_cells holds each collection's points summed on a grid of
 # 2**POINT_CELLS_LEVEL cells per world axis, numbered like tiles: column ci
 # from the west, row cj from the north. A tile's cluster cells are unions of
-# these whenever they are no finer -- up to z7 with features.views'
-# CLUSTER_GRID of 8 -- and above that tiles cluster from the points directly.
+# these whenever they are no finer -- up to z8 with features.views'
+# CLUSTER_GRID of 4 -- and above that tiles cluster from the points directly.
 POINT_CELLS_LEVEL = 10
 
 

@@ -15,7 +15,13 @@ from catalog.access import (
     visible_feature_collections,
 )
 
-from .matviews import POINT_CELLS_LEVEL, POINT_CELLS_TABLE, POINTS_TABLE, cell_index_sql
+from .matviews import (
+    POINT_CELLS_LEVEL,
+    POINT_CELLS_TABLE,
+    POINTS_TABLE,
+    WEB_MERCATOR_HALF_WIDTH,
+    cell_index_sql,
+)
 from .models import FeatMap, FeatureCollection
 
 _MVT_CONTENT_TYPE = "application/vnd.mapbox-vector-tile"
@@ -39,10 +45,15 @@ CLUSTER_MAX_ZOOM = 10
 # simplification tier.
 CLUSTER_MIN_FEATURES = 2000
 # Cells per tile side, a power of two. A tile renders at 512 px, so a cell is
-# 64 px: clusters stay at least that far apart. Changing it moves the zoom up
-# to which tiles cluster from features_point_cells (z7 at 8 cells; see
-# features.matviews.POINT_CELLS_LEVEL).
-CLUSTER_GRID = 8
+# 128 px. Changing it moves the zoom up to which tiles cluster from
+# features_point_cells (z8 at 4 cells; see features.matviews.POINT_CELLS_LEVEL).
+CLUSTER_GRID = 4
+# How far a cluster may drift from its cell's center toward the mean position
+# of its features, as a fraction of the cell. At 1/4 every cluster stays in
+# the middle half of its cell, so any two are at least half a cell (64 px)
+# apart, across tile edges too: circles up to 64 px across never overlap
+# (CLUSTER_MAX_RADIUS in frontend/src/lib/components/map/MapFrame.svelte).
+CLUSTER_POSITION_SLACK = 0.25
 
 # Every collection in the catalog fits (719 today), and the comma-separated
 # list stays well under nginx's 8 KB request line.
@@ -308,6 +319,11 @@ def _cluster_layer(cursor, z, x, y, fc_ids):
             "ci1": (x + 1) * span,
             "cj0": y * span,
             "cj1": (y + 1) * span,
+            # The tile's cells, in metres: their size, and how far a cluster
+            # may sit from a cell's center.
+            "half": WEB_MERCATOR_HALF_WIDTH,
+            "cell": 2 * WEB_MERCATOR_HALF_WIDTH / 2**level,
+            "slack": CLUSTER_POSITION_SLACK * 2 * WEB_MERCATOR_HALF_WIDTH / 2**level,
         },
     )
     mvt = cursor.fetchone()[0]
@@ -319,19 +335,33 @@ assert CLUSTER_GRID == 1 << _CLUSTER_GRID_BITS, "CLUSTER_GRID must be a power of
 assert CLUSTER_MAX_ZOOM + _CLUSTER_GRID_BITS >= POINT_CELLS_LEVEL
 
 # One cluster per cell for the whole selection, at the mean position of all
-# its features. `count` is their total; the jsonb column becomes one property
-# per collection, fc_<id>: that collection's count, absent when zero.
+# its features, but no further than CLUSTER_POSITION_SLACK from the cell's
+# center. `count` is their total; the jsonb column becomes one property per
+# collection, fc_<id>: that collection's count, absent when zero. `cells` has
+# ci, cj numbered at the tile's cell level, west to east and north to south.
 _CLUSTER_TAIL_SQL = """
     SELECT ST_AsMVT(c.*, %(layer)s) FROM (
         SELECT
             ST_AsMVTGeom(
-                ST_SetSRID(ST_MakePoint(sum(sx) / sum(n), sum(sy) / sum(n)), 3857),
+                ST_SetSRID(ST_MakePoint(
+                    cx + LEAST(GREATEST(mx - cx, -%(slack)s), %(slack)s),
+                    cy + LEAST(GREATEST(my - cy, -%(slack)s), %(slack)s)
+                ), 3857),
                 ST_TileEnvelope(%(z)s, %(x)s, %(y)s), 4096, 0, false
             ) AS geom,
-            sum(n)::integer AS count,
-            jsonb_object_agg('fc_' || fc_id, n) AS counts
-        FROM cells
-        GROUP BY ci, cj
+            count,
+            counts
+        FROM (
+            SELECT
+                sum(sx) / sum(n) AS mx,
+                sum(sy) / sum(n) AS my,
+                (ci + 0.5) * %(cell)s - %(half)s AS cx,
+                %(half)s - (cj + 0.5) * %(cell)s AS cy,
+                sum(n)::integer AS count,
+                jsonb_object_agg('fc_' || fc_id, n) AS counts
+            FROM cells
+            GROUP BY ci, cj
+        ) k
     ) c
 """
 
