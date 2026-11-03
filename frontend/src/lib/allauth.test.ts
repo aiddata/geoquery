@@ -5,7 +5,7 @@ import {
 	getProviderSignup,
 	submitProviderSignup,
 	type AllauthUser
-} from '$lib/allauth';
+} from '#lib/allauth.js';
 
 const USER: AllauthUser = {
 	id: 7,

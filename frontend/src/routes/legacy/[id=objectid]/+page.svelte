@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { Button } from '$lib/components/ui/button';
+	import { Button } from '#lib/components/ui/button/index.js';
 	import { ArrowLeft, Archive, Download } from '@lucide/svelte';
-	import { fetchLegacyRequestDetail, type LegacyRequestDetail } from '$lib/api';
+	import { fetchLegacyRequestDetail, type LegacyRequestDetail } from '#lib/api.js';
 
 	const id = $derived(page.params.id ?? '');
 

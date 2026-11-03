@@ -84,8 +84,8 @@ bunx shadcn-svelte@next add <component-name> -y
 Components are installed to `src/lib/components/ui/`. Import as:
 
 ```svelte
-import { Button } from '$lib/components/ui/button';
-import * as Sheet from '$lib/components/ui/sheet';
+import { Button } from '#lib/components/ui/button/index.js';
+import * as Sheet from '#lib/components/ui/sheet/index.js';
 ```
 
 ## Styling Notes
@@ -114,7 +114,7 @@ let showSteps = $derived(
 Sidebar state is managed via stores in `src/lib/stores/ui.ts`:
 
 ```ts
-import { openSidebar, closeSidebar } from '$lib/stores/ui';
+import { openSidebar, closeSidebar } from '#lib/stores/ui.js';
 openSidebar('cart');  // or 'help'
 ```
 

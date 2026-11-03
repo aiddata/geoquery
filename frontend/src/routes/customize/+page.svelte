@@ -2,14 +2,14 @@
 	import { get } from 'svelte/store';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { currentStep } from '$lib/stores/ui';
-	import { cart, type CartItem } from '$lib/stores/cart';
+	import { currentStep } from '#lib/stores/ui.js';
+	import { cart, type CartItem } from '#lib/stores/cart.js';
 	import {
 		selection,
 		selectionFcIds,
 		selectedFeatureIds,
 		type FCRef
-	} from '$lib/stores/selection';
+	} from '#lib/stores/selection.js';
 	import {
 		fetchDatasetsForFeatures,
 		fetchAllDatasets,
@@ -20,19 +20,19 @@
 		type DatasetDetail,
 		type DatasetCategory,
 		type DatasetFilter
-	} from '$lib/api';
-	import { type FilterSelection } from '$lib/stores/cart';
-	import { customBoundary } from '$lib/stores/customBoundary';
+	} from '#lib/api.js';
+	import { type FilterSelection } from '#lib/stores/cart.js';
+	import { customBoundary } from '#lib/stores/customBoundary.js';
 	import { bbox as turfBbox } from '@turf/bbox';
 	import { TriangleAlert } from '@lucide/svelte';
-	import DatasetSelector from '$lib/components/datasets/DatasetSelector.svelte';
-	import RasterOptions from '$lib/components/datasets/RasterOptions.svelte';
-	import FilterAndAggOptions from '$lib/components/datasets/FilterAndAggOptions.svelte';
-	import OutcomeSelector from '$lib/components/datasets/OutcomeSelector.svelte';
-	import SelectionSummary from '$lib/components/datasets/SelectionSummary.svelte';
-	import { Button } from '$lib/components/ui/button';
+	import DatasetSelector from '#lib/components/datasets/DatasetSelector.svelte';
+	import RasterOptions from '#lib/components/datasets/RasterOptions.svelte';
+	import FilterAndAggOptions from '#lib/components/datasets/FilterAndAggOptions.svelte';
+	import OutcomeSelector from '#lib/components/datasets/OutcomeSelector.svelte';
+	import SelectionSummary from '#lib/components/datasets/SelectionSummary.svelte';
+	import { Button } from '#lib/components/ui/button/index.js';
 	import { ChevronLeft, ArrowRight } from '@lucide/svelte';
-	import { cartCount } from '$lib/stores/cart';
+	import { cartCount } from '#lib/stores/cart.js';
 
 	$effect(() => {
 		currentStep.set('search');

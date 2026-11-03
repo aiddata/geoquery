@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
-	import { Button } from '$lib/components/ui/button';
-	import BarChart from '$lib/components/stats/BarChart.svelte';
-	import { fetchStats, type Stats } from '$lib/api';
+	import { Card, CardContent, CardHeader, CardTitle } from '#lib/components/ui/card/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import BarChart from '#lib/components/stats/BarChart.svelte';
+	import { fetchStats, type Stats } from '#lib/api.js';
 	import { AlertCircle, RefreshCw } from '@lucide/svelte';
 
 	let stats = $state<Stats | null>(null);

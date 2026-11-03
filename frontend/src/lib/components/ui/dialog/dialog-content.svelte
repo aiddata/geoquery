@@ -4,7 +4,7 @@
 	import type { Snippet } from "svelte";
 	import DialogPortal from "./dialog-portal.svelte";
 	import DialogOverlay from "./dialog-overlay.svelte";
-	import { cn, type WithoutChildrenOrChild } from "$lib/utils.js";
+	import { cn, type WithoutChildrenOrChild } from "#lib/utils.js";
 	import type { ComponentProps } from "svelte";
 
 	let {

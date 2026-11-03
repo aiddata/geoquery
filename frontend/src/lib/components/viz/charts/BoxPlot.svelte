@@ -1,10 +1,10 @@
 <script lang="ts">
-	import type { VizPayload } from '$lib/api';
+	import type { VizPayload } from '#lib/api.js';
 	import type { SingleColCard } from '../chartTypes';
-	import { fmt, numericValue } from '$lib/viz';
-	import { aidBase, aidTip, barInset, niceScale, tickFormatFor, type DrawFn } from '$lib/charts/plot';
-	import { columnCaption, columnLabel } from '$lib/charts/labels';
-	import PlotFigure, { type FigureHandle } from '$lib/components/charts/PlotFigure.svelte';
+	import { fmt, numericValue } from '#lib/viz.js';
+	import { aidBase, aidTip, barInset, niceScale, tickFormatFor, type DrawFn } from '#lib/charts/plot.js';
+	import { columnCaption, columnLabel } from '#lib/charts/labels.js';
+	import PlotFigure, { type FigureHandle } from '#lib/components/charts/PlotFigure.svelte';
 
 	interface Props {
 		data: VizPayload;

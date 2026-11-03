@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { maintenance } from '$lib/config/status';
+	import { maintenance } from '#lib/config/status.js';
 	import { Wrench } from '@lucide/svelte';
-	import geoqueryLogo from '$lib/assets/aiddata_geoquery_wordmark.png';
+	import geoqueryLogo from '#lib/assets/aiddata_geoquery_wordmark.png';
 </script>
 
 <svelte:head>

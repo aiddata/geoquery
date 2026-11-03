@@ -1,5 +1,5 @@
 // Observable Plot settings shared by every chart (design-system.md §9).
-import type { Tokens } from '$lib/theme/tokens';
+import type { Tokens } from '#lib/theme/tokens.js';
 
 export type PlotModule = typeof import('@observablehq/plot');
 

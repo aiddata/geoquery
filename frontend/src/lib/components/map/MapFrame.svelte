@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import maplibregl from 'maplibre-gl';
+	import * as maplibregl from 'maplibre-gl';
+	import '#lib/map/maplibreWorker.js';
 	import 'maplibre-gl/dist/maplibre-gl.css';
 	import { get } from 'svelte/store';
 	import {
@@ -8,13 +9,13 @@
 		CLUSTER_TILE_LAYER,
 		multiBoundaryTileUrl,
 		MULTI_TILE_LAYER
-	} from '$lib/api';
-	import { unionBbox, type Bbox } from '$lib/utils/bbox';
-	import { protomapsApiKey } from '$lib/map/protomapsKey';
-	import { basemapStyle, followTheme } from '$lib/map/basemap';
-	import { resolvedTheme } from '$lib/stores/theme';
-	import { readTokens, resolveColor } from '$lib/theme/tokens';
-	import { escapeHtml } from '$lib/viz';
+	} from '#lib/api.js';
+	import { unionBbox, type Bbox } from '#lib/utils/bbox.js';
+	import { protomapsApiKey } from '#lib/map/protomapsKey.js';
+	import { basemapStyle, followTheme } from '#lib/map/basemap.js';
+	import { resolvedTheme } from '#lib/stores/theme.js';
+	import { readTokens, resolveColor } from '#lib/theme/tokens.js';
+	import { escapeHtml } from '#lib/viz.js';
 	import type { FeatureCollection } from 'geojson';
 
 	export interface FcStyle {

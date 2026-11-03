@@ -1,6 +1,6 @@
 <script lang="ts" generics="T extends string">
-	import * as Select from '$lib/components/ui/select';
-	import { cn } from '$lib/utils';
+	import * as Select from '#lib/components/ui/select/index.js';
+	import { cn } from '#lib/utils.js';
 
 	interface Props {
 		value: T;

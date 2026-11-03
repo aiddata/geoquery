@@ -1,8 +1,8 @@
 <script lang="ts">
-	import type { VizPayload } from '$lib/api';
-	import { columnLabel } from '$lib/charts/labels';
-	import * as Select from '$lib/components/ui/select';
-	import { cn } from '$lib/utils';
+	import type { VizPayload } from '#lib/api.js';
+	import { columnLabel } from '#lib/charts/labels.js';
+	import * as Select from '#lib/components/ui/select/index.js';
+	import { cn } from '#lib/utils.js';
 
 	interface Props {
 		data: VizPayload;

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { resolvedTheme, themePreference, type ThemePreference } from '$lib/stores/theme';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
+	import { resolvedTheme, themePreference, type ThemePreference } from '#lib/stores/theme.js';
 	import { Monitor, Moon, Sun } from '@lucide/svelte';
 
 	const options: { value: ThemePreference; label: string; icon: typeof Sun }[] = [

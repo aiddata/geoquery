@@ -2,14 +2,14 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { afterNavigate } from '$app/navigation';
-	import { gtagEvent } from '$lib/analytics';
-	import { initAuth } from '$lib/stores/auth';
+	import { gtagEvent } from '#lib/analytics.js';
+	import { initAuth } from '#lib/stores/auth.js';
 	import '@fontsource/barlow/400.css';
 	import '@fontsource/barlow/400-italic.css';
 	import '@fontsource/barlow/700.css';
 	import '@fontsource/noto-sans/700.css';
 	import './layout.css';
-	import favicon from '$lib/assets/favicon.svg';
+	import favicon from '#lib/assets/favicon.svg';
 
 	onMount(initAuth);
 
@@ -21,11 +21,11 @@
 			});
 		}
 	});
-	import Header from '$lib/components/layout/Header.svelte';
-	import Sidebar from '$lib/components/layout/Sidebar.svelte';
-	import StatusBanner from '$lib/components/layout/StatusBanner.svelte';
-	import SupportBanner from '$lib/components/layout/SupportBanner.svelte';
-	import { TooltipProvider } from '$lib/components/ui/tooltip';
+	import Header from '#lib/components/layout/Header.svelte';
+	import Sidebar from '#lib/components/layout/Sidebar.svelte';
+	import StatusBanner from '#lib/components/layout/StatusBanner.svelte';
+	import SupportBanner from '#lib/components/layout/SupportBanner.svelte';
+	import { TooltipProvider } from '#lib/components/ui/tooltip/index.js';
 	let { children } = $props();
 
 	// Only show steps on main workflow pages

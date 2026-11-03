@@ -1,11 +1,11 @@
 <script lang="ts">
-	import type { VizPayload } from '$lib/api';
+	import type { VizPayload } from '#lib/api.js';
 	import type { CorrelationCard } from '../chartTypes';
-	import { fieldLabel, pearsonMatrix } from '$lib/viz';
-	import { aidBase, aidTip, labelWidth, type DrawFn } from '$lib/charts/plot';
-	import PlotFigure, { type FigureHandle } from '$lib/components/charts/PlotFigure.svelte';
-	import { Button } from '$lib/components/ui/button';
-	import { Checkbox } from '$lib/components/ui/checkbox';
+	import { fieldLabel, pearsonMatrix } from '#lib/viz.js';
+	import { aidBase, aidTip, labelWidth, type DrawFn } from '#lib/charts/plot.js';
+	import PlotFigure, { type FigureHandle } from '#lib/components/charts/PlotFigure.svelte';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 
 	interface Props {
 		data: VizPayload;

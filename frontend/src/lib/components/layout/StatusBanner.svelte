@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { banner } from '$lib/config/status';
-	import { Button } from '$lib/components/ui/button';
+	import { banner } from '#lib/config/status.js';
+	import { Button } from '#lib/components/ui/button/index.js';
 	import { X, Info, AlertTriangle, AlertCircle } from '@lucide/svelte';
 
 	let dismissed = $state(false);

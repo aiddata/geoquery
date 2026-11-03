@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { CHOROPLETH_OPACITY } from '$lib/map/choropleth';
-	import { fmt, NO_VALUE_COLOR } from '$lib/viz';
+	import { CHOROPLETH_OPACITY } from '#lib/map/choropleth.js';
+	import { fmt, NO_VALUE_COLOR } from '#lib/viz.js';
 
 	interface Props {
 		palette: string[];

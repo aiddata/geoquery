@@ -1,11 +1,11 @@
 <script lang="ts">
-	import * as Card from '$lib/components/ui/card';
-	import { Checkbox } from '$lib/components/ui/checkbox';
-	import { Label } from '$lib/components/ui/label';
-	import { Input } from '$lib/components/ui/input';
-	import { ScrollArea } from '$lib/components/ui/scroll-area';
-	import type { DatasetFilter } from '$lib/api';
-	import type { FilterSelection, RangeSelection, CategoricalSelection } from '$lib/stores/cart';
+	import * as Card from '#lib/components/ui/card/index.js';
+	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+	import { Label } from '#lib/components/ui/label/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import { ScrollArea } from '#lib/components/ui/scroll-area/index.js';
+	import type { DatasetFilter } from '#lib/api.js';
+	import type { FilterSelection, RangeSelection, CategoricalSelection } from '#lib/stores/cart.js';
 
 	interface Props {
 		filters: Record<string, DatasetFilter>;

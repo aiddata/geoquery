@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { VizPayload } from '$lib/api';
+	import type { VizPayload } from '#lib/api.js';
 	import type { ScatterCard } from '../chartTypes';
-	import { fieldLabel, fmt, numericValue, pearsonCorrelation } from '$lib/viz';
-	import { aidBase, aidTip, capCategories, niceScale, SYMBOLS, tickFormatFor, type DrawFn } from '$lib/charts/plot';
-	import PlotFigure, { type FigureHandle } from '$lib/components/charts/PlotFigure.svelte';
+	import { fieldLabel, fmt, numericValue, pearsonCorrelation } from '#lib/viz.js';
+	import { aidBase, aidTip, capCategories, niceScale, SYMBOLS, tickFormatFor, type DrawFn } from '#lib/charts/plot.js';
+	import PlotFigure, { type FigureHandle } from '#lib/components/charts/PlotFigure.svelte';
 
 	interface Props {
 		data: VizPayload;

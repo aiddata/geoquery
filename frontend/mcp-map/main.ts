@@ -1,6 +1,8 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables } from '@modelcontextprotocol/ext-apps';
 import { layers, namedFlavor } from '@protomaps/basemaps';
-import maplibregl, { type GeoJSONSource, type Map as MapLibreMap } from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
+import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
+import workerSource from 'maplibre-gl/dist/maplibre-gl-worker.mjs?raw';
 
 import { equalBreaks, hasSingleTemporalTrack, quantileBreaks } from './map';
 import './style.css';
@@ -49,6 +51,10 @@ function element<T extends HTMLElement>(id: string): T {
 	if (!found) throw new Error(`Missing element #${id}`);
 	return found as T;
 }
+
+// MapLibre 6 loads its worker from a sibling file, which a single-file build
+// doesn't have, so run the inlined worker source from a Blob URL instead.
+maplibregl.setWorkerUrl(URL.createObjectURL(new Blob([workerSource], { type: 'text/javascript' })));
 
 const app = new App({ name: 'GeoQuery map', version: '1.0.0' }, {}, { autoResize: true });
 let state: MapPayload | null = null;

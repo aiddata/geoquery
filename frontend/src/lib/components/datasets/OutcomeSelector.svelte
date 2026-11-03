@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Label } from '$lib/components/ui/label';
+	import { Label } from '#lib/components/ui/label/index.js';
 
 	interface Props {
 		outcomes: Record<string, string>;

@@ -2,31 +2,32 @@
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { get } from 'svelte/store';
 	import { page } from '$app/state';
-	import maplibregl from 'maplibre-gl';
+	import * as maplibregl from 'maplibre-gl';
+	import '#lib/map/maplibreWorker.js';
 	import 'maplibre-gl/dist/maplibre-gl.css';
-	import * as Collapsible from '$lib/components/ui/collapsible';
-	import * as Alert from '$lib/components/ui/alert';
-	import * as Select from '$lib/components/ui/select';
-	import { Button } from '$lib/components/ui/button';
-	import { Checkbox } from '$lib/components/ui/checkbox';
-	import { Input } from '$lib/components/ui/input';
-	import MapLegend from '$lib/components/viz/MapLegend.svelte';
-	import { basemapStyle, followTheme } from '$lib/map/basemap';
-	import { addChoroplethLayers, refreshChoroplethTheme, fcFillId, fcLineId, fcSourceId } from '$lib/map/choropleth';
-	import { exportMapImage as drawMapExport } from '$lib/map/exportMapImage';
-	import { resolvedTheme } from '$lib/stores/theme';
-	import BoundaryBrowsePanel from '$lib/components/map/BoundaryBrowsePanel.svelte';
+	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
+	import * as Alert from '#lib/components/ui/alert/index.js';
+	import * as Select from '#lib/components/ui/select/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import MapLegend from '#lib/components/viz/MapLegend.svelte';
+	import { basemapStyle, followTheme } from '#lib/map/basemap.js';
+	import { addChoroplethLayers, refreshChoroplethTheme, fcFillId, fcLineId, fcSourceId } from '#lib/map/choropleth.js';
+	import { exportMapImage as drawMapExport } from '#lib/map/exportMapImage.js';
+	import { resolvedTheme } from '#lib/stores/theme.js';
+	import BoundaryBrowsePanel from '#lib/components/map/BoundaryBrowsePanel.svelte';
 	import {
 		searchBoundaries, fetchBoundaryPresets, fetchExploreAvailable, fetchExploreData,
 		boundaryTileUrl,
 		type BoundaryResult, type BoundaryPreset, type ExploreDataset, type VizPayload,
-	} from '$lib/api';
-	import { protomapsApiKey } from '$lib/map/protomapsKey';
+	} from '#lib/api.js';
+	import { protomapsApiKey } from '#lib/map/protomapsKey.js';
 	import {
 		PALETTES, DEFAULT_PALETTE, NO_VALUE_COLOR, quantileBreaks, equalBreaks, buildColorExpression,
 		fmt, prettyColumn, escapeHtml, computeStats,
-	} from '$lib/viz';
-	import { parseFormula, evaluateFormula, formulaColumns } from '$lib/formula';
+	} from '#lib/viz.js';
+	import { parseFormula, evaluateFormula, formulaColumns } from '#lib/formula.js';
 	import { GripVertical, AlertCircle, Plus, X, Search, ChevronDown, Download, ChartColumn, Map as MapIcon } from '@lucide/svelte';
 
 	let activeTab = $state<'map' | 'charts'>('map');
@@ -35,7 +36,7 @@
 	$effect(() => {
 		if (activeTab === 'charts') chartsVisited = true;
 	});
-	const loadChartPanel = () => import('$lib/components/viz/ChartPanel.svelte');
+	const loadChartPanel = () => import('#lib/components/viz/ChartPanel.svelte');
 
 	// ── Section open state ────────────────────────────────────────────────────
 	let boundariesOpen = $state(true);
@@ -306,7 +307,7 @@
 		const key = await protomapsApiKey();
 		map = new maplibregl.Map({
 			container: mapContainer,
-			preserveDrawingBuffer: true,
+			canvasContextAttributes: { preserveDrawingBuffer: true },
 			style: basemapStyle(get(resolvedTheme), key),
 			center: [0, 20], zoom: 2
 		});

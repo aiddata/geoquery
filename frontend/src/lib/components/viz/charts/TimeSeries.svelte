@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { VizPayload } from '$lib/api';
+	import type { VizPayload } from '#lib/api.js';
 	import type { TimeSeriesCard } from '../chartTypes';
-	import { fmt, getDatasetFieldTracks, getTemporalSeries, numericValue } from '$lib/viz';
-	import { aidBase, aidTip, compact, niceScale, tickFormatFor, type DrawFn } from '$lib/charts/plot';
-	import PlotFigure, { type FigureHandle } from '$lib/components/charts/PlotFigure.svelte';
+	import { fmt, getDatasetFieldTracks, getTemporalSeries, numericValue } from '#lib/viz.js';
+	import { aidBase, aidTip, compact, niceScale, tickFormatFor, type DrawFn } from '#lib/charts/plot.js';
+	import PlotFigure, { type FigureHandle } from '#lib/components/charts/PlotFigure.svelte';
 
 	interface Props {
 		data: VizPayload;

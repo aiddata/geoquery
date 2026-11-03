@@ -9,9 +9,9 @@
 
 <script lang="ts">
 	import { onMount, type Snippet } from 'svelte';
-	import { loadPlot, type DrawFn, type PlotModule } from '$lib/charts/plot';
-	import { tokenScheme } from '$lib/stores/theme';
-	import { readTokens } from '$lib/theme/tokens';
+	import { loadPlot, type DrawFn, type PlotModule } from '#lib/charts/plot.js';
+	import { tokenScheme } from '#lib/stores/theme.js';
+	import { readTokens } from '#lib/theme/tokens.js';
 	import ChartTable, { type ChartTableData } from './ChartTable.svelte';
 
 	interface Props {

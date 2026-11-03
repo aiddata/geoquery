@@ -1,6 +1,6 @@
 <script lang="ts" module>
 	import { Circle, CircleAlert, CircleCheck, Clock } from '@lucide/svelte';
-	import type { BadgeVariant } from '$lib/components/ui/badge';
+	import type { BadgeVariant } from '#lib/components/ui/badge/index.js';
 
 	/** The four status meanings of design-system.md §11. */
 	export type StatusMeaning = 'done' | 'progress' | 'failed' | 'neutral';
@@ -31,7 +31,7 @@
 </script>
 
 <script lang="ts">
-	import { Badge } from '$lib/components/ui/badge';
+	import { Badge } from '#lib/components/ui/badge/index.js';
 	import type { Snippet } from 'svelte';
 
 	interface Props {

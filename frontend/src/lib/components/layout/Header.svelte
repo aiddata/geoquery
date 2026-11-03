@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
-	import { Badge } from '$lib/components/ui/badge';
-	import UserMenu from '$lib/components/layout/UserMenu.svelte';
-	import ThemeMenu from '$lib/components/layout/ThemeMenu.svelte';
-	import { openSidebar, currentStep, type Step } from '$lib/stores/ui';
-	import { features } from '$lib/stores/features';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Badge } from '#lib/components/ui/badge/index.js';
+	import UserMenu from '#lib/components/layout/UserMenu.svelte';
+	import ThemeMenu from '#lib/components/layout/ThemeMenu.svelte';
+	import { openSidebar, currentStep, type Step } from '#lib/stores/ui.js';
+	import { features } from '#lib/stores/features.js';
 	import { CircleHelp, History, BookOpen, Map } from '@lucide/svelte';
-	import aiddataTriangles from '$lib/assets/aiddata_triangles.svg';
-	import aiddataWordmark from '$lib/assets/aiddata_wordmark.svg';
-	import geoqueryText from '$lib/assets/geoquery_text.svg';
+	import aiddataTriangles from '#lib/assets/aiddata_triangles.svg';
+	import aiddataWordmark from '#lib/assets/aiddata_wordmark.svg';
+	import geoqueryText from '#lib/assets/geoquery_text.svg';
 
 	interface Props {
 		showSteps?: boolean;

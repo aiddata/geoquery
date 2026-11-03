@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { Button } from '$lib/components/ui/button';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { auth, signOut } from '$lib/stores/auth';
-	import { loginWithGitHub } from '$lib/allauth';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
+	import { auth, signOut } from '#lib/stores/auth.js';
+	import { loginWithGitHub } from '#lib/allauth.js';
 	import { History, LogIn, LogOut, UserRound } from '@lucide/svelte';
 
 	let signingIn = $state(false);

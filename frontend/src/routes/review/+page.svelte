@@ -1,23 +1,23 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { currentStep } from '$lib/stores/ui';
-	import { cart, cartCount } from '$lib/stores/cart';
-	import { selection, selectionSummary } from '$lib/stores/selection';
-	import { customBoundary } from '$lib/stores/customBoundary';
-	import { submitRequest, type SubmittedRequest, type CustomBoundaryPayload } from '$lib/api';
-	import { auth } from '$lib/stores/auth';
-	import { gtagEvent } from '$lib/analytics';
-	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
-	import { Label } from '$lib/components/ui/label';
-	import { Separator } from '$lib/components/ui/separator';
-	import * as Card from '$lib/components/ui/card';
-	import * as Collapsible from '$lib/components/ui/collapsible';
-	import * as Tooltip from '$lib/components/ui/tooltip';
-	import * as Alert from '$lib/components/ui/alert';
-	import { Checkbox } from '$lib/components/ui/checkbox';
+	import { currentStep } from '#lib/stores/ui.js';
+	import { cart, cartCount } from '#lib/stores/cart.js';
+	import { selection, selectionSummary } from '#lib/stores/selection.js';
+	import { customBoundary } from '#lib/stores/customBoundary.js';
+	import { submitRequest, type SubmittedRequest, type CustomBoundaryPayload } from '#lib/api.js';
+	import { auth } from '#lib/stores/auth.js';
+	import { gtagEvent } from '#lib/analytics.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import { Label } from '#lib/components/ui/label/index.js';
+	import { Separator } from '#lib/components/ui/separator/index.js';
+	import * as Card from '#lib/components/ui/card/index.js';
+	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
+	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+	import * as Alert from '#lib/components/ui/alert/index.js';
+	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import { ChevronLeft, ChevronRight, Trash2, Send, CheckCircle, CircleAlert, TriangleAlert } from '@lucide/svelte';
-	import { formatKwargs } from '$lib/utils';
+	import { formatKwargs } from '#lib/utils.js';
 
 	$effect(() => {
 		currentStep.set('review');

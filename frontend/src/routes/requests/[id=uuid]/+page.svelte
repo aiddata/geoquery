@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { fetchRequestDetail, type RequestDetail } from '$lib/api';
-	import { Button } from '$lib/components/ui/button';
-	import * as Card from '$lib/components/ui/card';
-	import * as Collapsible from '$lib/components/ui/collapsible';
-	import * as Alert from '$lib/components/ui/alert';
-	import StatusBadge, { requestStatusMeaning } from '$lib/components/StatusBadge.svelte';
+	import { fetchRequestDetail, type RequestDetail } from '#lib/api.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import * as Card from '#lib/components/ui/card/index.js';
+	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
+	import * as Alert from '#lib/components/ui/alert/index.js';
+	import StatusBadge, { requestStatusMeaning } from '#lib/components/StatusBadge.svelte';
 	import { ArrowLeft, Download, RefreshCw, ChevronRight, CircleAlert, Map } from '@lucide/svelte';
-	import { formatKwargs } from '$lib/utils';
-	import { features } from '$lib/stores/features';
+	import { formatKwargs } from '#lib/utils.js';
+	import { features } from '#lib/stores/features.js';
 
 	const TERMINAL_STATUSES = new Set([1, -2]);
 

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { customBoundary } from '$lib/stores/customBoundary';
-	import { Button } from '$lib/components/ui/button';
-	import * as Alert from '$lib/components/ui/alert';
+	import { customBoundary } from '#lib/stores/customBoundary.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import * as Alert from '#lib/components/ui/alert/index.js';
 	import { Upload, FileCheck, X, AlertCircle } from '@lucide/svelte';
 	import type { FeatureCollection, Geometry } from 'geojson';
 	import CustomBoundaryOperations from './CustomBoundaryOperations.svelte';

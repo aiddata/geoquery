@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { StatsPoint } from '$lib/api';
-	import { aidBase, aidTip, barInset, niceScale, tickFormatFor, type DrawFn } from '$lib/charts/plot';
-	import PlotFigure from '$lib/components/charts/PlotFigure.svelte';
+	import type { StatsPoint } from '#lib/api.js';
+	import { aidBase, aidTip, barInset, niceScale, tickFormatFor, type DrawFn } from '#lib/charts/plot.js';
+	import PlotFigure from '#lib/components/charts/PlotFigure.svelte';
 
 	interface Props {
 		data: StatsPoint[];

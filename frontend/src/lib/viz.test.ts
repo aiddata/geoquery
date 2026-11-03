@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import type { VizPayload } from '$lib/api';
+import type { VizPayload } from '#lib/api.js';
 import {
 	columnValues,
 	getTemporalSeries,
 	numericValue,
 	pearsonCorrelation,
 	pearsonMatrix
-} from '$lib/viz';
+} from '#lib/viz.js';
 
 function payload(features: Record<string, Record<string, string | number | null>>): VizPayload {
 	const columns = [...new Set(Object.values(features).flatMap((f) => Object.keys(f)))];

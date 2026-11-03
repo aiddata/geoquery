@@ -1,12 +1,12 @@
 <script lang="ts">
-	import * as Card from '$lib/components/ui/card';
-	import { Input } from '$lib/components/ui/input';
-	import { Label } from '$lib/components/ui/label';
-	import { Button } from '$lib/components/ui/button';
-	import { Separator } from '$lib/components/ui/separator';
+	import * as Card from '#lib/components/ui/card/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import { Label } from '#lib/components/ui/label/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Separator } from '#lib/components/ui/separator/index.js';
 	import { ShoppingCart, RotateCcw } from '@lucide/svelte';
-	import type { DatasetDetail } from '$lib/api';
-	import type { FilterSelection } from '$lib/stores/cart';
+	import type { DatasetDetail } from '#lib/api.js';
+	import type { FilterSelection } from '#lib/stores/cart.js';
 
 	interface Props {
 		dataset: DatasetDetail | null;

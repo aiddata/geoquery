@@ -1,13 +1,13 @@
 <script lang="ts">
-	import type { VizPayload } from '$lib/api';
-	import { columnValues, detectBinary, getDatasetFieldTracks, getTemporalDatasets, colFieldTrack } from '$lib/viz';
+	import type { VizPayload } from '#lib/api.js';
+	import { columnValues, detectBinary, getDatasetFieldTracks, getTemporalDatasets, colFieldTrack } from '#lib/viz.js';
 	import { X, Plus, Download, ChevronDown } from '@lucide/svelte';
 	import { zipSync } from 'fflate';
-	import { exportPng } from '$lib/charts/exportPng';
-	import type { FigureHandle } from '$lib/components/charts/PlotFigure.svelte';
-	import { Button } from '$lib/components/ui/button';
-	import * as Card from '$lib/components/ui/card';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import { exportPng } from '#lib/charts/exportPng.js';
+	import type { FigureHandle } from '#lib/components/charts/PlotFigure.svelte';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import * as Card from '#lib/components/ui/card/index.js';
+	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import ColumnSelect from './ColumnSelect.svelte';
 	import OptionSelect from './OptionSelect.svelte';
 	import { type ChartCard, type SingleColCard, type TimeSeriesCard, type ScatterCard, type CorrelationCard, CHART_TYPES } from './chartTypes';

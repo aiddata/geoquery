@@ -1,6 +1,6 @@
-import type maplibregl from 'maplibre-gl';
-import { readTokens } from '$lib/theme/tokens';
-import { fmt, NO_VALUE_COLOR } from '$lib/viz';
+import type * as maplibregl from 'maplibre-gl';
+import { readTokens } from '#lib/theme/tokens.js';
+import { fmt, NO_VALUE_COLOR } from '#lib/viz.js';
 import { CHOROPLETH_OPACITY } from './choropleth';
 
 export interface MapExportOptions {

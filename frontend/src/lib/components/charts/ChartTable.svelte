@@ -14,9 +14,9 @@
 </script>
 
 <script lang="ts">
-	import * as Table from '$lib/components/ui/table';
-	import { full } from '$lib/charts/plot';
-	import { cn } from '$lib/utils';
+	import * as Table from '#lib/components/ui/table/index.js';
+	import { full } from '#lib/charts/plot.js';
+	import { cn } from '#lib/utils.js';
 
 	let { columns, rows }: ChartTableData = $props();
 

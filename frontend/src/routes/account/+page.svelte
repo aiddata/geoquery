@@ -1,11 +1,11 @@
 <script lang="ts">
     import { goto } from "$app/navigation";
-    import { Badge } from "$lib/components/ui/badge";
-    import * as Alert from "$lib/components/ui/alert";
-    import { Button } from "$lib/components/ui/button";
-    import { Input } from "$lib/components/ui/input";
-    import { Separator } from "$lib/components/ui/separator";
-    import { auth } from "$lib/stores/auth";
+    import { Badge } from "#lib/components/ui/badge/index.js";
+    import * as Alert from "#lib/components/ui/alert/index.js";
+    import { Button } from "#lib/components/ui/button/index.js";
+    import { Input } from "#lib/components/ui/input/index.js";
+    import { Separator } from "#lib/components/ui/separator/index.js";
+    import { auth } from "#lib/stores/auth.js";
     import {
         addEmail,
         listEmails,
@@ -16,10 +16,10 @@
         type EmailAddress,
         type ProviderAccount,
         loginWithGitHub
-    } from "$lib/allauth";
+    } from "#lib/allauth.js";
     import { ArrowLeft, CircleAlert, CircleCheck, Clock, History, LogIn, Mail, Plus } from "@lucide/svelte";
     import { page } from "$app/state";
-    import { DEFAULT_NEXT, navigateNext, readNext } from "$lib/utils/nextDestination";
+    import { DEFAULT_NEXT, navigateNext, readNext } from "#lib/utils/nextDestination.js";
 
     // Usually absent. Django's OIDC provider sets it when a chat client
     // connecting to the MCP server needs a session first: sign in, then go

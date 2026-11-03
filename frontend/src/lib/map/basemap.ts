@@ -1,7 +1,7 @@
-import type maplibregl from 'maplibre-gl';
+import type * as maplibregl from 'maplibre-gl';
 import type { StyleSpecification } from 'maplibre-gl';
 import { layers, namedFlavor } from '@protomaps/basemaps';
-import { resolvedTheme, type ResolvedTheme } from '$lib/stores/theme';
+import { resolvedTheme, type ResolvedTheme } from '#lib/stores/theme.js';
 
 export const BASEMAP_SOURCE = 'protomaps';
 

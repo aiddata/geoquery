@@ -1,4 +1,4 @@
-import type { VizPayload } from '$lib/api';
+import type { VizPayload } from '#lib/api.js';
 
 // Shared utilities for the /viz/[id] and /viz/explore map renderers.
 

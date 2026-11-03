@@ -1,6 +1,6 @@
 import notoSans700Url from '@fontsource/noto-sans/files/noto-sans-latin-700-normal.woff2?url';
-import type { FigureHandle } from '$lib/components/charts/PlotFigure.svelte';
-import { readTokens, type Tokens } from '$lib/theme/tokens';
+import type { FigureHandle } from '#lib/components/charts/PlotFigure.svelte';
+import { readTokens, type Tokens } from '#lib/theme/tokens.js';
 import { SYMBOLS } from './plot';
 
 type Legend = { label: string; color: string; symbol?: string }[];

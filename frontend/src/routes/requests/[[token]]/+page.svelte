@@ -1,11 +1,11 @@
 <script lang="ts">
     import { page } from "$app/state";
     import { goto } from "$app/navigation";
-    import { Button } from "$lib/components/ui/button";
-    import { Input } from "$lib/components/ui/input";
-    import * as Alert from "$lib/components/ui/alert";
-    import * as Collapsible from "$lib/components/ui/collapsible";
-    import StatusBadge, { requestStatusMeaning } from "$lib/components/StatusBadge.svelte";
+    import { Button } from "#lib/components/ui/button/index.js";
+    import { Input } from "#lib/components/ui/input/index.js";
+    import * as Alert from "#lib/components/ui/alert/index.js";
+    import * as Collapsible from "#lib/components/ui/collapsible/index.js";
+    import StatusBadge, { requestStatusMeaning } from "#lib/components/StatusBadge.svelte";
     import { ArrowLeft, Search, Mail, BarChart2, LogIn, Archive, ChevronDown } from "@lucide/svelte";
     import {
         requestHistoryLink,
@@ -15,9 +15,9 @@
         fetchMyLegacyRequests,
         type PastRequest,
         type LegacyPastRequest
-    } from "$lib/api";
-    import { auth } from "$lib/stores/auth";
-    import { loginWithGitHub } from "$lib/allauth";
+    } from "#lib/api.js";
+    import { auth } from "#lib/stores/auth.js";
+    import { loginWithGitHub } from "#lib/allauth.js";
 
     const token = $derived(page.params.token ?? "");
 

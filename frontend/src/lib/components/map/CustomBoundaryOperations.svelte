@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { customBoundary, type Operation, type OperationType } from '$lib/stores/customBoundary';
-	import { Button } from '$lib/components/ui/button';
-	import * as Collapsible from '$lib/components/ui/collapsible';
-	import * as Select from '$lib/components/ui/select';
-	import * as Alert from '$lib/components/ui/alert';
-	import { Input } from '$lib/components/ui/input';
-	import { Label } from '$lib/components/ui/label';
+	import { customBoundary, type Operation, type OperationType } from '#lib/stores/customBoundary.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
+	import * as Select from '#lib/components/ui/select/index.js';
+	import * as Alert from '#lib/components/ui/alert/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import { Label } from '#lib/components/ui/label/index.js';
 	import { ChevronDown, Trash2, RefreshCw, Save, ArrowRight, TriangleAlert } from '@lucide/svelte';
 	import { tick } from 'svelte';
 	import type { FeatureCollection, Feature, Polygon, MultiPolygon } from 'geojson';

@@ -4,7 +4,7 @@ import {
 	logout,
 	type AllauthUser,
 	type AuthSession
-} from '$lib/allauth';
+} from '#lib/allauth.js';
 
 export type AuthState =
 	| { status: 'loading' }

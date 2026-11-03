@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Separator } from '$lib/components/ui/separator';
-	import { parseFaq } from '$lib/utils/parseFaq';
+	import { Separator } from '#lib/components/ui/separator/index.js';
+	import { parseFaq } from '#lib/utils/parseFaq.js';
 	import rawFaq from '../../../../docs/faq.md?raw';
 
 	const sections = parseFaq(rawFaq);

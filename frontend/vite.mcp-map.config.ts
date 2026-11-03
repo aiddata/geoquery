@@ -8,7 +8,7 @@ export default defineConfig({
 	build: {
 		emptyOutDir: false,
 		outDir: resolve(import.meta.dirname, '../backend/mcp_server/apps/static'),
-		rollupOptions: { input: resolve(import.meta.dirname, 'mcp-map/map-v1.html') },
+		rolldownOptions: { input: resolve(import.meta.dirname, 'mcp-map/map-v1.html') },
 		target: 'es2022'
 	}
 });

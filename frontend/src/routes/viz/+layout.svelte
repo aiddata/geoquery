@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { features } from '$lib/stores/features';
-	import { Button } from '$lib/components/ui/button';
+	import { features } from '#lib/stores/features.js';
+	import { Button } from '#lib/components/ui/button/index.js';
 	import { FlaskConical, Home, FileText } from '@lucide/svelte';
 
-	// /viz is a beta feature (see $lib/stores/features). Children don't render,
+	// /viz is a beta feature (see #lib/stores/features). Children don't render,
 	// and so don't fetch, until access is confirmed. Old documentation pages and
 	// chats link here, so the fallback points somewhere useful.
 	let { children } = $props();

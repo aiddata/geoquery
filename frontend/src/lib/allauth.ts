@@ -2,7 +2,7 @@
  * Client for the django-allauth headless API (browser/session-cookie mode).
  * Endpoint reference: https://docs.allauth.org/en/latest/headless/openapi-specification/
  */
-import { apiFetch, ensureCsrfCookie } from '$lib/api';
+import { apiFetch, ensureCsrfCookie } from '#lib/api.js';
 
 const BASE = '/api/_allauth/browser/v1';
 
@@ -12,7 +12,7 @@ export interface AllauthUser {
 	email: string;
 	username?: string;
 	has_usable_password?: boolean;
-	/** Whether the user may use features in beta (see $lib/stores/features). */
+	/** Whether the user may use features in beta (see #lib/stores/features). */
 	is_beta_tester?: boolean;
 }
 

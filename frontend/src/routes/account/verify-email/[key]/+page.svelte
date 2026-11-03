@@ -1,8 +1,8 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { page } from "$app/state";
-    import { Button } from "$lib/components/ui/button";
-    import { verifyEmail } from "$lib/allauth";
+    import { Button } from "#lib/components/ui/button/index.js";
+    import { verifyEmail } from "#lib/allauth.js";
     import { CircleCheck, LoaderCircle, TriangleAlert } from "@lucide/svelte";
 
     let status = $state<"verifying" | "success" | "failure">("verifying");

@@ -35,7 +35,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
 
 export interface AppConfig {
 	protomaps_api_key: string;
-	/** Features limited to beta testers (see $lib/stores/features). */
+	/** Features limited to beta testers (see #lib/stores/features). */
 	beta_features: string[];
 }
 

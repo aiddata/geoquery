@@ -1,24 +1,34 @@
+import adapter from "@sveltejs/adapter-node";
+import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import { sveltekit } from "@sveltejs/kit/vite";
 import { defineConfig } from "vite";
 
 // Group the shared UI layer (shadcn components, bits-ui and its helpers, Lucide
-// icons) into one chunk. Left to Rollup, each becomes its own tiny chunk and
-// SvelteKit lists every chunk in the response's `link` header, which nginx
-// rejects once all headers exceed its 4 KB proxy_buffer_size.
-function manualChunks(id: string) {
-  if (
-    /\/node_modules\/(@lucide\/svelte|bits-ui|runed|svelte-toolbelt|@floating-ui|tabbable|focus-trap)\//.test(id) ||
-    id.includes("/src/lib/components/ui/")
-  ) {
-    return "ui";
-  }
-}
+// icons) into one chunk. Left alone, each becomes its own tiny chunk. SvelteKit 2
+// listed every chunk in the response's `link` header, which nginx rejected once
+// all headers exceeded its 4 KB proxy_buffer_size; SvelteKit 3 preloads with
+// <link> elements instead unless `output.linkHeaderPreload` is set, but the
+// grouping still saves the browser a few dozen tiny requests.
+const uiChunk = {
+  name: "ui",
+  test: (id: string) =>
+    /[\\/]node_modules[\\/](@lucide[\\/]svelte|bits-ui|runed|svelte-toolbelt|@floating-ui|tabbable|focus-trap)[\\/]/.test(id) ||
+    /[\\/]src[\\/]lib[\\/]components[\\/]ui[\\/]/.test(id),
+};
 
 export default defineConfig(({ isSsrBuild }) => ({
-  plugins: [tailwindcss(), sveltekit()],
+  plugins: [
+    tailwindcss(),
+    sveltekit({
+      preprocess: vitePreprocess(),
+      adapter: adapter(),
+    }),
+  ],
   build: {
-    rollupOptions: { output: { manualChunks: isSsrBuild ? undefined : manualChunks } },
+    rolldownOptions: {
+      output: { codeSplitting: isSsrBuild ? true : { groups: [uiChunk] } },
+    },
   },
   server: {
     allowedHosts: ["computerx.tail89de66.ts.net"],

@@ -1,4 +1,4 @@
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 import { derived, readable, writable } from 'svelte/store';
 
 export type ThemePreference = 'system' | 'light' | 'dark';

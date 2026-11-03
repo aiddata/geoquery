@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { Input } from '$lib/components/ui/input';
-	import * as Select from '$lib/components/ui/select';
-	import * as Card from '$lib/components/ui/card';
-	import { ScrollArea } from '$lib/components/ui/scroll-area';
-	import { Button } from '$lib/components/ui/button';
-	import { Badge } from '$lib/components/ui/badge';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import * as Select from '#lib/components/ui/select/index.js';
+	import * as Card from '#lib/components/ui/card/index.js';
+	import { ScrollArea } from '#lib/components/ui/scroll-area/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Search, ArrowUpDown, ChevronDown, ChevronUp, ExternalLink } from '@lucide/svelte';
-	import type { DatasetSummary, DatasetCategory } from '$lib/api';
+	import type { DatasetSummary, DatasetCategory } from '#lib/api.js';
 
 	interface Props {
 		datasets: DatasetSummary[];

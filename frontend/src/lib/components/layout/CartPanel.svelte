@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
-	import { Separator } from '$lib/components/ui/separator';
-	import * as Collapsible from '$lib/components/ui/collapsible';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import { Separator } from '#lib/components/ui/separator/index.js';
+	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
 	import { ChevronRight, MinusCircle } from '@lucide/svelte';
-	import { cart } from '$lib/stores/cart';
+	import { cart } from '#lib/stores/cart.js';
 </script>
 
 <div class="space-y-4 p-4">

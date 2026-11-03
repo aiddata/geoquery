@@ -1,6 +1,6 @@
-import type maplibregl from 'maplibre-gl';
-import { readTokens } from '$lib/theme/tokens';
-import { NO_VALUE_COLOR } from '$lib/viz';
+import type * as maplibregl from 'maplibre-gl';
+import { readTokens } from '#lib/theme/tokens.js';
+import { NO_VALUE_COLOR } from '#lib/viz.js';
 
 // Choropleth layers shared by /viz/[id] and /viz/explore.
 

@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { type BoundaryResult, type BoundaryPreset } from '$lib/api';
-	import { Button } from '$lib/components/ui/button';
-	import { Checkbox } from '$lib/components/ui/checkbox';
+	import { type BoundaryResult, type BoundaryPreset } from '#lib/api.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import { ChevronDown, Plus } from '@lucide/svelte';
-	import * as Collapsible from '$lib/components/ui/collapsible';
-	import { Separator } from '$lib/components/ui/separator';
+	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
+	import { Separator } from '#lib/components/ui/separator/index.js';
 
 	interface Props {
 		allBoundaries?: BoundaryResult[];

@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
-	import * as Tooltip from '$lib/components/ui/tooltip';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import { ChevronLeft, ChevronRight, Search, X } from '@lucide/svelte';
 	import type { Snippet } from 'svelte';
-	import { searchBoundaries, type BoundaryResult } from '$lib/api';
-	import { colorForIndex } from '$lib/utils/boundaryStyle';
+	import { searchBoundaries, type BoundaryResult } from '#lib/api.js';
+	import { colorForIndex } from '#lib/utils/boundaryStyle.js';
 
 	interface Props {
 		featuredBoundaries?: BoundaryResult[];

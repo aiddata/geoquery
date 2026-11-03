@@ -1,10 +1,10 @@
 <script lang="ts">
-	import * as Card from '$lib/components/ui/card';
-	import { Checkbox } from '$lib/components/ui/checkbox';
-	import { Label } from '$lib/components/ui/label';
-	import { ScrollArea } from '$lib/components/ui/scroll-area';
-	import * as Tooltip from '$lib/components/ui/tooltip';
-	import type { DatasetDetail, ExtractType } from '$lib/api';
+	import * as Card from '#lib/components/ui/card/index.js';
+	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+	import { Label } from '#lib/components/ui/label/index.js';
+	import { ScrollArea } from '#lib/components/ui/scroll-area/index.js';
+	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+	import type { DatasetDetail, ExtractType } from '#lib/api.js';
 
 	interface RasterSelection {
 		extractTypes: string[];

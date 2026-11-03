@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { Button } from '$lib/components/ui/button';
-	import * as Card from '$lib/components/ui/card';
-	import { Checkbox } from '$lib/components/ui/checkbox';
-	import { Input } from '$lib/components/ui/input';
-	import { Label } from '$lib/components/ui/label';
-	import { refreshAuth, setAuthSession } from '$lib/stores/auth';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import * as Card from '#lib/components/ui/card/index.js';
+	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import { Label } from '#lib/components/ui/label/index.js';
+	import { refreshAuth, setAuthSession } from '#lib/stores/auth.js';
 	import {
 		AllauthRequestError,
 		describeAuthError,
@@ -14,9 +14,9 @@
 		loginWithGitHub,
 		submitProviderSignup,
 		type AuthSession
-	} from '$lib/allauth';
+	} from '#lib/allauth.js';
 	import { LoaderCircle, MailCheck, TriangleAlert } from '@lucide/svelte';
-	import { navigateNext, readNext } from '$lib/utils/nextDestination';
+	import { navigateNext, readNext } from '#lib/utils/nextDestination.js';
 
 	type CallbackView = 'loading' | 'provider-signup' | 'verify-email' | 'error';
 	type ErrorAction = 'none' | 'check' | 'restart';

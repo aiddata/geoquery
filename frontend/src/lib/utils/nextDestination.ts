@@ -20,7 +20,10 @@ export const DEFAULT_NEXT = '/account';
  * off-site, so they fall back to the default rather than becoming an open
  * redirect out of GeoQuery's sign-in.
  */
-export function readNext(url: URL, fallback: string = DEFAULT_NEXT): string {
+export function readNext(
+	url: { readonly searchParams: Pick<URLSearchParams, 'get'> },
+	fallback: string = DEFAULT_NEXT
+): string {
 	const value = url.searchParams.get('next');
 	if (!value || !value.startsWith('/') || value.startsWith('//')) return fallback;
 	return value;
@@ -43,5 +46,5 @@ export async function navigateNext(destination: string): Promise<void> {
 		window.location.replace(destination);
 		return;
 	}
-	await goto(destination, { replaceState: true });
+	await goto(destination, { replace: true });
 }

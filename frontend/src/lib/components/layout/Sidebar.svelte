@@ -1,7 +1,7 @@
 <script lang="ts">
-	import * as Sheet from '$lib/components/ui/sheet';
-	import { ScrollArea } from '$lib/components/ui/scroll-area';
-	import { sidebarOpen, sidebarPanel, closeSidebar } from '$lib/stores/ui';
+	import * as Sheet from '#lib/components/ui/sheet/index.js';
+	import { ScrollArea } from '#lib/components/ui/scroll-area/index.js';
+	import { sidebarOpen, sidebarPanel, closeSidebar } from '#lib/stores/ui.js';
 	import CartPanel from './CartPanel.svelte';
 	import HelpPanel from './HelpPanel.svelte';
 

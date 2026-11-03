@@ -1,7 +1,7 @@
 import { derived, readable } from 'svelte/store';
-import { browser } from '$app/environment';
-import { fetchConfig } from '$lib/api';
-import { auth } from '$lib/stores/auth';
+import { browser } from '$app/env';
+import { fetchConfig } from '#lib/api.js';
+import { auth } from '#lib/stores/auth.js';
 
 /**
  * Names of gated features, mirroring the constants in backend/accounts/features.py.

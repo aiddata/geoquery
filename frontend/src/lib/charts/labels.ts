@@ -1,5 +1,5 @@
-import type { VizPayload } from '$lib/api';
-import { fieldLabel } from '$lib/viz';
+import type { VizPayload } from '#lib/api.js';
+import { fieldLabel } from '#lib/viz.js';
 
 /** Caption lines for a single-column chart: the dataset, then the field, period and chart kind. */
 export function columnCaption(data: VizPayload, col: string, kind: string): { title: string; subtitle: string } {

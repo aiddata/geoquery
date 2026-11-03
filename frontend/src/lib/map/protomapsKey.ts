@@ -1,7 +1,7 @@
-// Kept out of $lib/api so modules tested under `bun test`, which can't resolve
-// SvelteKit's $env modules, don't import it.
-import { env } from '$env/dynamic/public';
-import { fetchConfig } from '$lib/api';
+// Kept out of #lib/api so modules tested under `bun test`, which can't resolve
+// SvelteKit's $app/env modules, don't import it.
+import { PUBLIC_PROTOMAPS_API_KEY } from '$app/env/public';
+import { fetchConfig } from '#lib/api.js';
 
 /**
  * The Protomaps key, from the server-rendered env when the frontend is
@@ -9,6 +9,6 @@ import { fetchConfig } from '$lib/api';
  * config fetch while deployments without PUBLIC_PROTOMAPS_API_KEY remain.
  */
 export function protomapsApiKey(): Promise<string> {
-	if (env.PUBLIC_PROTOMAPS_API_KEY) return Promise.resolve(env.PUBLIC_PROTOMAPS_API_KEY);
+	if (PUBLIC_PROTOMAPS_API_KEY) return Promise.resolve(PUBLIC_PROTOMAPS_API_KEY);
 	return fetchConfig().then((c) => c.protomaps_api_key);
 }

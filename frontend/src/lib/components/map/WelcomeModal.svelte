@@ -1,6 +1,6 @@
 <script lang="ts">
-	import * as Dialog from '$lib/components/ui/dialog';
-	import { Button } from '$lib/components/ui/button';
+	import * as Dialog from '#lib/components/ui/dialog/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
 	import { Globe, Layers, Download } from '@lucide/svelte';
 
 	let { open = $bindable(true) }: { open: boolean } = $props();
