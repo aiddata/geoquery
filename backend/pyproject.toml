@@ -35,7 +35,7 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "pyarrow>=24.0.0",
+    "pyarrow~=24.0.0",
     "pyproj",
     "geopandas",
     "shapely",
@@ -44,31 +44,31 @@ dependencies = [
     "loguru",
     "numpy",
     "pandas",
-    "django>=5.2.15,<6",
-    "uvicorn[standard]>=0.35",
-    "psycopg[binary,pool]>=3.2",
-    "djangorestframework>=3.18.2",
-    "djangorestframework-gis>=1.2.0",
-    "django-cors-headers>=4.9.0",
-    "drf-spectacular>=0.27.0",
-    "celery[librabbitmq]>=5.4",
-    "lzstring>=1.0.4",
-    "django-celery-results>=2.6.0",
-    "django-prometheus>=2.5.0",
-    "whitenoise[brotli]>=6.12.0",
-    "django-allauth[socialaccount]>=65.18.0",
-    "django-guardian>=3.3.3",
-    "python-dotenv>=1.0",
-    "pyyaml>=6.0",
-    "fastmcp>=4,<5",
-    "py-key-value-aio[postgresql]>=0.4.6,<0.5",
+    "django~=5.2.15",
+    "uvicorn[standard]==0.54",
+    "psycopg[binary,pool]~=3.2",
+    "djangorestframework~=3.17",
+    "djangorestframework-gis==1.2.1",
+    "django-cors-headers~=4.9",
+    "drf-spectacular~=0.30",
+    "celery[librabbitmq]~=5.4",
+    "lzstring~=1.0",
+    "django-celery-results~=2.6",
+    "django-prometheus~=2.5",
+    "whitenoise[brotli]~=6.12",
+    "django-allauth[socialaccount]~=65.21",
+    "django-guardian~=3.3",
+    "python-dotenv~=1.0",
+    "pyyaml~=6.0",
+    "fastmcp~=4.0",
+    "py-key-value-aio[postgresql]~=0.4.6",
 ]
 
 [dependency-groups]
 # Duplicated from root pyproject.toml: "uv sync --package geoquery-backend"
 # (see Containerfile) only reads dependency-groups declared on this member's
 # own pyproject.toml, not the workspace root's — don't remove this copy.
-test = ["stac-pydantic>=3.0"]
+test = ["stac-pydantic~=3.7.2"]
 
 [tool.uv]
 default-groups = ["test"]
