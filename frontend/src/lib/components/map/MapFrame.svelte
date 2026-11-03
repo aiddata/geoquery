@@ -167,7 +167,8 @@
 		]
 	];
 
-	// The ring images are drawn on demand (onRingImageMissing) from these colors,
+	// The ring images are drawn on demand (onRingImageMissing, as the map's missing
+	// image resolver) from these colors,
 	// index-aligned with the boundaries the ring expression was built for. A new
 	// palette gets a new version in the image ids, so no stale ring is reused.
 	let ringPalette: string[] = [];
@@ -331,8 +332,11 @@
 				onZoomChange?.(map!.getZoom());
 			});
 
-			// Cluster rings are drawn as their images are first needed
-			map.on('styleimagemissing', (e) => onRingImageMissing(map!, e.id));
+			// Cluster rings are drawn as their images are first needed. A resolver,
+			// not a styleimagemissing listener: since MapLibre 6 an image added from
+			// the event comes too late for the tile that asked, which then lays out
+			// its clusters with no ring.
+			map.setMissingStyleImageResolver((id) => onRingImageMissing(map!, id));
 
 			map.on('error', (e) => {
 				console.error('MapLibre error:', e.error?.message || e);
