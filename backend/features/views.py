@@ -1,5 +1,11 @@
 from pathlib import Path
+
 import yaml
+from catalog.access import (
+    resolve_feature_collection_for_tiles,
+    resolve_feature_collections_for_tiles,
+    visible_feature_collections,
+)
 from django.db import connections
 from django.db.models import Q
 from django.http import HttpResponse, HttpResponseBadRequest
@@ -8,12 +14,6 @@ from rest_framework import generics, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
-from catalog.access import (
-    resolve_feature_collection_for_tiles,
-    resolve_feature_collections_for_tiles,
-    visible_feature_collections,
-)
 
 from .matviews import (
     POINT_CELLS_LEVEL,
@@ -39,7 +39,7 @@ MULTI_TILE_LAYER = "boundaries"
 # (CLUSTER_TILE_LAYER in frontend/src/lib/api.ts).
 CLUSTER_TILE_LAYER = "clusters"
 # Above this zoom tiles are always polygons.
-CLUSTER_MAX_ZOOM = 10
+CLUSTER_MAX_ZOOM = 8
 # Over the whole selection, not per tile, so every tile of a selection agrees.
 # India ADM5 (650k features) is 96 MB of polygons even at the coarsest
 # simplification tier.
@@ -252,11 +252,13 @@ def multi_feature_collection_vector_tiles(request, z, x, y):
     return response
 
 
-_SIMPLIFIED_VIEWS = frozenset({
-    "features_simplified_z0_5",
-    "features_simplified_z6_9",
-    "features_simplified_z10_12",
-})
+_SIMPLIFIED_VIEWS = frozenset(
+    {
+        "features_simplified_z0_5",
+        "features_simplified_z6_9",
+        "features_simplified_z10_12",
+    }
+)
 
 
 def _simplified_table_for_zoom(z):
@@ -508,7 +510,9 @@ class FeatureIdsView(APIView):
         try:
             fc_ids = [int(v) for v in fc_param.split(",") if v.strip()]
         except ValueError:
-            return Response({"error": "fc must be a comma-separated list of integers"}, status=400)
+            return Response(
+                {"error": "fc must be a comma-separated list of integers"}, status=400
+            )
 
         feature_ids = list(
             FeatMap.objects.using("replica")
