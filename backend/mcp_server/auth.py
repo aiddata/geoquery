@@ -198,6 +198,7 @@ def make_auth_provider():
             "http://127.0.0.1:*",
             "https://claude.ai/api/mcp/auth_callback",
             "https://claude.com/api/mcp/auth_callback",
+            "https://chatgpt.com/connector_platform_oauth_redirect",
         ],
         # Left to derive from the client secret when unset. Setting it
         # explicitly matters for a deployment that rotates the OIDC client
