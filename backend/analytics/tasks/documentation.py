@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from datasets.models import Dataset
+from datasets.tasks.create_docs import _absolute_url
 from django.conf import (
     settings,  # noqa: F401 -- for the commented-out visualization link
 )
@@ -198,7 +199,7 @@ class DocBuilder:
                     if db_ds.source_name:
                         src = self._esc(db_ds.source_name)
                         if db_ds.source_url:
-                            src = f'<a href="{self._esc(db_ds.source_url)}">{src}</a>'
+                            src = f'<a href="{self._esc(_absolute_url(db_ds.source_url))}">{src}</a>'
                         rows.append(self._kv("Source", src))
                     rows.append(self._kv("License", self._license_html(db_ds)))
                     if (
@@ -283,7 +284,7 @@ class DocBuilder:
             return "Not recorded — check the source before redistributing"
         label = self._esc(obj.license)
         if obj.license_url:
-            return f'<a href="{self._esc(obj.license_url)}">{label}</a>'
+            return f'<a href="{self._esc(_absolute_url(obj.license_url))}">{label}</a>'
         return label
 
     def _boundary_cards(self) -> str:
@@ -303,7 +304,7 @@ class DocBuilder:
             if fc.source_name:
                 src = self._esc(fc.source_name)
                 if fc.source_url:
-                    src = f'<a href="{self._esc(fc.source_url)}">{src}</a>'
+                    src = f'<a href="{self._esc(_absolute_url(fc.source_url))}">{src}</a>'
                 rows.append(self._kv("Source", src))
             rows.append(self._kv("License", self._license_html(fc)))
             rows.append(

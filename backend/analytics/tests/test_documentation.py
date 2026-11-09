@@ -90,6 +90,20 @@ class DocBuilderAttributionTests(TestCase):
         self.assertIn('<a href="https://www.geoboundaries.org/">geoBoundaries</a>', html)
         self.assertIn("Runfola, D. et al. (2020). geoBoundaries.", html)
 
+    def test_links_without_a_scheme_are_made_absolute(self):
+        # Stored bare (714 boundaries hold "geoboundaries.org"), these would
+        # otherwise resolve relative to the page they are opened from.
+        Dataset.objects.filter(pk=self.dataset.pk).update(
+            source_url="www.protectedplanet.net", license_url="license.test/terms"
+        )
+        FeatureCollection.objects.filter(pk=self.fc.pk).update(source_url="geoboundaries.org")
+
+        html = self.render()
+
+        self.assertIn('href="https://www.protectedplanet.net"', html)
+        self.assertIn('href="https://license.test/terms"', html)
+        self.assertIn('href="https://geoboundaries.org"', html)
+
     def test_unrecorded_license_says_so_instead_of_rendering_blank(self):
         Dataset.objects.filter(pk=self.dataset.pk).update(license=None, license_url=None)
         FeatureCollection.objects.filter(pk=self.fc.pk).update(license=None)
