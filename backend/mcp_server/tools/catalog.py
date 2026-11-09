@@ -13,6 +13,7 @@ boundaries (``ready``) and what would have to be processed first
 
 from __future__ import annotations
 
+import re
 from typing import Annotated
 
 from django.db.models import Count, Q
@@ -219,27 +220,133 @@ def _get_boundary(user, name: str) -> dict:
 # ── search_datasets ──────────────────────────────────────────────────────────
 
 
+# Matching is word by word: a model asking for "rainfall precipitation" wants
+# anything about either word, not the literal phrase. Words that say nothing
+# about a dataset's subject are dropped so they cannot match every row.
+_STOPWORDS = frozenset(
+    "a an and or of the in for to on with by data dataset datasets".split()
+)
+
+# A word found in the name, title or tags says more about what a dataset *is*
+# than one found somewhere in its prose description.
+_DATASET_FIELD_WEIGHTS = (
+    ("name", 3),
+    ("title", 3),
+    ("tags", 3),
+    ("variable_description", 2),
+    ("source_name", 2),
+    ("description", 1),
+)
+
+
+def _query_terms(query: str) -> list[str]:
+    text = (query or "").strip().lower()
+    if not text:
+        return []
+    terms = []
+    for token in re.findall(r"[a-z0-9]+", text):
+        if len(token) > 1 and token not in _STOPWORDS and token not in terms:
+            terms.append(token)
+    # A query of only stopwords or punctuation must not match everything (no
+    # terms) -- fall back to the literal text, as the search used to.
+    return terms or [text]
+
+
+def _score_dataset(ds: Dataset, terms: list[str]) -> tuple[int, int, list[str]]:
+    """(words matched, weighted sum, the matched words) for one dataset.
+
+    Substring matching, not whole words, so "land" still finds "landcover".
+    Each word counts once, at the weight of the best field it appears in.
+    """
+    fields = []
+    for attr, weight in _DATASET_FIELD_WEIGHTS:
+        value = getattr(ds, attr)
+        if attr == "tags":
+            value = " ".join(value or [])
+        fields.append(((value or "").lower(), weight))
+
+    matched, total = [], 0
+    for term in terms:
+        best = max((w for text, w in fields if term in text), default=0)
+        if best:
+            matched.append(term)
+            total += best
+    return len(matched), total, matched
+
+
 def _search_datasets(user, query="", tag=None, type=None, limit=20) -> dict:
     qs = visible_datasets(user)
-    if query:
-        qs = qs.filter(
-            Q(name__icontains=query)
-            | Q(title__icontains=query)
-            | Q(description__icontains=query)
-        )
     if tag:
         qs = qs.filter(tags__contains=[tag])
     if type:
         qs = qs.filter(type=type)
 
-    total = qs.count()
-    results = list(qs.order_by("title", "name")[: max(1, limit)])
-    return {
-        "datasets": [_dataset_summary(ds) for ds in results],
+    terms = _query_terms(query)
+    limit = max(1, limit)
+    matched_terms: dict[int, list[str]] = {}
+    if terms:
+        # The catalog is a few dozen rows, so ranking in Python is cheap and
+        # keeps the weighting readable.
+        scored = []
+        for ds in qs:
+            count, weight, matched = _score_dataset(ds, terms)
+            if count:
+                scored.append(((-count, -weight, ds.title or ds.name, ds.name), ds))
+                matched_terms[ds.pk] = matched
+        scored.sort(key=lambda pair: pair[0])
+        total = len(scored)
+        results = [ds for _, ds in scored[:limit]]
+    else:
+        total = qs.count()
+        results = list(qs.order_by("title", "name")[:limit])
+
+    datasets = []
+    for ds in results:
+        summary = _dataset_summary(ds)
+        if terms:
+            summary["matched_terms"] = matched_terms[ds.pk]
+        datasets.append(summary)
+
+    payload = {
+        "datasets": datasets,
         "total_matching": total,
         "truncated": total > len(results),
+        "query_terms": terms,
         "attribution": attribution_for(results, []),
     }
+    if not results:
+        # A model told only "nothing matched" tends to give up; the tags show
+        # it the vocabulary the catalog actually uses.
+        payload["available_tags"] = sorted(
+            {t for tags in qs.values_list("tags", flat=True) for t in (tags or [])}
+        )
+    return payload
+
+
+def _search_datasets_lines(query: str, payload: dict) -> list[str]:
+    lines = [
+        f"{fmt_count(payload['total_matching'], 'dataset')} matched"
+        + (f"; showing {len(payload['datasets'])}." if payload["truncated"] else ".")
+    ]
+    for ds in payload["datasets"]:
+        lines.append(
+            f"- {ds['name']}: {ds['title']}"
+            + (f" ({ds['temporal_range']})" if ds["temporal_range"] else "")
+            + (
+                f" [matched: {', '.join(ds['matched_terms'])}]"
+                if ds.get("matched_terms")
+                else ""
+            )
+        )
+    if not payload["datasets"] and payload["query_terms"]:
+        tags = payload.get("available_tags") or []
+        lines.append(
+            f"Nothing matched '{query}'. Try a broader or alternative term "
+            "(e.g. 'precipitation' rather than 'rainfall')"
+            + (f", one of these tags: {', '.join(tags)}" if tags else "")
+            + ", or an empty query to list every dataset."
+        )
+    return lines
 
 
 # ── get_dataset ──────────────────────────────────────────────────────────────
@@ -568,7 +675,16 @@ def register(mcp, user_dep):
     @mcp.tool(annotations=READ_ONLY, output_schema=GENERIC_OUTPUT_SCHEMA)
     @tool_body
     def search_datasets(
-        query: Annotated[str, Field(description="Text to match.")] = "",
+        query: Annotated[
+            str,
+            Field(
+                description=(
+                    "Words to look for in dataset names, titles, tags and "
+                    "descriptions. Any word can match; datasets matching more "
+                    "words rank first."
+                )
+            ),
+        ] = "",
         tag: Annotated[str | None, Field(description="Exact tag, e.g. 'climate'.")] = None,
         type: Annotated[
             str | None, Field(description="Dataset type, e.g. 'raster' or 'vector'.")
@@ -581,18 +697,12 @@ def register(mcp, user_dep):
         This searches everything GeoQuery holds, whether or not it is already
         processed for a particular place. To find what you can read *right
         now* for specific boundaries, use list_available_data instead.
+
+        The query is matched word by word, and an empty query lists the
+        whole catalog.
         """
         payload = _search_datasets(user, query, tag, type, limit)
-        lines = [
-            f"{fmt_count(payload['total_matching'], 'dataset')} matched"
-            + (f"; showing {len(payload['datasets'])}." if payload["truncated"] else ".")
-        ]
-        for ds in payload["datasets"]:
-            lines.append(
-                f"- {ds['name']}: {ds['title']}"
-                + (f" ({ds['temporal_range']})" if ds["temporal_range"] else "")
-            )
-        return result(lines, payload)
+        return result(_search_datasets_lines(query, payload), payload)
 
     @mcp.tool(annotations=READ_ONLY, output_schema=GENERIC_OUTPUT_SCHEMA)
     @tool_body

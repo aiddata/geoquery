@@ -23,6 +23,7 @@ from mcp_server.tools.catalog import (
     _search_boundaries,
     _search_boundaries_lines,
     _search_datasets,
+    _search_datasets_lines,
 )
 from mcp_server.tools.explore import (
     _data_block,
@@ -289,6 +290,90 @@ class DatasetToolTests(TestCase):
         payload = _search_datasets(None, tag="climate")
 
         self.assertEqual([d["name"] for d in payload["datasets"]], ["rain"])
+
+    def _precipitation(self):
+        make_dataset(
+            name="cru_ts_407_pre_yearly_mean",
+            title="Yearly Mean Precipitation - CRU TS (v4.07)",
+            description="Yearly mean precipitation from Climate Research Unit.",
+            tags=["cru", "precipitation", "environment"],
+        )
+        make_dataset(
+            name="gpm_precipitation_v07b_monthly",
+            title="Monthly IMERG (GPM) precipitation (v07B)",
+            description="Monthly IMERG GPM precipitation - research version",
+            tags=["nasa", "precipitation", "gpm"],
+        )
+
+    def test_any_query_word_can_match(self):
+        self._precipitation()
+
+        payload = _search_datasets(None, query="rainfall precipitation")
+
+        self.assertEqual(
+            {d["name"] for d in payload["datasets"]},
+            {"cru_ts_407_pre_yearly_mean", "gpm_precipitation_v07b_monthly"},
+        )
+        self.assertEqual(payload["query_terms"], ["rainfall", "precipitation"])
+        for ds in payload["datasets"]:
+            self.assertEqual(ds["matched_terms"], ["precipitation"])
+
+    def test_more_matched_words_rank_first(self):
+        self._precipitation()
+
+        payload = _search_datasets(None, query="precipitation imerg")
+
+        self.assertEqual(
+            [d["name"] for d in payload["datasets"]],
+            ["gpm_precipitation_v07b_monthly", "cru_ts_407_pre_yearly_mean"],
+        )
+
+    def test_title_and_tag_hits_outrank_description_hits(self):
+        make_dataset(
+            name="aaa_mentions", title="Aaa Other", description="Covers drought."
+        )
+        make_dataset(name="zzz_titled", title="Zzz Drought Index")
+        make_dataset(name="zzz_tagged", title="Zzz Other", tags=["drought"])
+
+        payload = _search_datasets(None, query="drought")
+
+        names = [d["name"] for d in payload["datasets"]]
+        self.assertEqual(names[-1], "aaa_mentions")
+        self.assertEqual(set(names[:2]), {"zzz_titled", "zzz_tagged"})
+
+    def test_case_and_punctuation_split_words(self):
+        self._precipitation()
+
+        payload = _search_datasets(None, query="CRU-TS")
+
+        self.assertEqual(payload["query_terms"], ["cru", "ts"])
+        self.assertEqual(
+            payload["datasets"][0]["name"], "cru_ts_407_pre_yearly_mean"
+        )
+
+    def test_stopword_only_query_does_not_match_everything(self):
+        payload = _search_datasets(None, query="the")
+
+        self.assertEqual(payload["query_terms"], ["the"])
+        self.assertEqual(payload["datasets"], [])
+
+    def test_no_match_offers_the_catalog_tags(self):
+        self._precipitation()
+
+        payload = _search_datasets(None, query="rain")
+
+        self.assertEqual(payload["datasets"], [])
+        self.assertIn("precipitation", payload["available_tags"])
+        text = "\n".join(_search_datasets_lines("rain", payload))
+        self.assertIn("Nothing matched 'rain'", text)
+        self.assertIn("precipitation", text)
+
+    def test_empty_query_lists_without_matched_terms(self):
+        payload = _search_datasets(None)
+
+        (ds,) = payload["datasets"]
+        self.assertNotIn("matched_terms", ds)
+        self.assertNotIn("available_tags", payload)
 
     def test_detail_lists_extract_types_as_get_data_accepts_them(self):
         payload = _get_dataset(None, "esa_landcover")
