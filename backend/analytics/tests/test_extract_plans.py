@@ -14,7 +14,12 @@ from django.test.utils import CaptureQueriesContext
 from analytics import sync
 from analytics.models import ExtractTask
 from analytics.tasks.leases import claim_lease
-from analytics.tests.extract_helpers import make_collection, make_dataset, settle_inputs
+from analytics.tests.extract_helpers import (
+    make_collection,
+    make_dataset,
+    reset_dataset_inputs,
+    settle_inputs,
+)
 
 
 def nodes(node):
@@ -115,7 +120,7 @@ class PlanTests(TestCase):
 
         from datasets.models import Dataset
 
-        Dataset.objects.filter(id=self.other.id).update(path="/data/plans-other-v2")
+        reset_dataset_inputs(self.other.id, path="/data/plans-other-v2")
         statements = self.captured(lambda: processing.claim_pending_tasks(4), "FROM extract_runnable_tasks")
         self.assertTrue(statements)
         plan = self.explain(statements[0])

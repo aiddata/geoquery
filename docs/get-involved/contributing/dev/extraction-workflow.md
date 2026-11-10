@@ -153,29 +153,30 @@ alike.
 | Change | Scope marked | Generation | Epoch | Flags / rewind / items |
 |---|---|---|---|---|
 | Dataset created | dataset | +1 | — | `sync_pairs`, rewind 0 |
-| Dataset `path`/`type`/`mapped` changed | dataset | +1 | +1 | `sync_pairs`, `reset_tasks`, rewind 0 |
 | Dataset extent or `is_global` changed | dataset | +1 | +1 | `sync_pairs`, `reset_coverage`, rewind 0 |
 | Dataset `active` or grouping changed | dataset | +1 | — | `sync_pairs` |
 | Dataset deleted | dataset | +1 | +1 | all three flags; the row stays as a tombstone until sync finishes |
 | Resource added, or its `temporal` changed | its dataset | +1 | — | `sync_pairs` |
-| Resource `path` changed | its dataset | +1 | +1 | item `resource` |
 | Resource deleted | its dataset | +1 | +1 | `sync_pairs`, item `resource` |
 | Option added, deleted or (de)activated | its dataset | +1 | — | `sync_pairs` |
-| Option `function`/`kwargs`/`short_name` changed | its dataset | +1 | +1 | item `option` |
 | Resource or option moved to another dataset | both datasets | +1 | +1 | `sync_pairs`, `reset_tasks`, rewind 0 |
-| Category map changed (mapped datasets only) | dataset | +1 | +1 | `sync_pairs`, `reset_tasks`, rewind 0 |
 | Collection created | collection | state row created, clean | — | — |
 | Collection `active` or upload flag changed | collection | +1 | — | rewind to (its lowest fm_id − 1) |
 | Feature added (non-upload) | its collection | +1 | — | rewind to (lowest new fm_id − 1). Also share-locks the geometry. |
 | Feature deleted (non-upload) | its collection | +1 | +1 | rewind |
-| Feature moved, or pointed at a different geometry | old and new collections | +1 | +1 | rewind the new collection. A new geometry also logs item `feature`. |
-| Geometry `shape` changed | every collection using it | +1 | +1 | rewind, item `feature` for each referencing feature, **and that geometry's coverage rows are deleted right there** |
+| Feature moved between collections | old and new collections | +1 | +1 | rewind the new collection |
+| Feature pointed at a different geometry | its collection | +1 | — | rewind |
+| Geometry `shape` changed | every collection using it | +1 | — | rewind, **and that geometry's coverage rows are deleted right there** |
+| Dataset `path`/`type`/`mapped`, resource `path`, option `function`/`kwargs`/`short_name`, category maps | — | — | — | nothing: existing tasks and results are left alone |
 | Titles, names, attributes, citations | — | — | — | nothing |
 
-Raster files must be published at a new path and the resource's `path`
-updated. The triggers can't see a file rewritten in place. For changes made
-outside the watched tables, `manage.py invalidate_extract_inputs` records the
-same kind of reset by hand.
+An in-place edit to a dataset, resource, option or category map does not reset
+or recompute anything: it is for changes that leave results the same, such as
+files moved to a new directory. An input whose results should change is
+published as a new dataset, resource, option or collection, so tasks a request
+links are never rewritten. The triggers can't see a file rewritten in place
+either. `manage.py invalidate_extract_inputs` is the deliberate way to reset a
+dataset or collection and recompute it.
 
 ### Step 2: a signal or beat wakes sync
 
@@ -585,9 +586,7 @@ While processing workers are running:
    processed.
 
 **A shape edit to one of those boundaries goes differently.** In the same
-transaction as the edit, its coverage is deleted, its collection's epoch is
-bumped, the feature is logged as an item, and a rewind is recorded. Leases
-holding that feature then fail `recheck` and are deferred. Sync deletes that
-feature's tasks and results. Publish lowers every cursor and watermark below
-the feature and re-tokens the leases that hold it. A lease then recomputes it
-from the new shape.
+transaction as the edit, its coverage is deleted and a rewind is recorded.
+Publish lowers every cursor and watermark below the feature, so its coverage is
+computed again from the new shape. Its tasks and results are left alone, and a
+scan that reaches a feature with a task computes nothing.

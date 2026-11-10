@@ -21,7 +21,13 @@ from analytics.models import (
 from analytics.tasks import leases
 from analytics.tasks.leases import claim_lease, complete_lease, run_lease
 from analytics.changes import mark
-from analytics.tests.extract_helpers import make_collection, make_dataset, settle_inputs
+from analytics.tests.extract_helpers import (
+    make_collection,
+    make_dataset,
+    reset_feature_shape,
+    reset_resource_inputs,
+    settle_inputs,
+)
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
 from geoquery.testing import ReplicaReadsTestMixin
@@ -119,7 +125,7 @@ class ClaimTests(LeaseTestCase):
         self.assertIn(self.fms[1].id, lease.fm_ids)
 
     def test_resetting_pairs_inactive_collections_and_uploads_are_not_leased(self):
-        DatasetResource.objects.filter(id=self.resource.id).update(path="v2.tif")
+        reset_resource_inputs(self.resource.id, path="v2.tif")
         self.assertIsNone(claim_lease())
         settle_inputs()
 
@@ -186,7 +192,7 @@ class ClaimTests(LeaseTestCase):
     def test_a_reshaped_feature_is_recomputed_by_a_lease(self):
         self.assertEqual(self.run_page(claim_lease()), "completed")
         reshaped = self.fms[3]
-        Feature.objects.filter(id=reshaped.geom_id).update(shape=Point(70.5, 0.5))
+        reset_feature_shape(reshaped.geom_id, Point(70.5, 0.5))
         settle_inputs()
         # Only that feature's background task was deleted, and only it is leased again.
         lease = claim_lease()
@@ -281,7 +287,7 @@ class CompleteTests(LeaseTestCase):
 
     def test_changed_inputs_defer_the_page_without_penalty(self):
         lease = claim_lease()
-        Feature.objects.filter(id=self.fms[0].geom_id).update(shape=Point(40, 40))
+        reset_feature_shape(self.fms[0].geom_id, Point(40, 40))
         self.assertEqual(self.run_page(lease), "deferred")
         self.assertFalse(self.tasks().exists())
         row = self.lease_row(lease)

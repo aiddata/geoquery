@@ -6,8 +6,10 @@ from pathlib import Path
 
 import numpy as np
 from django.contrib.gis.geos import Point, Polygon
+from django.db import transaction
 
-from analytics.models import ProcessingOption
+from analytics.changes import COLLECTION, DATASET, mark
+from analytics.models import ExtractInvalidItem, ProcessingOption
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
 
@@ -22,6 +24,32 @@ def settle_inputs():
     from analytics.sync import run_until_clean
 
     return run_until_clean()
+
+
+def reset_dataset_inputs(dataset_id, **fields):
+    """Edit a dataset and record a whole-dataset reset, as invalidate_extract_inputs does."""
+    with transaction.atomic():
+        Dataset.objects.filter(id=dataset_id).update(**fields)
+        mark(DATASET, [dataset_id], rewind_from=0, sync_pairs=True, reset_tasks=True)
+
+
+def reset_resource_inputs(resource_id, **fields):
+    """Edit a resource and record a targeted reset of its tasks."""
+    with transaction.atomic():
+        DatasetResource.objects.filter(id=resource_id).update(**fields)
+        dataset_id = DatasetResource.objects.values_list("dataset_id", flat=True).get(id=resource_id)
+        mark(DATASET, [dataset_id], items=(ExtractInvalidItem.RESOURCE, [resource_id]))
+
+
+def reset_feature_shape(geom_id, shape):
+    """Edit a geometry and record a targeted reset of every feature using it."""
+    with transaction.atomic():
+        Feature.objects.filter(id=geom_id).update(shape=shape)
+        by_collection = {}
+        for fm_id, fc_id in FeatMap.objects.filter(geom_id=geom_id).values_list("id", "fc_id"):
+            by_collection.setdefault(fc_id, []).append(fm_id)
+        for fc_id, fm_ids in sorted(by_collection.items()):
+            mark(COLLECTION, [fc_id], items=(ExtractInvalidItem.FEATURE, fm_ids))
 
 
 def make_dataset(name, *, resources=1, is_global=True, period=None, active=True,

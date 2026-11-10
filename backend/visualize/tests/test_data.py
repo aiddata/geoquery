@@ -4,6 +4,7 @@ from django.test import TestCase
 from analytics.models import (
     ExtractData, ExtractTask, ExtractTaskBuildProgress, ProcessingOption, Request, RequestMap,
 )
+from analytics.tests.extract_helpers import reset_feature_shape
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature, FeatureCollection
 from geoquery.testing import ReplicaReadsTestMixin
@@ -269,7 +270,7 @@ class VisualizeDataTestCase(ReplicaReadsTestMixin, TestCase):
             tasks.append(task)
         req = self._make_request(*tasks)
         # Feature A is reshaped: its results wait for sync, B's stay served.
-        Feature.objects.filter(id=self.feature.id).update(shape=Point(5, 5))
+        reset_feature_shape(self.feature.id, Point(5, 5))
         for payload in (build_request_data(req), build_explore_data([self.fc.id], [self.po.id])):
             self.assertNotIn("ds1-hide.mean", payload["features"][str(self.feature.id)])
             self.assertEqual(payload["features"][str(other_fm.geom_id)]["ds1-hide.mean"], 1.0)

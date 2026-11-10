@@ -13,7 +13,13 @@ from analytics.management.commands.manage_user_requests import (
 from analytics.models import ExtractTask, Request, RequestMap
 from analytics.services import MaterializationDeferred, create_request, materialize_request
 from analytics.tasks.requests import materialize_request_tasks
-from analytics.tests.extract_helpers import make_collection, make_dataset, settle_inputs
+from analytics.tests.extract_helpers import (
+    make_collection,
+    make_dataset,
+    reset_feature_shape,
+    reset_resource_inputs,
+    settle_inputs,
+)
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature
 
@@ -40,7 +46,7 @@ class RequestFencingTests(TestCase):
 
     def test_materialization_waits_while_an_input_is_being_reset(self):
         req = self.submit()
-        DatasetResource.objects.filter(id=self.resource.id).update(path="v2.tif")
+        reset_resource_inputs(self.resource.id, path="v2.tif")
         with self.assertRaises(MaterializationDeferred):
             materialize_request(req)
         req.refresh_from_db()
@@ -89,7 +95,7 @@ class RequestFencingTests(TestCase):
                 staged.mkdir()
                 (staged / "out.csv").write_text("stale")
                 # A boundary is reshaped while the output is being written.
-                Feature.objects.filter(id=self.fms[0].geom_id).update(shape=Point(5, 5))
+                reset_feature_shape(self.fms[0].geom_id, Point(5, 5))
                 return staged
 
             with mock.patch(f"{SWEEP}._notify_user"), mock.patch(f"{SWEEP}._build_output", side_effect=build):
@@ -128,7 +134,7 @@ class RequestFencingTests(TestCase):
             result = _check_request_tasks(request, dry_run=dry_run)
             # A boundary is reshaped, and its reset published, before the
             # sweep captures the input generations.
-            Feature.objects.filter(id=self.fms[0].geom_id).update(shape=Point(5, 5))
+            reset_feature_shape(self.fms[0].geom_id, Point(5, 5))
             settle_inputs()
             return result
 
@@ -146,7 +152,7 @@ class RequestFencingTests(TestCase):
         req = self.submit()
         materialize_request(req)
         ExtractTask.objects.update(status=1)
-        Feature.objects.filter(id=self.fms[0].geom_id).update(shape=Point(8, 8))
+        reset_feature_shape(self.fms[0].geom_id, Point(8, 8))
         with mock.patch(f"{SWEEP}._notify_user"), mock.patch(f"{SWEEP}._build_output") as build:
             _manage_user_requests()
         build.assert_not_called()
@@ -169,7 +175,7 @@ class RequestFencingTests(TestCase):
         req = self.submit()
         materialize_request(req)
         Request.objects.filter(id=req.id).update(status=1)
-        DatasetResource.objects.filter(id=self.resource.id).update(path="v3.tif")
+        reset_resource_inputs(self.resource.id, path="v3.tif")
         settle_inputs()
         req.refresh_from_db()
         self.assertEqual(req.status, 1)

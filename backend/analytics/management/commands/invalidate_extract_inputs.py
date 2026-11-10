@@ -17,13 +17,13 @@ class Command(BaseCommand):
         parser.add_argument("--collection", type=int, action="append", dest="collections", default=[])
 
     def handle(self, *args, **options):
-        """The same durable reset the triggers record for an edit.
+        """Deliberately reset a dataset's or collection's results.
 
-        For repair and import workflows that changed what an extraction reads
-        without going through the tables the triggers watch -- most often a
-        replaced raster. It cannot make a concurrent in-place file rewrite safe,
-        or detect one: publish replacement files at a new path and update the
-        resource's path instead, and the trigger does this for you.
+        Edits to an input's definition do not reset anything, so this is the
+        one route for recomputing results that already exist, including tasks
+        linked to completed requests. It cannot make a concurrent in-place
+        file rewrite safe, or detect one: publish replacement files at a new
+        path first.
         """
         if not options["datasets"] and not options["collections"]:
             raise CommandError("Name at least one --dataset or --collection")
