@@ -137,18 +137,6 @@
 		mapFrame?.resetView();
 	}
 
-	// Featured boundaries: tagged "featured", sorted by most recent, top 3
-	let featuredBoundaries = $derived(
-		allBoundaries
-			.filter((b) => b.tags?.includes('featured'))
-			.sort((a, b) => {
-				const dateA = a.date_added ? new Date(a.date_added).getTime() : 0;
-				const dateB = b.date_added ? new Date(b.date_added).getTime() : 0;
-				return dateB - dateA;
-			})
-			.slice(0, 3)
-	);
-
 	$effect(() => {
 		boundaryLoading = true;
 		boundaryLoadError = null;
@@ -196,6 +184,22 @@
 
 	// Selected boundaries (shared between GeographySearch and BrowsePanel)
 	let browseBoundaries = $state<BoundaryResult[]>(_init.boundaries);
+
+	// Featured boundaries: tagged "featured", sorted by most recent, top 3.
+	// Only a starting point, so hidden once anything is selected.
+	let featuredBoundaries = $derived(
+		browseBoundaries.length > 0
+			? []
+			: allBoundaries
+					.filter((b) => b.tags?.includes('featured'))
+					.sort((a, b) => {
+						const dateA = a.date_added ? new Date(a.date_added).getTime() : 0;
+						const dateB = b.date_added ? new Date(b.date_added).getTime() : 0;
+						return dateB - dateA;
+					})
+					.slice(0, 3)
+	);
+
 	// Features clicked on the map; only meaningful when exactly one boundary is selected
 	let pendingFeatureIds = $state<number[]>(_init.featureIds);
 	let currentBbox = $state<Bbox | null>(_init.bbox);
