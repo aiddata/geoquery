@@ -13,6 +13,28 @@ from loguru import logger
 from features.matviews import update_simplified_geometries
 from features.models import FeatMap, Feature, FeatureCollection
 
+# boundaryCanonical values that name no unit type. "gbOpen" is the release
+# family, filled in where the canonical name was missing.
+_NOT_CANONICAL = {"", "unknown", "gbopen", "nan"}
+
+
+def collection_title(adm_meta):
+    """The metadata title, with the unit type in parentheses when known.
+
+    "geoBoundaries v6 - Ghana ADM2" becomes "geoBoundaries v6 - Ghana ADM2
+    (Districts)", so the levels of a country are told apart by what they are
+    rather than only by number. An ADM0 without one is a "Country". Mirrored
+    for existing collections by features migration 0015; keep the two in step.
+    """
+    title = adm_meta["title"]
+    other = adm_meta.get("other") or {}
+    canonical = str(other.get("boundaryCanonical") or "").strip()
+    if canonical.lower() in _NOT_CANONICAL:
+        if other.get("boundaryType") != "ADM0":
+            return title
+        canonical = "Country"
+    return f"{title} ({canonical})"
+
 
 class Command(BaseIngestCommand):
     help = "Ingest geoBoundaries data into the features database"
@@ -200,7 +222,7 @@ class Command(BaseIngestCommand):
                 "public": self.set_public,
                 "path": str(gpkg_path),
                 "file_extension": ".gpkg",
-                "title": adm_meta["title"],
+                "title": collection_title(adm_meta),
                 "description": adm_meta["description"],
                 "details": adm_meta.get("details", ""),
                 "tags": adm_meta["tags"],

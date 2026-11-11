@@ -556,3 +556,77 @@ class ClusteredTileTests(ReplicaReadsTestMixin, TestCase):
         self.assertEqual(stored(), (CLUSTER_MAX_ZOOM + 1, 4 * (CLUSTER_MAX_ZOOM + 1)))
         remove_simplified_geometries(self.small.id)
         self.assertEqual(stored(), (0, None))
+
+
+class GeoboundariesTitleTests(TestCase):
+    def test_collection_title_appends_known_canonical(self):
+        from features.management.commands.ingest_geoboundaries import collection_title
+
+        def title(canonical):
+            return collection_title(
+                {"title": "geoBoundaries v6 - Ghana ADM2", "other": {"boundaryCanonical": canonical}}
+            )
+
+        self.assertEqual(title("Districts"), "geoBoundaries v6 - Ghana ADM2 (Districts)")
+        self.assertEqual(title("  Districts "), "geoBoundaries v6 - Ghana ADM2 (Districts)")
+        for missing in ("", "   ", "Unknown", "unknown", "gbOpen", "nan", None):
+            self.assertEqual(title(missing), "geoBoundaries v6 - Ghana ADM2", missing)
+        self.assertEqual(
+            collection_title({"title": "geoBoundaries v6 - Ghana ADM2", "other": {}}),
+            "geoBoundaries v6 - Ghana ADM2",
+        )
+
+        def adm0(canonical):
+            return collection_title(
+                {
+                    "title": "geoBoundaries v6 - Ghana ADM0",
+                    "other": {"boundaryType": "ADM0", "boundaryCanonical": canonical},
+                }
+            )
+
+        self.assertEqual(adm0("Republic"), "geoBoundaries v6 - Ghana ADM0 (Republic)")
+        for missing in ("", "Unknown", "gbOpen", None):
+            self.assertEqual(adm0(missing), "geoBoundaries v6 - Ghana ADM0 (Country)", missing)
+
+    def test_migration_updates_existing_titles_once_and_reverses(self):
+        import importlib
+
+        migration = importlib.import_module(
+            "features.migrations.0015_geoboundaries_canonical_titles"
+        )
+        rows = {
+            "gB_57dcd43_GHA_ADM2": ("ADM2", "Districts"),
+            "gB_57dcd43_GHA_ADM1": ("ADM1", "Unknown"),
+            "gB_57dcd43_BIH_ADM2": ("ADM2", "gbOpen"),
+            "gB_57dcd43_BIH_ADM0": ("ADM0", "gbOpen"),
+            "gB_57dcd43_BEN_ADM0": ("ADM0", ""),
+            "gB_57dcd43_TGO_ADM0": ("ADM0", "Republic"),
+            "other_GHA_ADM2": ("ADM2", "Districts"),
+        }
+        for name, (level, canonical) in rows.items():
+            FeatureCollection.objects.create(
+                name=name, path=f"/{name}", title=f"T {name}",
+                other={"boundaryType": level, "boundaryCanonical": canonical},
+            )
+        FeatureCollection.objects.create(
+            name="gB_57dcd43_NOM_ADM1", path="/none", title="T none", other={}
+        )
+        changed = {
+            "gB_57dcd43_GHA_ADM2": "T gB_57dcd43_GHA_ADM2 (Districts)",
+            "gB_57dcd43_BIH_ADM0": "T gB_57dcd43_BIH_ADM0 (Country)",
+            "gB_57dcd43_BEN_ADM0": "T gB_57dcd43_BEN_ADM0 (Country)",
+            "gB_57dcd43_TGO_ADM0": "T gB_57dcd43_TGO_ADM0 (Republic)",
+        }
+
+        def titles():
+            return dict(FeatureCollection.objects.values_list("name", "title"))
+
+        before = titles()
+        with connection.cursor() as cursor:
+            cursor.execute(migration.FORWARD)
+            cursor.execute(migration.FORWARD)
+        after = titles()
+        self.assertEqual(after, {**before, **changed})
+        with connection.cursor() as cursor:
+            cursor.execute(migration.REVERSE)
+        self.assertEqual(titles(), before)
