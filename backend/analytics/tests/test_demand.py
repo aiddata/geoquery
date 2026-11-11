@@ -11,7 +11,13 @@ from django.utils import timezone
 from analytics.models import (
     CoverageProgress, ExtractTask, ExtractTaskBuildProgress, ExtractTaskLease, Request, RequestMap,
 )
-from analytics.tests.extract_helpers import make_collection, make_dataset, settle_inputs
+from analytics.tests.extract_helpers import (
+    make_collection,
+    make_dataset,
+    reset_dataset_inputs,
+    reset_feature_shape,
+    settle_inputs,
+)
 from datasets.models import Dataset, DatasetResource
 
 
@@ -69,7 +75,7 @@ class DemandTests(TestCase):
         DatasetResource.objects.create(dataset=self.dataset, name="demand-r2", path="r2.tif")
         self.assertEqual(demand(), self.max_fm)
         # A reset of the whole dataset parks it until sync publishes.
-        Dataset.objects.filter(id=self.dataset.id).update(path="/data/demand-v2")
+        reset_dataset_inputs(self.dataset.id, path="/data/demand-v2")
         self.assertEqual(demand(), 0)
 
     def test_uploads_raise_no_demand(self):
@@ -103,7 +109,7 @@ class DemandTests(TestCase):
         settle_inputs()
         ExtractTaskBuildProgress.objects.filter(dataset_id=self.dataset.id).update(cursor_fm_id=10**6)
         from features.models import Feature
-        Feature.objects.filter(id=self.fms[2].geom_id).update(shape=Polygon(((5, 5), (6, 5), (6, 6), (5, 5))))
+        reset_feature_shape(self.fms[2].geom_id, Polygon(((5, 5), (6, 5), (6, 6), (5, 5))))
 
         self.assertEqual(demand(), 1)
         self.assertEqual(processing.claim_pending_tasks(10), [(runnable.id, self.dataset.id)])

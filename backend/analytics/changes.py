@@ -1,9 +1,12 @@
 """Input change capture and the guards that fence extraction work against it.
 
-Changes to anything an extraction reads -- a dataset's path, a resource, a
-processing option, a category map, a collection's eligibility, a feature's
-shape -- are recorded by database triggers (migration 0031) in
-extract_input_state, in the same transaction as the change. Each dataset and
+Changes that add, retire or delete what extractions run over -- a dataset, a
+resource, a processing option, a feature, a collection's eligibility -- are
+recorded by database triggers (migrations 0031 and 0034) in
+extract_input_state, in the same transaction as the change. An in-place edit
+to an input's definition is recorded by nothing: it is for changes that leave
+results the same, and an input whose results should change is published as a
+new one. Each dataset and
 each collection has one row: a scope. A scope is dirty while its generation
 differs from applied_generation; analytics.sync reconciles it and publishes
 the new generation. This module is the Python side of that contract.

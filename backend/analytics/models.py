@@ -352,8 +352,8 @@ class ExtractInputState(models.Model):
     landing after an edit.
 
     epoch counts invalidations only: a change that makes stored results or
-    in-flight work wrong (a reshaped feature, a new resource path, a whole
-    dataset reset, a deleted feature). Work records the epochs it saw and
+    in-flight work wrong (a whole dataset reset, a deleted resource or
+    feature, a changed extent). Work records the epochs it saw and
     rechecks them; additive changes (a new feature or resource, an activity
     flip) advance generation, which drives sync, but not epoch, so they never
     discard finished work.
@@ -401,11 +401,10 @@ class ExtractInputState(models.Model):
 class ExtractInvalidItem(models.Model):
     """One input a pending targeted reset invalidates.
 
-    Written by the capture triggers (migration 0031) next to the scope's
-    mark, and deleted when sync publishes that scope. A ``feature`` item
-    (collection scope) is a feat_map row whose geometry changed; a
-    ``resource`` or ``option`` item (dataset scope) is one whose path or
-    definition changed. Sync resets only the tasks these name, and readers
+    Written next to the scope's mark, and deleted when sync publishes that
+    scope. The capture triggers log a deleted ``resource``;
+    invalidate_extract_inputs logs each ``feature`` of a collection it resets.
+    Sync resets only the tasks these name, and readers
     and claims skip those tasks until then (the extract_valid_tasks view).
     Whole-dataset changes still use the scope's reset flags instead.
     """

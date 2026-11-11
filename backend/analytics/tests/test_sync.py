@@ -16,7 +16,14 @@ from analytics.models import (
     CoverageProgress, ExtractData, ExtractInputState, ExtractInvalidItem, ExtractTask,
     ExtractTaskBuildProgress, ExtractTaskLease, Request, RequestMap,
 )
-from analytics.tests.extract_helpers import make_collection, make_dataset, settle_inputs
+from analytics.tests.extract_helpers import (
+    make_collection,
+    make_dataset,
+    reset_dataset_inputs,
+    reset_feature_shape,
+    reset_resource_inputs,
+    settle_inputs,
+)
 from datasets.models import Dataset, DatasetResource
 from features.models import FeatMap, Feature
 
@@ -222,7 +229,7 @@ class PublishTests(TestCase):
         settle_inputs()
         self.assertEqual(ExtractTaskLease.objects.get(id=lease.id).token, lease.token)
 
-        Dataset.objects.filter(id=dataset.id).update(path="/data/tok-v2")
+        reset_dataset_inputs(dataset.id, path="/data/tok-v2")
         settle_inputs()
         before, after = lease.token, ExtractTaskLease.objects.get(id=lease.id)
         self.assertNotEqual(after.token, before)
@@ -275,7 +282,7 @@ class ResetTests(TestCase):
 
         ExtractTaskBuildProgress.objects.filter(dataset_id=self.dataset.id).update(cursor_fm_id=10_000)
 
-        Dataset.objects.filter(id=self.dataset.id).update(path="/data/moved")
+        reset_dataset_inputs(self.dataset.id, path="/data/moved")
         chunks = settle_inputs()
         # pairs, then 12 tasks at 2 per chunk (plus an empty final check), then
         # publish -- each its own transaction.
@@ -303,7 +310,7 @@ class ResetTests(TestCase):
         changed = [self.make_done(self.dataset, self.po, self.r1, fm) for fm in self.fms]
         kept = [self.make_done(self.dataset, self.po, self.r2, fm) for fm in self.fms]
         ExtractTaskBuildProgress.objects.filter(dataset_id=self.dataset.id).update(cursor_fm_id=10_000)
-        DatasetResource.objects.filter(id=self.r1.id).update(path="r1-v2.tif")
+        reset_resource_inputs(self.r1.id, path="r1-v2.tif")
         settle_inputs()
         self.assertFalse(ExtractTask.objects.filter(
             dataset_id=self.dataset.id, id__in=[t.id for t in changed]).exists())
@@ -345,7 +352,7 @@ class ResetTests(TestCase):
         req = Request.objects.create(contact="a@b.c", status=-1, data={})
         RequestMap.objects.create(request=req, task=requested, dataset_id=self.other.id)
         theirs = self.make_done(self.dataset, self.po, self.r1, self.fms2[0])
-        Feature.objects.filter(id=self.fms[1].geom_id).update(shape=Point(70, 70))
+        reset_feature_shape(self.fms[1].geom_id, Point(70, 70))
         settle_inputs()
         self.assertFalse(ExtractTask.objects.filter(dataset_id=self.dataset.id, id=reshaped.id).exists())
         requested.refresh_from_db()
@@ -365,7 +372,7 @@ class ResetTests(TestCase):
         RequestMap.objects.create(request=req, task=task, dataset_id=self.dataset.id)
         self.assertEqual(_check_request_tasks(req, dry_run=True)[0], 0)
 
-        DatasetResource.objects.filter(id=self.r1.id).update(path="v2.tif")
+        reset_resource_inputs(self.r1.id, path="v2.tif")
         pending, completed, _ = _check_request_tasks(req, dry_run=True)
         self.assertEqual((pending, completed), (1, {}))
 
@@ -373,7 +380,7 @@ class ResetTests(TestCase):
         for fm in self.fms:
             self.make_done(self.dataset, self.po, self.r1, fm)
             self.make_done(self.dataset, self.po, self.r2, fm)
-        DatasetResource.objects.filter(id=self.r1.id).update(path="first.tif")
+        reset_resource_inputs(self.r1.id, path="first.tif")
         sync.sync_extract_work(max_chunks=1)  # one reset chunk
         s = state("dataset", self.dataset.id)
         self.assertEqual(s.checkpoint["phase"], "reset_items")
@@ -398,7 +405,7 @@ class ResetTests(TestCase):
     def test_a_scope_is_never_published_after_part_of_its_repair(self):
         for fm in self.fms:
             self.make_done(self.dataset, self.po, self.r1, fm)
-        Dataset.objects.filter(id=self.dataset.id).update(path="/data/partial")
+        reset_dataset_inputs(self.dataset.id, path="/data/partial")
         for _ in range(3):
             sync.sync_extract_work(max_chunks=1)
             s = state("dataset", self.dataset.id)
@@ -444,7 +451,7 @@ class RobustnessTests(TestCase):
         settle_inputs()
         for fm in fms:
             ExtractTask.objects.create(dataset_id=dataset.id, resource_ids=[r.id], fm=fm, po=po, status=1)
-        DatasetResource.objects.filter(id=r.id).update(path="long2.tif")
+        reset_resource_inputs(r.id, path="long2.tif")
         small, _ = make_collection("small-fc", 1)
         with self.settings(EXTRACT_RESET_CHUNK_SIZE=1):
             sync.sync_extract_work(max_chunks=4)
@@ -582,7 +589,7 @@ class ConcurrentSyncTests(TransactionTestCase):
         settle_inputs()
         for fm in fms:
             ExtractTask.objects.create(dataset_id=dataset.id, resource_ids=[r.id], fm=fm, po=po, status=1)
-        DatasetResource.objects.filter(id=r.id).update(path="race2.tif")
+        reset_resource_inputs(r.id, path="race2.tif")
         errors = []
 
         def run():

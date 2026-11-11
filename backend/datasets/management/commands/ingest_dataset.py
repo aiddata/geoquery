@@ -43,12 +43,20 @@ class Command(BaseIngestCommand):
         parser.add_argument(
             "--update",
             action="store_true",
-            help="Update an existing dataset (errors if it doesn't exist)",
+            help=(
+                "Update an existing dataset (errors if it doesn't exist). WARNING: "
+                "changed paths and processing options apply in place and do not "
+                "recompute existing results. If results should change, ingest a "
+                "new dataset or processing option instead"
+            ),
         )
         parser.add_argument(
             "--update-or-insert",
             action="store_true",
-            help="Try to update the dataset, inserting it if it doesn't exist",
+            help=(
+                "Try to update the dataset, inserting it if it doesn't exist. "
+                "Same WARNING as --update for an existing dataset"
+            ),
         )
         parser.add_argument(
             "--metadata-only",

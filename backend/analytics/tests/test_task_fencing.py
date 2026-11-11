@@ -8,7 +8,13 @@ from django.test import TestCase
 from analytics.changes import InputStateMissing, lock_states
 from analytics.models import ExtractData, ExtractInputState, ExtractTask, ExtractTaskBuildProgress, Request, RequestMap
 from analytics.tasks import processing
-from analytics.tests.extract_helpers import make_collection, make_dataset, settle_inputs
+from analytics.tests.extract_helpers import (
+    make_collection,
+    make_dataset,
+    reset_feature_shape,
+    reset_resource_inputs,
+    settle_inputs,
+)
 from datasets.models import DatasetResource
 from features.models import FeatMap, Feature
 
@@ -29,7 +35,7 @@ class TaskFencingTests(TestCase):
         task = self.task()
         req = Request.objects.create(contact="a@b.c", status=-1, data={})
         RequestMap.objects.create(request=req, task=task, dataset_id=self.dataset.id)
-        Feature.objects.filter(id=self.fms[0].geom_id).update(shape=Point(9, 9))
+        reset_feature_shape(self.fms[0].geom_id, Point(9, 9))
         self.assertEqual(processing.claim_pending_tasks(5), [])
         settle_inputs()
         self.assertEqual(processing.claim_pending_tasks(5), [(task.id, self.dataset.id)])
@@ -51,7 +57,7 @@ class TaskFencingTests(TestCase):
         with mock.patch.object(processing, "get_func", return_value=lambda g, p, **kw: [("mean", 3.0)]):
             processing._run_extract_task(task_id, dataset_id, outcomes=outcomes)
         # The raster is replaced while the result waits in the buffer.
-        DatasetResource.objects.filter(id=self.resource.id).update(path="v2.tif")
+        reset_resource_inputs(self.resource.id, path="v2.tif")
         processing._flush_outcomes(outcomes)
         task.refresh_from_db()
         self.assertEqual(task.status, 0)
@@ -60,7 +66,7 @@ class TaskFencingTests(TestCase):
     def test_a_task_whose_inputs_went_dirty_after_its_claim_is_deferred_not_failed(self):
         task = self.task()
         [(task_id, dataset_id)] = processing.claim_pending_tasks(1)
-        Feature.objects.filter(id=self.fms[0].geom_id).update(shape=Point(8, 8))
+        reset_feature_shape(self.fms[0].geom_id, Point(8, 8))
         outcomes = []
         processing._run_extract_task(task_id, dataset_id, outcomes=outcomes)
         self.assertEqual(outcomes, [])

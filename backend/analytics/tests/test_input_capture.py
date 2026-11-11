@@ -121,42 +121,44 @@ class CaptureTests(TestCase):
         self.assertEqual(state("dataset", self.dataset.id).generation, d_before)
         self.assertEqual(state("collection", self.fc.id).generation, c_before)
 
-    def test_dataset_wide_inputs_reset_the_whole_dataset(self):
+    def test_definition_edits_mark_nothing(self):
+        # A change that alters results is published as a new input, so an
+        # in-place edit has nothing to invalidate or recompute.
+        Dataset.objects.filter(id=self.dataset.id).update(mapped=True)
+        Mapping.objects.create(dataset=self.dataset, map_name="water", map_val=1)
+        r0 = self.resources[0]
         cases = [
             lambda: Dataset.objects.filter(id=self.dataset.id).update(path="/data/elsewhere"),
-            lambda: Dataset.objects.filter(id=self.dataset.id).update(mapped=True),
+            lambda: Dataset.objects.filter(id=self.dataset.id).update(type="vector"),
+            lambda: Dataset.objects.filter(id=self.dataset.id).update(mapped=False),
+            lambda: DatasetResource.objects.filter(id=r0.id).update(path="moved.tif"),
+            lambda: ProcessingOption.objects.filter(id=self.po.id).update(kwargs={"band": 2}),
+            lambda: ProcessingOption.objects.filter(id=self.po.id).update(function="rasterstats_default_max"),
+            lambda: ProcessingOption.objects.filter(id=self.po.id).update(short_name="renamed"),
+            lambda: Mapping.objects.filter(dataset=self.dataset).update(map_name="lake"),
+            lambda: Mapping.objects.create(dataset=self.dataset, map_name="ice", map_val=2),
+            lambda: Mapping.objects.filter(dataset=self.dataset, map_val=2).delete(),
         ]
-        for change in cases:
-            with self.subTest(change=change):
-                settle_inputs()
-                before = state("dataset", self.dataset.id).epoch
+        settle_inputs()
+        before = state("dataset", self.dataset.id)
+        for index, change in enumerate(cases):
+            with self.subTest(case=index):
                 change()
                 s = state("dataset", self.dataset.id)
-                self.assertNotEqual(s.generation, s.applied_generation)
-                self.assertTrue(s.reset_tasks)
-                self.assertTrue(s.sync_pairs)
-                self.assertEqual(s.epoch, before + 1)
+                self.assertEqual((s.generation, s.epoch), (before.generation, before.epoch))
+                self.assertFalse(s.reset_tasks or s.sync_pairs)
+                self.assertEqual(items("dataset", self.dataset.id), set())
 
-    def test_a_resource_or_option_change_resets_only_its_own_tasks(self):
-        r0, r1 = self.resources
-        cases = [
-            (lambda: DatasetResource.objects.filter(id=r0.id).update(path="moved.tif"), ("resource", r0.id)),
-            (lambda: ProcessingOption.objects.filter(id=self.po.id).update(kwargs={"band": 2}),
-             ("option", self.po.id)),
-            (lambda: ProcessingOption.objects.filter(id=self.po.id).update(function="rasterstats_default_max"),
-             ("option", self.po.id)),
-            (lambda: DatasetResource.objects.filter(id=r1.id).delete(), ("resource", r1.id)),
-        ]
-        for change, item in cases:
-            with self.subTest(item=item):
-                settle_inputs()
-                before = state("dataset", self.dataset.id).epoch
-                change()
-                s = state("dataset", self.dataset.id)
-                self.assertNotEqual(s.generation, s.applied_generation)
-                self.assertFalse(s.reset_tasks)
-                self.assertEqual(items("dataset", self.dataset.id), {item})
-                self.assertEqual(s.epoch, before + 1)
+    def test_deleting_a_resource_resets_only_its_own_tasks(self):
+        r1 = self.resources[1]
+        settle_inputs()
+        before = state("dataset", self.dataset.id).epoch
+        DatasetResource.objects.filter(id=r1.id).delete()
+        s = state("dataset", self.dataset.id)
+        self.assertNotEqual(s.generation, s.applied_generation)
+        self.assertFalse(s.reset_tasks)
+        self.assertEqual(items("dataset", self.dataset.id), {("resource", r1.id)})
+        self.assertEqual(s.epoch, before + 1)
 
     def test_membership_and_activity_changes_sync_pairs_without_a_reset(self):
         cases = [
@@ -194,34 +196,23 @@ class CaptureTests(TestCase):
                 self.assertFalse(s.reset_tasks)
                 self.assertEqual(s.rewind_from, 0)
 
-    def test_category_maps_only_matter_for_mapped_datasets(self):
-        before = state("dataset", self.dataset.id).generation
-        Mapping.objects.create(dataset=self.dataset, map_name="water", map_val=1)
-        self.assertEqual(state("dataset", self.dataset.id).generation, before)
-
-        Dataset.objects.filter(id=self.dataset.id).update(mapped=True)
-        settle_inputs()
-        Mapping.objects.filter(dataset=self.dataset).update(map_name="lake")
-        s = state("dataset", self.dataset.id)
-        self.assertTrue(s.reset_tasks)
-
-    def test_a_shape_change_resets_every_referencing_collection_once(self):
+    def test_a_shape_change_rewinds_every_referencing_collection_once(self):
         other = FeatureCollection.objects.create(name="cap-other", path="/data/cap-other")
         shared = self.fms[1].geom
         mirror = FeatMap.objects.create(fc=other, geom=shared)
         settle_inputs()
-        before = state("collection", self.fc.id).generation
+        before = state("collection", self.fc.id)
 
         Feature.objects.filter(id=shared.id).update(shape=Point(42, 42))
 
         for fc_id, fm in ((self.fc.id, self.fms[1]), (other.id, mirror)):
             s = state("collection", fc_id)
-            # Only the features using the geometry are reset; its coverage
-            # was deleted by the trigger itself.
-            self.assertEqual(items("collection", fc_id), {("feature", fm.id)})
+            # Coverage is rescanned for the new shape; tasks are left alone.
+            self.assertEqual(items("collection", fc_id), set())
             self.assertFalse(s.reset_tasks or s.reset_coverage)
             self.assertEqual(s.rewind_from, fm.id - 1)
-        self.assertEqual(state("collection", self.fc.id).generation, before + 1)
+        s = state("collection", self.fc.id)
+        self.assertEqual((s.generation, s.epoch), (before.generation + 1, before.epoch))
 
     def test_moving_a_feature_fences_both_owners_and_rescans_it(self):
         other = FeatureCollection.objects.create(name="cap-dest", path="/data/cap-dest")
@@ -234,11 +225,14 @@ class CaptureTests(TestCase):
             self.assertEqual(items("collection", fc_id), set())
         self.assertEqual(state("collection", other.id).rewind_from, self.fms[2].id - 1)
 
-    def test_repointing_a_feature_resets_its_tasks(self):
+    def test_repointing_a_feature_rewinds_without_touching_its_tasks(self):
         settle_inputs()
+        before = state("collection", self.fc.id).epoch
         FeatMap.objects.filter(id=self.fms[2].id).update(geom=Feature.objects.create(shape=Point(7, 7)))
-        self.assertEqual(items("collection", self.fc.id), {("feature", self.fms[2].id)})
-        self.assertEqual(state("collection", self.fc.id).rewind_from, self.fms[2].id - 1)
+        s = state("collection", self.fc.id)
+        self.assertEqual(items("collection", self.fc.id), set())
+        self.assertEqual(s.epoch, before)
+        self.assertEqual(s.rewind_from, self.fms[2].id - 1)
 
     def test_eligibility_changes_rewind_from_the_collections_lowest_feature(self):
         FeatureCollection.objects.filter(id=self.fc.id).update(active=False)
@@ -385,7 +379,7 @@ class ShapeEditLockOrderTests(TransactionTestCase):
         thread.join(10)
         editor.join(10)
         self.assertFalse(errors, errors)
-        # Its fresh snapshot found the attachment and logged it for a reset too.
+        # Its fresh snapshot found the attachment and rewound it too.
         attached_fm = FeatMap.objects.get(fc=late)
-        self.assertEqual(items("collection", late.id), {("feature", attached_fm.id)})
-        self.assertEqual(items("collection", fc.id), {("feature", fm.id)})
+        self.assertEqual(state("collection", late.id).rewind_from, attached_fm.id - 1)
+        self.assertEqual(state("collection", fc.id).rewind_from, fm.id - 1)
