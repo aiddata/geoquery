@@ -27,18 +27,16 @@
 				<X />
 			</Button>
 
-			<div class="flex items-start gap-3 pr-6">
+			<div class="flex items-start gap-2 pr-6">
 				<Heart class="mt-0.5 size-4 shrink-0 text-foreground" aria-hidden="true" />
-				<div>
-					<p class="text-sm font-bold">GeoQuery is a free service.</p>
-					<p class="mt-1 text-sm text-muted-foreground">
-						Are you a funder or donor? Help us help others.
-					</p>
-					<Button size="sm" class="mt-3" href="mailto:awooley@aiddata.org?subject=Supporting GeoQuery">
-						Contact our partnerships team
-					</Button>
-				</div>
+				<p class="text-sm font-bold">GeoQuery is a free service.</p>
 			</div>
+			<p class="mt-1 text-sm text-muted-foreground">
+				Are you a funder or donor? Help us help others.
+			</p>
+			<Button size="sm" class="mt-3" href="mailto:awooley@aiddata.org?subject=Supporting GeoQuery">
+				Contact our partnerships team
+			</Button>
 		</div>
 	</div>
 {/if}
