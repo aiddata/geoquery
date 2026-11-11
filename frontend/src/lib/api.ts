@@ -119,8 +119,9 @@ export const MULTI_TILE_LAYER = 'boundaries';
 
 /**
  * MVT layer of point clusters on both boundary tile endpoints (CLUSTER_TILE_LAYER in
- * backend/features/views.py). Where a boundary is too dense to draw in a tile, the
- * tile holds this instead of its polygons: points carrying `count` and `fc_id`.
+ * backend/features/views.py). Where a selection is too dense to draw, its tiles up to
+ * the clusters' maximum zoom hold this instead of polygons: points carrying `count`,
+ * the features in all, and fc_<id>, each boundary's share.
  */
 export const CLUSTER_TILE_LAYER = 'clusters';
 

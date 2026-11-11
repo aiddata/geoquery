@@ -9,15 +9,17 @@ DELETE+INSERT here takes only row locks, unlike REFRESH MATERIALIZED VIEW,
 whose ACCESS EXCLUSIVE lock blocked every reader (and every concurrent
 refresh) for the full multi-hour recompute of all collections at once.
 
-features_points and features_point_cells ride along: one point per feature,
-and those points pre-summed on a fixed grid, which vector tiles count and
-cluster where a collection is too dense to draw as polygons (see
-features.views). They are replaced in the same transaction as the simplified
-tiers, so a tile never sees points and shapes from different versions.
+features_points and features_cluster_points ride along: one point per
+feature, and those points clustered for every zoom tiles cluster at (see
+features.clusters), which tiles draw where a selection is too dense to draw as
+polygons. They are replaced in the same transaction as the simplified tiers,
+so a tile never sees clusters and shapes from different versions.
 """
 
 from django.db import connection, transaction
 from loguru import logger
+
+from .clusters import build_hierarchy
 
 SIMPLIFIED_GEOMETRY_TABLES = [
     ("features_simplified_z0_5", 0.075),
@@ -67,45 +69,54 @@ _INSERT_POINTS_SQL = f"""
     WHERE fm.fc_id = %s AND NOT ST_IsEmpty(f.shape)
 """
 
-POINT_CELLS_TABLE = "features_point_cells"
+CLUSTER_POINTS_TABLE = "features_cluster_points"
 
-# Half the width of the EPSG:3857 world, which spans [-HALF, HALF] on both axes.
-WEB_MERCATOR_HALF_WIDTH = 20037508.342789244
-
-# features_point_cells holds each collection's points summed on a grid of
-# 2**POINT_CELLS_LEVEL cells per world axis, numbered like tiles: column ci
-# from the west, row cj from the north. A tile's cluster cells are unions of
-# these whenever they are no finer -- up to z8 with features.views'
-# CLUSTER_GRID of 4 -- and above that tiles cluster from the points directly.
-POINT_CELLS_LEVEL = 10
-
-
-def cell_index_sql(level, x="ST_X(pt)", y="ST_Y(pt)"):
-    """SQL for the (ci, cj) of a point on a 2**level grid.
-
-    Shared by features_point_cells and the tile queries so a point always
-    lands in the same cell, and so in exactly one tile. Clamped, so a point on
-    the world's east or south edge stays in the last cell rather than falling
-    off the grid.
-    """
-    n = 2**level
-    w = WEB_MERCATOR_HALF_WIDTH
-    return (
-        f"LEAST(GREATEST(floor(({x} + {w}) * {n} / {2 * w})::integer, 0), {n - 1})",
-        f"LEAST(GREATEST(floor(({w} - {y}) * {n} / {2 * w})::integer, 0), {n - 1})",
-    )
-
-
-_CI, _CJ = cell_index_sql(POINT_CELLS_LEVEL)
-_INSERT_POINT_CELLS_SQL = f"""
-    INSERT INTO {POINT_CELLS_TABLE} (fc_id, ci, cj, n, sx, sy)
-    SELECT fc_id, ci, cj, count(*), sum(x), sum(y) FROM (
-        SELECT fc_id, ST_X(pt) AS x, ST_Y(pt) AS y, {_CI} AS ci, {_CJ} AS cj
-        FROM {POINTS_TABLE}
-        WHERE fc_id = %s
-    ) p
-    GROUP BY fc_id, ci, cj
+# One statement for the whole hierarchy, from parallel arrays.
+_INSERT_CLUSTER_POINTS_SQL = f"""
+    INSERT INTO {CLUSTER_POINTS_TABLE} (fc_id, z, n, pt)
+    SELECT %s, z, n, ST_SetSRID(ST_MakePoint(x, y), 3857)
+    FROM unnest(%s::integer[], %s::integer[], %s::float8[], %s::float8[]) AS t(z, n, x, y)
 """
+
+
+def write_cluster_points(cursor, fc_id):
+    """Rebuild one collection's cluster hierarchy from its features_points.
+
+    India ADM5 (650k points) takes well under a second.
+    """
+    cursor.execute(f"DELETE FROM {CLUSTER_POINTS_TABLE} WHERE fc_id = %s", [fc_id])
+    cursor.execute(f"SELECT ST_X(pt), ST_Y(pt) FROM {POINTS_TABLE} WHERE fc_id = %s", [fc_id])
+    rows = cursor.fetchall()
+    if not rows:
+        return
+    levels = build_hierarchy([r[0] for r in rows], [r[1] for r in rows])
+    zs, ns, xs, ys = [], [], [], []
+    for z, (x, y, n) in enumerate(levels):
+        zs += [z] * len(n)
+        ns += n.tolist()
+        xs += x.tolist()
+        ys += y.tolist()
+    cursor.execute(_INSERT_CLUSTER_POINTS_SQL, [fc_id, zs, ns, xs, ys])
+
+
+def rebuild_cluster_points():
+    """Rebuild every collection's clusters from features_points, leaving the
+    simplified tiers alone: what to run after a change to features.clusters.
+    One transaction per collection; all of production takes seconds."""
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT DISTINCT fc_id FROM {POINTS_TABLE} ORDER BY fc_id")
+        fc_ids = [row[0] for row in cursor.fetchall()]
+    for fc_id in fc_ids:
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                write_cluster_points(cursor, fc_id)
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"DELETE FROM {CLUSTER_POINTS_TABLE}"
+                f" WHERE fc_id NOT IN (SELECT DISTINCT fc_id FROM {POINTS_TABLE})"
+            )
+    logger.info(f"Rebuilt clusters for {len(fc_ids)} collections")
 
 
 def update_simplified_geometries(fc_id):
@@ -125,8 +136,7 @@ def update_simplified_geometries(fc_id):
                 )
             cursor.execute(f"DELETE FROM {POINTS_TABLE} WHERE fc_id = %s", [fc_id])
             cursor.execute(_INSERT_POINTS_SQL, [fc_id])
-            cursor.execute(f"DELETE FROM {POINT_CELLS_TABLE} WHERE fc_id = %s", [fc_id])
-            cursor.execute(_INSERT_POINT_CELLS_SQL, [fc_id])
+            write_cluster_points(cursor, fc_id)
     logger.info(f"  Done: fc_id={fc_id}")
 
 
@@ -170,5 +180,5 @@ def _tables():
     """Every table maintained per collection here."""
     return [table for table, _ in SIMPLIFIED_GEOMETRY_TABLES] + [
         POINTS_TABLE,
-        POINT_CELLS_TABLE,
+        CLUSTER_POINTS_TABLE,
     ]

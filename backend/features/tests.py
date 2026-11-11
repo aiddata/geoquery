@@ -4,7 +4,7 @@ from unittest import mock
 
 from django.contrib.gis.geos import GEOSGeometry, Polygon
 from django.db import connection
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from features.models import Feature, FeatureCollection
@@ -311,41 +311,117 @@ class MultiCollectionTileTests(ReplicaReadsTestMixin, TestCase):
             self.assertEqual(sorted(r[0] for r in cursor.fetchall()), sorted(tables))
 
 
-class ClusteredTileTests(ReplicaReadsTestMixin, TestCase):
-    """A selection over the threshold is clusters in every tile; only selected
-    collections count."""
+class ClusterHierarchyTests(SimpleTestCase):
+    """features.clusters.build_hierarchy, on points in EPSG:3857 metres."""
 
     @staticmethod
-    def _square(x, y, size=0.5):
+    def _cloud(seed, count, x0, y0, spread):
+        import numpy as np
+
+        rng = np.random.default_rng(seed)
+        return x0 + rng.random(count) * spread, y0 + rng.random(count) * spread
+
+    def test_every_level_holds_every_point(self):
+        from features.clusters import CLUSTER_MAX_ZOOM, build_hierarchy
+
+        x, y = self._cloud(0, 5000, 7.5e6, 2.5e6, 4e5)
+        levels = build_hierarchy(x, y)
+        self.assertEqual(len(levels), CLUSTER_MAX_ZOOM + 1)
+        for lx, ly, ln in levels:
+            self.assertEqual(int(ln.sum()), 5000)
+            self.assertEqual(len(lx), len(ly))
+        # Coarser zooms have no more clusters than finer ones.
+        sizes = [len(ln) for _, _, ln in levels]
+        self.assertEqual(sizes, sorted(sizes))
+
+    def test_points_within_the_radius_merge_and_far_ones_do_not(self):
+        from features.clusters import CLUSTER_MAX_ZOOM, build_hierarchy, radius
+
+        r = radius(CLUSTER_MAX_ZOOM)
+        # Two points a quarter radius apart, and one ten radii away; on both
+        # sides of 0, where grid cells change sign.
+        x = [-r / 8, r / 8, 10 * r]
+        y = [0.0, 0.0, 0.0]
+        lx, _, ln = build_hierarchy(x, y)[CLUSTER_MAX_ZOOM]
+        self.assertEqual(sorted(ln.tolist()), [1, 2])
+        self.assertAlmostEqual(lx[ln == 2][0], 0, delta=r / 8)
+        # At zoom 0 the radius spans all three.
+        self.assertEqual(build_hierarchy(x, y)[0][2].tolist(), [3])
+
+    def test_input_order_does_not_matter(self):
+        import numpy as np
+
+        from features.clusters import build_hierarchy
+
+        x, y = self._cloud(1, 500, -3e6, 1e6, 1e5)
+        flip = np.arange(500)[::-1]
+        for a, b in zip(build_hierarchy(x, y), build_hierarchy(x[flip], y[flip])):
+            for u, v in zip(a, b):
+                np.testing.assert_array_equal(u, v)
+
+    def test_points_beyond_the_mercator_world_are_clamped_to_its_edge(self):
+        # A polar centroid (Antarctica's) is far south of the tiled world;
+        # clamped, the last row of tiles still counts it.
+        from features.clusters import WEB_MERCATOR_HALF_WIDTH as w
+        from features.clusters import build_hierarchy
+
+        _, ly, ln = build_hierarchy([0.0], [-43e6])[0]
+        self.assertEqual((ly.tolist(), ln.tolist()), ([-w], [1]))
+
+    def test_no_points(self):
+        from features.clusters import build_hierarchy
+
+        for lx, _, ln in build_hierarchy([], []):
+            self.assertEqual((len(lx), len(ln)), (0, 0))
+
+
+class ClusteredTileTests(ReplicaReadsTestMixin, TestCase):
+    """A selection over the threshold is clusters in every tile up to
+    CLUSTER_MAX_ZOOM, merged across collections exactly as the whole
+    selection would be."""
+
+    @staticmethod
+    def _square(x, y, size=0.01):
         return Polygon(
             ((x, y), (x + size, y), (x + size, y + size), (x, y + size), (x, y)), srid=4326
         )
 
-    def _collection(self, name, origins):
+    def _collection(self, name, origins, **fields):
         from features.matviews import update_simplified_geometries
         from features.models import FeatMap
 
-        fc = make_feature_collection(name=name, path=name)
+        fc = make_feature_collection(name=name, path=name, **fields)
         for i, (x, y) in enumerate(origins):
             feature = Feature.objects.create(shape=self._square(x, y))
             FeatMap.objects.create(fc=fc, geom=feature, name=f"{name} {i}")
         update_simplified_geometries(fc.id)
         return fc
 
+    @staticmethod
+    def _scatter(seed, count, lon0, lat0, spread):
+        import random
+
+        rng = random.Random(seed)
+        return [
+            (lon0 + rng.random() * spread, lat0 + rng.random() * spread) for _ in range(count)
+        ]
+
     def setUp(self):
-        # All inside z2 tile 2/2/1 (lon 0..90, lat 0..66.5). "dense" has three
-        # features, "sparse" one, "other" two; the threshold is patched to 3
-        # below.
-        self.dense = self._collection("dense", [(1, 1), (2, 1), (40, 40)])
-        self.sparse = self._collection("sparse", [(10, 10)])
-        self.other = self._collection("other", [(1.2, 1.2), (2.2, 1.2)])
-        patcher = mock.patch("features.views.CLUSTER_MIN_FEATURES", 3)
+        # Three overlapping collections around lon 0..8, lat 0..8, which
+        # straddle tile edges at every zoom (lon 0 and lat 0 are edges at all
+        # of them). The threshold is patched to 10 below.
+        self.big = self._collection("big", self._scatter(1, 60, -2, -2, 8))
+        self.mid = self._collection("mid", self._scatter(2, 20, -1, -1, 6))
+        self.small = self._collection("small", self._scatter(3, 4, 0, 0, 4))
+        self.fcs = [self.big, self.mid, self.small]
+        patcher = mock.patch("features.views.CLUSTER_MIN_FEATURES", 10)
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def _multi(self, zxy, fcs):
+    def _tile(self, z, x, y, fcs):
         response = self.client.get(
-            f"/api/features/multitiles/{zxy}.mvt?fc={','.join(str(fc.id) for fc in fcs)}"
+            f"/api/features/multitiles/{z}/{x}/{y}.mvt"
+            f"?fc={','.join(str(fc.id) for fc in fcs)}"
         )
         self.assertEqual(response.status_code, 200)
         return decode_mvt_properties(response.content)
@@ -354,145 +430,129 @@ class ClusteredTileTests(ReplicaReadsTestMixin, TestCase):
     def _shares(cluster):
         """{fc id: count} from a cluster's fc_<id> properties."""
         return {
-            int(key[3:]): int(value)
-            for key, value in cluster.items()
-            if key.startswith("fc_")
+            int(key[3:]): int(value) for key, value in cluster.items() if key.startswith("fc_")
         }
 
-    def test_selection_over_the_threshold_is_all_clusters(self):
-        # Four features between them: both collections become clusters, the
-        # one-feature "sparse" included.
-        layers = self._multi("2/2/1", [self.dense, self.sparse])
+    def _all_tiles(self, z, fcs):
+        """Every cluster at zoom z, from every tile over lon -3..7, lat -3..7."""
+        x0, y1 = (int(v) for v in tile_at(z, -3, -3).split("/")[1:])
+        x1, y0 = (int(v) for v in tile_at(z, 7, 7).split("/")[1:])
+        clusters = []
+        for x in range(x0, x1 + 1):
+            for y in range(y0, y1 + 1):
+                clusters += self._tile(z, x, y, fcs).get("clusters", [])
+        return clusters
 
-        clusters = layers["clusters"]
-        self.assertEqual(sum(c["count"] for c in clusters), 4)
+    def _reference(self, z, fcs):
+        """The merge of the whole selection at zoom z, straight from the rule
+        in features.views, as sorted (count, shares) pairs."""
+        from features.clusters import radius
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT id, fc_id, n, ST_X(pt), ST_Y(pt) FROM features_cluster_points"
+                " WHERE fc_id = ANY(%s::integer[]) AND z = %s",
+                [[fc.id for fc in fcs], z],
+            )
+            rows = cursor.fetchall()
+        r2 = radius(z) ** 2
+
+        def near(a, b):
+            return a[1] != b[1] and (a[3] - b[3]) ** 2 + (a[4] - b[4]) ** 2 <= r2
+
+        def weight(row):
+            return (row[2], row[0])
+
+        anchors = {
+            a[0] for a in rows if not any(near(a, b) and weight(b) > weight(a) for b in rows)
+        }
+        groups = {}
+        for row in rows:
+            heads = [b for b in rows if b[0] in anchors and near(row, b)]
+            head = row[0] if row[0] in anchors or not heads else max(heads, key=weight)[0]
+            shares = groups.setdefault(head, {})
+            shares[row[1]] = shares.get(row[1], 0) + row[2]
+        return sorted((sum(s.values()), sorted(s.items())) for s in groups.values())
+
+    def test_tiles_match_the_whole_selection_merge(self):
+        from features.clusters import CLUSTER_MAX_ZOOM
+
+        for z in range(2, CLUSTER_MAX_ZOOM + 1):
+            with self.subTest(z=z):
+                tiles = sorted(
+                    (c["count"], sorted(self._shares(c).items()))
+                    for c in self._all_tiles(z, self.fcs)
+                )
+                self.assertEqual(tiles, self._reference(z, self.fcs))
+
+    def test_collections_merge_into_each_other(self):
+        # At zoom 2 the radius is 11 degrees: everything is one cluster.
+        [cluster] = self._all_tiles(2, self.fcs)
         self.assertEqual(
-            sorted(sorted(self._shares(c).items()) for c in clusters),
-            # (1,1), (2,1) and sparse's (10,10) share a grid cell at z2;
-            # (40,40) does not.
-            sorted([[(self.dense.id, 2), (self.sparse.id, 1)], [(self.dense.id, 1)]]),
+            self._shares(cluster), {self.big.id: 60, self.mid.id: 20, self.small.id: 4}
         )
-        self.assertNotIn("boundaries", layers)
 
-    def test_collections_in_one_cell_share_one_cluster(self):
-        # "other" sits in the cell holding dense's (1,1) and (2,1).
-        layers = self._multi("2/2/1", [self.dense, self.other])
-        [shared] = [c for c in layers["clusters"] if c["count"] == 4]
-        self.assertEqual(self._shares(shared), {self.dense.id: 2, self.other.id: 2})
-        self.assertEqual(len(layers["clusters"]), 2)
+    def test_a_collection_alone_is_drawn_as_stored(self):
+        from features.clusters import CLUSTER_MAX_ZOOM
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT n FROM features_cluster_points WHERE fc_id = %s AND z = %s",
+                [self.big.id, CLUSTER_MAX_ZOOM],
+            )
+            stored = sorted(n for (n,) in cursor.fetchall())
+        tiles = self._all_tiles(CLUSTER_MAX_ZOOM, [self.big])
+        self.assertEqual(sorted(c["count"] for c in tiles), stored)
+        self.assertTrue(all(self._shares(c) == {self.big.id: c["count"]} for c in tiles))
 
     def test_selection_under_the_threshold_is_polygons(self):
-        layers = self._multi("2/2/1", [self.other])
+        # At z6: the test squares are too small to survive the z0-5 tier.
+        lon, lat = self._scatter(3, 1, 0, 0, 4)[0]
+        z, x, y = (int(v) for v in tile_at(6, lon + 0.005, lat + 0.005).split("/"))
+        layers = self._tile(z, x, y, [self.small])
         self.assertNotIn("clusters", layers)
-        self.assertEqual(len(layers["boundaries"]), 2)
-
-    def test_unselected_collections_add_nothing_to_the_counts(self):
-        # "other" sits in the same cells as "dense" but is not requested.
-        layers = self._multi("2/2/1", [self.dense])
-        self.assertEqual(sum(c["count"] for c in layers["clusters"]), 3)
-        self.assertNotIn("boundaries", layers)
+        self.assertIn("boundaries", layers)
 
     def test_threshold_counts_the_whole_selection(self):
-        # Each under the threshold alone, three features together.
-        layers = self._multi("2/2/1", [self.sparse, self.other])
-        self.assertNotIn("boundaries", layers)
-        self.assertEqual(sum(c["count"] for c in layers["clusters"]), 3)
+        # mid (20) + small (4) clears a threshold of 21; mid alone does not.
+        with mock.patch("features.views.CLUSTER_MIN_FEATURES", 21):
+            self.assertNotIn("clusters", self._tile(2, 2, 1, [self.mid]))
+            self.assertIn("clusters", self._tile(2, 2, 1, [self.mid, self.small]))
 
-    def test_every_tile_of_a_dense_selection_is_clusters(self):
-        # At z4, (40,40) falls in another tile, leaving "dense" two features in
-        # 4/8/7 -- under the threshold for the tile, but the selection is over
-        # it, so this tile is clusters too.
-        layers = self._multi("4/8/7", [self.dense])
-        self.assertNotIn("boundaries", layers)
-        self.assertEqual(sum(c["count"] for c in layers["clusters"]), 2)
-
-    def test_no_clusters_above_max_zoom(self):
-        from features.views import CLUSTER_MAX_ZOOM
+    def test_polygons_above_max_zoom(self):
+        from features.clusters import CLUSTER_MAX_ZOOM
 
         z = CLUSTER_MAX_ZOOM + 1
-        # The tile holding lon 1.1, lat 1.1.
-        x = int((1.1 + 180) / 360 * 2**z)
-        y = 2**z // 2 - 1 - int(1.1 / 360 * 2**z)
-        layers = self._multi(f"{z}/{x}/{y}", [self.dense])
-        self.assertNotIn("clusters", layers)
-
-    def _small(self, name, origins):
-        from features.matviews import update_simplified_geometries
-        from features.models import FeatMap
-
-        fc = make_feature_collection(name=name, path=name)
-        for x, y in origins:
-            feature = Feature.objects.create(shape=self._square(x, y, size=0.01))
-            FeatMap.objects.create(fc=fc, geom=feature)
-        update_simplified_geometries(fc.id)
-        return fc
-
-    def test_high_zoom_tiles_cluster_from_points(self):
-        # Above the zooms features_point_cells serves, clusters come from
-        # features_points. All three sit in one tile at that zoom.
-        from features.matviews import POINT_CELLS_LEVEL
-        from features.views import _CLUSTER_GRID_BITS
-
-        z = POINT_CELLS_LEVEL - _CLUSTER_GRID_BITS + 1
-        fc = self._small("village", [(0.30, 0.30), (0.32, 0.30), (0.34, 0.30)])
-        layers = self._multi(tile_at(z, 0.32, 0.30), [fc])
-        self.assertEqual(sum(c["count"] for c in layers["clusters"]), 3)
-
-    def test_stored_cells_and_points_agree(self):
-        # The highest zoom that reads features_point_cells, and the four
-        # children of one of its tiles, which read features_points, must count
-        # the same features. All four points are within 1.4 degrees NE of
-        # lon 0, lat 0, so inside the parent tile up to z8.
-        from features.matviews import POINT_CELLS_LEVEL
-        from features.views import _CLUSTER_GRID_BITS
-
-        z = POINT_CELLS_LEVEL - _CLUSTER_GRID_BITS
-        self.assertLessEqual(z, 8)
-        x, y = 2 ** (z - 1), 2 ** (z - 1) - 1  # the tile NE of lon 0, lat 0
-        fc = self._small("village", [(0.3, 0.3), (0.4, 0.3), (1.0, 1.0), (1.3, 0.2)])
-        with mock.patch("features.views.CLUSTER_MIN_FEATURES", 1):
-            parent = self._multi(f"{z}/{x}/{y}", [fc])
-            children = [
-                self._multi(f"{z + 1}/{2 * x + dx}/{2 * y + dy}", [fc])
-                for dx in (0, 1)
-                for dy in (0, 1)
-            ]
-        self.assertEqual(sum(c["count"] for c in parent["clusters"]), 4)
-        self.assertEqual(
-            sum(c["count"] for t in children for c in t.get("clusters", [])), 4
+        lon, lat = self._scatter(1, 1, -2, -2, 8)[0]
+        zxy = tile_at(z, lon + 0.005, lat + 0.005)
+        layers = decode_mvt_properties(
+            self.client.get(f"/api/features/multitiles/{zxy}.mvt?fc={self.big.id}").content
         )
-
-    def test_clusters_stay_in_the_middle_of_their_cells(self):
-        # Features crowded into the corner of a cell would put the cluster
-        # there, next to its neighbor across the corner; it is held within
-        # CLUSTER_POSITION_SLACK of the cell's center instead.
-        from features.views import CLUSTER_GRID, CLUSTER_POSITION_SLACK
-
-        fc = self._small("corner", [(0.05, 0.05), (0.06, 0.06), (0.07, 0.05)])
-        cell = 4096 / CLUSTER_GRID
-        low = cell * (0.5 - CLUSTER_POSITION_SLACK)
-        high = cell * (0.5 + CLUSTER_POSITION_SLACK)
-        with mock.patch("features.views.CLUSTER_MIN_FEATURES", 1):
-            [cluster] = self._multi("2/2/1", [fc])["clusters"]
-        x, y = cluster["_point"]
-        self.assertAlmostEqual(x % cell, low, delta=1)
-        self.assertAlmostEqual(y % cell, high, delta=1)  # y runs down; lat 0 is the bottom
+        self.assertNotIn("clusters", layers)
+        self.assertIn("boundaries", layers)
 
     def test_single_collection_endpoint_clusters_too(self):
-        body = self.client.get("/api/features/tiles/dense/2/2/1.mvt").content
-        layers = decode_mvt_properties(body)
-        self.assertEqual(sum(c["count"] for c in layers["clusters"]), 3)
-        self.assertNotIn("dense", layers)
+        layers = decode_mvt_properties(
+            self.client.get("/api/features/tiles/big/2/2/1.mvt").content
+        )
+        self.assertNotIn("big", layers)
+        self.assertGreater(sum(c["count"] for c in layers["clusters"]), 0)
 
-    def test_each_feature_is_counted_in_exactly_one_tile(self):
-        # Centroids on the corner shared by all four z1 tiles (0, 0), on the
-        # edge between two of them (lon 0), and inside one. Every tile with a
-        # point clusters at threshold 1; the counts must add up to 3, not more.
-        corner = self._collection("corner", [(-0.25, -0.25), (-0.25, 30), (60, 60)])
-        total = 0
-        with mock.patch("features.views.CLUSTER_MIN_FEATURES", 1):
-            for x in (0, 1):
-                for y in (0, 1):
-                    layers = self._multi(f"1/{x}/{y}", [corner])
-                    total += sum(c["count"] for c in layers.get("clusters", []))
-        self.assertEqual(total, 3)
+    def test_refresh_replaces_and_remove_deletes_the_clusters(self):
+        from features.matviews import remove_simplified_geometries, update_simplified_geometries
+
+        def stored():
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT count(DISTINCT z), sum(n) FROM features_cluster_points"
+                    " WHERE fc_id = %s",
+                    [self.small.id],
+                )
+                return cursor.fetchone()
+
+        from features.clusters import CLUSTER_MAX_ZOOM
+
+        update_simplified_geometries(self.small.id)
+        self.assertEqual(stored(), (CLUSTER_MAX_ZOOM + 1, 4 * (CLUSTER_MAX_ZOOM + 1)))
+        remove_simplified_geometries(self.small.id)
+        self.assertEqual(stored(), (0, None))

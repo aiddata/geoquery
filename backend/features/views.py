@@ -15,13 +15,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .matviews import (
-    POINT_CELLS_LEVEL,
-    POINT_CELLS_TABLE,
-    POINTS_TABLE,
-    WEB_MERCATOR_HALF_WIDTH,
-    cell_index_sql,
-)
+from .clusters import CLUSTER_MAX_ZOOM, WEB_MERCATOR_HALF_WIDTH, radius
+from .matviews import CLUSTER_POINTS_TABLE
 from .models import FeatMap, FeatureCollection
 
 _MVT_CONTENT_TYPE = "application/vnd.mapbox-vector-tile"
@@ -32,28 +27,15 @@ MULTI_TILE_LAYER = "boundaries"
 
 # MVT layer of point clusters, on both tile endpoints. A selection whose
 # collections hold at least CLUSTER_MIN_FEATURES features between them is drawn
-# as clusters instead of polygons, in every tile up to CLUSTER_MAX_ZOOM: one
-# point per grid cell, combining every selected collection, at the mean
-# position of the features in it. It carries `count`, the total, and fc_<id>,
-# each collection's share of it. The frontend matches on it via `source-layer`
-# (CLUSTER_TILE_LAYER in frontend/src/lib/api.ts).
+# as clusters instead of polygons, in every tile up to CLUSTER_MAX_ZOOM
+# (features.clusters): each a point carrying `count`, its features in all, and
+# fc_<id>, each collection's share. The frontend matches on it via
+# `source-layer` (CLUSTER_TILE_LAYER in frontend/src/lib/api.ts).
 CLUSTER_TILE_LAYER = "clusters"
-# Above this zoom tiles are always polygons.
-CLUSTER_MAX_ZOOM = 8
 # Over the whole selection, not per tile, so every tile of a selection agrees.
 # India ADM5 (650k features) is 96 MB of polygons even at the coarsest
 # simplification tier.
 CLUSTER_MIN_FEATURES = 2000
-# Cells per tile side, a power of two. A tile renders at 512 px, so a cell is
-# 128 px. Changing it moves the zoom up to which tiles cluster from
-# features_point_cells (z8 at 4 cells; see features.matviews.POINT_CELLS_LEVEL).
-CLUSTER_GRID = 4
-# How far a cluster may drift from its cell's center toward the mean position
-# of its features, as a fraction of the cell. At 1/4 every cluster stays in
-# the middle half of its cell, so any two are at least half a cell (64 px)
-# apart, across tile edges too: circles up to 64 px across never overlap
-# (CLUSTER_MAX_RADIUS in frontend/src/lib/components/map/MapFrame.svelte).
-CLUSTER_POSITION_SLACK = 0.25
 
 # Every collection in the catalog fits (719 today), and the comma-separated
 # list stays well under nginx's 8 KB request line.
@@ -276,140 +258,145 @@ def _simplified_table_for_zoom(z):
 def _clusters_selection(cursor, z, fc_ids):
     """Whether tiles at zoom z draw this selection as clusters.
 
-    Counted from features_point_cells: India ADM5 is 2,670 rows there, against
-    650k in feat_map, so this costs about a millisecond per tile.
+    Counted from the zoom-0 clusters: a handful of rows per collection.
     """
     if z > CLUSTER_MAX_ZOOM:
         return False
     cursor.execute(
-        f"SELECT coalesce(sum(n), 0) FROM {POINT_CELLS_TABLE}"
-        " WHERE fc_id = ANY(%s::integer[])",
+        f"SELECT coalesce(sum(n), 0) FROM {CLUSTER_POINTS_TABLE}"
+        " WHERE fc_id = ANY(%s::integer[]) AND z = 0",
         [fc_ids],
     )
     return cursor.fetchone()[0] >= CLUSTER_MIN_FEATURES
 
 
 def _cluster_layer(cursor, z, x, y, fc_ids):
-    """The CLUSTER_TILE_LAYER for one tile, every requested collection combined.
-
-    Cells are numbered on the global grid of the tile's cluster cells, the
-    same way features_point_cells is, so a point lands in exactly one cell and
-    one tile; the tile is a range of cell numbers. At low zoom the cells are
-    unions of features_point_cells rows (India ADM5 at z2: 606k points, or a
-    few thousand cells); above, the points are read directly.
-    """
-    level = z + _CLUSTER_GRID_BITS  # this tile's cells: 2**level per world axis
-    if level <= POINT_CELLS_LEVEL:
-        shift = POINT_CELLS_LEVEL - level  # stored cells per tile cell, log2, per axis
-        sql = _CLUSTER_FROM_CELLS_SQL
-        span = CLUSTER_GRID << shift
-    else:
-        shift = 0
-        sql = _CLUSTER_FROM_POINTS_SQLS[level]
-        span = CLUSTER_GRID
+    """The CLUSTER_TILE_LAYER for one tile: the selected collections' clusters
+    at zoom z, merged across collections (_CLUSTER_TILE_SQL)."""
+    w = WEB_MERCATOR_HALF_WIDTH
+    size = 2 * w / 2**z
+    r = radius(z)
+    last = 2**z - 1
     cursor.execute(
-        sql,
+        _CLUSTER_TILE_SQL,
         {
             "layer": CLUSTER_TILE_LAYER,
+            "fc_ids": fc_ids,
             "z": z,
             "x": x,
             "y": y,
-            "fc_ids": fc_ids,
-            "shift": shift,
-            # This tile's range of cell numbers, at the level of the source rows.
-            "ci0": x * span,
-            "ci1": (x + 1) * span,
-            "cj0": y * span,
-            "cj1": (y + 1) * span,
-            # The tile's cells, in metres: their size, and how far a cluster
-            # may sit from a cell's center.
-            "half": WEB_MERCATOR_HALF_WIDTH,
-            "cell": 2 * WEB_MERCATOR_HALF_WIDTH / 2**level,
-            "slack": CLUSTER_POSITION_SLACK * 2 * WEB_MERCATOR_HALF_WIDTH / 2**level,
+            "r": r,
+            "r2": r * r,
+            "xmin": -w + x * size,
+            "xmax": -w + (x + 1) * size,
+            "ymin": w - (y + 1) * size,
+            "ymax": w - y * size,
+            # The tile owns its west and north edges; the last column and row
+            # also own the world's east and south edges.
+            "last_col": x == last,
+            "last_row": y == last,
         },
     )
-    mvt = cursor.fetchone()[0]
-    return bytes(mvt) if mvt else b""
+    result = cursor.fetchone()
+    return bytes(result[0]) if result and result[0] else b""
 
 
-_CLUSTER_GRID_BITS = CLUSTER_GRID.bit_length() - 1
-assert CLUSTER_GRID == 1 << _CLUSTER_GRID_BITS, "CLUSTER_GRID must be a power of two"
-assert CLUSTER_MAX_ZOOM + _CLUSTER_GRID_BITS >= POINT_CELLS_LEVEL
-
-# One cluster per cell for the whole selection, at the mean position of all
-# its features, but no further than CLUSTER_POSITION_SLACK from the cell's
-# center. `count` is their total; the jsonb column becomes one property per
-# collection, fc_<id>: that collection's count, absent when zero. `cells` has
-# ci, cj numbered at the tile's cell level, west to east and north to south.
-_CLUSTER_TAIL_SQL = """
-    SELECT ST_AsMVT(c.*, %(layer)s) FROM (
+# Clusters from different collections merge; a collection's own never do.
+# Order clusters by weight, n, ties broken by id: then
+#
+#   - an anchor is a cluster with no heavier cluster of another collection
+#     within r;
+#   - every other cluster joins the heaviest anchor of another collection
+#     within r, or, with none in reach, stays on its own;
+#   - each anchor and the clusters that joined it are drawn as one, at their
+#     weighted mean, in the tile that holds that point.
+#
+# Every decision looks at most r away, and a merged cluster is within r of its
+# anchor, so reading 4r around the tile gives exactly the whole selection's
+# answer: anchors are exact within 3r of the tile, choices within 2r, and the
+# groups drawn here have anchors within r and members within 2r. No seams.
+#
+# Neighbours within r are found on a grid of r-sized cells by hash join on
+# (cx, cy), rather than ST_DWithin, which a CTE has no index for. Postgres
+# estimates one row for every CTE here, so anything it would join row by row
+# against `pairs` (134k rows for every collection at z0) is written as NOT IN,
+# which it runs as one hashed lookup however many rows it expects.
+_CLUSTER_TILE_SQL = f"""
+    WITH c AS MATERIALIZED (
+        SELECT id, fc_id, n, x, y,
+            floor(x / %(r)s)::bigint AS cx,
+            floor(y / %(r)s)::bigint AS cy,
+            x BETWEEN %(xmin)s - 3 * %(r)s AND %(xmax)s + 3 * %(r)s
+                AND y BETWEEN %(ymin)s - 3 * %(r)s AND %(ymax)s + 3 * %(r)s AS near3,
+            x BETWEEN %(xmin)s - 2 * %(r)s AND %(xmax)s + 2 * %(r)s
+                AND y BETWEEN %(ymin)s - 2 * %(r)s AND %(ymax)s + 2 * %(r)s AS near2
+        FROM (
+            SELECT id, fc_id, n, ST_X(pt) AS x, ST_Y(pt) AS y
+            FROM {CLUSTER_POINTS_TABLE}
+            -- ::integer[]: btree_gist cannot index integer = ANY(smallint[]),
+            -- which psycopg sends a list of small ints as.
+            WHERE fc_id = ANY(%(fc_ids)s::integer[]) AND z = %(z)s
+                AND pt && ST_MakeEnvelope(
+                    %(xmin)s - 4 * %(r)s, %(ymin)s - 4 * %(r)s,
+                    %(xmax)s + 4 * %(r)s, %(ymax)s + 4 * %(r)s, 3857)
+        ) window_points
+    ),
+    -- Every cluster within 3r of the tile, paired with each cluster of another
+    -- collection within r of it.
+    pairs AS MATERIALIZED (
+        SELECT a.id AS aid, a.n AS an, a.near2, b.id AS bid, b.n AS bn
+        FROM c a
+        CROSS JOIN (VALUES (-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 0),
+                           (0, 1), (1, -1), (1, 0), (1, 1)) AS o(dx, dy)
+        JOIN c b ON b.cx = a.cx + o.dx AND b.cy = a.cy + o.dy
+        WHERE a.near3 AND b.fc_id <> a.fc_id
+            AND (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y) <= %(r2)s
+    ),
+    -- Clusters with a heavier neighbour: not anchors. Exact within 3r.
+    outranked AS MATERIALIZED (
+        SELECT DISTINCT aid FROM pairs
+        WHERE bn > an OR (bn = an AND bid > aid)
+    ),
+    -- Each cluster within 2r that joins an anchor, and which: its heaviest
+    -- neighbour that is not outranked. Those neighbours are within 3r, where
+    -- outranked is exact. An anchor never has one: of two neighbours, the
+    -- lighter is outranked.
+    joins AS MATERIALIZED (
+        SELECT DISTINCT ON (aid) aid, bid AS head
+        FROM pairs
+        WHERE near2 AND bid NOT IN (SELECT aid FROM outranked)
+        ORDER BY aid, bn DESC, bid DESC
+    ),
+    members AS (
+        SELECT coalesce(j.head, c.id) AS head, c.fc_id, c.n, c.x, c.y
+        FROM c LEFT JOIN joins j ON j.aid = c.id
+        WHERE c.near2
+    ),
+    per_fc AS (
+        SELECT head, fc_id, sum(n) AS n, sum(n * x) AS sx, sum(n * y) AS sy
+        FROM members GROUP BY head, fc_id
+    ),
+    groups AS (
+        SELECT
+            sum(sx) / sum(n) AS mx,
+            sum(sy) / sum(n) AS my,
+            sum(n)::integer AS count,
+            jsonb_object_agg('fc_' || fc_id, n) AS counts
+        FROM per_fc GROUP BY head
+    )
+    SELECT ST_AsMVT(t.*, %(layer)s) FROM (
         SELECT
             ST_AsMVTGeom(
-                ST_SetSRID(ST_MakePoint(
-                    cx + LEAST(GREATEST(mx - cx, -%(slack)s), %(slack)s),
-                    cy + LEAST(GREATEST(my - cy, -%(slack)s), %(slack)s)
-                ), 3857),
+                ST_SetSRID(ST_MakePoint(mx, my), 3857),
                 ST_TileEnvelope(%(z)s, %(x)s, %(y)s), 4096, 0, false
             ) AS geom,
             count,
             counts
-        FROM (
-            SELECT
-                sum(sx) / sum(n) AS mx,
-                sum(sy) / sum(n) AS my,
-                (ci + 0.5) * %(cell)s - %(half)s AS cx,
-                %(half)s - (cj + 0.5) * %(cell)s AS cy,
-                sum(n)::integer AS count,
-                jsonb_object_agg('fc_' || fc_id, n) AS counts
-            FROM cells
-            GROUP BY ci, cj
-        ) k
-    ) c
+        FROM groups
+        WHERE mx >= %(xmin)s AND (mx < %(xmax)s OR %(last_col)s)
+            AND my <= %(ymax)s AND (my > %(ymin)s OR %(last_row)s)
+    ) t
 """
-
-# ::integer[] because psycopg sends a list of small ints as smallint[], and
-# btree_gist cannot index integer = smallint: without the cast only the pt half
-# of the (fc_id, pt) index is used, and every collection's points in the tile
-# are read and filtered.
-_CLUSTER_FROM_CELLS_SQL = f"""
-    WITH cells AS (
-        SELECT fc_id, ci >> %(shift)s AS ci, cj >> %(shift)s AS cj,
-            sum(n) AS n, sum(sx) AS sx, sum(sy) AS sy
-        FROM {POINT_CELLS_TABLE}
-        WHERE fc_id = ANY(%(fc_ids)s::integer[])
-            AND ci >= %(ci0)s AND ci < %(ci1)s
-            AND cj >= %(cj0)s AND cj < %(cj1)s
-        GROUP BY fc_id, ci >> %(shift)s, cj >> %(shift)s
-    )
-    {_CLUSTER_TAIL_SQL}
-"""
-
-
-def _cluster_from_points_sql(level):
-    ci, cj = cell_index_sql(level, "ST_X(p.pt)", "ST_Y(p.pt)")
-    return f"""
-        WITH pts AS (
-            SELECT p.fc_id, ST_X(p.pt) AS x, ST_Y(p.pt) AS y, {ci} AS ci, {cj} AS cj
-            FROM {POINTS_TABLE} p
-            WHERE p.fc_id = ANY(%(fc_ids)s::integer[])
-                -- 1 m wider than the tile, so float rounding at its edge can
-                -- never drop a point; the cell range below decides membership.
-                AND p.pt && ST_Expand(ST_TileEnvelope(%(z)s, %(x)s, %(y)s), 1)
-        ),
-        cells AS (
-            SELECT fc_id, ci, cj, count(*) AS n, sum(x) AS sx, sum(y) AS sy
-            FROM pts
-            WHERE ci >= %(ci0)s AND ci < %(ci1)s AND cj >= %(cj0)s AND cj < %(cj1)s
-            GROUP BY fc_id, ci, cj
-        )
-        {_CLUSTER_TAIL_SQL}
-    """
-
-
-_CLUSTER_FROM_POINTS_SQLS = {
-    level: _cluster_from_points_sql(level)
-    for level in range(POINT_CELLS_LEVEL + 1, CLUSTER_MAX_ZOOM + _CLUSTER_GRID_BITS + 1)
-}
 
 
 def _mvt_sql_multi(view_name):

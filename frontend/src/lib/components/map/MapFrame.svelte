@@ -132,8 +132,8 @@
 	const CLUSTER_RING_STEPS = 72;
 	const RING_IMAGE_PREFIX = 'gq-ring|';
 
-	// Clusters never overlap if none is wider than half a tile cell (64 px): see
-	// CLUSTER_GRID and CLUSTER_POSITION_SLACK in backend/features/views.py.
+	// No wider than the clusters' spacing (CLUSTER_RADIUS_PX in
+	// backend/features/clusters.py), so neighbours seldom overlap.
 	const CLUSTER_MAX_RADIUS = 32;
 
 	// Grows with the logarithm of the count, from 14 px for a few features to the
