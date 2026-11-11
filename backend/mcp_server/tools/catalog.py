@@ -252,26 +252,53 @@ def _query_terms(query: str) -> list[str]:
     return terms or [text]
 
 
-def _score_dataset(ds: Dataset, terms: list[str]) -> tuple[int, int, list[str]]:
-    """(words matched, weighted sum, the matched words) for one dataset.
+# How well a query word matched a field. Substrings still count, so "land"
+# finds "landcover", but "rain" as a whole word beats "rainfed" (start of a
+# word), which beats "constrained" (somewhere inside one).
+_EXACT_WORD, _WORD_START, _SUBSTRING = 3, 2, 1
 
-    Substring matching, not whole words, so "land" still finds "landcover".
-    Each word counts once, at the weight of the best field it appears in.
+
+def _match_quality(term: str, text: str, words: list[str]) -> int:
+    if term not in text:
+        return 0
+    if term in words:
+        return _EXACT_WORD
+    if any(word.startswith(term) for word in words):
+        return _WORD_START
+    return _SUBSTRING
+
+
+def _score_dataset(
+    ds: Dataset, terms: list[str]
+) -> tuple[int, int, int, list[str]]:
+    """(words matched, match quality, field weight, the matched words).
+
+    Results rank on these in order: matching more of the query first, then
+    better matches (whole word > start of word > substring), then matches in
+    more telling fields. Each query word counts once, at its best match --
+    quality first, then field weight.
     """
     fields = []
     for attr, weight in _DATASET_FIELD_WEIGHTS:
         value = getattr(ds, attr)
         if attr == "tags":
             value = " ".join(value or [])
-        fields.append(((value or "").lower(), weight))
+        text = (value or "").lower()
+        # Underscores split words too, so "pre" is a word of
+        # "cru_ts_407_pre_yearly_mean".
+        fields.append((text, re.findall(r"[a-z0-9]+", text), weight))
 
-    matched, total = [], 0
+    matched, quality, field_weight = [], 0, 0
     for term in terms:
-        best = max((w for text, w in fields if term in text), default=0)
-        if best:
+        best = max(
+            ((_match_quality(term, text, words), w) for text, words, w in fields),
+            default=(0, 0),
+        )
+        if best[0]:
             matched.append(term)
-            total += best
-    return len(matched), total, matched
+            quality += best[0]
+            field_weight += best[1]
+    return len(matched), quality, field_weight, matched
 
 
 def _search_datasets(user, query="", tag=None, type=None, limit=20) -> dict:
@@ -289,9 +316,10 @@ def _search_datasets(user, query="", tag=None, type=None, limit=20) -> dict:
         # keeps the weighting readable.
         scored = []
         for ds in qs:
-            count, weight, matched = _score_dataset(ds, terms)
+            count, quality, weight, matched = _score_dataset(ds, terms)
             if count:
-                scored.append(((-count, -weight, ds.title or ds.name, ds.name), ds))
+                key = (-count, -quality, -weight, ds.title or ds.name, ds.name)
+                scored.append((key, ds))
                 matched_terms[ds.pk] = matched
         scored.sort(key=lambda pair: pair[0])
         total = len(scored)

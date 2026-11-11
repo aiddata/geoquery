@@ -341,6 +341,34 @@ class DatasetToolTests(TestCase):
         self.assertEqual(names[-1], "aaa_mentions")
         self.assertEqual(set(names[:2]), {"zzz_titled", "zzz_tagged"})
 
+    def test_whole_words_then_word_starts_then_substrings(self):
+        # Titles sort against the expected order, so only match quality can
+        # produce it -- and the exact match is only in the (lighter)
+        # description, so quality must outrank field weight.
+        make_dataset(name="substring", title="Aaa Constrained Population")
+        make_dataset(name="word_start", title="Bbb Rainfed Cropland")
+        make_dataset(
+            name="exact", title="Ccc Climate", description="Monthly rain totals."
+        )
+
+        payload = _search_datasets(None, query="rain")
+
+        self.assertEqual(
+            [d["name"] for d in payload["datasets"]],
+            ["exact", "word_start", "substring"],
+        )
+
+    def test_underscores_separate_words_in_names(self):
+        make_dataset(name="aaa_pressure", title="Aaa One")
+        make_dataset(name="cru_ts_407_pre_yearly_mean", title="Zzz Two")
+
+        payload = _search_datasets(None, query="pre")
+
+        self.assertEqual(
+            [d["name"] for d in payload["datasets"]][:2],
+            ["cru_ts_407_pre_yearly_mean", "aaa_pressure"],
+        )
+
     def test_case_and_punctuation_split_words(self):
         self._precipitation()
 
