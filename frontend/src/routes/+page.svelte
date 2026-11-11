@@ -179,11 +179,6 @@
 	let pendingFeatureIds = $state<number[]>(_init.featureIds);
 	let currentBbox = $state<Bbox | null>(_init.bbox);
 
-	// Anything chosen yet: a boundary, an uploaded file, or an active custom boundary.
-	let hasSelection = $derived(
-		browseBoundaries.length > 0 || !!$customBoundary.fileName || $customBoundary.active
-	);
-
 	let userBbox = $derived.by(() => {
 		if (!$customBoundary.active) return null;
 		const fc = $customBoundary.finalFeatures;
@@ -371,7 +366,7 @@
 					<h2 class="text-h4 text-primary">
 						Select Boundaries to Begin
 					</h2>
-					{#if hasSelection}
+					{#if browseBoundaries.length > 0 || $customBoundary.fileName || $customBoundary.active}
 						<Button
 							size="sm"
 							variant="ghost"
@@ -504,14 +499,4 @@
 		onFeatureClick={handleFeatureClick}
 		userGeoJSON={$customBoundary.active ? $customBoundary.finalFeatures : null}
 	/>
-
-	<!-- Empty-state prompt, centered on the map area right of the panel. It
-	     passes clicks and drags through, so the map can still be explored. -->
-	{#if !hasSelection}
-		<div class="pointer-events-none absolute inset-y-0 right-0 left-0 z-[5] flex items-center justify-center bg-background/30 md:left-[25rem]">
-			<p class="rounded-md bg-card/85 px-4 py-2 font-ui text-sm font-bold text-muted-foreground shadow-card">
-				Select a boundary to begin.
-			</p>
-		</div>
-	{/if}
 </div>
