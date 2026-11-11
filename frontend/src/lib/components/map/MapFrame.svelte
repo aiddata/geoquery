@@ -306,14 +306,18 @@
 	const ATTRIBUTION =
 		'<a href="https://protomaps.com">Protomaps</a> &copy; <a href="https://openstreetmap.org">OpenStreetMap</a> · Features simplified for visualization only';
 
+	// The world view the map opens on, and returns to on resetView().
+	const INITIAL_CENTER: [number, number] = [0, 20];
+	const INITIAL_ZOOM = 2;
+
 	onMount(() => {
 		let stopTheme: (() => void) | undefined;
 		protomapsApiKey().then((key) => {
 			map = new maplibregl.Map({
 				container: mapContainer,
 				style: basemapStyle(get(resolvedTheme), key, ATTRIBUTION),
-				center: [0, 20],
-				zoom: 2,
+				center: INITIAL_CENTER,
+				zoom: INITIAL_ZOOM,
 				// Symbols cut rather than cross-fade as tiles change. A cluster's ring
 				// and count are symbols on a disc that cannot fade, so the default
 				// 300 ms fade left half-faded rings around discs that had already
@@ -746,6 +750,10 @@
 
 	export function zoomOut() {
 		map?.zoomOut();
+	}
+
+	export function resetView() {
+		map?.easeTo({ center: INITIAL_CENTER, zoom: INITIAL_ZOOM });
 	}
 </script>
 

@@ -125,14 +125,16 @@
 		activeTab = tab;
 	}
 
-	/** Reset all boundary selection state and return to the Explore tab. */
+	/** Reset all boundary selection state and the map, and return to the Explore tab. */
 	function resetAll() {
 		browseBoundaries = [];
 		pendingFeatureIds = [];
+		currentBbox = null;
 		findDataError = null;
 		selection.clear();
 		customBoundary.reset();
 		activeTab = 'explore';
+		mapFrame?.resetView();
 	}
 
 	// Featured boundaries: tagged "featured", sorted by most recent, top 3
