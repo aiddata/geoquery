@@ -30,7 +30,7 @@ from analytics.changes import Generations, only_valid, read_states, recheck
 from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
 from analytics.services import requested_resource_ids
 from analytics.tasks.documentation import DocBuilder
-from analytics.tasks.email import GeoEmail
+from analytics.tasks.email import GeoEmail, plain_and_html
 from analytics.tasks.merge import merge_task_features, merge_task_results
 
 logger = getLogger(__name__)
@@ -666,8 +666,8 @@ def _notify_user(request_id, mail_to, status, download_base, frontend_base):
         You can also view all your current and previous requests using:
         \t{frontend_base}/requests
 
-        Also, one quick reminder about citations. Don't forget to cite both AidData's GeoQuery
-        tool as well as each dataset you selected within GeoQuery. All citations can be found
+        Also, one quick reminder about citations. **Don't forget to cite both AidData's GeoQuery
+        tool as well as each dataset you selected within GeoQuery.** All citations can be found
         in the Documentation PDF at the link above. Here's the correct citation for GeoQuery:
 
             Goodman, S., BenYishay, A., Lv, Z., & Runfola, D. (2019).
@@ -682,9 +682,12 @@ def _notify_user(request_id, mail_to, status, download_base, frontend_base):
         \tAidData's GeoQuery Team
     """)
 
-    mail_message = received_message if status == 0 else completed_message
+    # **...** marks bold in the HTML version; the plain version drops it.
+    mail_message, mail_html = plain_and_html(
+        received_message if status == 0 else completed_message
+    )
 
-    mail_status = GeoEmail().send_email(mail_to, mail_subject, mail_message)
+    mail_status = GeoEmail().send_email(mail_to, mail_subject, mail_message, html=mail_html)
     if not mail_status[0]:
         raise Exception(f"Email send failed: {mail_status[1]}: {mail_status[2]}")
 
