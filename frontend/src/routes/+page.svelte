@@ -2,7 +2,7 @@
 
 <script lang="ts">
 	import { get } from 'svelte/store';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/env';
 	import { currentStep } from '#lib/stores/ui.js';
@@ -170,6 +170,27 @@
 		if (!showWelcome && browser) sessionStorage.setItem('welcomeDismissed', '1');
 	});
 
+	// When the welcome modal opens, the selection panel starts centered where the
+	// modal is, so closing the modal leaves the next step in the same place. The
+	// first boundary selection docks it top left for the rest of the visit.
+	// Decided after mount: the server render cannot know about the modal.
+	let panelDocked = $state(true);
+	onMount(() => {
+		if (showWelcome) panelDocked = false;
+	});
+
+	function dockPanel() {
+		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		if (!document.startViewTransition || reduceMotion) {
+			panelDocked = true;
+			return;
+		}
+		document.startViewTransition(async () => {
+			panelDocked = true;
+			await tick();
+		});
+	}
+
 	let mapFrame: MapFrame;
 	let mapZoom = $state(2);
 
@@ -178,6 +199,10 @@
 	// Features clicked on the map; only meaningful when exactly one boundary is selected
 	let pendingFeatureIds = $state<number[]>(_init.featureIds);
 	let currentBbox = $state<Bbox | null>(_init.bbox);
+
+	$effect(() => {
+		if (!panelDocked && (browseBoundaries.length > 0 || $customBoundary.active)) dockPanel();
+	});
 
 	let userBbox = $derived.by(() => {
 		if (!$customBoundary.active) return null;
@@ -358,7 +383,11 @@
 
 <div class="relative flex h-[calc(100vh-8rem)] flex-col">
 	<!-- Left panel: search + selection status -->
-	<div class="absolute left-4 top-4 bottom-4 z-10 w-96 max-w-[calc(100vw-2rem)] space-y-2 flex flex-col">
+	<div
+		class="absolute z-10 max-w-[calc(100vw-2rem)] space-y-2 flex flex-col [view-transition-name:boundary-panel] {panelDocked
+			? 'left-4 top-4 bottom-4 w-96'
+			: 'left-1/2 top-1/2 max-h-[calc(100%-2rem)] w-[36rem] -translate-x-1/2 -translate-y-1/2'}"
+	>
 		<!-- Tabbed selection card -->
 		<div class="card-surface flex flex-col min-h-0">
 			<div class="p-4 pb-2 shrink-0">
