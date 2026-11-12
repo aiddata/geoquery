@@ -42,6 +42,21 @@
 		}
 	}
 
+	// The name when there is one; otherwise the link's host, so a source with
+	// only a URL still reads as a source.
+	let sourceLabel = $derived.by(() => {
+		const name = dataset.source_name?.trim();
+		if (name) return name;
+		if (dataset.source_url) {
+			try {
+				return new URL(dataset.source_url).hostname.replace(/^www\./, '');
+			} catch {
+				return dataset.source_url;
+			}
+		}
+		return 'not recorded';
+	});
+
 	// Rows with no value are left out rather than shown as blanks.
 	let rows = $derived(
 		[
@@ -59,44 +74,19 @@
 <div class="mt-2 space-y-2 text-sm">
 	<!-- Always visible: short, and needed to read the results. -->
 	<p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
-		{#if dataset.source_name}
-			<span>
-				Source:
-				{#if dataset.source_url}
-					<a
-						href={dataset.source_url}
-						target="_blank"
-						rel="noopener noreferrer"
-						class="inline-flex items-center gap-1 text-link hover:text-link-hover hover:underline"
-					>
-						{dataset.source_name}<ExternalLink class="h-3 w-3" />
-					</a>
-				{:else}
-					{dataset.source_name}
-				{/if}
-			</span>
-			<span aria-hidden="true">·</span>
-		{/if}
-		<!-- Always shown, even when unset: GeoQuery redistributes other
-		     people's data, and "not recorded" is what tells the user they
-		     still have to check the source. -->
 		<span>
-			License:
-			{#if dataset.license}
-				{#if dataset.license_url}
-					<a
-						href={dataset.license_url}
-						target="_blank"
-						rel="noopener noreferrer"
-						class="inline-flex items-center gap-1 text-link hover:text-link-hover hover:underline"
-					>
-						{dataset.license}<ExternalLink class="h-3 w-3" />
-					</a>
-				{:else}
-					{dataset.license}
-				{/if}
+			Source:
+			{#if dataset.source_url}
+				<a
+					href={dataset.source_url}
+					target="_blank"
+					rel="noopener noreferrer"
+					class="inline-flex items-center gap-1 text-link hover:text-link-hover hover:underline"
+				>
+					{sourceLabel}<ExternalLink class="h-3 w-3" />
+				</a>
 			{:else}
-				<span class="italic">not recorded — check the source</span>
+				{sourceLabel}
 			{/if}
 		</span>
 		{#if dataset.variable_description}
