@@ -23,16 +23,18 @@ def collection_title(adm_meta):
 
     "geoBoundaries v6 - Ghana ADM2" becomes "geoBoundaries v6 - Ghana ADM2
     (Districts)", so the levels of a country are told apart by what they are
-    rather than only by number. An ADM0 without one is a "Country". Mirrored
-    for existing collections by features migration 0015; keep the two in step.
+    rather than only by number. Every ADM0 is a "Country": its
+    boundaryCanonical is the country's formal name ("Republic of Fiji"),
+    not a unit type like the other levels'. Mirrored for existing collections
+    by features migrations 0015 and 0016; keep them in step.
     """
     title = adm_meta["title"]
     other = adm_meta.get("other") or {}
+    if other.get("boundaryType") == "ADM0":
+        return f"{title} (Country)"
     canonical = str(other.get("boundaryCanonical") or "").strip()
     if canonical.lower() in _NOT_CANONICAL:
-        if other.get("boundaryType") != "ADM0":
-            return title
-        canonical = "Country"
+        return title
     return f"{title} ({canonical})"
 
 

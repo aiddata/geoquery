@@ -584,8 +584,7 @@ class GeoboundariesTitleTests(TestCase):
                 }
             )
 
-        self.assertEqual(adm0("Republic"), "geoBoundaries v6 - Ghana ADM0 (Republic)")
-        for missing in ("", "Unknown", "gbOpen", None):
+        for missing in ("Republic of Ghana", "Country", "", "Unknown", "gbOpen", None):
             self.assertEqual(adm0(missing), "geoBoundaries v6 - Ghana ADM0 (Country)", missing)
 
     def test_migration_updates_existing_titles_once_and_reverses(self):
@@ -630,3 +629,46 @@ class GeoboundariesTitleTests(TestCase):
         with connection.cursor() as cursor:
             cursor.execute(migration.REVERSE)
         self.assertEqual(titles(), before)
+
+
+class GeoboundariesAdm0TitleTests(TestCase):
+    def test_migration_makes_every_adm0_a_country_and_reverses(self):
+        import importlib
+
+        migration = importlib.import_module(
+            "features.migrations.0016_geoboundaries_adm0_country_titles"
+        )
+        rows = {
+            # name: (level, canonical, title after 0015)
+            "gB_57dcd43_FJI_ADM0": ("ADM0", "Republic of Fiji", "T FJI (Republic of Fiji)"),
+            "gB_57dcd43_BEN_ADM0": ("ADM0", "", "T BEN (Country)"),
+            "gB_57dcd43_NEW_ADM0": ("ADM0", "Republic", "T NEW"),
+            "gB_57dcd43_FJI_ADM1": ("ADM1", "Divisions", "T FJI1 (Divisions)"),
+            "gB_57dcd43_ODD_ADM1": ("ADM1", "Country", "T ODD (Country)"),
+        }
+        for name, (level, canonical, title) in rows.items():
+            FeatureCollection.objects.create(
+                name=name, path=f"/{name}", title=title,
+                other={"boundaryType": level, "boundaryCanonical": canonical},
+            )
+
+        def titles():
+            return dict(FeatureCollection.objects.values_list("name", "title"))
+
+        before = titles()
+        with connection.cursor() as cursor:
+            cursor.execute(migration.FORWARD)
+            cursor.execute(migration.FORWARD)
+        self.assertEqual(
+            titles(),
+            {
+                **before,
+                "gB_57dcd43_FJI_ADM0": "T FJI (Country)",
+                "gB_57dcd43_NEW_ADM0": "T NEW (Country)",
+            },
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(migration.REVERSE)
+        self.assertEqual(
+            titles(), {**before, "gB_57dcd43_NEW_ADM0": "T NEW (Republic)"}
+        )
