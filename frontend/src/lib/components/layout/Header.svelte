@@ -5,7 +5,7 @@
 	import ThemeMenu from '#lib/components/layout/ThemeMenu.svelte';
 	import { openSidebar, currentStep, type Step } from '#lib/stores/ui.js';
 	import { features } from '#lib/stores/features.js';
-	import { CircleHelp, History, BookOpen, Map } from '@lucide/svelte';
+	import { CircleHelp, History, BookOpen, Info, Map } from '@lucide/svelte';
 	import aiddataTriangles from '#lib/assets/aiddata_triangles.svg';
 	import aiddataWordmark from '#lib/assets/aiddata_wordmark.svg';
 	import geoqueryText from '#lib/assets/geoquery_text.svg';
@@ -36,6 +36,11 @@
 
 		<!-- Navigation Buttons -->
 		<div class="flex items-center gap-2">
+			<Button variant="ghost" href="https://www.aiddata.org/geoquery" target="_blank" rel="noopener noreferrer">
+				<Info />
+				<span class="sr-only sm:not-sr-only">About</span>
+			</Button>
+
 			<Button variant="ghost" href="https://aiddata.github.io/geoquery/" target="_blank" rel="noopener noreferrer">
 				<BookOpen />
 				<span class="sr-only sm:not-sr-only">Docs</span>
