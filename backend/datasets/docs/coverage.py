@@ -7,6 +7,10 @@ features -- in full when every feature is covered, partially otherwise.
 
 This trusts is_global. Datasets wrongly marked global will show as covering
 everything until their flag is fixed (GEO-73).
+
+Coverage still being computed (a dataset newly made non-global, or a dataset or
+collection being reset, whose rows valid_coverage hides) shows as partial or
+absent until it catches up; the next nightly build corrects it.
 """
 
 from collections import defaultdict
@@ -37,11 +41,14 @@ def page_coverage(pages, datasets, using="replica") -> dict:
         return result
 
     covered = defaultdict(int)
+    # Coverage is unique on (geom, dataset) and feat_map on (fc, geom), so each
+    # (dataset, fc, geom) joins to one row and a plain count is exact (and
+    # avoids a sort-based aggregate at prod scale).
     rows = (
         valid_coverage(using)
         .filter(dataset_id__in=regional, geom__featmap__fc_id__in=list(fc_page))
         .values("dataset_id", "geom__featmap__fc_id")
-        .annotate(n=Count("geom_id", distinct=True))
+        .annotate(n=Count("geom_id"))
     )
     for row in rows:
         covered[(fc_page[row["geom__featmap__fc_id"]], row["dataset_id"])] += row["n"]

@@ -40,3 +40,34 @@ class PageCoverageTests(ReplicaReadsTestMixin, TestCase):
         result = page_coverage(self.pages, [full, partial, absent])
 
         self.assertEqual(result["gb-npl"], {full.id: FULL, partial.id: PARTIAL})
+
+
+class PageCoverageAcrossCollectionsTests(ReplicaReadsTestMixin, TestCase):
+    def collection(self, name, group, level, path):
+        return FeatureCollection.objects.create(
+            name=name, path=path, group_name=group, group_level=level,
+            source_name="geoBoundaries", active=True, public=True,
+        )
+
+    def test_counts_are_summed_across_collections_and_pages(self):
+        npl0 = self.collection("gB_x_NPL_ADM0", "gb_v6_npl", 0, "/npl0")
+        npl1 = self.collection("gB_x_NPL_ADM1", "gb_v6_npl", 1, "/npl1")
+        ind0 = self.collection("gB_x_IND_ADM0", "gb_v6_ind", 0, "/ind0")
+        shared = Feature.objects.create(shape="POINT(0 0)")
+        npl_only = Feature.objects.create(shape="POINT(1 1)")
+        ind_only = Feature.objects.create(shape="POINT(2 2)")
+        FeatMap.objects.create(fc=npl0, geom=shared)
+        FeatMap.objects.create(fc=npl1, geom=shared)
+        FeatMap.objects.create(fc=npl1, geom=npl_only)
+        FeatMap.objects.create(fc=ind0, geom=ind_only)
+        pages = build_pages([npl0, npl1, ind0])
+
+        a, b = dataset("a", False), dataset("b", False)
+        Coverage.objects.create(dataset=a, geom=shared, status=1)
+        Coverage.objects.create(dataset=a, geom=npl_only, status=1)
+        Coverage.objects.create(dataset=b, geom=shared, status=1)
+
+        result = page_coverage(pages, [a, b])
+
+        self.assertEqual(result["gb-npl"], {a.id: FULL, b.id: PARTIAL})
+        self.assertEqual(result["gb-ind"], {})
