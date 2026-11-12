@@ -1,10 +1,11 @@
+import json
 from datetime import datetime, timezone
 
 from django.test import TestCase
 
 from datasets.docs.coverage import FULL, PARTIAL
 from datasets.docs.grouping import build_pages
-from datasets.docs.text import slug
+from datasets.docs.text import DESCRIPTION_LIMIT, slug
 from datasets.docs.render import (
     boundaries_index,
     boundary_page,
@@ -26,9 +27,10 @@ def make_dataset(name="malaria", **kw):
 
 
 def make_fc(name, level, **kw):
+    kw.setdefault("group_name", "gb_v6_npl")
+    kw.setdefault("group_title", "Nepal - GeoBoundaries v6")
     fc = FeatureCollection.objects.create(
-        name=name, path=f"/{name}", group_name="gb_v6_npl", group_level=level,
-        group_title="Nepal - GeoBoundaries v6", source_name="geoBoundaries",
+        name=name, path=f"/{name}", group_level=level, source_name="geoBoundaries",
         source_url="https://www.geoboundaries.org", active=True, public=True,
         citation="Runfola, D. et al. (2020) geoBoundaries.", **kw,
     )
@@ -87,8 +89,31 @@ class BoundaryPageTests(TestCase):
 
     def test_description_names_topics(self):
         description = self.render().split("\n")[1]
-        self.assertIn("Nepal administrative boundaries from geoBoundaries, ADM0 to ADM1.", description)
-        self.assertIn("including population and malaria", description)
+        self.assertIn("Nepal administrative boundaries (ADM0 to ADM1).", description)
+        self.assertIn("Free to extract with GeoQuery: 2 datasets, including population and malaria.", description)
+
+    def realistic_covering(self):
+        """63 datasets carrying every topic tag, as in production."""
+        tags = ["population", "nighttimelights", "malaria", "conflict", "precipitation", "temperature"]
+        covering = [(make_dataset(f"ds{i}", tags=[tag]), FULL) for i, tag in enumerate(tags)]
+        covering += [(make_dataset(f"other{i}", tags=["other"]), FULL) for i in range(57)]
+        return covering
+
+    def test_realistic_description_keeps_the_dataset_sentence(self):
+        text = boundary_page(self.page, self.realistic_covering(), {}, "https://app.example")
+        description = json.loads(text.split("\n")[1][len("description: "):])
+        self.assertLessEqual(len(description), DESCRIPTION_LIMIT)
+        self.assertIn("63 datasets, including population, nighttime lights, malaria", description)
+
+    def test_long_country_name_names_fewer_topics_rather_than_none(self):
+        congo = make_fc("gB_57dcd43_COD_ADM0", 0, group_name="gb_v6_cod",
+                        group_title="Democratic Republic of the Congo - GeoBoundaries v6")
+        page = build_pages([congo])[0]
+        text = boundary_page(page, self.realistic_covering(), {}, "https://app.example")
+        description = json.loads(text.split("\n")[1][len("description: "):])
+        self.assertLessEqual(len(description), DESCRIPTION_LIMIT)
+        self.assertIn("Democratic Republic of the Congo administrative boundaries", description)
+        self.assertIn("63 datasets, including population", description)
 
 
 class TopicsTests(TestCase):
@@ -194,7 +219,7 @@ class CoverageAndEmptyStateTests(TestCase):
         ds = make_dataset(tags=[])
         text = boundary_page(self.page, [(ds, PARTIAL)], {}, "https://app.example")
         self.assertIn("| [Malaria Incidence](../datasets/malaria.md) | — | Partial |", text)
-        self.assertIn("Extract 1 dataset for them.", text.split("\n")[1])
+        self.assertIn("Free to extract with GeoQuery: 1 dataset.", text.split("\n")[1])
 
     def test_no_covering_datasets(self):
         text = boundary_page(self.page, [], {}, "https://app.example")
@@ -206,12 +231,12 @@ class CoverageAndEmptyStateTests(TestCase):
 
     def test_single_level_lead(self):
         text = boundary_page(self.page, [], {}, "https://app.example")
-        self.assertIn("Nepal administrative boundaries from geoBoundaries, ADM0.", text.split("\n")[1])
+        self.assertIn("Nepal administrative boundaries (ADM0).", text.split("\n")[1])
 
     def test_level_range_lead(self):
         page = build_pages([self.adm0, make_fc("gB_57dcd43_NPL_ADM3", 3)])[0]
         text = boundary_page(page, [], {}, "https://app.example")
-        self.assertIn("geoBoundaries, ADM0 to ADM3.", text.split("\n")[1])
+        self.assertIn("Nepal administrative boundaries (ADM0 to ADM3).", text.split("\n")[1])
 
     def test_anchor_matches_redirect_target(self):
         text = boundary_page(self.page, [], {self.adm0.id: 1}, "https://app.example")

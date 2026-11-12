@@ -19,7 +19,6 @@ from .text import (
 )
 
 DATASET_SUFFIX = " Free to extract with AidData GeoQuery."
-BOUNDARY_SUFFIX = " Free with AidData GeoQuery."
 GEOBOUNDARIES_URL = "https://www.geoboundaries.org"
 
 # Tag -> phrase, in the order a boundary page's description names them.
@@ -156,12 +155,30 @@ def _collection_block(fc, depth: int, feature_count: int, geoboundaries: bool, s
     return "".join(out)
 
 
+def _boundary_description(lead, datasets) -> str:
+    """The lead, then as much of the dataset sentence as fits in a meta
+    description: every topic it can name, fewer for a long place name, else
+    just the count. No brand suffix -- the page title already carries it, and
+    the place and its data types are what a search should match."""
+    if not datasets:
+        return meta_description(lead)
+    n = len(datasets)
+    found = topics(datasets)
+    for k in range(len(found), -1, -1):
+        detail = f"Free to extract with GeoQuery: {n} dataset{'' if n == 1 else 's'}"
+        detail += f", including {join_words(found[:k])}." if k else "."
+        description = meta_description(lead, detail)
+        if description.endswith(detail):
+            return description
+    return meta_description(lead)
+
+
 def boundary_page(page, covering, feature_counts, app_url) -> str:
     """``covering``: [(Dataset, status)] in display order."""
     datasets = [ds for ds, _ in covering]
     if page.geoboundaries:
         levels = _levels(page).replace("–", " to ")
-        lead = f"{page.place} administrative boundaries from geoBoundaries, {levels}."
+        lead = f"{page.place} administrative boundaries ({levels})."
         intro = (
             f"Administrative boundaries for {page.place} from [geoBoundaries]({GEOBOUNDARIES_URL}), "
             f"ready to use in [GeoQuery]({app_url}) to extract data for each area.\n\n"
@@ -171,13 +188,7 @@ def boundary_page(page, covering, feature_counts, app_url) -> str:
         lead = f"{page.title}: {n} boundary set{'' if n == 1 else 's'}."
         newest = max(page.collections, key=lambda fc: fc.date_added)
         intro = f"{one_line(newest.description)}\n\n" if newest.description else ""
-    detail = None
-    if datasets:
-        found = topics(datasets)
-        detail = f"Extract {len(datasets)} dataset{'' if len(datasets) == 1 else 's'} for them"
-        detail += f", including {join_words(found)}." if found else "."
-
-    out = [front_matter(meta_description(lead, detail, BOUNDARY_SUFFIX)), f"# {_heading(page.title)}\n\n", intro]
+    out = [front_matter(_boundary_description(lead, datasets)), f"# {_heading(page.title)}\n\n", intro]
     show_description = not page.geoboundaries and len(page.collections) > 1
     for heading, members in page.sections():
         depth = 2
