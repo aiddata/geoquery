@@ -25,6 +25,7 @@
 	import { customBoundary } from '#lib/stores/customBoundary.js';
 	import { bbox as turfBbox } from '@turf/bbox';
 	import { TriangleAlert } from '@lucide/svelte';
+	import DatasetMetadata from '#lib/components/datasets/DatasetMetadata.svelte';
 	import DatasetSelector from '#lib/components/datasets/DatasetSelector.svelte';
 	import RasterOptions from '#lib/components/datasets/RasterOptions.svelte';
 	import FilterAndAggOptions from '#lib/components/datasets/FilterAndAggOptions.svelte';
@@ -118,6 +119,9 @@
 	// Full detail for the selected dataset
 	let selectedDatasetDetail = $state<DatasetDetail | null>(null);
 	let detailLoading = $state(false);
+	// Metadata panels stay as the user left them while switching datasets.
+	let metadataCiteOpen = $state(false);
+	let metadataMoreOpen = $state(false);
 
 	// Raster options state
 	let rasterOptions = $state<{ extractTypes: string[]; resources: string[] }>({
@@ -352,6 +356,12 @@
 								{selectedDatasetDetail.description}
 							</p>
 						{/if}
+						<DatasetMetadata
+							dataset={selectedDatasetDetail}
+							bbox={selectedDatasetSummary?.bbox}
+							bind:citeOpen={metadataCiteOpen}
+							bind:moreOpen={metadataMoreOpen}
+						/>
 					</div>
 
 					<!-- Configuration area -->

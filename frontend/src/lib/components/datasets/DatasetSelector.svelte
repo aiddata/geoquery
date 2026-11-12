@@ -5,7 +5,7 @@
 	import { ScrollArea } from '#lib/components/ui/scroll-area/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
-	import { Search, ArrowUpDown, ChevronDown, ChevronUp, ExternalLink } from '@lucide/svelte';
+	import { Search, ArrowUpDown, ChevronDown, ChevronUp } from '@lucide/svelte';
 	import type { DatasetSummary, DatasetCategory } from '#lib/api.js';
 
 	interface Props {
@@ -23,7 +23,6 @@
 	let selectedCategory = $state('all');
 	let sortField = $state<'date_updated' | 'title'>('date_updated');
 	let sortAsc = $state(false);
-	let expandedDataset = $state<string | null>(null);
 
 	let filteredDatasets = $derived.by(() => {
 		let result = datasets;
@@ -57,9 +56,6 @@
 		return result;
 	});
 
-	function toggleExpand(name: string) {
-		expandedDataset = expandedDataset === name ? null : name;
-	}
 </script>
 
 <div class="flex h-full flex-col">
@@ -142,94 +138,29 @@
 				<p class="px-4 py-8 text-center text-sm text-muted-foreground">No datasets found.</p>
 			{:else}
 				{#each filteredDatasets as dataset}
-					<!-- svelte-ignore a11y_click_events_have_key_events -->
-					<!-- svelte-ignore a11y_no_static_element_interactions -->
-					<div
-						class="cursor-pointer rounded-md px-3 py-2.5 text-left transition-colors
+					<!-- The whole row selects; the selected dataset's metadata is in
+					     the centre panel. -->
+					<button
+						type="button"
+						class="block w-full cursor-pointer rounded-md px-3 py-2.5 text-left transition-colors
 							{selectedDataset?.name === dataset.name
 							? 'bg-primary/10 text-primary'
 							: 'hover:bg-muted'}"
+						aria-pressed={selectedDataset?.name === dataset.name}
 						onclick={() => onSelect(dataset)}
 					>
-						<div class="flex items-start justify-between gap-2">
-							<div class="flex-1">
-								<p class="text-sm font-bold leading-snug">
-									{dataset.title ?? dataset.name}
-								</p>
-								<div class="mt-0.5 flex items-center gap-1.5">
-									<p class="text-xs text-muted-foreground">{dataset.processing_class === 'filter_and_agg' ? 'Feature' : 'Raster'}</p>
-									{#if outOfRangeNames.has(dataset.name)}
-										<Badge variant="warning">out of range</Badge>
-									{/if}
-								</div>
-							</div>
-							<Button
-								variant="ghost"
-								size="icon-sm"
-								class="-mt-1 shrink-0 text-muted-foreground"
-								onclick={(e: MouseEvent) => { e.stopPropagation(); toggleExpand(dataset.name); }}
-								aria-label="Toggle details"
-								aria-expanded={expandedDataset === dataset.name}
-							>
-								{#if expandedDataset === dataset.name}
-									<ChevronUp />
-								{:else}
-									<ChevronDown />
-								{/if}
-							</Button>
+						<p class="text-sm font-bold leading-snug">
+							{dataset.title ?? dataset.name}
+						</p>
+						<div class="mt-0.5 flex items-center gap-1.5">
+							<p class="text-xs text-muted-foreground">
+								{dataset.processing_class === 'filter_and_agg' ? 'Feature' : 'Raster'}
+							</p>
+							{#if outOfRangeNames.has(dataset.name)}
+								<Badge variant="warning">out of range</Badge>
+							{/if}
 						</div>
-
-						{#if expandedDataset === dataset.name}
-							<div class="mt-2 space-y-1.5 text-xs text-muted-foreground">
-								{#if dataset.description}
-									<p>{dataset.description}</p>
-								{/if}
-								{#if dataset.source_name}
-									<p>
-										Source: {dataset.source_name}
-										{#if dataset.source_url}
-											<a
-												href={dataset.source_url}
-												target="_blank"
-												rel="noopener noreferrer"
-												class="inline-flex items-center gap-1 text-link hover:text-link-hover hover:underline"
-												onclick={(e: MouseEvent) => e.stopPropagation()}
-											>
-												<ExternalLink class="h-3 w-3" />
-											</a>
-										{/if}
-									</p>
-								{/if}
-								<!-- Always shown, even when unset: GeoQuery redistributes
-								     other people's data, and "not recorded" is what tells
-								     the user they still have to check the source. -->
-								<p>
-									License:
-									{#if dataset.license}
-										{#if dataset.license_url}
-											<a
-												href={dataset.license_url}
-												target="_blank"
-												rel="noopener noreferrer"
-												class="inline-flex items-center gap-1 text-link hover:text-link-hover hover:underline"
-												onclick={(e: MouseEvent) => e.stopPropagation()}
-											>
-												{dataset.license}
-												<ExternalLink class="h-3 w-3" />
-											</a>
-										{:else}
-											{dataset.license}
-										{/if}
-									{:else}
-										<span class="italic">not recorded — check the source</span>
-									{/if}
-								</p>
-								{#if dataset.citation}
-									<p class="text-xs leading-snug">Cite as: {dataset.citation}</p>
-								{/if}
-							</div>
-						{/if}
-					</div>
+					</button>
 				{/each}
 			{/if}
 		</div>

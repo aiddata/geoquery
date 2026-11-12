@@ -190,6 +190,14 @@ export interface CategoricalFilter {
 export type DatasetFilter = RangeFilter | CategoricalFilter;
 
 export interface DatasetDetail extends DatasetSummary {
+	date_added: string;
+	details: string | null;
+	/** What a value means, with units: "distance in meters". */
+	variable_description: string | null;
+	is_global: boolean;
+	/** Cell size in decimal degrees; null when not recorded. */
+	resolution: number | null;
+	version: string | null;
 	extract_types: ExtractType[];
 	resources: DatasetResource[];
 	filters: Record<string, DatasetFilter> | null;
