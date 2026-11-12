@@ -17,6 +17,7 @@ import json
 import shutil
 import sys
 import tarfile
+import time
 import tomllib
 import urllib.request
 import zlib
@@ -42,7 +43,10 @@ def bundle_url(config=REPO / "zensical.toml") -> str:
 
 
 def download(url: str) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": "geoquery-docs-build"})
+    # Cloudflare caches the bundle by URL; a query string it hasn't seen makes
+    # it fetch the current file from the app instead of serving yesterday's.
+    fresh = f"{url}{'&' if '?' in url else '?'}v={int(time.time())}"
+    request = urllib.request.Request(fresh, headers={"User-Agent": "geoquery-docs-build"})
     try:
         with urllib.request.urlopen(request, timeout=120) as response:
             return response.read()
@@ -72,9 +76,11 @@ def check_manifest(manifest: dict, now=None) -> list:
 
 def unpack(data: bytes, target: Path):
     try:
-        tar = tarfile.open(fileobj=io.BytesIO(data), mode="r:gz")
+        # "r:*" because Cloudflare serves the .tar.gz decompressed: a plain tar
+        # with no Content-Encoding header.
+        tar = tarfile.open(fileobj=io.BytesIO(data), mode="r:*")
     except tarfile.TarError as exc:
-        raise BundleError(f"not a gzip tarball: {exc}") from exc
+        raise BundleError(f"not a tar archive (gzip or plain): {exc}") from exc
     with tar:
         try:
             manifest = json.load(tar.extractfile("manifest.json"))

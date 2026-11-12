@@ -118,6 +118,37 @@ class MainTests(unittest.TestCase):
         self.assertTrue(out.getvalue().startswith("::error::"))
 
 
+class ServedFormTests(unittest.TestCase):
+    """Cloudflare serves the .tar.gz decompressed (plain tar, no Content-Encoding)
+    and caches it, so the script must accept both forms and bypass the cache."""
+
+    def test_plain_tar_is_accepted(self):
+        import gzip
+        target = Path(tempfile.mkdtemp())
+        manifest, _ = f.unpack(gzip.decompress(bundle()), target)
+        self.assertEqual(manifest["datasets"], 63)
+        self.assertTrue((target / "boundaries" / "gb-npl.md").exists())
+
+    def test_download_bypasses_the_cache(self):
+        from unittest import mock
+        seen = []
+
+        class Response(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        def fake_urlopen(request, timeout):
+            seen.append(request.full_url)
+            return Response(b"data")
+
+        with mock.patch.object(f.urllib.request, "urlopen", fake_urlopen):
+            self.assertEqual(f.download("https://app.example/requests/docs/data-docs.tar.gz"), b"data")
+        self.assertRegex(seen[0], r"^https://app\.example/requests/docs/data-docs\.tar\.gz\?v=\d+$")
+
+
 class BundleUrlTests(unittest.TestCase):
     def test_url_comes_from_app_url(self):
         config = Path(tempfile.mkdtemp()) / "zensical.toml"
