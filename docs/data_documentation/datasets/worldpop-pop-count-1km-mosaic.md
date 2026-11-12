@@ -1,3 +1,7 @@
+---
+description: "WorldPop Population Count. Estimated population count from WorldPop. Free to extract with AidData GeoQuery."
+---
+
 # WorldPop Population Count
 Estimated population count from WorldPop. Underlying dataset provides number of people per 1km pixel. The mapping approach is Random Forest-based dasymetric redistribution
 Raw data converted to Cloud Optimized GeoTIFFs; values are unchanged from the source data.

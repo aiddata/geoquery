@@ -1,3 +1,7 @@
+---
+description: "geoBoundaries v6 - France ADM4: 2,054 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
 # geoBoundaries v6 - France ADM4
 This feature collection represents the ADM4 level boundaries for France (FRA) from geoBoundaries v6.
 Based on GitHub commit 9469f09

@@ -1,3 +1,7 @@
+---
+description: "Drug Cultivation Sites. Free to extract with AidData GeoQuery."
+---
+
 # Drug Cultivation Sites
 The drug cultivation dataset contains information on coca bush, opium poppy, and cannabis cultivation through the world. 
 Dataset downloaded August 2017. This is a categorical raster dataset indicating drug type covering each pixel.

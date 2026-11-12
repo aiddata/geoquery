@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Rwanda ADM5
+---
+description: "geoBoundaries v6 - Rwanda ADM5 (Villages): 14,815 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Rwanda ADM5 (Villages)
 This feature collection represents the ADM5 level boundaries for Rwanda (RWA) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

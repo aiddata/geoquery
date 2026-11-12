@@ -1,3 +1,7 @@
+---
+description: "US CENSUS TIGER/Line 2025 COUNTY: 3,235 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
 # US CENSUS TIGER/Line 2025 COUNTY
 US CENSUS TIGER/Line shapefiles for COUNTY in 2025
 ## Details

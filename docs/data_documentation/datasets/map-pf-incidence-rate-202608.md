@@ -1,3 +1,7 @@
+---
+description: "Malaria Atlas Project - Malaria (Pf) Incidence Rate. Raw value is the estimated rate per person. Free to extract with AidData GeoQuery."
+---
+
 # Malaria Atlas Project - Malaria (Pf) Incidence Rate
 Raw value is the estimated rate per person. Multiply by 1,000 to get the number of newly diagnosed Malaria (Plasmodium falciparum) cases per 1,000 population, in a given year
 ## Details

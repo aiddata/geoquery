@@ -1,3 +1,7 @@
+---
+description: "Monthly Precipitation - CRU TS (v4.07). Monthly precipitation from Climate Research Unit (CRU) in millimeters. Free to extract with AidData GeoQuery."
+---
+
 # Monthly Precipitation - CRU TS (v4.07)
 Monthly precipitation from Climate Research Unit (CRU) in millimeters. Version 4.07
 Created by extracting monthly precipitation data from CRU

@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Latvia ADM2
+---
+description: "geoBoundaries v6 - Latvia ADM2 (pilsētās un pagastos): 589 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Latvia ADM2 (pilsētās un pagastos)
 This feature collection represents the ADM2 level boundaries for Latvia (LVA) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

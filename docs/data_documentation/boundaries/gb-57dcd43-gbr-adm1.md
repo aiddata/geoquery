@@ -1,4 +1,8 @@
-# geoBoundaries v6 - United Kingdom ADM1
+---
+description: "geoBoundaries v6 - United Kingdom ADM1 (Country): 4 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - United Kingdom ADM1 (Country)
 This feature collection represents the ADM1 level boundaries for United Kingdom (GBR) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

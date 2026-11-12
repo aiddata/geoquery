@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Syrian Arab Republic ADM1
+---
+description: "geoBoundaries v6 - Syrian Arab Republic ADM1 (Governorate): 14 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Syrian Arab Republic ADM1 (Governorate)
 This feature collection represents the ADM1 level boundaries for Syrian Arab Republic (SYR) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

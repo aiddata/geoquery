@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Côte d'Ivoire ADM2
+---
+description: "geoBoundaries v6 - Côte d'Ivoire ADM2 (régions de Côte d'Ivoire): 33 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Côte d'Ivoire ADM2 (régions de Côte d'Ivoire)
 This feature collection represents the ADM2 level boundaries for Côte d'Ivoire (CIV) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

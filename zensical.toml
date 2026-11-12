@@ -18,7 +18,7 @@ dev_addr = "127.0.0.1:8001"
 # meaningful description of the site content for use by search engines.
 #
 # Read more: https://zensical.org/docs/setup/basics/#site_description
-site_description = "Documentation for GeoQuery"
+site_description = "Guides, FAQ and full dataset and boundary documentation for AidData GeoQuery, a free tool for extracting geospatial data for any area."
 
 # The site_author attribute. This is used in the HTML head element.
 #
@@ -28,7 +28,7 @@ site_author = "Jacob Hall"
 # The site_url is the canonical URL for your site. When building online
 # documentation you should set this.
 # Read more: https://zensical.org/docs/setup/basics/#site_url
-#site_url = "https://www.example.com/"
+site_url = "https://docs.geoquery.org/"
 
 repo_url = "https://github.com/aiddata/geoquery"
 repo_name = "aiddata/geoquery"

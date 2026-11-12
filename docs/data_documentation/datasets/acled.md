@@ -1,3 +1,7 @@
+---
+description: "ACLED Conflict Events. Free to extract with AidData GeoQuery."
+---
+
 # ACLED Conflict Events
 Georeferenced political violence and protest events from the Armed Conflict Location & Event Data Project (ACLED).
 Manually downloaded from the ACLED data export tool. Converted from CSV to GeoPackage with event_count (=1 per event) and fatalities as aggregate outcomes.

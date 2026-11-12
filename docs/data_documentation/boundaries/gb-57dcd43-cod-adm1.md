@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Democratic Republic of the Congo ADM1
+---
+description: "geoBoundaries v6 - Democratic Republic of the Congo ADM1 (Provinces): 26 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Democratic Republic of the Congo ADM1 (Provinces)
 This feature collection represents the ADM1 level boundaries for Democratic Republic of the Congo (COD) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

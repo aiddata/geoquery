@@ -1,3 +1,7 @@
+---
+description: "Diamond Deposits. The diamonds dataset contains a list of all known diamond deposits throughout the world. Free to extract with AidData GeoQuery."
+---
+
 # Diamond Deposits
 The diamonds dataset contains a list of all known diamond deposits throughout the world. Layer is a binary indicating areas with diamond deposits.
 Dataset downloaded August 2017.

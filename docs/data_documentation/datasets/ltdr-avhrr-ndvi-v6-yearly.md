@@ -1,3 +1,7 @@
+---
+description: "Yearly Normalized Difference Vegetation Index - NDVI (LTDR v6 - AVHRR). Free to extract with AidData GeoQuery."
+---
+
 # Yearly Normalized Difference Vegetation Index - NDVI (LTDR v6 - AVHRR)
 Yearly value for Normalized Difference Vegetation Index (NDVI). Created using the NASA Long Term Data Record (v6) AVHRR data.
 Created by aggregating daily data to monthly by taking the maximum value, then averaging the monthly data to get yearly values. All negative NDVI values were truncated to 0 and saturated pixels were adjusted to the max of the normal NDVI range (10000).

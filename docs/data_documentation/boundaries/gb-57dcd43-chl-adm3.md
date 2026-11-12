@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Chile ADM3
+---
+description: "geoBoundaries v6 - Chile ADM3 (Communes): 345 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Chile ADM3 (Communes)
 This feature collection represents the ADM3 level boundaries for Chile (CHL) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

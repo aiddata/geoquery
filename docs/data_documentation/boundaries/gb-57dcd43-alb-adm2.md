@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Albania ADM2
+---
+description: "geoBoundaries v6 - Albania ADM2 (rrethe): 37 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Albania ADM2 (rrethe)
 This feature collection represents the ADM2 level boundaries for Albania (ALB) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Philippines ADM1
+---
+description: "geoBoundaries v6 - Philippines ADM1 (Regions): 17 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Philippines ADM1 (Regions)
 This feature collection represents the ADM1 level boundaries for Philippines (PHL) from geoBoundaries v6.
 Based on GitHub commit 41af8f1
 ## Details

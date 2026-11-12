@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Algeria ADM2
+---
+description: "geoBoundaries v6 - Algeria ADM2 (the People's Democratic Republic of Algeria): 48 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Algeria ADM2 (the People's Democratic Republic of Algeria)
 This feature collection represents the ADM2 level boundaries for Algeria (DZA) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

@@ -1,3 +1,7 @@
+---
+description: "Physical Elevation. Free to extract with AidData GeoQuery."
+---
+
 # Physical Elevation
 Global land and ice surface elevation (in meters; negative values are ocean depth) from the GEBCO_2026 Grid, at 15 arc-second (~450m) resolution.
 No additional processing of raw data beyond mosaicking the 8 quadrant tiles GEBCO distributes into a single global raster.

@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Nigeria ADM2
+---
+description: "geoBoundaries v6 - Nigeria ADM2 (Local Government Areas): 774 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Nigeria ADM2 (Local Government Areas)
 This feature collection represents the ADM2 level boundaries for Nigeria (NGA) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

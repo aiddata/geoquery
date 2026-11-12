@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Georgia ADM2
+---
+description: "geoBoundaries v6 - Georgia ADM2 (Municipality): 68 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Georgia ADM2 (Municipality)
 This feature collection represents the ADM2 level boundaries for Georgia (GEO) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

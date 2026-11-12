@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Afghanistan ADM0
+---
+description: "geoBoundaries v6 - Afghanistan ADM0 (Country): 1 feature. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Afghanistan ADM0 (Country)
 This feature collection represents the ADM0 level boundaries for Afghanistan (AFG) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

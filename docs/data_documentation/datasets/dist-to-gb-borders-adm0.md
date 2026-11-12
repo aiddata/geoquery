@@ -1,3 +1,7 @@
+---
+description: "Distance to Country (ADM0) Borders (geoBoundaries). Distance to country ADM0 borders, measured in meters. Free to extract with AidData GeoQuery."
+---
+
 # Distance to Country (ADM0) Borders (geoBoundaries)
 Distance to country ADM0 borders, measured in meters. Derived using geoBoundaries ADM0 (Country) boundaries.
 ## Details

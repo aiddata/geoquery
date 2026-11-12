@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from pathlib import Path
@@ -17,6 +18,39 @@ def _absolute_url(url: str) -> str:
     if url.startswith(("http://", "https://")):
         return url
     return f"https://{url}"
+
+
+# Search engines show roughly this many characters of a meta description.
+DESCRIPTION_LIMIT = 160
+
+DATASET_DESCRIPTION_SUFFIX = " Free to extract with AidData GeoQuery."
+
+
+def _one_line(text) -> str:
+    return " ".join((text or "").split())
+
+
+def meta_description(lead, detail=None, suffix: str = "") -> str:
+    """A page's meta description, at most DESCRIPTION_LIMIT characters: ``lead``
+    then ``suffix``, with as much of ``detail`` between them as fits whole --
+    all of it, else its first sentence, else none. Only an overlong ``lead`` is
+    ever cut mid-text, at a word."""
+    lead, detail = _one_line(lead), _one_line(detail)
+    room = DESCRIPTION_LIMIT - len(suffix)
+    if len(lead) > room:
+        lead = lead[: room - 1].rsplit(" ", 1)[0].rstrip(".,;:") + "…"
+    first_sentence = re.split(r"(?<=[.!?])\s", detail, maxsplit=1)[0]
+    for candidate in (detail, first_sentence):
+        if candidate and len(lead) + 1 + len(candidate) <= room:
+            lead = f"{lead} {candidate}"
+            break
+    return (lead + suffix).strip()
+
+
+def page_front_matter(description: str) -> str:
+    """YAML front matter setting the page's meta description. JSON string
+    syntax is valid YAML, and quoting keeps colons and hashes literal."""
+    return f"---\ndescription: {json.dumps(description, ensure_ascii=False)}\n---\n\n"
 
 
 def _optional_row(label: str, value) -> str:
@@ -43,9 +77,14 @@ def _build_dataset_page(dataset) -> str:
     resources = list(dataset.resources.order_by("temporal", "name"))
     mappings = list(dataset.mappings.order_by("map_val"))
 
-    lines = []
+    title = dataset.title or dataset.name
+    lines = [
+        page_front_matter(
+            meta_description(f"{title}.", dataset.description, DATASET_DESCRIPTION_SUFFIX)
+        )
+    ]
 
-    lines.append(f"# {dataset.title or dataset.name}\n")
+    lines.append(f"# {title}\n")
 
     if dataset.description:
         lines.append(f"{dataset.description}\n")
@@ -105,7 +144,13 @@ def _build_dataset_page(dataset) -> str:
 
 
 def _build_dataset_index(datasets) -> str:
-    lines = ["# Datasets\n\n"]
+    lines = [
+        page_front_matter(
+            f"All {len(datasets)} datasets available in AidData GeoQuery: population, nighttime "
+            "lights, climate, land cover, conflict, health and more, free to extract for any boundary."
+        ),
+        "# Datasets\n\n",
+    ]
     lines.append(
         "This page lists all datasets available in GeoQuery. "
         "Click a dataset name for full details.\n\n"

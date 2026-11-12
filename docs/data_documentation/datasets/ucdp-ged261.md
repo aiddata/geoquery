@@ -1,3 +1,7 @@
+---
+description: "UCDP Conflict Deaths (v26.1). Free to extract with AidData GeoQuery."
+---
+
 # UCDP Conflict Deaths (v26.1)
 Number of total fatalities resulting from conflict events based on the UCDP Georeferenced Event Dataset (GED) global version 26.1.
 ## Details

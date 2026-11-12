@@ -1,3 +1,7 @@
+---
+description: "Distance to Diamond Deposits. Distance to known diamond deposits, measured in meters. Free to extract with AidData GeoQuery."
+---
+
 # Distance to Diamond Deposits
 Distance to known diamond deposits, measured in meters.
 Dataset downloaded August 2017.

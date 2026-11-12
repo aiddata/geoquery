@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Mexico ADM1
+---
+description: "geoBoundaries v6 - Mexico ADM1 (States): 32 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Mexico ADM1 (States)
 This feature collection represents the ADM1 level boundaries for Mexico (MEX) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

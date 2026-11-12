@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Timor-Leste ADM2
+---
+description: "geoBoundaries v6 - Timor-Leste ADM2 (Administrative Posts): 65 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Timor-Leste ADM2 (Administrative Posts)
 This feature collection represents the ADM2 level boundaries for Timor-Leste (TLS) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

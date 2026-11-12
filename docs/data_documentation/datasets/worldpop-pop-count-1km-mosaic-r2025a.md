@@ -1,3 +1,7 @@
+---
+description: "WorldPop Population Count (2015-2030, R2025A). Free to extract with AidData GeoQuery."
+---
+
 # WorldPop Population Count (2015-2030, R2025A)
 Estimated population count from WorldPop global 1km mosaics, 2015-2030 (R2025A v1). Underlying dataset provides constrained number of people per 1km pixel, mosaiced from the 100m resolution country datasets. Years past the release date are projections.
 Raw data converted to Cloud Optimized GeoTIFFs; values are unchanged from the source data.

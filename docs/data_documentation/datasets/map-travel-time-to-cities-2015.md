@@ -1,3 +1,7 @@
+---
+description: "Accessibility to Cities (2015). Estimated travel time (in minutes) to the nearest city for the year 2015. Free to extract with AidData GeoQuery."
+---
+
 # Accessibility to Cities (2015)
 Estimated travel time (in minutes) to the nearest city for the year 2015.
 Incorporates data from Open Street Map (OSM) data and the Google roads database. Not suited for time series analysis using earlier travel time estimates for the year 2000.

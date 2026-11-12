@@ -1,3 +1,7 @@
+---
+description: "Yearly Mean Precipitation - CRU TS (v4.07). Yearly mean precipitation from Climate Research Unit (CRU) in millimeters. Free to extract with AidData GeoQuery."
+---
+
 # Yearly Mean Precipitation - CRU TS (v4.07)
 Yearly mean precipitation from Climate Research Unit (CRU) in millimeters. Version 4.07
 Created by aggregating (mean) monthly precipitation data from CRU TS

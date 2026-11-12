@@ -1,3 +1,7 @@
+---
+description: "On-Shore Petroleum. Free to extract with AidData GeoQuery."
+---
+
 # On-Shore Petroleum
 The petroleum dataset contains information on all known on-shore oil and gas deposits throughout the world. Data is binary indicating locations with deposits
 Dataset downloaded August 2017.

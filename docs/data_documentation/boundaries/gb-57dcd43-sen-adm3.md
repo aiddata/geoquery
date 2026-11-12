@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Senegal ADM3
+---
+description: "geoBoundaries v6 - Senegal ADM3 (arrondissement): 121 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Senegal ADM3 (arrondissement)
 This feature collection represents the ADM3 level boundaries for Senegal (SEN) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

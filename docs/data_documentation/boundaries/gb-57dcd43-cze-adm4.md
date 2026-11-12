@@ -1,3 +1,7 @@
+---
+description: "geoBoundaries v6 - Czechia ADM4: 13,090 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
 # geoBoundaries v6 - Czechia ADM4
 This feature collection represents the ADM4 level boundaries for Czechia (CZE) from geoBoundaries v6.
 Based on GitHub commit 9469f09

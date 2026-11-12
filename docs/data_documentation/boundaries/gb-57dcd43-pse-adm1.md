@@ -1,4 +1,8 @@
-# geoBoundaries v6 - State of Palestine ADM1
+---
+description: "geoBoundaries v6 - State of Palestine ADM1 (territory): 2 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - State of Palestine ADM1 (territory)
 This feature collection represents the ADM1 level boundaries for State of Palestine (PSE) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

@@ -1,3 +1,7 @@
+---
+description: "Annual nighttime land surface temperature - MODIS v6.1. Annual nighttime land surface temperature in Kelvins. Free to extract with AidData GeoQuery."
+---
+
 # Annual nighttime land surface temperature - MODIS v6.1
 Annual nighttime land surface temperature in Kelvins. Created by aggregating (mean) month data from MOD11C3.061 CMG LST product
 Production of the previous version (V6) Terra MODIS Land Surface Temperature and Emissivity (LST&E) data products was discontinued on November 15, 2022, due to significant loss of data retrieval following the Constellation Exit Maneuvers.

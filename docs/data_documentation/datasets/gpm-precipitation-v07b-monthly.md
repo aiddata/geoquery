@@ -1,3 +1,7 @@
+---
+description: "Monthly IMERG (GPM) precipitation (v07B). Monthly IMERG GPM (v07B) precipitation - research version Free to extract with AidData GeoQuery."
+---
+
 # Monthly IMERG (GPM) precipitation (v07B)
 Monthly IMERG GPM (v07B) precipitation - research version
 Created by extracting monthly IMERG V07B GPM data

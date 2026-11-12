@@ -1,3 +1,7 @@
+---
+description: "Global Critical Habitats Screening - Version 2.1. Free to extract with AidData GeoQuery."
+---
+
 # Global Critical Habitats Screening - Version 2.1
 The International Finance Corporation's (IFC's) Performance Standard 6 (PS6) is one of the most influential biodiversity standards of current time, particularly within large-scale infrastructure and the extractive sector. Within PS6, biodiversity significance is articulated through the concept of 'Critical Habitat,' a definition developed by the IFC and detailed through criteria aligned with those that support internationally accepted biodiversity designations. Critical Habitat criteria identify habitats of significant importance to threatened, endemic, congregatory and migratory species, threatened or unique ecosystems, and key evolutionary processes. PS6 requires projects to achieve net gains in the biodiversity values for which Critical Habitat is identified.
 ## Details

@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Ecuador ADM2
+---
+description: "geoBoundaries v6 - Ecuador ADM2 (Cantons): 223 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Ecuador ADM2 (Cantons)
 This feature collection represents the ADM2 level boundaries for Ecuador (ECU) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

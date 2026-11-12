@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Honduras ADM2
+---
+description: "geoBoundaries v6 - Honduras ADM2 (Municipalities): 298 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Honduras ADM2 (Municipalities)
 This feature collection represents the ADM2 level boundaries for Honduras (HND) from geoBoundaries v6.
 Based on GitHub commit 905b0ba
 ## Details

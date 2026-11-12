@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Réunion ADM4
+---
+description: "geoBoundaries v6 - Réunion ADM4 (Commune): 24 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Réunion ADM4 (Commune)
 This feature collection represents the ADM4 level boundaries for Réunion (REU) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Libya ADM1
+---
+description: "geoBoundaries v6 - Libya ADM1 (Districts): 22 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Libya ADM1 (Districts)
 This feature collection represents the ADM1 level boundaries for Libya (LBY) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

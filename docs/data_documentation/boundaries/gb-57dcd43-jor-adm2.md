@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Jordan ADM2
+---
+description: "geoBoundaries v6 - Jordan ADM2 (Nahias): 52 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Jordan ADM2 (Nahias)
 This feature collection represents the ADM2 level boundaries for Jordan (JOR) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

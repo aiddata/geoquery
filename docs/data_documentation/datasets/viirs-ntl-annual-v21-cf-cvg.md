@@ -1,3 +1,7 @@
+---
+description: "Annual VIIRS Nighttime Lights v2.1 - Count of Cloud Free Coverage. Annual VIIRS nighttime lights product Version 2.1. Free to extract with AidData GeoQuery."
+---
+
 # Annual VIIRS Nighttime Lights v2.1 - Count of Cloud Free Coverage
 Annual VIIRS nighttime lights product Version 2.1. Count of pixels within boundary with at least 1 cloud free observation of nighttime lights. Can be used in combination with VIIRS Nighttime Light Average product to determine if sufficient coverage exists with boundary features.
 ## Details

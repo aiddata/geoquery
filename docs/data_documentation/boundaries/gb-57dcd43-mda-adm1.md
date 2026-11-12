@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Republic of Moldova ADM1
+---
+description: "geoBoundaries v6 - Republic of Moldova ADM1 (Districts): 37 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Republic of Moldova ADM1 (Districts)
 This feature collection represents the ADM1 level boundaries for Republic of Moldova (MDA) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

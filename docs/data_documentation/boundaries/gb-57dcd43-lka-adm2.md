@@ -1,3 +1,7 @@
+---
+description: "geoBoundaries v6 - Sri Lanka ADM2: 25 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
 # geoBoundaries v6 - Sri Lanka ADM2
 This feature collection represents the ADM2 level boundaries for Sri Lanka (LKA) from geoBoundaries v6.
 Based on GitHub commit 9469f09

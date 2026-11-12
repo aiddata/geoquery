@@ -1,3 +1,7 @@
+---
+description: "geoBoundaries v6 - Paraguay ADM2: 247 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
 # geoBoundaries v6 - Paraguay ADM2
 This feature collection represents the ADM2 level boundaries for Paraguay (PRY) from geoBoundaries v6.
 Based on GitHub commit f549eab

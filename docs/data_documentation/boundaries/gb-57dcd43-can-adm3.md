@@ -1,3 +1,7 @@
+---
+description: "geoBoundaries v6 - Canada ADM3: 5,162 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
 # geoBoundaries v6 - Canada ADM3
 This feature collection represents the ADM3 level boundaries for Canada (CAN) from geoBoundaries v6.
 Based on GitHub commit 9469f09

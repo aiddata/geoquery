@@ -4,7 +4,11 @@ from pathlib import Path
 
 from django.conf import settings
 
+from datasets.tasks.create_docs import meta_description, page_front_matter
+
 logger = logging.getLogger(__name__)
+
+BOUNDARY_DESCRIPTION_SUFFIX = " Extract population, climate and more for them with AidData GeoQuery."
 
 
 def _slug(name: str) -> str:
@@ -30,9 +34,11 @@ def _license_row(obj) -> str:
 
 
 def _build_fc_page(fc, feature_count: int) -> str:
-    lines = []
+    title = fc.title or fc.name
+    lead = f"{title}: {feature_count:,} feature{'' if feature_count == 1 else 's'}."
+    lines = [page_front_matter(meta_description(lead, fc.description, BOUNDARY_DESCRIPTION_SUFFIX))]
 
-    lines.append(f"# {fc.title or fc.name}\n")
+    lines.append(f"# {title}\n")
 
     if fc.description:
         lines.append(f"{fc.description}\n")
@@ -81,7 +87,13 @@ def _build_fc_page(fc, feature_count: int) -> str:
 
 
 def _build_fc_index(fcs, counts: dict) -> str:
-    lines = ["# Boundaries\n\n"]
+    lines = [
+        page_front_matter(
+            f"All {len(fcs)} boundary sets in AidData GeoQuery: administrative boundaries for "
+            "every country from geoBoundaries, US counties and urban expansion areas."
+        ),
+        "# Boundaries\n\n",
+    ]
     lines.append(
         "This page lists all boundary datasets available in GeoQuery. "
         "Click a boundary name for full details.\n\n"

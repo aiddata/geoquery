@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Central African Republic ADM3
+---
+description: "geoBoundaries v6 - Central African Republic ADM3 (Municipalities): 175 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Central African Republic ADM3 (Municipalities)
 This feature collection represents the ADM3 level boundaries for Central African Republic (CAF) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

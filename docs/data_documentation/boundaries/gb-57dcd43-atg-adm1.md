@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Antigua and Barbuda ADM1
+---
+description: "geoBoundaries v6 - Antigua and Barbuda ADM1 (Parish and Dependency): 8 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Antigua and Barbuda ADM1 (Parish and Dependency)
 This feature collection represents the ADM1 level boundaries for Antigua and Barbuda (ATG) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

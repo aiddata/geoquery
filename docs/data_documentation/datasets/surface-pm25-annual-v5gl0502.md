@@ -1,3 +1,7 @@
+---
+description: "Annual Surface PM2.5 Estimates (V5GL0502). Free to extract with AidData GeoQuery."
+---
+
 # Annual Surface PM2.5 Estimates (V5GL0502)
 Yearly average of monthly estimates of ground-level fine particulate matter (PM2.5) for 1998-2022 produced by combining Aerosol Optical Depth (AOD) retrievals from the NASA MODIS, MISR, and SeaWIFS instruments with the GEOS-Chem chemical transport model, and subsequently calibrating to global ground-based observations using a Geographically Weighted Regression (GWR).
 ## Details

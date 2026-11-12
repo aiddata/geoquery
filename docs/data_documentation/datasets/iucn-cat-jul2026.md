@@ -1,3 +1,7 @@
+---
+description: "Protected Areas (IUCN Categories) - July 2026. Free to extract with AidData GeoQuery."
+---
+
 # Protected Areas (IUCN Categories) - July 2026
 The World Database on Protected Areas (WDPA) is the most comprehensive global database of marine and terrestrial protected areas. Dataset downloaded July 2026. This is a categorical raster indicating the IUCN category (or relevant information when no category exists) of the protected area covering each pixel. 
 Features which had different IUCN categories and overlapped with each other were assigned a new category (represented by 'mix') during the rasterization process.

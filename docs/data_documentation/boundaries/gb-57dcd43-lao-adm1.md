@@ -1,3 +1,7 @@
+---
+description: "geoBoundaries v6 - Lao People's Democratic Republic ADM1: 18 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
 # geoBoundaries v6 - Lao People's Democratic Republic ADM1
 This feature collection represents the ADM1 level boundaries for Lao People's Democratic Republic (LAO) from geoBoundaries v6.
 Based on GitHub commit 9469f09

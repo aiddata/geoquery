@@ -1,3 +1,7 @@
+---
+description: "Distance to Drug Cultivation Sites. Distance to drug cultivation sites (any drug type). Free to extract with AidData GeoQuery."
+---
+
 # Distance to Drug Cultivation Sites
 Distance to drug cultivation sites (any drug type). The drug cultivation dataset contains information on coca bush, opium poppy, and cannabis cultivation through the world. 
 Dataset downloaded August 2017.

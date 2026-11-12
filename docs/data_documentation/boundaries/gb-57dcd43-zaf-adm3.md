@@ -1,4 +1,8 @@
-# geoBoundaries v6 - South Africa ADM3
+---
+description: "geoBoundaries v6 - South Africa ADM3 (Local municipality): 213 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - South Africa ADM3 (Local municipality)
 This feature collection represents the ADM3 level boundaries for South Africa (ZAF) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

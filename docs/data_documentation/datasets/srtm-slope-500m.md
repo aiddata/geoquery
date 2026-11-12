@@ -1,3 +1,7 @@
+---
+description: "Ground Slope. Free to extract with AidData GeoQuery."
+---
+
 # Ground Slope
 Global slope (in degrees) derived from Shuttle Radar Topography Mission (SRTM) dataset (v4.1) at 500m resolution.
 Created using SRTM elevation data and generating slope in QGIS (which uses gdaldem tool)

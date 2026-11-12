@@ -1,3 +1,7 @@
+---
+description: "geoBoundaries v6 - Bosnia and Herzegovina ADM3: 142 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
 # geoBoundaries v6 - Bosnia and Herzegovina ADM3
 This feature collection represents the ADM3 level boundaries for Bosnia and Herzegovina (BIH) from geoBoundaries v6.
 Based on GitHub commit f549eab

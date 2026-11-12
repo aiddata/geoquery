@@ -1,3 +1,7 @@
+---
+description: "Motorized Travel Time to Healthcare Facilities (2019). Free to extract with AidData GeoQuery."
+---
+
 # Motorized Travel Time to Healthcare Facilities (2019)
 Estimated motorized travel time (in minutes) to the nearest healthcare facility, for the year 2019.
 ## Details

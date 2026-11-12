@@ -1,3 +1,7 @@
+---
+description: "LandScan Population Count. Estimated population count from LandScan. Free to extract with AidData GeoQuery."
+---
+
 # LandScan Population Count
 Estimated population count from LandScan. Underlying dataset provides number of people per 1km pixel, based on an ambient population (average over 24 hours) distribution. Note: This data should not be used for change detection or migration tool (see https://landscan.ornl.gov/about for details).
 No additional processing of raw data.

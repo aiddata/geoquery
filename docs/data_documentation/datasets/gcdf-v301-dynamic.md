@@ -1,3 +1,7 @@
+---
+description: "Monetary value of Chinese ODA and OOF-financed development projects (GeoGCDF v3.0.1). Free to extract with AidData GeoQuery."
+---
+
 # Monetary value of Chinese ODA and OOF-financed development projects (GeoGCDF v3.0.1)
 Monetary commitment value of Chinese ODA- and OOF-financed projects from AidData's Geospatial Global Chinese Development Finance Dataset v3.0.1. These constant 2021 USD values are associated with projects from the dataset for which locations were found using OpenStreetMap (OSM).
 ## Details

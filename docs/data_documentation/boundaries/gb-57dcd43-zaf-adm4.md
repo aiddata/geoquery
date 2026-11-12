@@ -1,4 +1,8 @@
-# geoBoundaries v6 - South Africa ADM4
+---
+description: "geoBoundaries v6 - South Africa ADM4 (Ward): 4,392 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - South Africa ADM4 (Ward)
 This feature collection represents the ADM4 level boundaries for South Africa (ZAF) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Ireland ADM1
+---
+description: "geoBoundaries v6 - Ireland ADM1 (Province): 4 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Ireland ADM1 (Province)
 This feature collection represents the ADM1 level boundaries for Ireland (IRL) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

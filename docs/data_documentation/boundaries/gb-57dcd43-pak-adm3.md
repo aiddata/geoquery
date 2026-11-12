@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Pakistan ADM3
+---
+description: "geoBoundaries v6 - Pakistan ADM3 (Tehsil): 554 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Pakistan ADM3 (Tehsil)
 This feature collection represents the ADM3 level boundaries for Pakistan (PAK) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

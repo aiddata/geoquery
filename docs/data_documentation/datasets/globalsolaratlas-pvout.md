@@ -1,3 +1,7 @@
+---
+description: "Photovoltaic power potential. Free to extract with AidData GeoQuery."
+---
+
 # Photovoltaic power potential
 Long-term yearly average of daily totals of potential photovoltaic electricity production (kWh/kWp).
 Long-term yearly average of potential photovoltaic electricity production (PVOUT) in kWh/kWp, covering the period from 1994/1999/2007 (depending on the region) to 2015.

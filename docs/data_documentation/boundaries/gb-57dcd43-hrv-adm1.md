@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Croatia ADM1
+---
+description: "geoBoundaries v6 - Croatia ADM1 (Croatia): 21 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Croatia ADM1 (Croatia)
 This feature collection represents the ADM1 level boundaries for Croatia (HRV) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

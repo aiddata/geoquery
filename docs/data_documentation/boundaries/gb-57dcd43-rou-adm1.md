@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Romania ADM1
+---
+description: "geoBoundaries v6 - Romania ADM1 (Counties): 42 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Romania ADM1 (Counties)
 This feature collection represents the ADM1 level boundaries for Romania (ROU) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

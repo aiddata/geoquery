@@ -1,3 +1,7 @@
+---
+description: "Child Mortality in Africa. Under-5 mortality (estimated deaths per 1,000 child-years) for the 1980s, 1990s, and 2000s. Free to extract with AidData GeoQuery."
+---
+
 # Child Mortality in Africa
 Under-5 mortality (estimated deaths per 1,000 child-years) for the 1980s, 1990s, and 2000s. Based on geo-spatial interpolation methods using data from the Demographic and Health Survey across 28 Sub-Saharan countries.
 Rasterization of point based data.

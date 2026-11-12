@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Mozambique ADM3
+---
+description: "geoBoundaries v6 - Mozambique ADM3 (Administrative Postos Administrativos): 411 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Mozambique ADM3 (Administrative Postos Administrativos)
 This feature collection represents the ADM3 level boundaries for Mozambique (MOZ) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

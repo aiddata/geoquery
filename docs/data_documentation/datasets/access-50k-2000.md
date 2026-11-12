@@ -1,3 +1,7 @@
+---
+description: "Travel time to major cities. Free to extract with AidData GeoQuery."
+---
+
 # Travel time to major cities
 Estimated travel time (in minutes) to the nearest city of 50,000 or more people in year 2000.
 No additional processing of raw data.

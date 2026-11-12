@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Syrian Arab Republic ADM2
+---
+description: "geoBoundaries v6 - Syrian Arab Republic ADM2 (District): 61 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Syrian Arab Republic ADM2 (District)
 This feature collection represents the ADM2 level boundaries for Syrian Arab Republic (SYR) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

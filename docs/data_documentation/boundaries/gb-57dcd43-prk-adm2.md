@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Dem. People's Republic of Korea ADM2
+---
+description: "geoBoundaries v6 - Dem. People's Republic of Korea ADM2 (county, city, special city): 179… Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Dem. People's Republic of Korea ADM2 (county, city, special city)
 This feature collection represents the ADM2 level boundaries for Dem. People's Republic of Korea (PRK) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

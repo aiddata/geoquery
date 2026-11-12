@@ -1,3 +1,7 @@
+---
+description: "Distance to Water. Distance to water, measured in meters. Free to extract with AidData GeoQuery."
+---
+
 # Distance to Water
 Distance to water, measured in meters. Derived using World Vector Shorelines combined with rivers and lakes from World Data Bank 2 (via Natural Earth).
 ## Details

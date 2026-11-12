@@ -1,4 +1,8 @@
-# geoBoundaries v6 - State of Palestine ADM0
+---
+description: "geoBoundaries v6 - State of Palestine ADM0 (Country): 1 feature. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - State of Palestine ADM0 (Country)
 This feature collection represents the ADM0 level boundaries for State of Palestine (PSE) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

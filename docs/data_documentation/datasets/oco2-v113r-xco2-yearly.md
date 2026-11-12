@@ -1,3 +1,7 @@
+---
+description: "OCO-2 (v11.3r) - CO2 Concentration (yearly). Free to extract with AidData GeoQuery."
+---
+
 # OCO-2 (v11.3r) - CO2 Concentration (yearly)
 The average concentration of carbon dioxide in a column of dry air extending from Earth's surface to the top of the atmosphere. The raster used is the result of aggregating one year of data to a 10km grid and then using a linear interpolation to fill gaps. The underlying data were produced by NASA's OCO-2 project, and obtained from the OCO-2 data archive maintained at the NASA Goddard Earth Science Data and Information Services Center.
 ## Details

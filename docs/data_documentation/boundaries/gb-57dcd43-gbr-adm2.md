@@ -1,4 +1,8 @@
-# geoBoundaries v6 - United Kingdom ADM2
+---
+description: "geoBoundaries v6 - United Kingdom ADM2 (Counties and Unitary Authorities): 216 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - United Kingdom ADM2 (Counties and Unitary Authorities)
 This feature collection represents the ADM2 level boundaries for United Kingdom (GBR) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

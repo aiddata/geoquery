@@ -1,3 +1,7 @@
+---
+description: "geoBoundaries v6 - Rwanda ADM4: 2,148 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
 # geoBoundaries v6 - Rwanda ADM4
 This feature collection represents the ADM4 level boundaries for Rwanda (RWA) from geoBoundaries v6.
 Based on GitHub commit 9469f09

@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Lebanon ADM2
+---
+description: "geoBoundaries v6 - Lebanon ADM2 (Districts (Aqdya)): 26 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Lebanon ADM2 (Districts (Aqdya))
 This feature collection represents the ADM2 level boundaries for Lebanon (LBN) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

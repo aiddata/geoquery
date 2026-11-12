@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Croatia ADM2
+---
+description: "geoBoundaries v6 - Croatia ADM2 (Municipalities and Towns): 560 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Croatia ADM2 (Municipalities and Towns)
 This feature collection represents the ADM2 level boundaries for Croatia (HRV) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

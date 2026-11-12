@@ -1,3 +1,7 @@
+---
+description: "Monthly Temperature - CRU TS (v4.07). Monthly temperature from Climate Research Unit (CRU) in degrees Celsius. Free to extract with AidData GeoQuery."
+---
+
 # Monthly Temperature - CRU TS (v4.07)
 Monthly temperature from Climate Research Unit (CRU) in degrees Celsius. Version 4.07
 Created by extracting monthly temperature data from CRU

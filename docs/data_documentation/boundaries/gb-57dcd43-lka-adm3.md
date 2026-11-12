@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Sri Lanka ADM3
+---
+description: "geoBoundaries v6 - Sri Lanka ADM3 (Divisional Secretariat): 330 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Sri Lanka ADM3 (Divisional Secretariat)
 This feature collection represents the ADM3 level boundaries for Sri Lanka (LKA) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

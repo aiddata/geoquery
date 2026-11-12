@@ -1,3 +1,7 @@
+---
+description: "Population (GPW V4.11, UN Adjusted). Free to extract with AidData GeoQuery."
+---
+
 # Population (GPW V4.11, UN Adjusted)
 Population count (UN Adjusted values) from Gridded Population of the World v4 revision 11. GPWv4 depicts the distribution of human population across the globe. Source data provided in 30 arc-second (~1 km) grid cells.
 No additional processing of raw data.

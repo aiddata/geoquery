@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Dominica ADM1
+---
+description: "geoBoundaries v6 - Dominica ADM1 (Parish): 10 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Dominica ADM1 (Parish)
 This feature collection represents the ADM1 level boundaries for Dominica (DMA) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

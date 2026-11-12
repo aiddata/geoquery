@@ -1,3 +1,7 @@
+---
+description: "Wind Power Density Potential. Wind power density potential at 50m Free to extract with AidData GeoQuery."
+---
+
 # Wind Power Density Potential
 Wind power density potential at 50m
 The mean wind power density is a measure of the wind resource. Higher mean wind power densities indicate better wind resource.

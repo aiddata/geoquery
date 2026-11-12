@@ -1,4 +1,8 @@
-# geoBoundaries v6 - France ADM5
+---
+description: "geoBoundaries v6 - France ADM5 (Arrondissement municipal, Commune simple, Préfecture… Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - France ADM5 (Arrondissement municipal, Commune simple, Préfecture, Préfecture de région,Sous-préfrecture)
 This feature collection represents the ADM5 level boundaries for France (FRA) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

@@ -1,3 +1,7 @@
+---
+description: "Presence of a political leader's birthplace (ADM1/ADM2 use only). Free to extract with AidData GeoQuery."
+---
+
 # Presence of a political leader's birthplace (ADM1/ADM2 use only)
 The Political Leaders Affiliation Database (PLAD) contains information on the birthplaces of the effective leaders of 177 countries around the world in the 1989-2023 period. Birthplace coordinates with precision at the ADM2 level or finer were rasterized to support aggregation in GeoQuery at the ADM2 (or coarser) units.
 Note: more than one birthplace may exist in a given year during transition years. However, the data is only binary, indicating the presence of birthplace of any leader during the given year.

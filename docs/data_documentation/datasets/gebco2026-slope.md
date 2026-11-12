@@ -1,3 +1,7 @@
+---
+description: "Ground Slope. Free to extract with AidData GeoQuery."
+---
+
 # Ground Slope
 Global slope (in degrees) derived from the GEBCO_2026 Grid elevation data, at 15 arc-second (~450m) resolution.
 Computed from the mosaicked global GEBCO_2026 elevation raster using Horn's method, with a latitude-dependent correction for the varying real-world width of a degree of longitude.

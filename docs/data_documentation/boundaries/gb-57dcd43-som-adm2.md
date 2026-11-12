@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Somalia ADM2
+---
+description: "geoBoundaries v6 - Somalia ADM2 (Districts): 118 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Somalia ADM2 (Districts)
 This feature collection represents the ADM2 level boundaries for Somalia (SOM) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

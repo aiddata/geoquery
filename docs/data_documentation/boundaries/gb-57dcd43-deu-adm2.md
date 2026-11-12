@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Germany ADM2
+---
+description: "geoBoundaries v6 - Germany ADM2 (Government District): 38 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Germany ADM2 (Government District)
 This feature collection represents the ADM2 level boundaries for Germany (DEU) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

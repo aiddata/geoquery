@@ -1,3 +1,7 @@
+---
+description: "Distance to Lootable Gold Deposit. Distance to nearest lootable or surface gold deposit. Free to extract with AidData GeoQuery."
+---
+
 # Distance to Lootable Gold Deposit
 Distance to nearest lootable or surface gold deposit. Derived from GOLDATA dataset which consists of 2969 entries for gold occurrences in 108 countries.
 Dataset downloaded September 2017.

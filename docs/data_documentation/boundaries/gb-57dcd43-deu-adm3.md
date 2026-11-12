@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Germany ADM3
+---
+description: "geoBoundaries v6 - Germany ADM3 (Independent City or District): 428 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Germany ADM3 (Independent City or District)
 This feature collection represents the ADM3 level boundaries for Germany (DEU) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

@@ -1,3 +1,7 @@
+---
+description: "Global Sample of 200 Cities - Urban Extents 2014: 200 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
 # Global Sample of 200 Cities - Urban Extents 2014
 Urban extents of sample cities in 2014. Additional details at atlasofurbanexpansion.org
 Over 100 additional columns of information on each city are included, as provided by the Atlas of Urban Expansion. For additional information about this supplemental data, as well as a full list of the 200 cities in the sample please visit http://www.atlasofurbanexpansion.org/cities

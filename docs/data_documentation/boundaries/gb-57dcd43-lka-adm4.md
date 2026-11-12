@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Sri Lanka ADM4
+---
+description: "geoBoundaries v6 - Sri Lanka ADM4 (Grama Niladhari Divisions): 14,044 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Sri Lanka ADM4 (Grama Niladhari Divisions)
 This feature collection represents the ADM4 level boundaries for Sri Lanka (LKA) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

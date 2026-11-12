@@ -1,4 +1,8 @@
-# geoBoundaries v6 - India ADM2
+---
+description: "geoBoundaries v6 - India ADM2 (District): 735 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - India ADM2 (District)
 This feature collection represents the ADM2 level boundaries for India (IND) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

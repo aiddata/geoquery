@@ -1,3 +1,7 @@
+---
+description: "WWLLN Global Lightning Climatology: Annual Stroke Density. Free to extract with AidData GeoQuery."
+---
+
 # WWLLN Global Lightning Climatology: Annual Stroke Density
 Annual lightning stroke density derived from the World Wide Lightning Location Network (WWLLN), gridded at 5 arc-minute resolution and corrected for detection efficiency.
 Sum of the 12 monthly density values for each year (see the monthly wglc_density_monthly dataset). Only years with a complete 12 months of source data are included.

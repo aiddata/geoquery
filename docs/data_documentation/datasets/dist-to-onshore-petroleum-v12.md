@@ -1,3 +1,7 @@
+---
+description: "Distance to On-shore Petroleum. Distance to on-shore petroleum, measured in meters. Free to extract with AidData GeoQuery."
+---
+
 # Distance to On-shore Petroleum
 Distance to on-shore petroleum, measured in meters. Derived from PRIO global on-shore petroleum dataset.
 Dataset downloaded August 2017.

@@ -1,3 +1,7 @@
+---
+description: "All 63 datasets available in AidData GeoQuery: population, nighttime lights, climate, land cover, conflict, health and more, free to extract for any boundary."
+---
+
 # Datasets
 
 This page lists all datasets available in GeoQuery. Click a dataset name for full details.

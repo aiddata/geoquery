@@ -1,3 +1,7 @@
+---
+description: "Gold Deposits. Categorical layer where cells are defined as lootable, surface, or non-lootable gold deposits (or mix). Free to extract with AidData GeoQuery."
+---
+
 # Gold Deposits
 Categorical layer where cells are defined as lootable, surface, or non-lootable gold deposits (or mix). Derived from GOLDATA dataset which consists of 2969 entries for gold occurrences in 108 countries.
 Dataset downloaded September 2017.

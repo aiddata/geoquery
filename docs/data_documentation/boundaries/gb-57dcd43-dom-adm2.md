@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Dominican Republic ADM2
+---
+description: "geoBoundaries v6 - Dominican Republic ADM2 (Municipalities): 155 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Dominican Republic ADM2 (Municipalities)
 This feature collection represents the ADM2 level boundaries for Dominican Republic (DOM) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

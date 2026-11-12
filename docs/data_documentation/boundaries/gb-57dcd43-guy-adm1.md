@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Guyana ADM1
+---
+description: "geoBoundaries v6 - Guyana ADM1 (Regions): 10 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Guyana ADM1 (Regions)
 This feature collection represents the ADM1 level boundaries for Guyana (GUY) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

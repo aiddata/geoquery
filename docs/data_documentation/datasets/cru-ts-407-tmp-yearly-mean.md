@@ -1,3 +1,7 @@
+---
+description: "Yearly Mean Temperature - CRU TS (v4.07). Yearly mean temperature from Climate Research Unit (CRU) in degrees Celsius. Free to extract with AidData GeoQuery."
+---
+
 # Yearly Mean Temperature - CRU TS (v4.07)
 Yearly mean temperature from Climate Research Unit (CRU) in degrees Celsius. Version 4.07
 Created by aggregating (mean) monthly mean daily temperature data from CRU TS

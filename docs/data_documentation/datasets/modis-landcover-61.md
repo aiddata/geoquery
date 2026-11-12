@@ -1,3 +1,7 @@
+---
+description: "MODIS Land Cover (MCD12Q1, Version 6.1). Free to extract with AidData GeoQuery."
+---
+
 # MODIS Land Cover (MCD12Q1, Version 6.1)
 Annual global land cover type data product (MCD12Q1) using the IGBP Land Cover Type Classification. Derived from combined Terra and Aqua MODIS observations at 500m spatial resolution.
 Tiles downloaded from LP DAAC LPCLOUD (C2484079608-LPCLOUD), extracted from HDF4 sinusoidal grid, mosaicked and reprojected to WGS84 (EPSG:4326).

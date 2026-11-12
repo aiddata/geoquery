@@ -1,3 +1,7 @@
+---
+description: "Physical Elevation. Free to extract with AidData GeoQuery."
+---
+
 # Physical Elevation
 Global elevation (in meters) from Shuttle Radar Topography Mission (SRTM) dataset (v4.1) at 500m resolution.
 No additional processing of raw data.

@@ -1,4 +1,8 @@
-# geoBoundaries v6 - United States Virgin Islands ADM3
+---
+description: "geoBoundaries v6 - United States Virgin Islands ADM3 (Subdistrict): 20 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - United States Virgin Islands ADM3 (Subdistrict)
 This feature collection represents the ADM3 level boundaries for United States Virgin Islands (VIR) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

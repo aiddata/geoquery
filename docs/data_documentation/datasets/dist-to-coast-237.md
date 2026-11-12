@@ -1,3 +1,7 @@
+---
+description: "Distance to Coast. Distance to coast (on land only), measured in meters. Derived using World Vector Shorelines. Free to extract with AidData GeoQuery."
+---
+
 # Distance to Coast
 Distance to coast (on land only), measured in meters. Derived using World Vector Shorelines.
 Distance is only measured for land. Pixels in the ocean will always have a distance of zero.

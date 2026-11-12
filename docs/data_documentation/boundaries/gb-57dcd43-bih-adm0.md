@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Bosnia and Herzegovina ADM0
+---
+description: "geoBoundaries v6 - Bosnia and Herzegovina ADM0 (Country): 1 feature. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Bosnia and Herzegovina ADM0 (Country)
 This feature collection represents the ADM0 level boundaries for Bosnia and Herzegovina (BIH) from geoBoundaries v6.
 Based on GitHub commit f549eab
 ## Details

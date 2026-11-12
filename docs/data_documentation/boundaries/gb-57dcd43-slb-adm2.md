@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Solomon Islands ADM2
+---
+description: "geoBoundaries v6 - Solomon Islands ADM2 (Constituency): 50 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Solomon Islands ADM2 (Constituency)
 This feature collection represents the ADM2 level boundaries for Solomon Islands (SLB) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

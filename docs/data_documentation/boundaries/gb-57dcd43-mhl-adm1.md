@@ -1,3 +1,7 @@
+---
+description: "geoBoundaries v6 - Marshall Islands ADM1: 24 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
 # geoBoundaries v6 - Marshall Islands ADM1
 This feature collection represents the ADM1 level boundaries for Marshall Islands (MHL) from geoBoundaries v6.
 Based on GitHub commit 9469f09

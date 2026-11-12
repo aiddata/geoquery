@@ -1,3 +1,7 @@
+---
+description: "Distance to Gemstone Deposits. Distance to gemstone deposits, measured in meters. Free to extract with AidData GeoQuery."
+---
+
 # Distance to Gemstone Deposits
 Distance to gemstone deposits, measured in meters.
 Consists of 1022 gemstone sites in 61 countries. It includes ruby, sapphire, emerald, aquamarine, heliodor, moganite, goshenite, nephrite, jadeite, lapis lazuli, opal, tourmaline, peridot, topaz, pearl, garnet, zircon, spinel, amber, and quartz. It excludes diamonds, which are included in the diamond deposit dataset. Dataset downloaded August 2017.

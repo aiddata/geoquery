@@ -1,3 +1,7 @@
+---
+description: "Annual VIIRS Nighttime Lights v2.2 - Average Value. Annual VIIRS nighttime lights product Version 2.2. Free to extract with AidData GeoQuery."
+---
+
 # Annual VIIRS Nighttime Lights v2.2 - Average Value
 Annual VIIRS nighttime lights product Version 2.2. Average value with background pixels masked. Please use in combination with VIIRS Nighttime Light Cloud Free Coverage product to confirm sufficient cloud free measurements are available within your boundary features.
 ## Details

@@ -1,3 +1,7 @@
+---
+description: "Wind Speed Potential. Wind speed potential at 50m Free to extract with AidData GeoQuery."
+---
+
 # Wind Speed Potential
 Wind speed potential at 50m
 ## Details

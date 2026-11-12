@@ -1,3 +1,7 @@
+---
+description: "Yearly IMERG (GPM) precipitation (v07B). Free to extract with AidData GeoQuery."
+---
+
 # Yearly IMERG (GPM) precipitation (v07B)
 Yearly IMERG GPM (v07B) precipitation - Created by aggregating (mean) the monthly GPM precipitation
 Created by aggregating monthly IMERG V07B GPM data

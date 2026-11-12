@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Uzbekistan ADM2
+---
+description: "geoBoundaries v6 - Uzbekistan ADM2 (Tuman): 199 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Uzbekistan ADM2 (Tuman)
 This feature collection represents the ADM2 level boundaries for Uzbekistan (UZB) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

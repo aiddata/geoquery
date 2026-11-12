@@ -1,3 +1,7 @@
+---
+description: "Distance to ADM1 Borders (geoBoundaries). Distance to ADM1 borders, measured in meters. Free to extract with AidData GeoQuery."
+---
+
 # Distance to ADM1 Borders (geoBoundaries)
 Distance to ADM1 borders, measured in meters. Derived using geoBoundaries ADM1 boundaries.
 ## Details

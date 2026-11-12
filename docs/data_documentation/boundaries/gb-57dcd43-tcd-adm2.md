@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Chad ADM2
+---
+description: "geoBoundaries v6 - Chad ADM2 (Departments): 70 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Chad ADM2 (Departments)
 This feature collection represents the ADM2 level boundaries for Chad (TCD) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

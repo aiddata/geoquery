@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Bangladesh ADM4
+---
+description: "geoBoundaries v6 - Bangladesh ADM4 (Union Councils / Municipal Corporations / City… Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Bangladesh ADM4 (Union Councils / Municipal Corporations / City Corporations)
 This feature collection represents the ADM4 level boundaries for Bangladesh (BGD) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details

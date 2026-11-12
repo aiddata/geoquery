@@ -1,4 +1,8 @@
-# geoBoundaries v6 - Dem. People's Republic of Korea ADM1
+---
+description: "geoBoundaries v6 - Dem. People's Republic of Korea ADM1 (Provinces): 11 features. Extract population, climate and more for them with AidData GeoQuery."
+---
+
+# geoBoundaries v6 - Dem. People's Republic of Korea ADM1 (Provinces)
 This feature collection represents the ADM1 level boundaries for Dem. People's Republic of Korea (PRK) from geoBoundaries v6.
 Based on GitHub commit 9469f09
 ## Details
