@@ -239,7 +239,7 @@ def boundaries_index(pages) -> str:
     out = [
         front_matter(
             f"Boundaries in AidData GeoQuery: administrative boundaries for {len(countries)} "
-            f"countries from geoBoundaries, plus {len(others)} other boundary sets."
+            f"countries from geoBoundaries, plus {len(others)} other boundary {'set' if len(others) == 1 else 'sets'}."
         ),
         "# Boundaries\n\n",
         "Every set of boundaries you can extract data for in GeoQuery.\n\n",

@@ -62,6 +62,10 @@ class BuildPagesTests(SimpleTestCase):
         with self.assertRaises(GroupingError):
             build_pages([fc("x", "__")])
 
+    def test_a_slug_of_index_is_an_error(self):
+        with self.assertRaisesRegex(GroupingError, "index"):
+            build_pages([fc("x", "Index")])
+
     def test_collections_without_a_level_come_last(self):
         page = build_pages([fc("b", "g", None, source="s"), fc("a", "g", 2, source="s")])[0]
         self.assertEqual([c.name for c in page.collections], ["a", "b"])

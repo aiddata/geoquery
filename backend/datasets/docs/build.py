@@ -58,6 +58,8 @@ def write_pages(out_dir, datasets, collections, feature_counts, app_url, coverag
 
     dataset_slugs = {}
     for ds in datasets:
+        if slug(ds.name) == "index":
+            raise GroupingError(f"dataset {ds.name!r} would overwrite datasets/index.md")
         other = dataset_slugs.setdefault(slug(ds.name), ds.name)
         if other != ds.name:
             raise GroupingError(f"datasets {other!r} and {ds.name!r} would share datasets/{slug(ds.name)}/")

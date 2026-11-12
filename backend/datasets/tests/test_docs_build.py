@@ -56,6 +56,11 @@ class BuildBundleTests(ReplicaReadsTestMixin, TestCase):
         with self.assertRaises(GroupingError):
             build_bundle(self.bundle)
 
+    def test_dataset_slugged_index_is_an_error(self):
+        Dataset.objects.create(name="Index", path="/Index", type="raster", active=True, public=True)
+        with self.assertRaisesRegex(GroupingError, "index"):
+            build_bundle(self.bundle)
+
     def test_failed_build_leaves_no_partial_file(self):
         with mock.patch("datasets.docs.build.tarfile.open", side_effect=OSError("disk full")):
             with self.assertRaises(OSError):

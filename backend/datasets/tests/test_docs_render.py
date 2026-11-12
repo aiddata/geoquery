@@ -155,6 +155,8 @@ class NonGeoboundariesPageTests(TestCase):
         self.assertIn("### Atlas A {#atlas-a}", text)
         index = boundaries_index(pages)
         self.assertIn("## Other boundary sets", index)
+        self.assertIn("plus 1 other boundary set.", index)
+        self.assertNotIn("1 other boundary sets", index)
         self.assertIn("| [Atlas of Urban Expansion](atlasofurbanexpansion2016.md) | 1 | Atlas |", index)
 
 

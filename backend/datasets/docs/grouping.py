@@ -117,6 +117,8 @@ def build_pages(collections) -> list:
         names = sorted(fc.name for fc in members)
         if not page_slug:
             raise GroupingError(f"collections {names} have a group name with no usable characters")
+        if page_slug == "index":
+            raise GroupingError(f"collections {names} have a group name that would overwrite boundaries/index.md")
         sources = sorted({fc.source_name or "" for fc in members})
         if len(sources) > 1:
             raise GroupingError(
