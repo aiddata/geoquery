@@ -153,7 +153,7 @@ The docs dev server and the Compose `mcp` service both use host port 8001. Stop 
 
 Things to know before editing `docs/`:
 
-- **`docs/data_documentation/datasets/` and `docs/data_documentation/boundaries/` are generated**, including their `index.md` files. The `build_dataset_docs_task` and `build_boundary_docs_task` Celery tasks rewrite them from the database nightly (`datasets/tasks/create_docs.py`, `features/tasks/create_docs.py`). Hand edits there are lost — change the generator instead.
+- **`docs/data_documentation/datasets/` and `docs/data_documentation/boundaries/` are generated**, including their `index.md` files, and are no longer committed. The `datasets.tasks.build_data_docs_task` Celery task (05:00 UTC) writes them from the database into `REQUESTS_DIR/docs/data-docs.tar.gz` via `datasets.docs.build`, and the docs workflow downloads that bundle (`.github/scripts/fetch_data_docs.py`). Preview locally with `uv run manage.py build_data_docs --out <dir>`. Hand edits there are lost — change the generator instead.
 - **`nav` in `zensical.toml` is explicit.** A new page will not appear in the site navigation until it is added there.
 - **`docs/faq.md` is consumed by the app.** The frontend `HelpPanel` imports it at build time (parsed by `src/lib/utils/parseFaq.ts`), so its structure affects the UI, not just the docs site.
 

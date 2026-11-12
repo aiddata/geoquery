@@ -10,6 +10,7 @@ import os
 import shutil
 import tarfile
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from .render import boundaries_index, boundary_page, dataset_page, datasets_inde
 from .text import slug
 
 MEMBERS = ("datasets", "boundaries")
+STALE_TMP_SECONDS = 3600
 
 
 def load(using="replica"):
@@ -52,7 +54,7 @@ def write_pages(out_dir, datasets, collections, feature_counts, app_url, coverag
     out_dir = Path(out_dir)
     pages = build_pages(collections)
     if coverage is None:
-        coverage = page_coverage(pages, datasets)
+        coverage = page_coverage(pages, datasets, feature_counts=feature_counts)
 
     dataset_slugs = {}
     for ds in datasets:
@@ -61,7 +63,8 @@ def write_pages(out_dir, datasets, collections, feature_counts, app_url, coverag
             raise GroupingError(f"datasets {other!r} and {ds.name!r} would share datasets/{slug(ds.name)}/")
 
     for name in MEMBERS:
-        shutil.rmtree(out_dir / name, ignore_errors=True)
+        if (out_dir / name).exists():
+            shutil.rmtree(out_dir / name)
         (out_dir / name).mkdir(parents=True)
     ds_dir, bd_dir = out_dir / "datasets", out_dir / "boundaries"
 
@@ -72,7 +75,7 @@ def write_pages(out_dir, datasets, collections, feature_counts, app_url, coverag
 
     by_id = {ds.id: ds for ds in datasets}
     page_slugs = {p.slug for p in pages} | {"index"}
-    redirects = 0
+    stubs = set()
     for page in pages:
         covering = sorted(
             ((by_id[ds_id], status) for ds_id, status in coverage[page.slug].items()),
@@ -83,12 +86,12 @@ def write_pages(out_dir, datasets, collections, feature_counts, app_url, coverag
         )
         for fc in page.collections:
             old = slug(fc.name)
-            if old in page_slugs:
+            if not old or old in page_slugs or old in stubs:
                 continue
+            stubs.add(old)
             stub = bd_dir / old / "index.html"
             stub.parent.mkdir(exist_ok=True)
             stub.write_text(redirect_html(f"../{page.slug}/#{old}"), encoding="utf-8")
-            redirects += 1
     (bd_dir / "index.md").write_text(boundaries_index(pages), encoding="utf-8")
 
     return {
@@ -96,7 +99,7 @@ def write_pages(out_dir, datasets, collections, feature_counts, app_url, coverag
         "datasets": len(datasets),
         "boundary_pages": len(pages),
         "collections": len(collections),
-        "redirects": redirects,
+        "redirects": len(stubs),
     }
 
 
@@ -108,6 +111,14 @@ def build_data_docs(out_dir) -> dict:
 def build_bundle(bundle_path=None) -> dict:
     bundle_path = Path(bundle_path or settings.DATA_DOCS_BUNDLE)
     bundle_path.parent.mkdir(parents=True, exist_ok=True)
+    # A killed run leaves its temp file behind; a recent one may be a concurrent run's.
+    cutoff = time.time() - STALE_TMP_SECONDS
+    for stale in bundle_path.parent.glob(".data-docs.*.tmp"):
+        try:
+            if stale.stat().st_mtime < cutoff:
+                stale.unlink()
+        except FileNotFoundError:
+            pass
     with tempfile.TemporaryDirectory() as tmp:
         pages_dir = Path(tmp) / "pages"
         manifest = build_data_docs(pages_dir)

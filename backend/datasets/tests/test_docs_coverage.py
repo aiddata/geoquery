@@ -30,6 +30,16 @@ class PageCoverageTests(ReplicaReadsTestMixin, TestCase):
         world = dataset("world", True)
         self.assertEqual(page_coverage(self.pages, [world]), {"gb-npl": {world.id: FULL}})
 
+    def test_supplied_feature_counts_replace_the_featmap_query(self):
+        a = dataset("a", False)
+        for feature in self.features:
+            Coverage.objects.create(dataset=a, geom=feature, status=1)
+        counts = {self.fc.id: 2}
+        with self.assertNumQueries(1):  # coverage rows only, no feat_map count
+            result = page_coverage(self.pages, [a], feature_counts=counts)
+        self.assertEqual(result, page_coverage(self.pages, [a]))
+        self.assertEqual(result["gb-npl"], {a.id: FULL})
+
     def test_regional_dataset_full_partial_and_absent(self):
         full, partial, absent = dataset("full", False), dataset("partial", False), dataset("absent", False)
         for feature in self.features:

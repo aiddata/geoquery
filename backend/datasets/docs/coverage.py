@@ -21,19 +21,24 @@ FULL = "full"
 PARTIAL = "partial"
 
 
-def page_coverage(pages, datasets, using="replica") -> dict:
-    """{page.slug: {dataset.id: FULL | PARTIAL}} for every page."""
+def page_coverage(pages, datasets, using="replica", feature_counts=None) -> dict:
+    """{page.slug: {dataset.id: FULL | PARTIAL}} for every page.
+
+    feature_counts is an optional {fc_id: feat_map count}; when the caller has
+    already counted, it saves the query."""
     from analytics.coverage import valid_coverage
     from features.models import FeatMap
 
     fc_page = {fc.id: page.slug for page in pages for fc in page.collections}
     totals = defaultdict(int)
-    counts = (
-        FeatMap.objects.using(using).filter(fc_id__in=list(fc_page))
-        .values("fc_id").annotate(n=Count("id")).values_list("fc_id", "n")
-    )
-    for fc_id, n in counts:
-        totals[fc_page[fc_id]] += n
+    if feature_counts is None:
+        feature_counts = dict(
+            FeatMap.objects.using(using).filter(fc_id__in=list(fc_page))
+            .values("fc_id").annotate(n=Count("id")).values_list("fc_id", "n")
+        )
+    for fc_id, n in feature_counts.items():
+        if fc_id in fc_page:
+            totals[fc_page[fc_id]] += n
 
     result = {page.slug: {ds.id: FULL for ds in datasets if ds.is_global} for page in pages}
     regional = [ds.id for ds in datasets if not ds.is_global]

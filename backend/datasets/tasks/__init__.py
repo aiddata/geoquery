@@ -5,8 +5,8 @@ from analytics.query_tags import tagged
 
 
 @shared_task
-@observe_job("data_docs")
 @tagged("docs.build")
+@observe_job("data_docs")
 def build_data_docs_task():
     """Nightly: regenerate the data docs pages into the bundle the docs site
     downloads (datasets.docs.build.build_bundle). Returns the manifest."""
