@@ -365,6 +365,7 @@
 					</div>
 
 					<!-- Configuration area -->
+					<h3 class="px-4 pt-4 text-base font-semibold">Select Dataset Options</h3>
 					{#if selectedDatasetDetail.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters}
 						{#if selectedDatasetDetail.outcomes}
 							<OutcomeSelector
