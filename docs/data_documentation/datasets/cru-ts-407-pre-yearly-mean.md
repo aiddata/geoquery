@@ -10,7 +10,8 @@ Created by aggregating (mean) monthly precipitation data from CRU TS
 | Temporal type | year |
 | Tags | cru, precipitation, environment, yearly |
 | Variable | precipitation in millimeters |
-| License | Not recorded — see the source link |
+| Source | [Climate Research Unit](https://crudata.uea.ac.uk/cru/data/hrg/) |
+| License | [ODbL-1.0](https://crudata.uea.ac.uk/cru/data/hrg/) |
 
 ## Resources
 | Name | Label | Date |

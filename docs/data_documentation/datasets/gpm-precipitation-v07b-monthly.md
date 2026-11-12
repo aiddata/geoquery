@@ -10,7 +10,8 @@ Created by extracting monthly IMERG V07B GPM data
 | Temporal type | year month |
 | Tags | nasa, precipitation, gpm, environment, monthly |
 | Variable | 0.001 millimeters per hour |
-| License | Not recorded — see the source link |
+| Source | [NASA Goddard Space Flight Center](https://gpm.nasa.gov/data/directory) |
+| License | [CC0-1.0](https://www.earthdata.nasa.gov/engage/open-data-services-software-policies) |
 
 ## Resources
 | Name | Label | Date |

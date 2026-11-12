@@ -10,7 +10,8 @@ Tiles downloaded from LP DAAC LPCLOUD (C2484079608-LPCLOUD), extracted from HDF4
 | Temporal type | year |
 | Tags | modis, land cover, environment, lpdaac |
 | Variable | IGBP Land Cover Type Classification |
-| License | Not recorded — see the source link |
+| Source | [NASA LP DAAC](https://lpdaac.usgs.gov/products/mcd12q1v061/) |
+| License | [CC0-1.0](https://lpdaac.usgs.gov) |
 
 ## Resources
 | Name | Label | Date |

@@ -7,7 +7,8 @@ Number of total fatalities resulting from conflict events based on the UCDP Geor
 | Global coverage | Yes |
 | Tags | ucdp, conflict, deaths |
 | Variable | count of deaths |
-| License | Not recorded — see the source link |
+| Source | [UCDP](https://ucdp.uu.se/downloads/) |
+| License | [CC-BY-4.0](https://ucdp.uu.se/downloads/) |
 
 ## Resources
 | Name | Label | Date |

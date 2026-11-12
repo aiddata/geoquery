@@ -7,7 +7,8 @@ Distance to country ADM0 borders, measured in meters. Derived using geoBoundarie
 | Global coverage | Yes |
 | Tags | accessibility, other |
 | Variable | distance in meters |
-| License | Not recorded — see the source link |
+| Source | [geoBoundaries](https://www.geoboundaries.org/index.html) |
+| License | [CC-BY-4.0](https://www.geoboundaries.org) |
 
 ## Resources
 | Name | Label | Date |

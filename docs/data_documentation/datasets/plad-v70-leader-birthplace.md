@@ -10,7 +10,8 @@ Note: more than one birthplace may exist in a given year during transition years
 | Temporal type | year |
 | Tags | political, leaders, affiliation, birthplace, influence, yearly |
 | Variable | binary indicating presence of a leader's birthplace |
-| License | Not recorded — see the source link |
+| Source | [The Political Leaders Affiliation Database (PLAD)](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/YUS575) |
+| License | [CC0-1.0](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/YUS575) |
 
 ## Resources
 | Name | Label | Date |

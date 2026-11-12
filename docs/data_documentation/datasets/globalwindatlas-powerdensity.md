@@ -8,7 +8,8 @@ The mean wind power density is a measure of the wind resource. Higher mean wind 
 | Global coverage | Yes |
 | Tags | resources, environment, energy, wind |
 | Variable | power density in Watts per meter squared |
-| License | Not recorded — see the source link |
+| Source | [Global Wind Atlas](https://globalwindatlas.info/about/) |
+| License | [CC-BY-4.0](https://globalwindatlas.info) |
 
 ## Resources
 | Name | Label | Date |

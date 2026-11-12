@@ -1,5 +1,5 @@
 # Monthly Precipitation - CRU TS (v4.07)
-Montly precipitation from Climate Research Unit (CRU) in millimeters. Version 4.07
+Monthly precipitation from Climate Research Unit (CRU) in millimeters. Version 4.07
 Created by extracting monthly precipitation data from CRU
 ## Details
 | | |
@@ -10,7 +10,8 @@ Created by extracting monthly precipitation data from CRU
 | Temporal type | year month |
 | Tags | cru, precipitation, environment, monthly |
 | Variable | precipitation in millimeters |
-| License | Not recorded — see the source link |
+| Source | [Climate Research Unit](https://crudata.uea.ac.uk/cru/data/hrg/) |
+| License | [ODbL-1.0](https://crudata.uea.ac.uk/cru/data/hrg/) |
 
 ## Resources
 | Name | Label | Date |

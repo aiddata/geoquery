@@ -8,7 +8,8 @@ Created using SRTM elevation data and generating slope in QGIS (which uses gdald
 | Global coverage | Yes |
 | Tags | nasa, srtm, dem, slope, cgiar, csi, environment |
 | Variable | degrees |
-| License | Not recorded — see the source link |
+| Source | [CGIAR-CSI](http://www.cgiar-csi.org/data/srtm-90m-digital-elevation-database-v4-1) |
+| License | [CC-BY-NC-SA-3.0](https://csidotinfo.wordpress.com/data/srtm-90m-digital-elevation-database-v4-1/) |
 
 ## Resources
 | Name | Label | Date |

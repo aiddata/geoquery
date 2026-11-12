@@ -10,7 +10,8 @@ No additional processing of raw data.
 | Temporal type | year |
 | Tags | population, count, landscan, economics |
 | Variable | number of people |
-| License | Not recorded — see the source link |
+| Source | [Oak Ridge National Laboratory's LandScan](https://landscan.ornl.gov/) |
+| License | [CC-BY-4.0](https://landscan.ornl.gov/license) |
 
 ## Resources
 | Name | Label | Date |

@@ -1,14 +1,15 @@
 # Gemstone Deposits
 The gemstone dataset contains information on gemstone deposits throughout the world. Layer is a binary indicating areas with gemstone deposits.
-Consists of 1022 gemstone sites in 61 countries. It include ruby, sapphire, emerald, aquamarine, heliodor, moganite, goshenite, nephrite, jadeite, lapis lazuli, opal, tourmaline, periodit, topaz, pearl, garnet, zircon, spinel, amber, and quartz. It excludes diamonds, which are included in the diamond deposit dataset. Dataset downloaded August 2017.
+Consists of 1022 gemstone sites in 61 countries. It includes ruby, sapphire, emerald, aquamarine, heliodor, moganite, goshenite, nephrite, jadeite, lapis lazuli, opal, tourmaline, peridot, topaz, pearl, garnet, zircon, spinel, amber, and quartz. It excludes diamonds, which are included in the diamond deposit dataset. Dataset downloaded August 2017.
 ## Details
 | | |
 |---|---|
 | Type | raster |
 | Global coverage | Yes |
-| Tags | environment, geomstone, resources |
+| Tags | environment, gemstone, resources |
 | Variable | binary |
-| License | Not recorded — see the source link |
+| Source | [GEMDATA](http://www.paivilujala.com/gemdata.html) |
+| License | [Citation](https://www.prio.org/data/25) |
 
 ## Resources
 | Name | Label | Date |

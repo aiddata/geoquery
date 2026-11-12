@@ -8,7 +8,8 @@ Dataset downloaded August 2017.
 | Global coverage | Yes |
 | Tags | environment, distance, resources, drug, coca bush, opium poppy, cannabis |
 | Variable | distance in meters |
-| License | Not recorded — see the source link |
+| Source | [DRUGDATA](http://www.paivilujala.com/drugdata.html) |
+| License | [Citation](https://www.prio.org/data/24) |
 
 ## Resources
 | Name | Label | Date |

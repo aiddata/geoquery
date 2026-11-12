@@ -1,5 +1,5 @@
 # Monthly Temperature - CRU TS (v4.07)
-Montly temperature from Climate Research Unit (CRU) in degrees Celsius. Version 4.07
+Monthly temperature from Climate Research Unit (CRU) in degrees Celsius. Version 4.07
 Created by extracting monthly temperature data from CRU
 ## Details
 | | |
@@ -10,7 +10,8 @@ Created by extracting monthly temperature data from CRU
 | Temporal type | year month |
 | Tags | cru, temperature, environment, monthly |
 | Variable | degrees Celsius |
-| License | Not recorded — see the source link |
+| Source | [Climate Research Unit](https://crudata.uea.ac.uk/cru/data/hrg/) |
+| License | [ODbL-1.0](https://crudata.uea.ac.uk/cru/data/hrg/) |
 
 ## Resources
 | Name | Label | Date |

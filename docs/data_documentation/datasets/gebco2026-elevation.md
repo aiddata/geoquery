@@ -8,7 +8,8 @@ No additional processing of raw data beyond mosaicking the 8 quadrant tiles GEBC
 | Global coverage | Yes |
 | Tags | gebco, dem, elevation, bathymetry, environment |
 | Variable | meters |
-| License | Not recorded — see the source link |
+| Source | [GEBCO (General Bathymetric Chart of the Oceans)](https://www.gebco.net/data-products-gridded-bathymetry-data/gebco2026-grid) |
+| License | [Citation](https://www.gebco.net/data-products-gridded-bathymetry-data) |
 
 ## Resources
 | Name | Label | Date |

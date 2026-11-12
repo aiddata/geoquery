@@ -9,7 +9,8 @@ Annual VIIRS nighttime lights product Version 2.2. Average value with background
 | Temporal type | year |
 | Tags | nighttimelights, viirs, economics, welfare |
 | Variable | Radiance (nW cm^-2 sr^-1) |
-| License | Not recorded — see the source link |
+| Source | [Earth Observation Group - VIIRS Nighttime Lights](https://eogdata.mines.edu/products/vnl/) |
+| License | [CC-BY-4.0](https://eogdata.mines.edu/files/EOG_products_CC_License.pdf) |
 
 ## Resources
 | Name | Label | Date |

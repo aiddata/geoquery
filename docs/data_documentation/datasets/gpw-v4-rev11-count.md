@@ -10,7 +10,8 @@ No additional processing of raw data.
 | Temporal type | year |
 | Tags | population, count, ciesin, economics, conflict |
 | Variable | number of people |
-| License | Not recorded — see the source link |
+| Source | [CIESIN](https://sedac.ciesin.columbia.edu/data/set/gpw-v4-population-count-adjusted-to-2015-unwpp-country-totals-rev11) |
+| License | [CC-BY-4.0](https://sedac.ciesin.columbia.edu) |
 
 ## Resources
 | Name | Label | Date |

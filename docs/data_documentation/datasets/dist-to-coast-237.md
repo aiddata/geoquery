@@ -8,7 +8,8 @@ Distance is only measured for land. Pixels in the ocean will always have a dista
 | Global coverage | Yes |
 | Tags | accessibility, other |
 | Variable | distance in meters |
-| License | Not recorded — see the source link |
+| Source | [GSHHG: A Global Self-consistent, Hierarchical, High-resolution Geography Database](http://www.soest.hawaii.edu/pwessel/gshhg/) |
+| License | [LGPL-3.0](https://www.soest.hawaii.edu/pwessel/gshhg/) |
 
 ## Resources
 | Name | Label | Date |

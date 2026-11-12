@@ -8,7 +8,8 @@ Dataset downloaded September 2017.
 | Global coverage | Yes |
 | Tags | environment, resources, gold, conflict |
 | Variable | gold deposit type |
-| License | Not recorded — see the source link |
+| Source | [GOLDATA](https://www.researchgate.net/publication/281849073_GOLDATA_12_v) |
+| License | [Citation](https://www.prio.org/data) |
 
 ## Resources
 | Name | Label | Date |

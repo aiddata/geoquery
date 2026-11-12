@@ -8,7 +8,8 @@ Incorporates data from Open Street Map (OSM) data and the Google roads database.
 | Global coverage | Yes |
 | Tags | accessibility, travel time, malaria atlas project |
 | Variable | time in minutes |
-| License | Not recorded — see the source link |
+| Source | [Malaria Atlas Project](https://data.malariaatlas.org/) |
+| License | [CC-BY-3.0](https://malariaatlas.org/open-access-policy/) |
 
 ## Resources
 | Name | Label | Date |

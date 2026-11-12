@@ -8,7 +8,8 @@ The gRoads data set combines the best available roads data by country into a glo
 | Global coverage | Yes |
 | Tags | accessibility, other |
 | Variable | distance in meters |
-| License | Not recorded — see the source link |
+| Source | [Center for International Earth Science Information Network - CIESIN](https://www.earthdata.nasa.gov/data/catalog/sedac-ciesin-sedac-groads-v1-1.0) |
+| License | [Citation](https://sedac.ciesin.columbia.edu/data/set/groads-global-roads-open-access-v1) |
 
 ## Resources
 | Name | Label | Date |

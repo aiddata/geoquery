@@ -10,7 +10,8 @@ Extracted from the WGLC 5 arc-minute monthly timeseries (2010-2025). Only the de
 | Temporal type | year month |
 | Tags | lightning, wwlln, wglc, climate, weather |
 | Variable | lightning stroke density (strokes km-2 d-1) |
-| License | Not recorded — see the source link |
+| Source | [Kaplan, J.O. and Lau, K.H.-K. (WGLC); World Wide Lightning Location Network (WWLLN)](https://zenodo.org/records/20277101) |
+| License | [CC-BY-4.0](https://zenodo.org/records/20277101) |
 
 ## Resources
 | Name | Label | Date |

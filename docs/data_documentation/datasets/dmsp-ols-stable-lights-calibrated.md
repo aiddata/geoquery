@@ -1,6 +1,6 @@
 # DMSP-OLS Nighttime Lights
-Version 4 DMSP-OLS Nighttime Lights composites. The lights from cities, towns, and other sites with persistent lighting, including gas flares. Ephemeral events, such as fires have been discarded. Calibrated across sensors and years using Elvidge 2014 coeficients.
-Calibrated across sensors and years using Elvidge 2014 coeficients (coefficients for 2014 acquired via communications with Elvidge, 2016). Values greater than 63 after calibration were truncated to 63. Calibration formula fixed from previous processing of raw v4composites dataset. Calibration citation: Elvidge, Christopher D., Feng-Chi Hsu, Kimberly E. Baugh, and Tilottama Ghosh. 'National trends in satellite-observed lighting.' Global urban monitoring and assessment through earth observation 23 (2014): 97-118.
+Version 4 DMSP-OLS Nighttime Lights composites. The lights from cities, towns, and other sites with persistent lighting, including gas flares. Ephemeral events, such as fires have been discarded. Calibrated across sensors and years using Elvidge 2014 coefficients.
+Calibrated across sensors and years using Elvidge 2014 coefficients (coefficients for 2014 acquired via communications with Elvidge, 2016). Values greater than 63 after calibration were truncated to 63. Calibration formula fixed from previous processing of raw v4composites dataset. Calibration citation: Elvidge, Christopher D., Feng-Chi Hsu, Kimberly E. Baugh, and Tilottama Ghosh. 'National trends in satellite-observed lighting.' Global urban monitoring and assessment through earth observation 23 (2014): 97-118.
 ## Details
 | | |
 |---|---|
@@ -10,7 +10,8 @@ Calibrated across sensors and years using Elvidge 2014 coeficients (coefficients
 | Temporal type | year |
 | Tags | nighttimelights, dmsp, economics, welfare |
 | Variable | digital number 0-63. |
-| License | Not recorded — see the source link |
+| Source | [Earth Observation Group (EOG), Colorado School of Mines](https://eogdata.mines.edu/products/dmsp/) |
+| License | [CC-BY-4.0](https://eogdata.mines.edu/files/EOG_products_CC_License.pdf) |
 
 ## Resources
 | Name | Label | Date |

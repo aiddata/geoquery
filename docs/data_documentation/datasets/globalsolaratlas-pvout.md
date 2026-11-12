@@ -1,6 +1,6 @@
 # Photovoltaic power potential
-Longterm yearly average of daily totals of potential photovoltaic electricity production (kWh/kWp).
-Longterm yearly average of potential photovoltaic electricity production (PVOUT) in kWh/kWp, covering the period from 1994/1999/2007 (depending on the region) to 2015.
+Long-term yearly average of daily totals of potential photovoltaic electricity production (kWh/kWp).
+Long-term yearly average of potential photovoltaic electricity production (PVOUT) in kWh/kWp, covering the period from 1994/1999/2007 (depending on the region) to 2015.
 ## Details
 | | |
 |---|---|
@@ -8,7 +8,8 @@ Longterm yearly average of potential photovoltaic electricity production (PVOUT)
 | Global coverage | Yes |
 | Tags | resources, environment, energy, solar |
 | Variable | potential photovoltaic electricity production in kWh/kWp |
-| License | Not recorded — see the source link |
+| Source | [Global Solar Atlas](https://globalsolaratlas.info/about/) |
+| License | [CC-BY-4.0](https://globalsolaratlas.info/support/terms-of-use) |
 
 ## Resources
 | Name | Label | Date |

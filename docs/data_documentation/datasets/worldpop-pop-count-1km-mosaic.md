@@ -10,7 +10,8 @@ Raw data converted to Cloud Optimized GeoTIFFs; values are unchanged from the so
 | Temporal type | year |
 | Tags | population, count, worldpop, economics |
 | Variable | number of people |
-| License | Not recorded — see the source link |
+| Source | [WorldPop](https://www.worldpop.org/geodata/listing?id=64) |
+| License | [CC-BY-4.0](https://www.worldpop.org/faq/) |
 
 ## Resources
 | Name | Label | Date |

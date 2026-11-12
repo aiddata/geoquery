@@ -10,7 +10,8 @@ Created by aggregating (mean) monthly mean daily temperature data from CRU TS
 | Temporal type | year |
 | Tags | cru, temperature, environment, yearly |
 | Variable | degrees Celsius |
-| License | Not recorded — see the source link |
+| Source | [Climate Research Unit](https://crudata.uea.ac.uk/cru/data/hrg/) |
+| License | [ODbL-1.0](https://crudata.uea.ac.uk/cru/data/hrg/) |
 
 ## Resources
 | Name | Label | Date |

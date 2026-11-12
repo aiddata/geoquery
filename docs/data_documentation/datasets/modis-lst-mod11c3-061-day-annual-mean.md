@@ -10,7 +10,8 @@ Production of the previous version (V6) Terra MODIS Land Surface Temperature and
 | Temporal type | year |
 | Tags | nasa, earthdata, modis, lst, land surface temperature, environment, yearly |
 | Variable | temperature in Kelvins |
-| License | Not recorded — see the source link |
+| Source | [Land Processes Distributed Active Archive Center](https://lpdaac.usgs.gov/products/mod11c3v061/) |
+| License | [CC0-1.0](https://lpdaac.usgs.gov) |
 
 ## Resources
 | Name | Label | Date |

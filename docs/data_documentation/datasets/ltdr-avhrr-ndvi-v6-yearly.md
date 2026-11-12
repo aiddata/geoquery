@@ -10,7 +10,8 @@ Created by aggregating daily data to monthly by taking the maximum value, then a
 | Temporal type | year |
 | Tags | nasa, ltdr, ndvi, avhrr, vegetation, environment |
 | Variable | positive NDVI values 0:10000 (factor: 10000.0) |
-| License | Not recorded — see the source link |
+| Source | [NASA LAADS DAAC](https://ladsweb.modaps.eosdis.nasa.gov/missions-and-measurements/applications/ltdr/) |
+| License | [CC0-1.0](https://ladsweb.modaps.eosdis.nasa.gov) |
 
 ## Resources
 | Name | Label | Date |
@@ -62,4 +63,4 @@ Created by aggregating daily data to monthly by taking the maximum value, then a
 | ltdr_avhrr_ndvi_v6_yearly_2025 | 2025 | 2025-01-01 |
 
 ## Citation
-Pedelty JA, Devadiga S, Masuoka E et al. (2007) Generating a Long-term Land Data Record from the AVHRR and MODIS Instruments. Proceedings of IGARRS 2007, pp. 1021–1025. Institute of Electrical and Electronics Engineers, NY, USA.
+Pedelty JA, Devadiga S, Masuoka E et al. (2007) Generating a Long-term Land Data Record from the AVHRR and MODIS Instruments. Proceedings of IGARSS 2007, pp. 1021–1025. Institute of Electrical and Electronics Engineers, NY, USA.

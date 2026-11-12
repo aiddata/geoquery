@@ -8,7 +8,8 @@ No additional processing of raw data.
 | Global coverage | Yes |
 | Tags | jrc, accessibility, economics |
 | Variable | time in minutes |
-| License | Not recorded — see the source link |
+| Source | [ Global Environment Monitoring Unit - Joint Research Centre of the European Commission](http://forobs.jrc.ec.europa.eu/products/gam) |
+| License | [CC-BY-4.0](https://forobs.jrc.ec.europa.eu/products/gam) |
 
 ## Resources
 | Name | Label | Date |

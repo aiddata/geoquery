@@ -8,7 +8,8 @@ Dataset downloaded August 2017.
 | Global coverage | Yes |
 | Tags | environment, resources, diamond |
 | Variable | distance in meters |
-| License | Not recorded — see the source link |
+| Source | [Peace Research Institute Oslo (PRIO)](https://www.prio.org/Data/Geographical-and-Resource-Datasets/Diamond-Resources/) |
+| License | [Citation](https://www.prio.org/data/11) |
 
 ## Resources
 | Name | Label | Date |

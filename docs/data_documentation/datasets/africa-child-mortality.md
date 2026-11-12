@@ -10,7 +10,8 @@ Rasterization of point based data.
 | Temporal type | year |
 | Tags | africa, child, mortality, population, welfare |
 | Variable | deaths per 1,000 child-years |
-| License | Not recorded — see the source link |
+| Source | [Stanford Data Portal](http://sheftneal9.wixsite.com/fse-data/paper-1) |
+| License | [Citation](http://sheftneal9.wixsite.com/fse-data/paper-1) |
 
 ## Resources
 | Name | Label | Date |

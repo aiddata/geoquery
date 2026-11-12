@@ -8,7 +8,8 @@ Manually downloaded from the ACLED data export tool. Converted from CSV to GeoPa
 | Global coverage | Yes |
 | Tags | acled, conflict, events |
 | Variable | count of events or fatalities |
-| License | Not recorded — see the source link |
+| Source | [ACLED](https://acleddata.com) |
+| License | [License agreement](https://acleddata.com/eula) |
 
 ## Resources
 | Name | Label | Date |

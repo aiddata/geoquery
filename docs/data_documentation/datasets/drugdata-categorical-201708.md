@@ -8,7 +8,8 @@ Dataset downloaded August 2017. This is a categorical raster dataset indicating 
 | Global coverage | Yes |
 | Tags | environment, resources, drug |
 | Variable | drug category (cannabis, coca bush, opium, mix) |
-| License | Not recorded — see the source link |
+| Source | [DRUGDATA](http://www.paivilujala.com/drugdata.html) |
+| License | [Citation](https://www.prio.org/data/24) |
 
 ## Resources
 | Name | Label | Date |

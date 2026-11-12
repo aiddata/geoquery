@@ -9,7 +9,7 @@ Based on both polygons and points (points buffered to small polygons). The under
 | Tags | landmark, indigenous, community lands, land tenure |
 | Variable | percent overlap with LandMark community/Indigenous land points (buffered) |
 | Source | [LandMark](https://landmarkmap.org/) |
-| License | Not recorded — see the source link |
+| License | [CC-BY-4.0](https://landmarkmap.org/data-methods) |
 
 ## Resources
 | Name | Label | Date |

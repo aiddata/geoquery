@@ -7,7 +7,8 @@ Wind speed potential at 50m
 | Global coverage | Yes |
 | Tags | resources, environment, energy, wind |
 | Variable | wind speed in meters per second |
-| License | Not recorded — see the source link |
+| Source | [Global Wind Atlas](https://globalwindatlas.info/about/) |
+| License | [CC-BY-4.0](https://globalwindatlas.info) |
 
 ## Resources
 | Name | Label | Date |

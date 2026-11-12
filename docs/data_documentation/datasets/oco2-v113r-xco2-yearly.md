@@ -9,7 +9,8 @@ The average concentration of carbon dioxide in a column of dry air extending fro
 | Temporal type | year |
 | Tags | environment, co2 |
 | Variable | co2 concentration in parts per million (ppm) |
-| License | Not recorded — see the source link |
+| Source | [NASA Goddard Earth Science Data and Information Services Center](https://disc.gsfc.nasa.gov/datasets/OCO2_L2_Lite_FP_11.3r/summary) |
+| License | [CC0-1.0](https://disc.gsfc.nasa.gov) |
 
 ## Resources
 | Name | Label | Date |

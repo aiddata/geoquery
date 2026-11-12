@@ -1,6 +1,6 @@
 # Yearly IMERG (GPM) precipitation (v07B)
 Yearly IMERG GPM (v07B) precipitation - Created by aggregating (mean) the monthly GPM precipitation
-Created by aggregatubg monthly IMERG V07B GPM data
+Created by aggregating monthly IMERG V07B GPM data
 ## Details
 | | |
 |---|---|
@@ -10,7 +10,8 @@ Created by aggregatubg monthly IMERG V07B GPM data
 | Temporal type | year |
 | Tags | nasa, precipitation, gpm, environment, yearly |
 | Variable | 0.001 millimeters per hour |
-| License | Not recorded — see the source link |
+| Source | [NASA Goddard Space Flight Center](https://gpm.nasa.gov/data/directory) |
+| License | [CC0-1.0](https://www.earthdata.nasa.gov/engage/open-data-services-software-policies) |
 
 ## Resources
 | Name | Label | Date |

@@ -9,7 +9,8 @@ Estimates of ground-level fine particulate matter (PM2.5) for 1998-2022 produced
 | Temporal type | year month |
 | Tags | air quality, pollution, pm25, environment, monthly |
 | Variable | PM2.5 in micrograms per meter cubed |
-| License | Not recorded — see the source link |
+| Source | [Washington University in St. Louis - Atmospheric Composition Analysis Group](https://sites.wustl.edu/acag/datasets/surface-pm2-5) |
+| License | [CC-BY-4.0](https://sites.wustl.edu/acag/datasets/surface-pm2-5) |
 
 ## Resources
 | Name | Label | Date |

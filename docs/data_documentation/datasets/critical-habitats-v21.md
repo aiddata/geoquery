@@ -7,7 +7,8 @@ The International Finance Corporation's (IFC's) Performance Standard 6 (PS6) is 
 | Global coverage | Yes |
 | Tags | critical, habitats, conservation, environment, ifc |
 | Variable | Categorized likelihood of the presence of habitats of significant importance to threatened, endemic, congregatory and migratory species, threatened or unique ecosystems, and key evolutionary processes (may be: unclassified, potential, or likely) |
-| License | Not recorded — see the source link |
+| Source | [UN Environment Programme World Conservation Monitoring Centre (UNEP-WCMC) ](https://data-gis.unep-wcmc.org/portal/home/item.html?id=97a22bbe36c84895846a2bdc27cef8ba) |
+| License | [CC-BY-4.0](https://doi.org/10.34892/snwv-a025) |
 
 ## Resources
 | Name | Label | Date |

@@ -10,7 +10,8 @@ No additional processing of raw data.
 | Temporal type | year |
 | Tags | population, density, ciesin, economics, conflict |
 | Variable | persons per square kilometer |
-| License | Not recorded — see the source link |
+| Source | [CIESIN](https://sedac.ciesin.columbia.edu/data/set/gpw-v4-population-density-adjusted-to-2015-unwpp-country-totals-rev11) |
+| License | [CC-BY-4.0](https://sedac.ciesin.columbia.edu) |
 
 ## Resources
 | Name | Label | Date |
