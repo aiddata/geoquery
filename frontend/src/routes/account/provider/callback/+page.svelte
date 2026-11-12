@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Seo from '#lib/components/layout/Seo.svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -230,6 +231,8 @@
 		void loadCallback();
 	});
 </script>
+
+<Seo title="Signing In" noindex />
 
 <div class="mx-auto flex max-w-md flex-col items-center px-4 py-16">
 	{#if view === 'provider-signup'}

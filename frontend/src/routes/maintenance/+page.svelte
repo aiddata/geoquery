@@ -1,12 +1,11 @@
 <script lang="ts">
+	import Seo from '#lib/components/layout/Seo.svelte';
 	import { maintenance } from '#lib/config/status.js';
 	import { Wrench } from '@lucide/svelte';
 	import geoqueryLogo from '#lib/assets/aiddata_geoquery_wordmark.png';
 </script>
 
-<svelte:head>
-	<title>Down for Maintenance — GeoQuery</title>
-</svelte:head>
+<Seo title="Down for Maintenance" noindex />
 
 <div class="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-16 text-center">
 	<img src={geoqueryLogo} alt="GeoQuery" class="mb-8 h-14 w-auto opacity-80" />

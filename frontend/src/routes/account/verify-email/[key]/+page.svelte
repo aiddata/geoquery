@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Seo from '#lib/components/layout/Seo.svelte';
     import { onMount } from "svelte";
     import { page } from "$app/state";
     import { Button } from "#lib/components/ui/button/index.js";
@@ -15,6 +16,8 @@
         }
     });
 </script>
+
+<Seo title="Verify Email" noindex />
 
 <div class="container mx-auto max-w-2xl px-4 py-8">
     <div class="card-surface p-6 text-center">

@@ -1,6 +1,12 @@
-<svelte:head><title>GeoQuery - AidData</title></svelte:head>
+<Seo />
+<svelte:head>
+	<!-- Static content only, so it can't contain a closing script tag -->
+	{@html `<script type="application/ld+json">${JSON.stringify(APP_JSON_LD)}</script>`}
+</svelte:head>
 
 <script lang="ts">
+	import Seo from '#lib/components/layout/Seo.svelte';
+	import { APP_JSON_LD } from '#lib/seo.js';
 	import { get } from 'svelte/store';
 	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';

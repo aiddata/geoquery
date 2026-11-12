@@ -37,7 +37,6 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<title>GeoQuery - AidData</title>
 </svelte:head>
 
 <TooltipProvider>

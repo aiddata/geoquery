@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Seo from '#lib/components/layout/Seo.svelte';
     import { page } from "$app/state";
     import { goto } from "$app/navigation";
     import { Button } from "#lib/components/ui/button/index.js";
@@ -93,6 +94,8 @@
         else if ($auth.status === "authenticated") loadMine();
     });
 </script>
+
+<Seo title="Past Requests" noindex />
 
 <div class="container mx-auto max-w-2xl px-4 py-8">
     <div class="mb-6">

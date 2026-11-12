@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Seo from '#lib/components/layout/Seo.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -53,6 +54,8 @@
 				})
 			: '—';
 </script>
+
+<Seo title="Legacy Request" noindex />
 
 <div class="container mx-auto max-w-2xl px-4 py-8">
 	<div class="mb-6">

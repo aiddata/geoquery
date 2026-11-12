@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Seo from '#lib/components/layout/Seo.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -36,6 +37,8 @@
 		}
 	});
 </script>
+
+<Seo title={`Error ${status}`} noindex />
 
 <div class="flex min-h-[calc(100vh-5rem)] flex-col items-center justify-center px-4 py-16 text-center">
 	<div class="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-muted">

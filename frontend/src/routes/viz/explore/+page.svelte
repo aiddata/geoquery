@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Seo from '#lib/components/layout/Seo.svelte';
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { get } from 'svelte/store';
 	import { page } from '$app/state';
@@ -518,7 +519,7 @@
 	}
 </script>
 
-<svelte:head><title>Explore · GeoQuery</title></svelte:head>
+<Seo title="Explore" noindex />
 
 <div class="viz-page flex flex-col h-[calc(100vh-5rem)]">
 	<!-- Top bar: page title + tab switcher -->

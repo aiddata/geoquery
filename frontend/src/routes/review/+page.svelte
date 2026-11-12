@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Seo from '#lib/components/layout/Seo.svelte';
 	import { goto } from '$app/navigation';
 	import { currentStep } from '#lib/stores/ui.js';
 	import { cart, cartCount } from '#lib/stores/cart.js';
@@ -152,6 +153,8 @@
 		}
 	}
 </script>
+
+<Seo title="Review Request" noindex />
 
 <div class="flex h-[calc(100vh-8rem)] flex-col">
 	<!-- Top bar -->

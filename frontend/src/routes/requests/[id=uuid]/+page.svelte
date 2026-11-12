@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Seo from '#lib/components/layout/Seo.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { fetchRequestDetail, type RequestDetail } from '#lib/api.js';
@@ -70,6 +71,8 @@
 		return op.type;
 	}
 </script>
+
+<Seo title="Request" noindex />
 
 <div class="container mx-auto max-w-2xl px-4 py-8">
 	<div class="mb-6">

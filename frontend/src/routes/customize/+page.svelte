@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Seo from '#lib/components/layout/Seo.svelte';
 	import { get } from 'svelte/store';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -271,6 +272,8 @@
 		}
 	}
 </script>
+
+<Seo title="Customize Datasets" description="Browse GeoQuery's datasets, including population, nighttime lights, climate, land cover, conflict and health, and choose the years and statistics to extract for your boundaries." />
 
 <div class="flex h-[calc(100vh-8rem)] flex-col">
 	<!-- Top bar with back navigation and selection info -->

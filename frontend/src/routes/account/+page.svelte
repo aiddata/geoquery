@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Seo from '#lib/components/layout/Seo.svelte';
     import { goto } from "$app/navigation";
     import { Badge } from "#lib/components/ui/badge/index.js";
     import * as Alert from "#lib/components/ui/alert/index.js";
@@ -82,6 +83,8 @@
         }, `Verification email sent to ${email}. Verifying it will also link any past requests submitted under that address.`);
     }
 </script>
+
+<Seo title="Account" noindex />
 
 <div class="container mx-auto max-w-2xl px-4 py-8">
     <div class="mb-6">
