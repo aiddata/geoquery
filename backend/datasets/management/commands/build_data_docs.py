@@ -25,5 +25,5 @@ class Command(BaseCommand):
             where = options["bundle"] or "settings.DATA_DOCS_BUNDLE"
         self.stdout.write(self.style.SUCCESS(
             f"{manifest['datasets']} dataset pages, {manifest['boundary_pages']} boundary pages "
-            f"({manifest['collections']} collections, {manifest['redirects']} redirects) -> {where}"
+            f"({manifest['collections']} collections) -> {where}"
         ))

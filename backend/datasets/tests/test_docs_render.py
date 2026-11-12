@@ -11,7 +11,6 @@ from datasets.docs.render import (
     boundary_page,
     dataset_page,
     datasets_index,
-    redirect_html,
     topics,
 )
 from datasets.models import Dataset, DatasetResource, Mapping
@@ -133,15 +132,6 @@ class IndexTests(TestCase):
         self.assertIn("| [Nepal](gb-npl.md) | ADM0–ADM2 |", boundaries_index(pages))
 
 
-class RedirectTests(TestCase):
-    def test_redirect_stub(self):
-        stub = redirect_html("../gb-npl/#gb-57dcd43-npl-adm1")
-        self.assertIn('<meta name="robots" content="noindex">', stub)
-        self.assertIn('content="0; url=../gb-npl/#gb-57dcd43-npl-adm1"', stub)
-        self.assertNotIn("canonical", stub)
-        self.assertIn('<a href="../gb-npl/#gb-57dcd43-npl-adm1">', stub)
-
-
 def make_atlas(name, title, description, day, level=None):
     fc = FeatureCollection.objects.create(
         name=name, path=f"/{name}", group_name="atlasofurbanexpansion2016", group_level=level,
@@ -238,7 +228,7 @@ class CoverageAndEmptyStateTests(TestCase):
         text = boundary_page(page, [], {}, "https://app.example")
         self.assertIn("Nepal administrative boundaries (ADM0 to ADM3).", text.split("\n")[1])
 
-    def test_anchor_matches_redirect_target(self):
+    def test_collection_heading_has_its_own_anchor(self):
         text = boundary_page(self.page, [], {self.adm0.id: 1}, "https://app.example")
         self.assertIn(f"{{#{slug(self.adm0.name)}}}", text)
 

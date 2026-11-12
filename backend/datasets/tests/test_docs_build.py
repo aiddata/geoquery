@@ -42,13 +42,13 @@ class BuildBundleTests(ReplicaReadsTestMixin, TestCase):
             self.assertEqual({n.split("/")[0] for n in names}, {"manifest.json", "datasets", "boundaries"})
             self.assertIn("datasets/malaria.md", names)
             self.assertIn("boundaries/gb-npl.md", names)
-            stub = tar.extractfile("boundaries/gb-57dcd43-npl-adm1/index.html").read().decode()
             self.assertEqual(json.load(tar.extractfile("manifest.json")), manifest)
-        self.assertIn("url=../gb-npl/#gb-57dcd43-npl-adm1", stub)
         self.assertEqual(
-            {k: manifest[k] for k in ("datasets", "boundary_pages", "collections", "redirects")},
-            {"datasets": 1, "boundary_pages": 1, "collections": 2, "redirects": 2},
+            {k: manifest[k] for k in ("datasets", "boundary_pages", "collections")},
+            {"datasets": 1, "boundary_pages": 1, "collections": 2},
         )
+        # Pages only: no stand-ins at the old per-collection URLs.
+        self.assertEqual([n for n in names if n.endswith(".html")], [])
         self.assertEqual(list(self.bundle.parent.iterdir()), [self.bundle])
 
     def test_dataset_slug_collision_is_an_error(self):
@@ -89,18 +89,6 @@ class BuildBundleTests(ReplicaReadsTestMixin, TestCase):
     def test_bundle_file_mode(self):
         build_bundle(self.bundle)
         self.assertEqual(stat.S_IMODE(self.bundle.stat().st_mode), 0o664)
-
-    def test_collection_named_like_its_page_gets_no_stub(self):
-        FeatureCollection.objects.create(
-            name="gb-npl", path="/npl-x", group_name="gb_v6_npl", group_level=2,
-            group_title="Nepal - GeoBoundaries v6", source_name="geoBoundaries", active=True, public=True,
-        )
-        manifest = build_bundle(self.bundle)
-        with tarfile.open(self.bundle) as tar:
-            names = tar.getnames()
-        self.assertNotIn("boundaries/gb-npl/index.html", names)
-        self.assertEqual(manifest["collections"], 3)
-        self.assertEqual(manifest["redirects"], 2)
 
     def test_stale_temp_files_are_removed_but_fresh_ones_kept(self):
         self.bundle.parent.mkdir(parents=True)

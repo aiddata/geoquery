@@ -19,7 +19,7 @@ from django.db.models import Count, Prefetch
 
 from .coverage import page_coverage
 from .grouping import GroupingError, build_pages
-from .render import boundaries_index, boundary_page, dataset_page, datasets_index, redirect_html
+from .render import boundaries_index, boundary_page, dataset_page, datasets_index
 from .text import slug
 
 MEMBERS = ("datasets", "boundaries")
@@ -76,8 +76,6 @@ def write_pages(out_dir, datasets, collections, feature_counts, app_url, coverag
     (ds_dir / "index.md").write_text(datasets_index(datasets), encoding="utf-8")
 
     by_id = {ds.id: ds for ds in datasets}
-    page_slugs = {p.slug for p in pages} | {"index"}
-    stubs = set()
     for page in pages:
         covering = sorted(
             ((by_id[ds_id], status) for ds_id, status in coverage[page.slug].items()),
@@ -86,14 +84,6 @@ def write_pages(out_dir, datasets, collections, feature_counts, app_url, coverag
         (bd_dir / f"{page.slug}.md").write_text(
             boundary_page(page, covering, feature_counts, app_url), encoding="utf-8"
         )
-        for fc in page.collections:
-            old = slug(fc.name)
-            if not old or old in page_slugs or old in stubs:
-                continue
-            stubs.add(old)
-            stub = bd_dir / old / "index.html"
-            stub.parent.mkdir(exist_ok=True)
-            stub.write_text(redirect_html(f"../{page.slug}/#{old}"), encoding="utf-8")
     (bd_dir / "index.md").write_text(boundaries_index(pages), encoding="utf-8")
 
     return {
@@ -101,7 +91,6 @@ def write_pages(out_dir, datasets, collections, feature_counts, app_url, coverag
         "datasets": len(datasets),
         "boundary_pages": len(pages),
         "collections": len(collections),
-        "redirects": len(stubs),
     }
 
 

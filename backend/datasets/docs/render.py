@@ -1,6 +1,5 @@
 """Markdown for the data documentation pages. Pure functions of model objects."""
 
-import html
 import re
 
 from .coverage import FULL
@@ -267,14 +266,3 @@ def boundaries_index(pages) -> str:
             for p in others
         )
     return "".join(out)
-
-
-def redirect_html(target: str) -> str:
-    """A stand-in at a moved page's old URL. GitHub Pages has no server-side redirects."""
-    t = html.escape(target, quote=True)
-    return (
-        '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><title>Moved</title>\n'
-        '<meta name="robots" content="noindex">\n'
-        f'<meta http-equiv="refresh" content="0; url={t}">\n'
-        f'</head><body><p>This page has moved to <a href="{t}">{t}</a>.</p></body></html>\n'
-    )
