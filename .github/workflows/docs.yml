@@ -9,6 +9,7 @@ on:
     paths:
       - docs/**
       - zensical.toml
+      - overrides/**
       - pyproject.toml
       - uv.lock
       - .github/workflows/docs.yml
@@ -27,6 +28,14 @@ jobs:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --only-group docs
+      # Point the docs' "Open GeoQuery" link at another app (a new domain, a
+      # staging site) by setting the GEOQUERY_APP_URL Actions variable;
+      # unset, zensical.toml's app_url is used.
+      - name: Set app URL
+        if: ${{ vars.GEOQUERY_APP_URL != '' }}
+        env:
+          GEOQUERY_APP_URL: ${{ vars.GEOQUERY_APP_URL }}
+        run: sed -i "s|^app_url = .*|app_url = \"$GEOQUERY_APP_URL\"|" zensical.toml
       - run: uv run --only-group docs zensical build --clean
       - uses: actions/upload-pages-artifact@v4
         with:

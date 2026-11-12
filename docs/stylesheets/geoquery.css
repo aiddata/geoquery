@@ -519,3 +519,39 @@ html .md-footer-meta.md-typeset a:not(:focus, :hover),
     animation-duration: 0s !important;
   }
 }
+
+/* "Open GeoQuery" link above each page's table of contents
+   (overrides/partials/toc.html). A primary-coloured block so it reads as the
+   way out of the docs and into the app. */
+.md-nav--secondary .gq-app-link {
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+  margin: 0 .6rem 1rem;
+  padding: .5rem .7rem;
+  color: var(--primary-foreground);
+  background-color: var(--primary);
+  border-radius: var(--radius);
+  text-decoration: none;
+}
+.md-nav--secondary .gq-app-link:hover,
+.md-nav--secondary .gq-app-link:focus-visible {
+  color: var(--primary-foreground);
+  background-color: var(--primary-hover);
+}
+.md-nav--secondary .gq-app-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.gq-app-link__label {
+  font-family: "Noto Sans", sans-serif;
+  font-weight: 700;
+  font-size: .7rem;               /* 14px */
+}
+.gq-app-link__label::after {
+  content: " →";
+}
+.gq-app-link__hint {
+  font-size: .6rem;               /* 12px */
+  opacity: .9;
+}

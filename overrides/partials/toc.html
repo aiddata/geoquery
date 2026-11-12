@@ -1,0 +1,35 @@
+{#-
+  Override of the theme's partials/toc.html: the stock template plus an
+  "Open GeoQuery" link above the table of contents, on every page. Its target
+  is extra.app_url in zensical.toml. Keep the rest in step with the theme's
+  copy when upgrading zensical.
+-#}
+{% import "partials/language.html" as lang with context %}
+{% set title = lang.t("toc") %}
+{% if config.mdx_configs.toc and config.mdx_configs.toc.title %}
+  {% set title = config.mdx_configs.toc.title %}
+{% endif %}
+<nav class="md-nav md-nav--secondary" aria-label="{{ title | e }}">
+  {% if config.extra.app_url %}
+    <a class="gq-app-link" href="{{ config.extra.app_url | e }}">
+      <span class="gq-app-link__label">Open GeoQuery</span>
+      <span class="gq-app-link__hint">Extract data for your area</span>
+    </a>
+  {% endif %}
+  {% set toc = page.toc %}
+  {% set first = toc | first %}
+  {% if first and first.level == 1 %}
+    {% set toc = first.children %}
+  {% endif %}
+  {% if toc %}
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      {{ title }}
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      {% for toc_item in toc %}
+        {% include "partials/toc-item.html" %}
+      {% endfor %}
+    </ul>
+  {% endif %}
+</nav>

@@ -136,7 +136,7 @@ favicon = "assets/images/favicon.svg"
 # Read more:
 # - https://zensical.org/docs/customization/#extending-the-theme
 #
-#custom_dir = "overrides"
+custom_dir = "overrides"
 
 # With the "favicon" option you can set your own image to use as the icon
 # browsers will use in the browser title bar or tab bar. The path provided
@@ -360,6 +360,13 @@ code = "JetBrains Mono"
 # ----------------------------------------------------------------------------
 # The "extra" section contains miscellaneous settings.
 # ----------------------------------------------------------------------------
+[project.extra]
+# The GeoQuery app the docs link to (the "Open GeoQuery" link above each
+# page's table of contents). The docs workflow replaces this line with the
+# GEOQUERY_APP_URL Actions variable when one is set, so a domain change or a
+# staging build needs no edit here.
+app_url = "https://geoquery.aiddata.wm.edu"
+
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
 link = "https://github.com/aiddata/geoquery"
