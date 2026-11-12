@@ -80,7 +80,7 @@ class Page:
         """The country for a geoBoundaries page ("Nepal"), else the group's title."""
         newest = self._newest
         if self.geoboundaries:
-            return (newest.group_title or "").split(" - ")[0].strip() or newest.name
+            return (newest.group_title or "").split(" - ")[0].strip() or page_key(newest)[3:].upper()
         return newest.group_title or newest.group_name or newest.title or newest.name
 
     @property
@@ -91,12 +91,20 @@ class Page:
         """[(heading, [collections])], in page order. A '' heading means the
         collections have no level, and each gets a section of its own."""
         out = []
+        last_key = None
         for fc in self.collections:
             label = level_label(fc)
-            if out and out[-1][0] == label:
+            # Releases may disagree on a geoBoundaries level's canonical name,
+            # so those merge by level and take the newest collection's heading.
+            if is_geoboundaries(fc) and fc.group_level is not None:
+                key = ("level", fc.group_level)
+            else:
+                key = ("label", label)
+            if label and out and last_key == key:
                 out[-1][1].append(fc)
             else:
                 out.append((label, [fc]))
+            last_key = key
         return out
 
 
@@ -116,4 +124,4 @@ def build_pages(collections) -> list:
                 "Give one of these ingests a different group_name."
             )
         pages.append(Page(page_slug, _ordered(members)))
-    return sorted(pages, key=lambda page: page.title.lower())
+    return sorted(pages, key=lambda page: (page.title.lower(), page.slug))

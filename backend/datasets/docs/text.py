@@ -71,7 +71,7 @@ def meta_description(lead, detail=None, suffix: str = "") -> str:
     room = DESCRIPTION_LIMIT - len(suffix)
     if len(lead) > room:
         lead = lead[: room - 1].rsplit(" ", 1)[0].rstrip(".,;:") + "…"
-    first_sentence = re.split(r"(?<=[.!?])\s", detail, maxsplit=1)[0]
+    first_sentence = re.split(r"(?<=[a-z0-9)][.!?])\s+(?=[A-Z])", detail, maxsplit=1)[0]
     for candidate in (detail, first_sentence):
         if candidate and len(lead) + 1 + len(candidate) <= room:
             lead = f"{lead} {candidate}"

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 from django.test import SimpleTestCase
 
@@ -9,6 +10,8 @@ from datasets.docs.text import (
     date_range,
     front_matter,
     join_words,
+    license_text,
+    link,
     meta_description,
     slug,
     year_range,
@@ -65,7 +68,7 @@ class MetaDescriptionTests(SimpleTestCase):
         self.assertEqual(meta_description("Malaria.", "Cases.", " More."), "Malaria. Cases. More.")
 
     def test_detail_that_does_not_fit_falls_back_to_its_first_sentence(self):
-        detail = "Short first sentence. " + "word " * 40
+        detail = "Short first sentence. " + "Word " * 40
         self.assertEqual(meta_description("Lead.", detail), "Lead. Short first sentence.")
 
     def test_detail_is_dropped_rather_than_cut(self):
@@ -83,3 +86,33 @@ class FrontMatterTests(SimpleTestCase):
             front_matter('Rain: "monthly" #1'),
             '---\ndescription: "Rain: \\"monthly\\" #1"\n---\n\n',
         )
+
+
+class AbbreviationTests(SimpleTestCase):
+    def test_first_sentence_is_not_split_at_an_abbreviation(self):
+        detail = "The U.S. Census Bureau publishes county boundaries. " + "Word " * 40
+        self.assertIn(
+            "The U.S. Census Bureau publishes county boundaries.", meta_description("Lead.", detail)
+        )
+
+
+class LinkTests(SimpleTestCase):
+    def test_bare_label_without_url(self):
+        self.assertEqual(link("Label", None), "Label")
+
+    def test_scheme_is_added(self):
+        self.assertEqual(link("Label", "x.org/a"), "[Label](https://x.org/a)")
+
+
+class LicenseTextTests(SimpleTestCase):
+    def test_not_recorded(self):
+        obj = SimpleNamespace(license="", license_url="")
+        self.assertEqual(license_text(obj), "Not recorded — see the source link")
+
+    def test_license_with_url_is_a_link(self):
+        obj = SimpleNamespace(license="CC BY 4.0", license_url="x.org/l")
+        self.assertEqual(license_text(obj), "[CC BY 4.0](https://x.org/l)")
+
+    def test_license_without_url_is_plain(self):
+        obj = SimpleNamespace(license="CC BY 4.0", license_url=None)
+        self.assertEqual(license_text(obj), "CC BY 4.0")

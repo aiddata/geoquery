@@ -80,6 +80,21 @@ class PageTitleTests(SimpleTestCase):
         self.assertEqual(page.title, "Atlas of Urban Expansion")
 
 
+class PlaceFallbackTests(SimpleTestCase):
+    def test_geoboundaries_without_group_title_uses_iso3(self):
+        page = build_pages([fc("gB_x_NPL_ADM0", "gb_v6_npl", 0)])[0]
+        self.assertEqual(page.place, "NPL")
+
+
+class PageOrderTests(SimpleTestCase):
+    def test_title_ties_break_on_slug(self):
+        pages = build_pages([
+            fc("a", "zed", source="s", group_title="Same"),
+            fc("b", "abc", source="s", group_title="Same"),
+        ])
+        self.assertEqual([p.slug for p in pages], ["abc", "zed"])
+
+
 class LevelLabelTests(SimpleTestCase):
     def test_geoboundaries_label_uses_the_canonical_name(self):
         c = fc("gB_x_NPL_ADM1", "gb_v6_npl", 1, title="geoBoundaries v6 - Nepal ADM1 (Provinces)")
@@ -92,9 +107,13 @@ class LevelLabelTests(SimpleTestCase):
     def test_sections_group_consecutive_levels(self):
         page = build_pages([
             fc("gB_a_NPL_ADM1", "gb_v6_npl", 1, title="X ADM1 (Provinces)", added=2026),
-            fc("gB_b_NPL_ADM1", "gb_v5_npl", 1, title="X ADM1 (Provinces)", added=2024),
+            fc("gB_b_NPL_ADM1", "gb_v5_npl", 1, title="X ADM1 (Province)", added=2024),
         ])[0]
         self.assertEqual([(h, len(m)) for h, m in page.sections()], [("ADM1 (Provinces)", 2)])
+
+    def test_levelless_collections_each_get_a_section(self):
+        page = build_pages([fc("a", "g", source="s"), fc("b", "g", source="s")])[0]
+        self.assertEqual([(h, len(m)) for h, m in page.sections()], [("", 1), ("", 1)])
 
 
 class VersionTests(SimpleTestCase):
