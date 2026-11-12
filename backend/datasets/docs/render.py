@@ -1,6 +1,7 @@
 """Markdown for the data documentation pages. Pure functions of model objects."""
 
 import html
+import re
 
 from .coverage import FULL
 from .grouping import gb_version
@@ -51,6 +52,28 @@ def _table(rows) -> str:
     return "| | |\n|---|---|\n" + "".join(f"| {label} | {value} |\n" for label, value in rows) + "\n"
 
 
+def _label(text) -> str:
+    """A link label: a table-safe cell with square brackets escaped."""
+    return cell(text).replace("[", "\\[").replace("]", "\\]")
+
+
+def _heading(text) -> str:
+    """Heading text on one line, without braces that could split a ``{#id}``."""
+    return one_line(text).replace("{", "").replace("}", "")
+
+
+def _prose(text) -> str:
+    """Free text as plain paragraphs: no tables, headings or other block syntax."""
+    paragraphs = (one_line(p) for p in re.split(r"\n\s*\n", str(text or "")))
+    return "\n\n".join(f"\\{p}" if p.startswith("#") else p for p in paragraphs if p)
+
+
+def _source(name, url) -> str:
+    if name:
+        return link(_label(name), url)
+    return link(_label(url), url) if url else ""
+
+
 def _coverage_label(status) -> str:
     return "Full" if status == FULL else "Partial"
 
@@ -62,11 +85,11 @@ def _title(obj) -> str:
 def dataset_page(ds, available) -> str:
     """``available``: [(Page, status)] in display order; unused for global datasets."""
     title = _title(ds)
-    out = [front_matter(meta_description(f"{title}.", ds.description, DATASET_SUFFIX)), f"# {title}\n\n"]
+    out = [front_matter(meta_description(f"{title}.", ds.description, DATASET_SUFFIX)), f"# {_heading(title)}\n\n"]
     if ds.description:
         out.append(f"{one_line(ds.description)}\n\n")
     if ds.details:
-        out.append(f"{ds.details.strip()}\n\n")
+        out.append(f"{_prose(ds.details)}\n\n")
 
     variable = cell(ds.variable_description) if ds.variable_description else ""
     if variable and ds.variable_factor not in (None, 1.0):
@@ -79,7 +102,7 @@ def dataset_page(ds, available) -> str:
         ("Temporal type", cell(ds.temporal_type) if ds.temporal_type else ""),
         ("Tags", cell(", ".join(ds.tags)) if ds.tags else ""),
         ("Variable", variable),
-        ("Source", link(cell(ds.source_name), ds.source_url) if ds.source_name else ""),
+        ("Source", _source(ds.source_name, ds.source_url)),
         ("License", license_text(ds)),
     ]))
 
@@ -89,7 +112,7 @@ def dataset_page(ds, available) -> str:
     elif available:
         out.append("| Boundaries | Coverage |\n|---|---|\n")
         out.extend(
-            f"| [{cell(page.title)}](../boundaries/{page.slug}.md) | {_coverage_label(status)} |\n"
+            f"| [{_label(page.title)}](../boundaries/{page.slug}.md) | {_coverage_label(status)} |\n"
             for page, status in available
         )
         out.append("\n")
@@ -114,12 +137,12 @@ def dataset_page(ds, available) -> str:
     return "".join(out)
 
 
-def _collection_block(fc, depth: int, feature_count: int, geoboundaries: bool) -> str:
-    out = [f"{'#' * depth} {_title(fc)} {{#{slug(fc.name)}}}\n\n"]
-    if fc.description and not geoboundaries:
+def _collection_block(fc, depth: int, feature_count: int, geoboundaries: bool, show_description: bool) -> str:
+    out = [f"{'#' * depth} {_heading(_title(fc))} {{#{slug(fc.name)}}}\n\n"]
+    if fc.description and show_description:
         out.append(f"{one_line(fc.description)}\n\n")
     if fc.details:
-        out.append(f"{one_line(fc.details)}\n\n")
+        out.append(f"{_prose(fc.details)}\n\n")
     version = gb_version(fc) if geoboundaries else None
     has_period = fc.temporal_start or fc.temporal_end
     out.append(_table([
@@ -127,7 +150,7 @@ def _collection_block(fc, depth: int, feature_count: int, geoboundaries: bool) -
         ("geoBoundaries version", cell(version) if version else ""),
         ("Added to GeoQuery", f"{fc.date_added:%Y-%m-%d}" if fc.date_added else ""),
         (cell(fc.temporal_name or "Time period"), year_range(fc.temporal_start, fc.temporal_end) if has_period else ""),
-        ("Source", link(cell(fc.source_name), fc.source_url) if fc.source_name else ""),
+        ("Source", _source(fc.source_name, fc.source_url)),
         ("License", license_text(fc)),
     ]))
     return "".join(out)
@@ -137,8 +160,8 @@ def boundary_page(page, covering, feature_counts, app_url) -> str:
     """``covering``: [(Dataset, status)] in display order."""
     datasets = [ds for ds, _ in covering]
     if page.geoboundaries:
-        top = max(fc.group_level or 0 for fc in page.collections)
-        lead = f"{page.place} administrative boundaries from geoBoundaries, ADM0 to ADM{top}."
+        levels = _levels(page).replace("–", " to ")
+        lead = f"{page.place} administrative boundaries from geoBoundaries, {levels}."
         intro = (
             f"Administrative boundaries for {page.place} from [geoBoundaries]({GEOBOUNDARIES_URL}), "
             f"ready to use in [GeoQuery]({app_url}) to extract data for each area.\n\n"
@@ -151,23 +174,24 @@ def boundary_page(page, covering, feature_counts, app_url) -> str:
     detail = None
     if datasets:
         found = topics(datasets)
-        detail = f"Extract {len(datasets)} datasets for them"
+        detail = f"Extract {len(datasets)} dataset{'' if len(datasets) == 1 else 's'} for them"
         detail += f", including {join_words(found)}." if found else "."
 
-    out = [front_matter(meta_description(lead, detail, BOUNDARY_SUFFIX)), f"# {page.title}\n\n", intro]
+    out = [front_matter(meta_description(lead, detail, BOUNDARY_SUFFIX)), f"# {_heading(page.title)}\n\n", intro]
+    show_description = not page.geoboundaries and len(page.collections) > 1
     for heading, members in page.sections():
         depth = 2
         if heading:
-            out.append(f"## {heading} {{#{slug(heading.split(' (')[0])}}}\n\n")
+            out.append(f"## {_heading(heading)} {{#{slug(heading.split(' (')[0])}}}\n\n")
             depth = 3
         for fc in members:
-            out.append(_collection_block(fc, depth, feature_counts.get(fc.id, 0), page.geoboundaries))
+            out.append(_collection_block(fc, depth, feature_counts.get(fc.id, 0), page.geoboundaries, show_description))
 
-    out.append(f"## Datasets for {page.place} {{#datasets}}\n\n")
+    out.append(f"## Datasets for {_heading(page.place)} {{#datasets}}\n\n")
     if covering:
         out.append("| Dataset | Time period | Coverage |\n|---|---|---|\n")
         out.extend(
-            f"| [{cell(_title(ds))}](../datasets/{slug(ds.name)}.md) | "
+            f"| [{_label(_title(ds))}](../datasets/{slug(ds.name)}.md) | "
             f"{year_range(ds.temporal_start, ds.temporal_end)} | {_coverage_label(status)} |\n"
             for ds, status in covering
         )
@@ -196,8 +220,8 @@ def datasets_index(datasets) -> str:
         if len(description) > 120:
             description = description[:119].rsplit(" ", 1)[0] + "…"
         out.append(
-            f"| [{cell(_title(ds))}]({slug(ds.name)}.md) | {cell(ds.type)} | "
-            f"{year_range(ds.temporal_start, ds.temporal_end)} | {cell(ds.license)} | {cell(description)} |\n"
+            f"| [{_label(_title(ds))}]({slug(ds.name)}.md) | {cell(ds.type)} | "
+            f"{year_range(ds.temporal_start, ds.temporal_end)} | {cell(ds.license) if ds.license else 'Not recorded'} | {cell(description)} |\n"
         )
     return "".join(out)
 
@@ -223,12 +247,12 @@ def boundaries_index(pages) -> str:
     if countries:
         out.append(f"## Countries\n\nAdministrative boundaries from [geoBoundaries]({GEOBOUNDARIES_URL}).\n\n")
         out.append("| Country | Levels |\n|---|---|\n")
-        out.extend(f"| [{cell(p.place)}]({p.slug}.md) | {_levels(p)} |\n" for p in countries)
+        out.extend(f"| [{_label(p.place)}]({p.slug}.md) | {_levels(p)} |\n" for p in countries)
         out.append("\n")
     if others:
         out.append("## Other boundary sets\n\n| Boundaries | Collections | Source |\n|---|---|---|\n")
         out.extend(
-            f"| [{cell(p.title)}]({p.slug}.md) | {len(p.collections)} | {cell(p.collections[0].source_name)} |\n"
+            f"| [{_label(p.title)}]({p.slug}.md) | {len(p.collections)} | {cell(p.collections[0].source_name)} |\n"
             for p in others
         )
     return "".join(out)
@@ -241,6 +265,5 @@ def redirect_html(target: str) -> str:
         '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><title>Moved</title>\n'
         '<meta name="robots" content="noindex">\n'
         f'<meta http-equiv="refresh" content="0; url={t}">\n'
-        f'<link rel="canonical" href="{t}">\n'
         f'</head><body><p>This page has moved to <a href="{t}">{t}</a>.</p></body></html>\n'
     )
