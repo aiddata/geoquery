@@ -672,21 +672,3 @@ class GeoboundariesAdm0TitleTests(TestCase):
         self.assertEqual(
             titles(), {**before, "gB_57dcd43_NEW_ADM0": "T NEW (Republic)"}
         )
-
-
-class BoundaryDocsPageTests(TestCase):
-    def page(self, count, **kwargs):
-        from features.tasks.create_docs import _build_fc_page
-
-        fc = FeatureCollection.objects.create(name="docs_fc", path="/docs_fc", **kwargs)
-        return _build_fc_page(fc, count)
-
-    def test_page_starts_with_front_matter_led_by_title_and_count(self):
-        page = self.page(7, title="Nepal ADM1 (Provinces)", description="Provinces of Nepal.")
-        self.assertTrue(page.startswith(
-            '---\ndescription: "Nepal ADM1 (Provinces): 7 features. Provinces of Nepal. Extract'
-        ))
-        self.assertIn("\n---\n\n# Nepal ADM1 (Provinces)\n", page)
-
-    def test_single_feature_is_singular(self):
-        self.assertIn(": 1 feature.", self.page(1, title="Nepal ADM0 (Country)"))

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from datasets.models import Dataset
-from datasets.tasks.create_docs import _absolute_url
+from datasets.docs.text import absolute_url as _absolute_url
 from django.conf import (
     settings,  # noqa: F401 -- for the commented-out visualization link
 )
