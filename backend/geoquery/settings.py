@@ -338,6 +338,10 @@ CORS_URLS_REGEX = r"^(?!/api/stac/).*$"
 
 # Results
 REQUESTS_DIR = Path(os.environ.get("REQUESTS_DIR", str(BASE_DIR.parent / "requests")))
+# Generated data docs pages, bundled nightly by datasets.tasks.build_data_docs_task.
+# Inside the requests share so the existing /requests/<dir>/<file> rule serves it,
+# at <app_url>/requests/docs/data-docs.tar.gz, where the docs workflow downloads it.
+DATA_DOCS_BUNDLE = REQUESTS_DIR / "docs" / "data-docs.tar.gz"
 ASSETS_DIR = Path(os.environ.get("ASSETS_DIR", str(BASE_DIR.parent / "assets")))
 DOCS_DIR = Path(os.environ.get("DOCS_DIR", str(BASE_DIR.parent / "docs")))
 DOWNLOAD_BASE_URL = os.environ.get("DOWNLOAD_BASE_URL", "http://localhost:8000")
@@ -682,43 +686,12 @@ CELERY_BEAT_SCHEDULE = {
         "task": "analytics.tasks.maintenance.reset_stale_requests",
         "schedule": 3600,
     },
-    # Both docs builders are deliberately unscheduled. They never once
-    # succeeded in the cluster: DOCS_DIR is unset there, so it falls back to
-    # BASE_DIR.parent / "docs" == /app/docs, and /app is a read-only
-    # filesystem with no docs directory in the image and no volume mounted
-    # over it, so out_dir.mkdir() cannot work. Every night both raised
-    #
-    #     OSError: [Errno 30] Read-only file system: '/app/docs'
-    #
-    # and because neither task is in background_metrics.JOBS, there was no
-    # JOB_RUNS counter and nothing reported it. The pages went stale at the 2
-    # datasets and 6 collections they were first generated with, against 56
-    # and 719 in production.
-    #
-    # Scheduling them is the wrong fix even with a writable path, because the
-    # generated pages are tracked in git and the docs site builds from the
-    # repo -- output written into a pod filesystem has no consumer. This is a
-    # generate-and-commit workflow instead:
-    #
-    #     DOCS_DIR=<writable> python manage.py build_dataset_docs
-    #     DOCS_DIR=<writable> python manage.py build_boundary_docs
-    #
-    # then commit the result (see the regeneration in PR #48, which also
-    # explains why entries can disappear: a renamed dataset or collection
-    # changes its slug, so the directories are replaced wholesale rather than
-    # merged).
-    #
-    # To bring the nightly path back, give the worker a writable volume and
-    # set DOCS_DIR to it -- and add both tasks to background_metrics.JOBS, so
-    # the next failure is visible rather than silent.
-    # "build-dataset-docs": {
-    #     "task": "datasets.tasks.build_dataset_docs_task",
-    #     "schedule": crontab(hour=2, minute=0),
-    # },
-    # "build-boundary-docs": {
-    #     "task": "features.tasks.build_boundary_docs_task",
-    #     "schedule": crontab(hour=2, minute=15),
-    # },
+    # Regenerates the data docs bundle (datasets.docs). The docs workflow
+    # downloads it at 06:00 UTC, an hour later; see .github/workflows/docs.yml.
+    "build-data-docs": {
+        "task": "datasets.tasks.build_data_docs_task",
+        "schedule": crontab(hour=5, minute=0),
+    },
     # Backstop only. A new Dataset gets its extract_tasks/extract_data
     # partitions from datasets.signals.on_dataset_created, and sync will not
     # create its pairs -- the step that lets workers write its rows -- until

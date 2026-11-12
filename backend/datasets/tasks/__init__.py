@@ -1,12 +1,18 @@
 from celery import shared_task
 
+from analytics.background_metrics import observe_job
 from analytics.query_tags import tagged
 
 
 @shared_task
-def build_dataset_docs_task(public_only=True):
-    from datasets.tasks.create_docs import build_dataset_docs
-    return build_dataset_docs(public_only=public_only)
+@observe_job("data_docs")
+@tagged("docs.build")
+def build_data_docs_task():
+    """Nightly: regenerate the data docs pages into the bundle the docs site
+    downloads (datasets.docs.build.build_bundle). Returns the manifest."""
+    from datasets.docs.build import build_bundle
+
+    return build_bundle()
 
 
 @shared_task(bind=True, max_retries=5, default_retry_delay=120)
