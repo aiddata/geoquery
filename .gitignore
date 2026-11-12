@@ -29,3 +29,9 @@ manage_secrets.sh
 # Signing keys and local key material
 .dev/
 *.pem
+
+# Generated nightly in the cluster and fetched by the docs workflow
+# (.github/scripts/fetch_data_docs.py); run that script to preview locally.
+/docs/data_documentation/datasets/
+/docs/data_documentation/boundaries/
+/.github/scripts/__pycache__/

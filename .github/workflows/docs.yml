@@ -13,6 +13,12 @@ on:
       - pyproject.toml
       - uv.lock
       - .github/workflows/docs.yml
+      - .github/scripts/**
+  # The data pages are regenerated in the cluster at 05:00 UTC
+  # (build-data-docs in the backend's beat schedule); pick them up an hour later.
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
 permissions:
   contents: read
 # One Pages site serves docs.geoquery.org, so only main publishes to it. Other
@@ -36,6 +42,12 @@ jobs:
         env:
           GEOQUERY_APP_URL: ${{ vars.GEOQUERY_APP_URL }}
         run: sed -i "s|^app_url = .*|app_url = \"$GEOQUERY_APP_URL\"|" zensical.toml
+      - name: Test the data docs fetch script
+        run: uv run --only-group docs python -m unittest discover -s .github/scripts -p 'test_*.py'
+      # The dataset and boundary pages aren't in git: they're generated nightly
+      # in the cluster and served by the app. Fails rather than build without them.
+      - name: Fetch generated data pages
+        run: uv run --only-group docs python .github/scripts/fetch_data_docs.py
       - run: uv run --only-group docs zensical build --clean --strict
       - if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v4
