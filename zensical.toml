@@ -29,6 +29,11 @@ site_author = "Jacob Hall"
 # documentation you should set this.
 # Read more: https://zensical.org/docs/setup/basics/#site_url
 site_url = "https://docs.geoquery.org/"
+# Implementation plans and design specs live beside the docs for convenience,
+# but are internal: keep them out of the published site and its sitemap.
+exclude_docs = """
+superpowers/
+"""
 
 repo_url = "https://github.com/aiddata/geoquery"
 repo_name = "aiddata/geoquery"
