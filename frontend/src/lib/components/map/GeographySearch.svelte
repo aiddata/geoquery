@@ -180,6 +180,17 @@
 		{/if}
 	</div>
 
+	{#if !searchText.trim()}
+		<p class="text-sm">
+			<a
+				href="https://docs.geoquery.org/data_documentation/boundaries/"
+				target="_blank"
+				rel="noopener noreferrer"
+				class="text-link hover:text-link-hover hover:underline">What boundaries are available?</a
+			>
+		</p>
+	{/if}
+
 	<!-- Featured boundaries (shown when no text in search) -->
 	{#if !searchText.trim() && featuredBoundaries.length > 0}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
