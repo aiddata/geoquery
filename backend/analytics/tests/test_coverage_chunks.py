@@ -5,9 +5,10 @@ import threading
 from django.contrib.gis.geos import Point, Polygon
 from django.db import connection, connections, transaction
 from django.test import TestCase, TransactionTestCase, override_settings
+from django.utils import timezone
 
 from analytics.coverage import barrier_for, run_coverage_chunk, valid_coverage
-from analytics.models import Coverage, CoverageProgress
+from analytics.models import Coverage, CoverageProgress, ExtractData, ExtractInputState, ExtractTask
 from analytics.tests.extract_helpers import make_collection, make_dataset, settle_inputs
 from datasets.models import Dataset
 from features.models import FeatMap, Feature, FeatureCollection
@@ -152,6 +153,52 @@ class CoverageChunkTests(TestCase):
         drain()
         self.assertEqual(statuses(self.dataset)[old], 1)
         self.assertEqual(statuses(self.dataset)[new.id], 0)
+
+
+class GlobalToRegionalTests(TestCase):
+    """Correcting a dataset wrongly marked global (GEO-73): coverage is
+    computed for it from scratch, and no result already extracted is lost."""
+
+    def test_marking_a_global_dataset_regional_keeps_its_tasks_and_covers_it(self):
+        dataset, po, (resource,) = make_dataset("was-global", extent=EXTENT)
+        fc, fms = make_collection("was-global-fc", 8)
+        settle_inputs()
+        self.assertTrue(dataset.is_global)
+        self.assertFalse(CoverageProgress.objects.filter(dataset_id=dataset.id).exists())
+
+        # Finished results for every feature, inside the extent and out.
+        now = timezone.now()
+        for fm in fms:
+            task = ExtractTask.objects.create(
+                dataset_id=dataset.id, resource_ids=[resource.id], fm=fm, po=po, status=1,
+                attempts=1, complete_time=now, update_time=now, priority=1,
+            )
+            ExtractData.objects.create(extract_task=task, dataset_id=dataset.id, name="mean", float_value=1.0)
+
+        def results():
+            tasks = ExtractTask.objects.filter(dataset_id=dataset.id)
+            data = ExtractData.objects.filter(dataset_id=dataset.id)
+            return (
+                sorted(tasks.values_list("id", "status", "update_time")),
+                sorted(data.values_list("extract_task_id", "float_value")),
+            )
+
+        before = results()
+
+        Dataset.objects.filter(id=dataset.id).update(is_global=False)
+        s = ExtractInputState.objects.get(kind="dataset", object_id=dataset.id)
+        self.assertTrue(s.reset_coverage)
+        self.assertFalse(s.reset_tasks)
+
+        settle_inputs()
+        drain()
+
+        self.assertEqual(results(), before)
+        self.assertEqual(
+            statuses(dataset),
+            {fm.geom_id: (1 if i < 5 else 0) for i, fm in enumerate(fms)},
+        )
+        self.assertEqual(watermark(dataset), fms[-1].id)
 
 
 class CoverageBarrierTests(TransactionTestCase):
