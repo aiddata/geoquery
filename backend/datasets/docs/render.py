@@ -227,6 +227,30 @@ def _filter_box(label: str, noun: str) -> str:
     )
 
 
+# Hand-written framing for the two index pages. Deliberately general, so it
+# stays true as datasets and boundary sets come and go; the tables below it
+# carry the specifics.
+DATASETS_OVERVIEW = """\
+GeoQuery's datasets are global and regional data layers that you can summarize for any boundary you select. They span topics such as population, economic activity, climate, the environment, health, conflict and natural resources, and new datasets are added over time.
+
+Datasets are either rasters, grids of values from satellite imagery, models or surveys, or are made of points or shapes, such as recorded events. Many are time series, so you can choose the years or months you need.
+
+The table below lists every dataset currently available. Select one for its description, coverage, source and citation.
+
+"""
+
+BOUNDARIES_OVERVIEW = f"""\
+Boundaries are the areas GeoQuery summarizes data for: each one becomes a row in your results.
+
+- **Country administrative boundaries** come from [geoBoundaries]({GEOBOUNDARIES_URL}), an open database of political boundaries. Each country has levels from ADM0, its national border, down to finer units: ADM1 is usually provinces or states, ADM2 districts or counties, and some countries go further. Which levels are available differs by country.
+- **Other boundary sets** cover areas beyond administrative divisions, such as city extents, or come from other sources.
+- **Your own boundaries** can be uploaded as a custom boundary file in GeoQuery.
+
+You can select several boundary sets in one request, or pick individual areas within one set. Select a country or boundary set for its levels, feature counts, source and the datasets available for it.
+
+"""
+
+
 def datasets_index(datasets) -> str:
     out = [
         front_matter(
@@ -234,7 +258,7 @@ def datasets_index(datasets) -> str:
             "climate, land cover, conflict, health and more, free to extract for any boundary."
         ),
         "# Datasets\n\n",
-        "Every dataset available in GeoQuery. Select one for its details, coverage and citation.\n\n",
+        DATASETS_OVERVIEW,
         _filter_box("Filter datasets by name, type, license or description", "datasets"),
         "| Dataset | Type | Time period | License | Description |\n|---|---|---|---|---|\n",
     ]
@@ -265,7 +289,7 @@ def boundaries_index(pages) -> str:
             f"countries from geoBoundaries, plus {len(others)} other boundary {'set' if len(others) == 1 else 'sets'}."
         ),
         "# Boundaries\n\n",
-        "Every set of boundaries you can extract data for in GeoQuery.\n\n",
+        BOUNDARIES_OVERVIEW,
         _filter_box("Filter by country, level or boundary set", "boundaries"),
     ]
     if countries:

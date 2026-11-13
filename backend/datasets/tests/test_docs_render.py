@@ -127,6 +127,13 @@ class IndexTests(TestCase):
         index = datasets_index([make_dataset()])
         self.assertIn("| [Malaria Incidence](malaria.md) | raster |", index)
 
+    def test_index_pages_open_with_an_overview_before_the_table(self):
+        datasets = datasets_index([make_dataset()])
+        boundaries = boundaries_index(build_pages([make_fc("gB_57dcd43_NPL_ADM0", 0)]))
+        self.assertLess(datasets.index("new datasets are added over time"), datasets.index("|---"))
+        self.assertLess(boundaries.index("**Country administrative boundaries**"), boundaries.index("|---"))
+        self.assertIn("(https://www.geoboundaries.org)", boundaries)
+
     def test_index_pages_have_a_filter_box_above_the_table(self):
         datasets = datasets_index([make_dataset()])
         boundaries = boundaries_index(build_pages([make_fc("gB_57dcd43_NPL_ADM0", 0)]))
