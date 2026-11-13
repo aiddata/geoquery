@@ -127,7 +127,9 @@ describe('provider signup', () => {
 				expect(input).toBe('/api/_allauth/browser/v1/auth/provider/signup');
 				expect(init?.method).toBe('POST');
 				expect(new Headers(init?.headers).get('X-CSRFToken')).toBe('test-token');
-				expect(JSON.parse(init?.body as string)).toEqual({ email: USER.email });
+				// `emails` (the other GitHub addresses to connect) is always sent,
+				// empty when none were chosen.
+				expect(JSON.parse(init?.body as string)).toEqual({ email: USER.email, emails: [] });
 				return jsonResponse(401, {
 					flows: [{ id: 'verify_email', is_pending: true }]
 				});

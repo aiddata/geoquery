@@ -95,12 +95,12 @@
 					<ScrollArea class="h-52">
 						<div class="space-y-2 pr-3">
 							<!-- Select All -->
-							<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+							<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 							<div
 								class="flex cursor-pointer items-center gap-2 border-b pb-2"
 								onclick={() => setSelection(key, { type: 'categorical', selected: allSelected ? [] : [...filter.categories] })}
 							>
-								<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+								<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 								<span onclick={(e) => e.stopPropagation()}>
 									<Checkbox
 										checked={allSelected}
@@ -112,7 +112,7 @@
 
 							{#each filter.categories as category}
 								{@const checked = sel.selected.includes(category)}
-								<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+								<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 								<div
 									class="flex cursor-pointer items-center gap-2"
 									onclick={() => {
@@ -122,7 +122,7 @@
 										setSelection(key, { type: 'categorical', selected: next });
 									}}
 								>
-									<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+									<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 									<span onclick={(e) => e.stopPropagation()}>
 										<Checkbox
 											{checked}

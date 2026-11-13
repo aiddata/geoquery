@@ -9,6 +9,7 @@
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
 		"@tailwindcss/vite": "^4.3.4",
 		"@types/bun": "^1.4.4",
+		"@types/sortablejs": "1.15.8",
 		"bits-ui": "^2.20.4",
 		"clsx": "^2.1.1",
 		"svelte": "^5.57.3",

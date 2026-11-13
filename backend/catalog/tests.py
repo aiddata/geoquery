@@ -8,7 +8,7 @@ The rule under test, from catalog.access:
 from analytics.models import ProcessingOption
 from datasets.models import Dataset
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import AnonymousUser, Group
+from django.contrib.auth.models import AnonymousUser, Group, Permission
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 from django.test import Client, TestCase
@@ -564,6 +564,12 @@ class EndpointTests(ReplicaReadsTestMixin, TestCase):
         )
 
     def test_explore_available_rejects_unauthorized_fc_ids(self):
+        # /viz is a beta feature, so an anonymous caller is stopped at the
+        # gate (403) before the ids are filtered. A beta tester with no
+        # catalog grant gets through the gate and must still see nothing.
+        tester = User.objects.create_user(username="beta", email="beta@example.com")
+        tester.user_permissions.add(Permission.objects.get(codename="beta_tester"))
+        self.client.force_login(tester)
         response = self.client.get(
             f"/api/visualize/explore/available/?fc={self.private_fc.id}"
         )

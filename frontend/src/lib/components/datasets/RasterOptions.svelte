@@ -108,9 +108,9 @@
 		<Card.Content class="pt-0">
 			<div class="space-y-2">
 				<!-- Select All -->
-				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+				<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 				<div class="flex cursor-pointer items-center gap-2 border-b pb-2" onclick={toggleAllExtracts}>
-					<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+					<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 					<span onclick={(e) => e.stopPropagation()}>
 						<Checkbox checked={allExtractsSelected} onCheckedChange={toggleAllExtracts} />
 					</span>
@@ -118,9 +118,9 @@
 				</div>
 
 				{#each dataset.extract_types as type}
-					<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+					<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 					<div class="flex cursor-pointer items-center gap-2" onclick={() => toggleExtractType(type)}>
-						<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+						<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 						<span onclick={(e) => e.stopPropagation()}>
 							<Checkbox
 								checked={options.extractTypes.includes(type.short_name)}
@@ -164,9 +164,9 @@
 				<ScrollArea class="h-64">
 					<div class="space-y-2 pr-3">
 						<!-- Select All -->
-						<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+						<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 						<div class="flex cursor-pointer items-center gap-2 border-b pb-2" onclick={toggleAllResources}>
-							<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+							<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 							<span onclick={(e) => e.stopPropagation()}>
 								<Checkbox checked={allResourcesSelected} onCheckedChange={toggleAllResources} />
 							</span>
@@ -174,9 +174,9 @@
 						</div>
 
 						{#each dataset.resources as resource, i}
-							<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+							<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 							<div class="flex cursor-pointer items-center gap-2" onclick={(e) => toggleResource(resource.name, i, e)}>
-								<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+								<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 								<span onclick={(e) => { e.stopPropagation(); toggleResource(resource.name, i); }}>
 									<Checkbox
 										checked={options.resources.includes(resource.name)}

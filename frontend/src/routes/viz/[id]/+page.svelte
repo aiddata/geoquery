@@ -24,14 +24,15 @@
 	import { parseFormula, evaluateFormula, formulaColumns } from '#lib/formula.js';
 	import { GripVertical, AlertCircle, Plus, X, Download, ChartColumn, Map as MapIcon } from '@lucide/svelte';
 
-	const requestId = page.params.id;
+	// The /viz/[id] route only matches with an id, so it is always set.
+	const requestId = page.params.id as string;
 
 	// ── State ────────────────────────────────────────────────────────────────
 	let data = $state<VisualizationData | null>(null);
 	let loading = $state(true);
 	let loadError = $state('');
 
-	let mapContainer: HTMLDivElement;
+	let mapContainer = $state<HTMLDivElement>();
 	let map: maplibregl.Map | null = $state(null);
 	let mapReady = $state(false);
 
@@ -192,13 +193,13 @@
 	// ── Map init ─────────────────────────────────────────────────────────────
 	$effect(() => {
 		if (!data || !mapContainer || map) return;
-		void initMap();
+		void initMap(mapContainer);
 	});
 
-	async function initMap() {
+	async function initMap(container: HTMLDivElement) {
 		const key = await protomapsApiKey();
 		map = new maplibregl.Map({
-			container: mapContainer,
+			container,
 			canvasContextAttributes: { preserveDrawingBuffer: true },
 			style: basemapStyle(get(resolvedTheme), key),
 			center: [0, 20],

@@ -4,7 +4,23 @@
 	import { Separator } from '#lib/components/ui/separator/index.js';
 	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
 	import { ChevronRight, MinusCircle } from '@lucide/svelte';
-	import { cart } from '#lib/stores/cart.js';
+	import { cart, type CartItem } from '#lib/stores/cart.js';
+
+	// What the item will extract, in the same terms as the customize page's
+	// Selection Summary.
+	function itemSummary(item: CartItem): string {
+		if (item.filterSelections) {
+			const parts = Object.entries(item.filterSelections).map(([key, sel]) =>
+				sel.type === 'range' ? `${key}: ${sel.start}–${sel.end}` : `${key}: ${sel.selected.length} selected`
+			);
+			return parts.length ? `With filters: ${parts.join('; ')}` : '';
+		}
+		const parts: string[] = [];
+		if (item.extractTypes?.length) parts.push(`Calculating ${item.extractTypes.join(', ')}`);
+		const periods = item.resourceLabels ?? item.resources;
+		if (periods?.length) parts.push(`for ${periods.join(', ')}`);
+		return parts.join(' ');
+	}
 </script>
 
 <div class="space-y-4 p-4">
@@ -47,7 +63,9 @@
 					</div>
 					<Collapsible.Content class="px-6 py-2 text-sm text-muted-foreground">
 						<p>Dataset: {item.datasetTitle}</p>
-						<p class="mt-1 italic">{item.summary}</p>
+						{#if itemSummary(item)}
+							<p class="mt-1 italic">{itemSummary(item)}</p>
+						{/if}
 					</Collapsible.Content>
 				</Collapsible.Root>
 			{/each}

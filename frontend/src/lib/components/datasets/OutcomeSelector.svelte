@@ -18,7 +18,7 @@
 		<div class="flex flex-wrap gap-3">
 			{#each entries as [key, label]}
 				{@const isSelected = selected === key}
-				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+				<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 				<div
 					class="flex cursor-pointer items-center gap-2"
 					onclick={() => onSelect(key)}

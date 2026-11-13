@@ -22,7 +22,8 @@
 		loading = true;
 		error = null;
 		try {
-			request = await fetchRequestDetail(page.params.id);
+			// The [id=uuid] route only matches with an id, so it is always set.
+			request = await fetchRequestDetail(page.params.id as string);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load request.';
 		} finally {
@@ -184,7 +185,7 @@
 								{featureCount} feature{featureCount === 1 ? '' : 's'} total
 							</p>
 						{/if}
-						{#if request.data.boundary_operations?.length > 0}
+						{#if request.data.boundary_operations?.length}
 							<div class="mt-2 border-t pt-2">
 								<p class="text-xs font-bold text-muted-foreground">
 									Operations applied ({request.data.boundary_operations.length})
