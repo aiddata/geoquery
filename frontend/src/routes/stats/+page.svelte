@@ -73,11 +73,17 @@
 	function duration(seconds: number | null | undefined): string {
 		if (seconds == null) return '—';
 		const minutes = seconds / 60;
-		if (minutes < 1) return 'under 1 min';
+		if (minutes < 1) return '< 1 min';
 		if (minutes < 90) return `${Math.round(minutes)} min`;
 		const hours = minutes / 60;
 		if (hours < 48) return `${hours.toFixed(1)} h`;
 		return `${(hours / 24).toFixed(1)} days`;
+	}
+
+	/** "in < 1 min" or "within 4 min": how long a share of requests took. */
+	function finishedIn(seconds: number | null | undefined): { lead: string; time: string } {
+		if (seconds != null && seconds < 60) return { lead: 'in', time: '< 1 min' };
+		return { lead: 'within', time: duration(seconds) };
 	}
 
 	/** Sum a daily series over the last `days` days, counting today as one. */
@@ -116,7 +122,14 @@
 		},
 		{ label: 'Results extracted', value: stats?.extract_counts?.completed, note: 'one per area, dataset and period' },
 		{ label: 'Datasets available', value: stats?.datasets_available, note: null },
-		{ label: 'Boundary sets available', value: stats?.boundary_sets_available, note: null }
+		{
+			label: 'Boundary sets available',
+			value: stats?.boundary_sets_available,
+			note:
+				stats?.boundary_features_available != null
+					? `${fmt(stats.boundary_features_available)} features`
+					: null
+		}
 	]);
 
 	const STATUS_TEXT = {
@@ -310,15 +323,19 @@
 								Turnaround{stats.turnaround ? `, last ${stats.turnaround.days} days` : ''}
 							</dt>
 							{#if stats.turnaround?.count}
+								{@const half = finishedIn(stats.turnaround.median_seconds)}
+								{@const most = finishedIn(stats.turnaround.p90_seconds)}
 								<dd class="mt-1">
-									<span class="font-ui text-lg font-bold tabular-nums">{duration(stats.turnaround.median_seconds)}</span>
-									typical
+									Half finished {half.lead}
+									<span class="whitespace-nowrap font-ui font-bold tabular-nums">{half.time}</span>
 								</dd>
 								<dd>
-									<span class="font-ui font-bold tabular-nums">{duration(stats.turnaround.p90_seconds)}</span>
-									for 9 in 10
+									90% finished {most.lead}
+									<span class="whitespace-nowrap font-ui font-bold tabular-nums">{most.time}</span>
 								</dd>
-								<dd class="text-xs text-muted-foreground">over {fmt(stats.turnaround.count)} requests</dd>
+								<dd class="mt-0.5 text-xs text-muted-foreground">
+									Out of {fmt(stats.turnaround.count)} completed request{stats.turnaround.count === 1 ? '' : 's'}
+								</dd>
 							{:else}
 								<dd class="mt-1 text-muted-foreground">No requests completed recently</dd>
 							{/if}

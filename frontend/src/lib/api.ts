@@ -525,6 +525,8 @@ export interface Stats {
 	// The fields below are absent from snapshots written before they shipped.
 	datasets_available?: number;
 	boundary_sets_available?: number;
+	/** Features (areas) across the available boundary sets. */
+	boundary_features_available?: number;
 	/** Submit-to-complete time over requests completed in the last `days` days. */
 	turnaround?: { days: number; count: number; median_seconds: number | null; p90_seconds: number | null };
 	/** Public datasets and boundary sets in the most requests, current GeoQuery only. */

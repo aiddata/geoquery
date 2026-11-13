@@ -144,6 +144,10 @@ class StatsBuilder:
             "total": total,
             "datasets_available": Dataset.objects.using(_DB).filter(active=True, public=True).count(),
             "boundary_sets_available": _public_collections().count(),
+            # Features (areas) across those sets; a feature in two sets counts twice.
+            "boundary_features_available": FeatMap.objects.using(_DB)
+            .filter(fc__in=_public_collections())
+            .count(),
             "turnaround": self._turnaround(),
             **self._most_requested(),
             "status_counts": status_counts,

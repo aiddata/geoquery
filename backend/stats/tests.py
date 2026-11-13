@@ -305,6 +305,7 @@ class StatsSummaryTests(ReplicaReadsTestMixin, TestCase):
         data = StatsBuilder().collect()
         self.assertEqual(data["datasets_available"], 1)
         self.assertEqual(data["boundary_sets_available"], 1)  # the upload is left out
+        self.assertEqual(data["boundary_features_available"], 1)  # and so are its features
 
     def test_turnaround_is_median_and_p90_of_recent_completions(self):
         from datetime import timedelta
