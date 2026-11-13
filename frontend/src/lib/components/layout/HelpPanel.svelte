@@ -11,7 +11,7 @@
 		<h3 class="text-h4">Frequently Asked Questions</h3>
 		<p class="mt-1 text-sm text-muted-foreground">
 			See the full <a
-				href="https://aiddata.github.io/geoquery/faq/"
+				href="https://docs.geoquery.org/faq/"
 				target="_blank"
 				rel="noopener noreferrer"
 				class="text-link underline hover:text-link-hover">FAQ page in the docs</a
