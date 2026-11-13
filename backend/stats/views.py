@@ -13,12 +13,20 @@ That made the page 504 as soon as two requests overlapped. The counts are part
 of the snapshot instead, so normal requests are file reads.
 """
 import json
+import time
 from pathlib import Path
 
 from django.conf import settings
+from django.db.models import Count, Min
 from django.http import JsonResponse
+from django.utils import timezone
 
+from analytics.models import Request
 from stats.builder import StatsBuilder
+
+# Requests that have been submitted but not finished: queued (-1) and in
+# progress (0, 2). See stats.builder._STATUS_GROUPS.
+_UNFINISHED = (-1, 0, 2)
 
 
 def _report_path():
@@ -52,3 +60,52 @@ def stats_data(request):
             {"error": "Statistics reporting is disabled."}, status=503
         )
     return JsonResponse(StatsBuilder().collect())
+
+
+def status_data(request):
+    """Live service status for the top of the /stats page.
+
+    Unlike the snapshot this is computed per request, so it has to stay cheap:
+    one aggregate over the small requests table (on the standby) and a file
+    stat. "offline" is not a state here: the page shows it when it can't reach
+    this endpoint at all.
+
+    - backlogged: the oldest unfinished request has waited longer than
+      STATUS_BACKLOG_MINUTES.
+    - delayed: the hourly snapshot is more than three intervals old, so the
+      scheduled background jobs appear to have stalled.
+    - healthy: otherwise.
+    """
+    now = timezone.now()
+    queue = (
+        Request.objects.using("replica")
+        .filter(status__in=_UNFINISHED)
+        .aggregate(count=Count("id"), oldest=Min("submit_time"))
+    )
+    oldest_wait = (now - queue["oldest"]).total_seconds() if queue["oldest"] else 0
+    backlog_after = settings.STATUS_BACKLOG_MINUTES * 60
+
+    path = _report_path()
+    snapshot_age = time.time() - path.stat().st_mtime if path.exists() else None
+    stale = (
+        settings.STATS_REPORT_ENABLED
+        and snapshot_age is not None
+        and snapshot_age > 3 * settings.STATS_REPORT_INTERVAL_SECONDS
+    )
+
+    if oldest_wait > backlog_after:
+        state = "backlogged"
+    elif stale:
+        state = "delayed"
+    else:
+        state = "healthy"
+    return JsonResponse(
+        {
+            "state": state,
+            "unfinished_requests": queue["count"],
+            "oldest_wait_seconds": round(oldest_wait),
+            "backlog_after_seconds": backlog_after,
+            "snapshot_age_seconds": None if snapshot_age is None else round(snapshot_age),
+            "checked_at": now.isoformat(),
+        }
+    )

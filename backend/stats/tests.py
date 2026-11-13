@@ -271,3 +271,114 @@ class LegacyCountInSnapshotTests(ReplicaReadsTestMixin, TestCase):
         # current system's figures: no Request rows exist here.
         self.assertEqual(snapshot["total"], 0)
         self.assertEqual(sum(snapshot["status_counts"].values()), 0)
+
+
+class StatsSummaryTests(ReplicaReadsTestMixin, TestCase):
+    """Turnaround, most-requested lists and availability counts in the snapshot."""
+
+    def setUp(self):
+        from analytics.models import Request
+
+        self.Request = Request
+        self.public_ds = Dataset.objects.create(name="pop", title="Population", path="/d/pop", active=True, public=True)
+        self.private_ds = Dataset.objects.create(name="secret", title="Secret", path="/d/secret", active=True, public=False)
+        self.public_fc = FeatureCollection.objects.create(name="gha", title="Ghana ADM1", path="/b/gha", active=True, public=True)
+        self.upload_fc = FeatureCollection.objects.create(
+            name="mine", title="My upload", path="/b/mine", active=True, public=True, is_user_upload=True
+        )
+        self.public_geom = Feature.objects.create(shape=Point(0, 0))
+        self.upload_geom = Feature.objects.create(shape=Point(1, 1))
+        FeatMap.objects.create(fc=self.public_fc, geom=self.public_geom, name="a")
+        FeatMap.objects.create(fc=self.upload_fc, geom=self.upload_geom, name="b")
+
+    def request(self, *, datasets=(), geoms=(), status=1, took=None):
+        r = self.Request.objects.create(
+            contact="a@b.c", status=status,
+            data={"datasets": [{"dataset_name": n} for n in datasets], "feature_ids": [g.id for g in geoms]},
+        )
+        if took is not None:
+            end = datetime.now(timezone.utc)
+            self.Request.objects.filter(id=r.id).update(submit_time=end - took, complete_time=end)
+        return r
+
+    def test_availability_counts_only_public_active_inputs(self):
+        data = StatsBuilder().collect()
+        self.assertEqual(data["datasets_available"], 1)
+        self.assertEqual(data["boundary_sets_available"], 1)  # the upload is left out
+
+    def test_turnaround_is_median_and_p90_of_recent_completions(self):
+        from datetime import timedelta
+
+        for hours in (1, 2, 3, 4, 10):
+            self.request(took=timedelta(hours=hours))
+        self.request(status=-1)  # unfinished: not counted
+        turnaround = StatsBuilder().collect()["turnaround"]
+        self.assertEqual(turnaround["count"], 5)
+        self.assertEqual(turnaround["median_seconds"], 3 * 3600)
+        self.assertEqual(turnaround["p90_seconds"], 10 * 3600)
+
+    def test_turnaround_with_no_recent_completions(self):
+        self.assertEqual(
+            StatsBuilder().collect()["turnaround"],
+            {"days": 30, "count": 0, "median_seconds": None, "p90_seconds": None},
+        )
+
+    def test_most_requested_counts_requests_and_hides_private_inputs(self):
+        self.request(datasets=["pop", "secret"], geoms=[self.public_geom, self.upload_geom])
+        self.request(datasets=["pop", "pop"], geoms=[self.public_geom])
+        data = StatsBuilder().collect()
+        # Each request counts once per dataset or collection, however often it names it.
+        self.assertEqual(data["top_datasets"], [{"name": "pop", "title": "Population", "requests": 2}])
+        self.assertEqual(
+            data["top_boundary_sets"], [{"id": self.public_fc.id, "title": "Ghana ADM1", "requests": 2}]
+        )
+
+
+class StatusEndpointTests(ReplicaReadsTestMixin, TestCase):
+    def setUp(self):
+        from analytics.models import Request
+
+        self.Request = Request
+        self.tmp = tempfile.TemporaryDirectory()
+        self.snapshot = Path(self.tmp.name) / "geoquery_stats.json"
+        self.snapshot.write_text("{}", encoding="utf-8")
+        self.settings = override_settings(
+            STATS_REPORT_PATH=str(self.snapshot), STATUS_BACKLOG_MINUTES=60,
+            STATS_REPORT_INTERVAL_SECONDS=3600, STATS_REPORT_ENABLED=True,
+        )
+        self.settings.enable()
+
+    def tearDown(self):
+        self.settings.disable()
+        self.tmp.cleanup()
+
+    def status(self):
+        response = self.client.get(reverse("stats-status"))
+        self.assertEqual(response.status_code, 200)
+        return response.json()
+
+    def test_healthy_with_a_short_queue(self):
+        self.Request.objects.create(contact="a@b.c", status=-1)
+        body = self.status()
+        self.assertEqual(body["state"], "healthy")
+        self.assertEqual(body["unfinished_requests"], 1)
+
+    def test_backlogged_when_a_request_has_waited_too_long(self):
+        from datetime import timedelta
+
+        r = self.Request.objects.create(contact="a@b.c", status=0)
+        self.Request.objects.filter(id=r.id).update(submit_time=datetime.now(timezone.utc) - timedelta(minutes=61))
+        self.assertEqual(self.status()["state"], "backlogged")
+
+    def test_finished_requests_never_count_as_a_backlog(self):
+        from datetime import timedelta
+
+        for status in (1, -2):
+            r = self.Request.objects.create(contact="a@b.c", status=status)
+            self.Request.objects.filter(id=r.id).update(submit_time=datetime.now(timezone.utc) - timedelta(days=9))
+        self.assertEqual(self.status()["state"], "healthy")
+
+    def test_delayed_when_the_snapshot_has_not_been_rebuilt(self):
+        old = datetime.now(timezone.utc).timestamp() - 4 * 3600
+        os.utime(self.snapshot, (old, old))
+        self.assertEqual(self.status()["state"], "delayed")

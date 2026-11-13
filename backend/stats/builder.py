@@ -1,15 +1,23 @@
 from __future__ import annotations
 
 import json
+import math
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from statistics import median
 
 from django.db.models import Count
 from django.db.models.functions import TruncDay, TruncMonth, TruncYear
 
 from analytics.models import ExtractTask, LegacyRequest, Request
 from datasets.models import Dataset
+from features.models import FeatMap, FeatureCollection
+
+# How many datasets and boundary sets the "most requested" lists show.
+TOP_N = 10
+# Turnaround is reported over requests completed in this many recent days.
+TURNAROUND_DAYS = 30
 
 # Map DB status codes → display groupings
 _STATUS_GROUPS = {
@@ -134,6 +142,10 @@ class StatsBuilder:
 
         return {
             "total": total,
+            "datasets_available": Dataset.objects.using(_DB).filter(active=True, public=True).count(),
+            "boundary_sets_available": _public_collections().count(),
+            "turnaround": self._turnaround(),
+            **self._most_requested(),
             "status_counts": status_counts,
             "extract_counts": extract_counts,
             "time_series": time_series,
@@ -141,3 +153,71 @@ class StatsBuilder:
             "legacy_request_count": legacy_request_count,
             "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         }
+
+    def _turnaround(self) -> dict:
+        """Median and 90th-percentile submit-to-complete time, recent requests only."""
+        since = datetime.now(timezone.utc) - timedelta(days=TURNAROUND_DAYS)
+        rows = (
+            Request.objects.using(_DB)
+            .filter(status=1, complete_time__gte=since, submit_time__isnull=False)
+            .values_list("submit_time", "complete_time")
+        )
+        seconds = sorted((done - submitted).total_seconds() for submitted, done in rows if done >= submitted)
+        result = {"days": TURNAROUND_DAYS, "count": len(seconds), "median_seconds": None, "p90_seconds": None}
+        if seconds:
+            result["median_seconds"] = median(seconds)
+            result["p90_seconds"] = seconds[math.ceil(0.9 * len(seconds)) - 1]
+        return result
+
+    def _most_requested(self) -> dict:
+        """The datasets and boundary sets in the most requests.
+
+        Counted from each request's own record: the datasets it named, and the
+        collections its features belong to. Only public, active datasets and
+        collections are listed, so the page never names private ones, and
+        uploaded custom boundaries are left out. Legacy requests use another
+        format and are not counted.
+        """
+        dataset_counts = Counter()
+        collection_counts = Counter()
+        for data in Request.objects.using(_DB).values_list("data", flat=True).iterator():
+            data = data or {}
+            dataset_counts.update(
+                {d["dataset_name"] for d in data.get("datasets") or [] if d.get("dataset_name")}
+            )
+            feature_ids = data.get("feature_ids") or []
+            if feature_ids:
+                collection_counts.update(
+                    FeatMap.objects.using(_DB)
+                    .filter(geom_id__in=feature_ids)
+                    .values_list("fc_id", flat=True)
+                    .distinct()
+                )
+
+        titles = dict(
+            Dataset.objects.using(_DB)
+            .filter(active=True, public=True, name__in=dataset_counts)
+            .values_list("name", "title")
+        )
+        top_datasets = [
+            {"name": name, "title": titles[name] or name, "requests": n}
+            for name, n in dataset_counts.most_common()
+            if name in titles
+        ][:TOP_N]
+
+        fc_titles = {
+            fc_id: title or name
+            for fc_id, title, name in _public_collections()
+            .filter(id__in=collection_counts)
+            .values_list("id", "title", "name")
+        }
+        top_boundary_sets = [
+            {"id": fc_id, "title": fc_titles[fc_id], "requests": n}
+            for fc_id, n in collection_counts.most_common()
+            if fc_id in fc_titles
+        ][:TOP_N]
+        return {"top_datasets": top_datasets, "top_boundary_sets": top_boundary_sets}
+
+
+def _public_collections():
+    return FeatureCollection.objects.using(_DB).filter(active=True, public=True, is_user_upload=False)

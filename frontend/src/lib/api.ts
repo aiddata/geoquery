@@ -522,7 +522,33 @@ export interface Stats {
 	 * serves a file, and STATS_REPORT_INTERVAL_SECONDS=0 disables the rebuild
 	 * entirely, so a stale snapshot can persist indefinitely. */
 	legacy_request_count?: number;
+	// The fields below are absent from snapshots written before they shipped.
+	datasets_available?: number;
+	boundary_sets_available?: number;
+	/** Submit-to-complete time over requests completed in the last `days` days. */
+	turnaround?: { days: number; count: number; median_seconds: number | null; p90_seconds: number | null };
+	/** Public datasets and boundary sets in the most requests, current GeoQuery only. */
+	top_datasets?: { name: string; title: string; requests: number }[];
+	top_boundary_sets?: { id: number; title: string; requests: number }[];
 	generated_at: string;
+}
+
+export interface ServiceStatus {
+	state: 'healthy' | 'backlogged' | 'delayed';
+	unfinished_requests: number;
+	oldest_wait_seconds: number;
+	backlog_after_seconds: number;
+	snapshot_age_seconds: number | null;
+	checked_at: string;
+}
+
+/** Live service status: a cheap per-call check, unlike the snapshot. */
+export async function fetchServiceStatus(): Promise<ServiceStatus> {
+	const response = await fetch('/api/stats/status/');
+	if (!response.ok) {
+		throw new Error(`Failed to fetch status: ${response.status}`);
+	}
+	return response.json();
 }
 
 /**

@@ -19,13 +19,14 @@ from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path, re_path
 from django.views.static import serve
-from stats.views import stats_data
+from stats.views import stats_data, status_data
 
 from geoquery.views import ConfigView
 from stac_api.views import StacLandingPageView
 
 urlpatterns = [
     path("api/stats/", stats_data, name="stats-data"),
+    path("api/stats/status/", status_data, name="stats-status"),
     path("admin/", admin.site.urls),
     # Headless JSON auth API for the SPA: /api/_allauth/browser/v1/...
     path("api/_allauth/", include("allauth.headless.urls")),

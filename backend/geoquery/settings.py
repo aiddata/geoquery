@@ -647,6 +647,9 @@ STATS_REPORT_INTERVAL_SECONDS = int(os.environ.get("STATS_REPORT_INTERVAL_SECOND
 if STATS_REPORT_INTERVAL_SECONDS < 0:
     raise ImproperlyConfigured("STATS_REPORT_INTERVAL_SECONDS must be 0 (disabled) or positive")
 STATS_REPORT_ENABLED = STATS_REPORT_INTERVAL_SECONDS > 0
+# The /stats page's status line reads "Backlogged" once the oldest unfinished
+# request has waited longer than this.
+STATUS_BACKLOG_MINUTES = int(os.environ.get("STATUS_BACKLOG_MINUTES", "180"))
 
 CELERY_BEAT_SCHEDULE = {
     # Both sweeps used to be hourly interval schedules, for two reasons that
