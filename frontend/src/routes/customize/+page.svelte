@@ -388,7 +388,7 @@
 		</div>
 	{:else}
 		<!-- Three-panel layout (min-width enforced; scrolls horizontally on narrow screens) -->
-		<div class="flex flex-1 overflow-x-auto overflow-y-hidden">
+		<div class="flex flex-1 overflow-hidden">
 			<!-- Left Panel: Dataset Selector -->
 			<div class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r bg-card">
 				<DatasetSelector
@@ -401,8 +401,8 @@
 				/>
 			</div>
 
-			<!-- Center Panel: Dataset Configuration -->
-			<div class="flex-1 overflow-auto bg-background">
+			<!-- Center Panel: Dataset Configuration. Scrolls vertically only. -->
+			<div class="min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-background">
 				{#if !selectedDatasetDetail && !detailLoading}
 					<div class="flex h-full items-center justify-center">
 						<p class="text-muted-foreground">

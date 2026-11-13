@@ -92,9 +92,11 @@
 	}
 </script>
 
-<div class="flex gap-4 p-4">
+<!-- Side by side when the panel is wide enough, stacked when not (as in
+     FilterAndAggOptions); the panel itself never scrolls sideways. -->
+<div class="flex flex-wrap gap-4 p-4">
 	<!-- Extract Types Card -->
-	<Card.Root class="w-72 shrink-0">
+	<Card.Root class="w-72 max-w-full">
 		<Card.Header class="pb-2">
 			<Card.Title class="text-sm">
 				Extract Options
@@ -149,7 +151,7 @@
 
 	<!-- Temporal Resources Card (only if temporally varying) -->
 	{#if isTemporallyVarying}
-		<Card.Root class="w-72 shrink-0">
+		<Card.Root class="w-72 max-w-full">
 			<Card.Header class="pb-2">
 				<Card.Title class="text-sm">
 					Time Periods
