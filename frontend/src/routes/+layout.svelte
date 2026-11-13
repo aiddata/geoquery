@@ -25,6 +25,7 @@
 	import Sidebar from '#lib/components/layout/Sidebar.svelte';
 	import StatusBanner from '#lib/components/layout/StatusBanner.svelte';
 	import SupportBanner from '#lib/components/layout/SupportBanner.svelte';
+	import SmallScreenNotice from '#lib/components/layout/SmallScreenNotice.svelte';
 	import { TooltipProvider } from '#lib/components/ui/tooltip/index.js';
 	let { children } = $props();
 
@@ -42,6 +43,7 @@
 <TooltipProvider>
 	<div class="flex min-h-screen flex-col">
 		<StatusBanner />
+		<SmallScreenNotice />
 		<Header {showSteps} />
 
 		<main class="flex-1">

@@ -4,6 +4,29 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<script>
+			// GeoQuery's layouts need at least 1024 CSS px (the customize page's
+			// three columns). On narrower devices -- phones, small tablets -- lay
+			// the page out at 1024px and let the browser zoom out to fit, instead
+			// of squeezing layouts below what they support. --device-scale lets the
+			// small-screen notice (SmallScreenNotice.svelte) scale its text back up.
+			// Keep in step with MIN_LAYOUT_WIDTH in lib/smallScreen.ts.
+			(function () {
+				var MIN = 1024;
+				var meta = document.querySelector('meta[name="viewport"]');
+				function apply() {
+					var w = window.screen.width;
+					// Touch devices only: a desktop's reported screen size says
+					// nothing about its window, which layout.css handles instead.
+					var narrow = w < MIN && window.matchMedia('(pointer: coarse)').matches;
+					meta.setAttribute('content', narrow ? 'width=' + MIN : 'width=device-width, initial-scale=1');
+					document.documentElement.style.setProperty('--device-scale', narrow ? String(MIN / w) : '1');
+					document.documentElement.toggleAttribute('data-narrow-device', narrow);
+				}
+				apply();
+				window.addEventListener('orientationchange', apply);
+			})();
+		</script>
+		<script>
 			// Apply the saved theme before first paint (lib/stores/theme.ts owns it afterwards)
 			try {
 				var t = localStorage.getItem('gq-theme');

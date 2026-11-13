@@ -318,6 +318,10 @@
     }
     body {
         @apply bg-background font-body text-base text-foreground;
+        /* The narrowest layout GeoQuery supports (lib/smallScreen.ts): narrower
+           windows scroll sideways instead of squeezing the page. Phones get a
+           1024px viewport from app.html, so this only bites on desktop. */
+        min-width: 1024px;
     }
     h1,
     h2,
