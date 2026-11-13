@@ -133,8 +133,12 @@
 		activeTab = tab;
 	}
 
+	// The Explore tab's search box text, so Restart can clear it too.
+	let boundarySearch = $state('');
+
 	/** Reset all boundary selection state and the map, and return to the Explore tab. */
 	function resetAll() {
+		boundarySearch = '';
 		browseBoundaries = [];
 		pendingFeatureIds = [];
 		currentBbox = null;
@@ -469,6 +473,7 @@
 			<div class="px-4 pb-4 pt-2 min-h-0 flex-1 {activeTab === 'explore' ? 'overflow-visible' : 'overflow-y-auto'}">
 				{#if activeTab === 'explore'}
 					<GeographySearch
+						bind:searchText={boundarySearch}
 						featuredBoundaries={featuredBoundaries}
 						selectedBoundaries={browseBoundaries}
 						proceedLabel={findingData ? 'Loading…' : 'Find Data'}

@@ -2,7 +2,7 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
-	import { ChevronLeft, ChevronRight, Search, X } from '@lucide/svelte';
+	import { ChevronRight, Search, X } from '@lucide/svelte';
 	import type { Snippet } from 'svelte';
 	import { searchBoundaries, type BoundaryResult } from '#lib/api.js';
 	import { colorForIndex } from '#lib/utils/boundaryStyle.js';
@@ -17,6 +17,8 @@
 		onProceed?: (boundaries: BoundaryResult[]) => void;
 		/** Rendered directly under the selected chips, e.g. a coverage status line. */
 		belowSelection?: Snippet;
+		/** The search box text; bindable so the page's Restart can clear it. */
+		searchText?: string;
 	}
 
 	let {
@@ -27,11 +29,11 @@
 		selectedBoundaries: externalSelection = undefined,
 		onSelect,
 		onProceed,
-		belowSelection
+		belowSelection,
+		searchText = $bindable('')
 	}: Props = $props();
 
 	let internalSelection = $state<BoundaryResult[]>([]);
-	let searchText = $state('');
 	let searchFocused = $state(false);
 
 	// Use external selection if provided, otherwise use internal
@@ -88,16 +90,6 @@
 		if (externalSelection === undefined) {
 			internalSelection = newSelection;
 		}
-		onSelect?.(newSelection);
-	}
-
-	function goBack() {
-		const newSelection: BoundaryResult[] = [];
-		if (externalSelection === undefined) {
-			internalSelection = newSelection;
-		}
-		searchText = '';
-		autocompleteResults = [];
 		onSelect?.(newSelection);
 	}
 
@@ -212,11 +204,8 @@
 
 	<!-- Action buttons -->
 	{#if selectedBoundaries.length > 0}
-		<div class="flex justify-between pt-2">
-			<Button variant="ghost" size="sm" onclick={goBack}>
-				<ChevronLeft />
-				Clear
-			</Button>
+		<!-- Starting over is the panel's Restart button. -->
+		<div class="flex justify-end pt-2">
 			{#if proceedTooltip}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
