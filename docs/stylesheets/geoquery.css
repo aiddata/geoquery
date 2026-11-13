@@ -555,3 +555,36 @@ html .md-footer-meta.md-typeset a:not(:focus, :hover),
   font-size: .6rem;               /* 12px */
   opacity: .9;
 }
+
+/* Filter box above the generated Datasets and Boundaries index tables
+   (javascripts/table-filter.js). */
+.md-typeset .gq-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .4rem .8rem;
+  margin: 1rem 0;
+}
+
+.md-typeset .gq-filter input {
+  flex: 1 1 16rem;
+  max-width: 28rem;
+  padding: .4rem .6rem;
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--foreground);
+  font: inherit;
+  font-size: .8rem;
+}
+
+.md-typeset .gq-filter input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.md-typeset .gq-filter-count {
+  color: var(--muted-foreground);
+  font-size: .7rem;
+  font-variant-numeric: tabular-nums;
+}

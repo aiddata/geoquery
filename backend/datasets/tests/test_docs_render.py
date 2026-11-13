@@ -82,7 +82,7 @@ class BoundaryPageTests(TestCase):
         self.assertIn("| Features | 7 |", page)
         self.assertIn("| geoBoundaries version | 57dcd43 |", page)
         self.assertIn("[GeoQuery](https://app.example)", page)
-        self.assertIn("## Datasets for Nepal {#datasets}", page)
+        self.assertIn("## Datasets for Nepal {#datasets data-search-exclude}", page)
         self.assertIn("| [Malaria Incidence](../datasets/malaria.md) | — | Full |", page)
         self.assertEqual(page.count("## Citation"), 1)
 
@@ -126,6 +126,14 @@ class IndexTests(TestCase):
     def test_datasets_index_links_every_dataset(self):
         index = datasets_index([make_dataset()])
         self.assertIn("| [Malaria Incidence](malaria.md) | raster |", index)
+
+    def test_index_pages_have_a_filter_box_above_the_table(self):
+        datasets = datasets_index([make_dataset()])
+        boundaries = boundaries_index(build_pages([make_fc("gB_57dcd43_NPL_ADM0", 0)]))
+        for index, noun in ((datasets, "datasets"), (boundaries, "boundaries")):
+            box = f'<div class="gq-filter" data-noun="{noun}">'
+            self.assertIn(box, index)
+            self.assertLess(index.index(box), index.index("|---"))
 
     def test_boundaries_index_lists_countries(self):
         pages = build_pages([make_fc("gB_57dcd43_NPL_ADM0", 0), make_fc("gB_57dcd43_NPL_ADM2", 2)])

@@ -197,7 +197,9 @@ def boundary_page(page, covering, feature_counts, app_url) -> str:
         for fc in members:
             out.append(_collection_block(fc, depth, feature_counts.get(fc.id, 0), page.geoboundaries, show_description))
 
-    out.append(f"## Datasets for {_heading(page.place)} {{#datasets}}\n\n")
+    # Out of the site search: every boundary page lists the same datasets, so
+    # indexing them buried each dataset's own page under ~235 boundary pages.
+    out.append(f"## Datasets for {_heading(page.place)} {{#datasets data-search-exclude}}\n\n")
     if covering:
         out.append("| Dataset | Time period | Coverage |\n|---|---|---|\n")
         out.extend(
@@ -215,6 +217,16 @@ def boundary_page(page, covering, feature_counts, app_url) -> str:
     return "".join(out)
 
 
+def _filter_box(label: str, noun: str) -> str:
+    """A filter for the page's tables; docs/javascripts/table-filter.js wires it up."""
+    return (
+        f'<div class="gq-filter" data-noun="{noun}">'
+        f'<input type="search" placeholder="{label}" aria-label="{label}" autocomplete="off">'
+        '<span class="gq-filter-count" aria-live="polite"></span>'
+        "</div>\n\n"
+    )
+
+
 def datasets_index(datasets) -> str:
     out = [
         front_matter(
@@ -223,6 +235,7 @@ def datasets_index(datasets) -> str:
         ),
         "# Datasets\n\n",
         "Every dataset available in GeoQuery. Select one for its details, coverage and citation.\n\n",
+        _filter_box("Filter datasets by name, type, license or description", "datasets"),
         "| Dataset | Type | Time period | License | Description |\n|---|---|---|---|---|\n",
     ]
     for ds in sorted(datasets, key=lambda d: _title(d).lower()):
@@ -253,6 +266,7 @@ def boundaries_index(pages) -> str:
         ),
         "# Boundaries\n\n",
         "Every set of boundaries you can extract data for in GeoQuery.\n\n",
+        _filter_box("Filter by country, level or boundary set", "boundaries"),
     ]
     if countries:
         out.append(f"## Countries\n\nAdministrative boundaries from [geoBoundaries]({GEOBOUNDARIES_URL}).\n\n")
