@@ -1,5 +1,5 @@
 ---
-description: "What information AidData's GeoQuery collects, how it's used and shared, how long it's kept, and how to ask us to remove it."
+description: "What information AidData's GeoQuery collects, how it's used and shared, how long it's kept, and how to delete your account."
 ---
 
 # Privacy Policy
@@ -15,7 +15,7 @@ description: "What information AidData's GeoQuery collects, how it's used and sh
     - We collect your email address and your requests, your GitHub account details if you sign in, and usage analytics that help us improve the site.
     - We use it only to run and improve GeoQuery. We don't sell it, and we don't use it for advertising or anything unrelated to GeoQuery.
     - We share it only with the services GeoQuery runs on, such as GitHub and Google.
-    - You can ask us to delete your information at any time by emailing [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu).
+    - You'll be able to delete your account from your Account page (coming soon), which removes your email address from GeoQuery.
 
 GeoQuery is a free service run by AidData, a research lab at William & Mary. This policy explains what information GeoQuery collects when you use the GeoQuery application and this documentation site, and what we do with it.
 
@@ -66,11 +66,11 @@ We may also disclose information if required by law.
 
 ## How long we keep it
 
-We keep your requests and their results for as long as GeoQuery operates, so that your request history and downloads keep working, and so that results can be reused for later requests. Account information is kept until you ask us to delete your account. Server logs are kept for a limited time.
+We keep your requests and their results for as long as GeoQuery operates, so that your request history and downloads keep working, and so that results can be reused for later requests. Account information is kept until you delete your account. Server logs are kept for a limited time.
 
 ## Your choices
 
-- **Deleting your information.** Email us at [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu) to ask us to delete your account or remove your email address from your requests. We may keep the requests themselves, without your email address, for aggregate statistics.
+- **Deleting your account** (coming soon). You'll be able to delete your account from your Account page. This removes your account and your email address from GeoQuery. Your requests are kept, without your email address, so that results can still be reused and counted in aggregate statistics.
 - **GitHub access.** You can revoke GeoQuery's access to your GitHub account at any time in your GitHub settings, under Applications.
 - **Analytics.** You can block analytics cookies in your browser.
 

@@ -33,4 +33,4 @@ Requests made on earlier versions of GeoQuery are kept, and appear in your reque
 
 ## Privacy
 
-See the [Privacy Policy](../privacy.md) for what we store about your account and requests, and how to ask us to remove it.
+See the [Privacy Policy](../privacy.md) for what we store about your account and requests, and what deleting your account removes.
