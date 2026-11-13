@@ -10,6 +10,13 @@ description: "What information AidData's GeoQuery collects, how it's used and sh
 
 *Last updated: November 13, 2026*
 
+!!! info "The short version"
+
+    - We collect your email address and your requests, your GitHub account details if you sign in, and usage analytics that help us improve the site.
+    - We use it only to run and improve GeoQuery. We don't sell it, and we don't use it for advertising or anything unrelated to GeoQuery.
+    - We share it only with the services GeoQuery runs on, such as GitHub and Google.
+    - You can ask us to delete your information at any time by emailing [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu).
+
 GeoQuery is a free service run by AidData, a research lab at William & Mary. This policy explains what information GeoQuery collects when you use the GeoQuery application and this documentation site, and what we do with it.
 
 ## What we collect
