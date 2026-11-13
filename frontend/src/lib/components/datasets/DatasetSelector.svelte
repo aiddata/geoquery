@@ -14,9 +14,11 @@
 		selectedDataset: DatasetSummary | null;
 		onSelect: (dataset: DatasetSummary) => void;
 		outOfRangeNames?: Set<string>;
+		/** Datasets with choices not yet added to the request; marked with a dot. */
+		openNames?: Set<string>;
 	}
 
-	let { datasets, categories, selectedDataset, onSelect, outOfRangeNames = new Set() }: Props = $props();
+	let { datasets, categories, selectedDataset, onSelect, outOfRangeNames = new Set(), openNames = new Set() }: Props = $props();
 
 	let searchText = $state('');
 	let searchFocused = $state(false);
@@ -149,8 +151,16 @@
 						aria-pressed={selectedDataset?.name === dataset.name}
 						onclick={() => onSelect(dataset)}
 					>
-						<p class="text-sm font-bold leading-snug">
-							{dataset.title ?? dataset.name}
+						<p class="flex items-start gap-2 text-sm font-bold leading-snug">
+							<span class="min-w-0 flex-1">{dataset.title ?? dataset.name}</span>
+							{#if openNames.has(dataset.name)}
+								<span
+									class="mt-1.5 size-2 shrink-0 rounded-full bg-primary"
+									title="Choices not added to your request yet"
+									aria-hidden="true"
+								></span>
+								<span class="sr-only">(choices not added to your request yet)</span>
+							{/if}
 						</p>
 						<div class="mt-0.5 flex items-center gap-1.5">
 							<p class="text-xs text-muted-foreground">

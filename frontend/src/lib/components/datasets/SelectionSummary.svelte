@@ -15,6 +15,8 @@
 		filterSelections?: Record<string, FilterSelection>;
 		onAddToRequest: (customName: string) => void;
 		onReset: () => void;
+		/** The open dataset has choices that aren't in the request yet. */
+		hasChoices?: boolean;
 	}
 
 	let {
@@ -23,7 +25,8 @@
 		selectedResources,
 		filterSelections,
 		onAddToRequest,
-		onReset
+		onReset,
+		hasChoices = false
 	}: Props = $props();
 
 	let customName = $state('');
@@ -65,6 +68,9 @@
 
 		{#if !dataset}
 			<p class="text-sm text-muted-foreground">Select a dataset to begin configuring your query.</p>
+			<p class="text-xs text-muted-foreground">
+				You can add the same dataset more than once, with different options.
+			</p>
 		{:else}
 			<!-- FLAG: restore the Input below (and remove the <p>) to allow custom name editing -->
 			<!-- Custom Name -->
@@ -96,6 +102,15 @@
 	<!-- Actions pinned to bottom -->
 	{#if dataset}
 		<div class="mt-auto space-y-2 border-t p-4">
+			{#if hasChoices}
+				<p class="flex items-start gap-2 text-xs text-muted-foreground" role="status">
+					<span class="mt-1 size-2 shrink-0 rounded-full bg-primary" aria-hidden="true"></span>
+					<span>
+						<strong class="text-foreground">Not added yet.</strong> Your choices are kept if you look
+						at other datasets, but they're only in your request once you click Add to Request.
+					</span>
+				</p>
+			{/if}
 			<Button class="w-full" disabled={!canAdd} onclick={() => onAddToRequest(customName)}>
 				<ShoppingCart />
 				Add to Request

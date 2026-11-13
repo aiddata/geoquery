@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Seo from '#lib/components/layout/Seo.svelte';
 	import { get } from 'svelte/store';
+	import { untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { currentStep } from '#lib/stores/ui.js';
@@ -160,16 +161,71 @@
 		return s;
 	}
 
-	$effect(() => {
-		if (selectedDatasetDetail?.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters) {
-			filterSelections = initFilterSelections(selectedDatasetDetail.filters);
+	// Choices made for a dataset but not yet added to the request, keyed by
+	// dataset name. Switching to another dataset keeps them here, so coming
+	// back restores them instead of starting over; adding or resetting clears
+	// them. Datasets with an entry (or the open one with choices) get the
+	// "open" dot in the list.
+	type Draft = {
+		rasterOptions: { extractTypes: string[]; resources: string[] };
+		filterSelections: Record<string, FilterSelection>;
+		selectedOutcome: string;
+	};
+	let drafts = $state<Record<string, Draft>>({});
+
+	function defaultOutcome(detail: DatasetDetail): string {
+		return detail.outcomes ? (Object.keys(detail.outcomes)[0] ?? '') : '';
+	}
+
+	// Whether the open dataset has choices worth keeping. Feature datasets
+	// start with every filter selected, so for them it means "changed from
+	// the defaults".
+	const currentHasChoices = $derived.by(() => {
+		const detail = selectedDatasetDetail;
+		if (!detail) return false;
+		if (detail.processing_class === 'filter_and_agg' && detail.filters) {
+			return (
+				JSON.stringify(filterSelections) !== JSON.stringify(initFilterSelections(detail.filters)) ||
+				selectedOutcome !== defaultOutcome(detail)
+			);
 		}
-		if (selectedDatasetDetail?.outcomes) {
-			const keys = Object.keys(selectedDatasetDetail.outcomes);
-			selectedOutcome = keys[0] ?? '';
+		return rasterOptions.extractTypes.length > 0 || rasterOptions.resources.length > 0;
+	});
+
+	const openDatasetNames = $derived.by(() => {
+		const names = new Set(Object.keys(drafts));
+		const current = selectedDatasetDetail?.name;
+		if (current) {
+			if (currentHasChoices) names.add(current);
+			else names.delete(current);
+		}
+		return names;
+	});
+
+	function saveDraft() {
+		const name = selectedDatasetDetail?.name;
+		if (!name) return;
+		if (currentHasChoices) {
+			drafts[name] = {
+				rasterOptions: { extractTypes: [...rasterOptions.extractTypes], resources: [...rasterOptions.resources] },
+				filterSelections: structuredClone($state.snapshot(filterSelections)),
+				selectedOutcome
+			};
 		} else {
-			selectedOutcome = '';
+			delete drafts[name];
 		}
+	}
+
+	$effect(() => {
+		const detail = selectedDatasetDetail;
+		// Read without tracking: saving a draft must not re-run this.
+		const draft = detail ? untrack(() => drafts[detail.name]) : undefined;
+		if (detail?.processing_class === 'filter_and_agg' && detail.filters) {
+			filterSelections = draft
+				? structuredClone($state.snapshot(draft.filterSelections))
+				: initFilterSelections(detail.filters);
+		}
+		selectedOutcome = detail ? (draft?.selectedOutcome ?? defaultOutcome(detail)) : '';
 	});
 
 	// Fetch datasets when resolved feature IDs become available (standard) or in custom mode
@@ -222,8 +278,16 @@
 	});
 
 	function handleDatasetSelect(dataset: DatasetSummary) {
+		if (dataset.name === selectedDatasetSummary?.name) return;
+		saveDraft();
+		// Drop the old detail now, so nothing can save the next dataset's
+		// choices under the previous name while its detail loads.
+		selectedDatasetDetail = null;
 		selectedDatasetSummary = dataset;
-		rasterOptions = { extractTypes: [], resources: [] };
+		const draft = drafts[dataset.name];
+		rasterOptions = draft
+			? { extractTypes: [...draft.rasterOptions.extractTypes], resources: [...draft.rasterOptions.resources] }
+			: { extractTypes: [], resources: [] };
 	}
 
 	function handleAddToRequest(customName: string) {
@@ -253,6 +317,7 @@
 		};
 
 		cart.upsertItem(item);
+		delete drafts[item.datasetName];
 
 		// Reset for next selection
 		selectedDatasetSummary = null;
@@ -262,6 +327,7 @@
 	}
 
 	function handleReset() {
+		if (selectedDatasetDetail) delete drafts[selectedDatasetDetail.name];
 		if (selectedDatasetDetail?.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters) {
 			filterSelections = initFilterSelections(selectedDatasetDetail.filters);
 			if (selectedDatasetDetail.outcomes) {
@@ -331,6 +397,7 @@
 					selectedDataset={selectedDatasetSummary}
 					onSelect={handleDatasetSelect}
 					{outOfRangeNames}
+					openNames={openDatasetNames}
 				/>
 			</div>
 
@@ -401,6 +468,7 @@
 					filterSelections={selectedDatasetDetail?.processing_class === 'filter_and_agg' ? filterSelections : undefined}
 					onAddToRequest={handleAddToRequest}
 					onReset={handleReset}
+					hasChoices={currentHasChoices}
 				/>
 			</div>
 		</div>
