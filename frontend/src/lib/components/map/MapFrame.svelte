@@ -304,7 +304,7 @@
 	}
 
 	const ATTRIBUTION =
-		'<a href="https://protomaps.com">Protomaps</a> &copy; <a href="https://openstreetmap.org">OpenStreetMap</a> · Features simplified for visualization only';
+		'<a href="https://protomaps.com" target="_blank" rel="noopener noreferrer">Protomaps</a> &copy; <a href="https://openstreetmap.org" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> · Features simplified for visualization only · <a href="https://docs.geoquery.org/data_documentation/map-disclaimer/" target="_blank" rel="noopener noreferrer">Disclaimer</a>';
 
 	// The world view the map opens on, and returns to on resetView().
 	const INITIAL_CENTER: [number, number] = [0, 20];

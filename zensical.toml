@@ -71,6 +71,7 @@ nav = [
     { "Overview" = "data_documentation/index.md" },
     { "Datasets" = "data_documentation/datasets/index.md" },
     { "Boundaries" = "data_documentation/boundaries/index.md" },
+    { "Map Disclaimer" = "data_documentation/map-disclaimer.md" },
   ]},
   { "Get Involved" = [
     { "Overview" = "get-involved/index.md" },

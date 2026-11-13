@@ -248,6 +248,8 @@ Boundaries are the areas GeoQuery summarizes data for: each one becomes a row in
 
 You can select several boundary sets in one request, or pick individual areas within one set. Select a country or boundary set for its levels, feature counts, source and the datasets available for it.
 
+Boundaries are shown as published by their providers and do not reflect AidData's views; see the [map disclaimer](../map-disclaimer.md).
+
 """
 
 

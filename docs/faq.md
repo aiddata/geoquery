@@ -8,6 +8,9 @@ Yes. You can submit an extract using your own boundary file using the "Custom" t
 ### Can I select data for multiple boundaries?
 Yes, you can select as many feature collections at a time as you like (e.g., Ghana ADM1, Ghana ADM2, Tanzania ADM1), but individual feature selection is only available within a single feature collection (e.g., Ghana ADM1).
 
+### Do GeoQuery's boundaries reflect AidData's position on borders?
+No. Boundaries, names and labels are shown as published by their providers, such as geoBoundaries, and do not imply any opinion by AidData or William & Mary on the legal status of any area or its borders. See the [map disclaimer](https://docs.geoquery.org/data_documentation/map-disclaimer/).
+
 ### Can I edit or resubmit a previous request?
 Modifying previous requests is not currently supported. You can submit a new request at any time, and any previously cached data will be returned quickly without reprocessing.
 
