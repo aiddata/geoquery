@@ -22,6 +22,8 @@
 	const navLinks: NavLink[] = [
 		{ label: 'About', href: 'https://www.aiddata.org/geoquery', external: true },
 		{ label: 'Documentation', href: 'https://docs.geoquery.org/', external: true },
+		// The news page: markdown posts in docs/updates/posts/, published with the docs.
+		{ label: 'Updates', href: 'https://docs.geoquery.org/updates/', external: true },
 		{ label: 'Help', onclick: () => openSidebar('help') },
 		{ label: 'Past Requests', href: '/requests' }
 	];

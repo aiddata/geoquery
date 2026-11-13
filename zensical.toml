@@ -73,6 +73,7 @@ nav = [
     { "Boundaries" = "data_documentation/boundaries/index.md" },
     { "Map Disclaimer" = "data_documentation/map-disclaimer.md" },
   ]},
+  { "Updates" = "updates/index.md" },
   { "Get Involved" = [
     { "Overview" = "get-involved/index.md" },
     { "Contributing" = [
@@ -380,3 +381,24 @@ link = "https://github.com/aiddata/geoquery"
 [project.extra.analytics]
 provider = "google"
 property = "G-XZ0HS7XED1"
+
+# ----------------------------------------------------------------------------
+# Updates: GeoQuery's news page, at /updates/
+# ----------------------------------------------------------------------------
+# Posts are markdown files in docs/updates/posts/ with a `date` (and optional
+# `categories`) in their front matter; text above a <!-- more --> line is the
+# excerpt shown on the index. Pushing to main publishes them with the docs, no
+# app deploy needed. The app's header links here ("Updates").
+#
+# Read more: https://zensical.org/docs/setup/setting-up-a-blog/
+[project.plugins.blog]
+blog_dir = "updates"
+blog_toc = true
+post_url_format = "{slug}"
+archive_name = "Archive"
+categories_name = "Categories"
+
+# RSS and JSON feeds of the updates (feed_rss_created.xml, feed_json_created.json).
+[project.plugins.rss]
+match_path = "updates/posts/.*"
+date_from_meta = { as_creation = "date" }
