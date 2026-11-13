@@ -6,8 +6,8 @@
 	import { openSidebar, currentStep, type Step } from '#lib/stores/ui.js';
 	import { features } from '#lib/stores/features.js';
 	import { CircleHelp, History, BookOpen, Info, Map } from '@lucide/svelte';
-	import aiddataTriangles from '#lib/assets/aiddata_triangles.svg';
-	import aiddataWordmark from '#lib/assets/aiddata_wordmark.svg';
+	import aiddataLogo from '#lib/assets/aiddata_logo.svg';
+	import aiddataLogoWhite from '#lib/assets/aiddata_logo_white.png';
 	import geoqueryText from '#lib/assets/geoquery_text.svg';
 
 	interface Props {
@@ -27,12 +27,22 @@
 	<!-- Main Header -->
 	<div class="flex min-h-20 items-center justify-between px-4">
 		<!-- Logo -->
-		<a href="/" class="flex shrink-0 items-start gap-3" aria-label="AidData GeoQuery home">
-			<img src={aiddataTriangles} alt="" class="h-10 w-auto" />
-			<img src={aiddataWordmark} alt="" class="hidden h-10 w-auto xl:block dark:brightness-0 dark:invert" />
-			<span class="hidden h-10 w-px bg-border xl:block" aria-hidden="true"></span>
-			<img src={geoqueryText} alt="" class="hidden h-10 w-auto brightness-0 md:block dark:invert" />
-		</a>
+		<div class="flex shrink-0 items-center gap-3">
+			<!-- AidData's own white-lettered logo for dark mode; the triangles keep their colours. -->
+			<a
+				href="https://www.aiddata.org/"
+				target="_blank"
+				rel="noopener noreferrer"
+				aria-label="AidData (opens in a new tab)"
+			>
+				<img src={aiddataLogo} alt="" class="h-[2.3rem] w-auto sm:h-[2.875rem] dark:hidden" />
+				<img src={aiddataLogoWhite} alt="" class="hidden h-[2.3rem] w-auto sm:h-[2.875rem] dark:block" />
+			</a>
+			<span class="hidden h-10 w-px bg-border md:block" aria-hidden="true"></span>
+			<a href="/" class="hidden md:block" aria-label="GeoQuery home">
+				<img src={geoqueryText} alt="" class="h-10 w-auto brightness-0 dark:invert" />
+			</a>
+		</div>
 
 		<!-- Navigation Buttons -->
 		<div class="flex items-center gap-2">
