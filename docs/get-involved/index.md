@@ -1,6 +1,6 @@
 # Get Involved
 
-GeoQuery is a built and maintained by [AidData](https://www.aiddata.org) at William & Mary. There are several ways to get involved.
+GeoQuery is built and maintained by [AidData](https://www.aiddata.org/geoquery) at William & Mary. There are several ways to get involved.
 
 ## Contributing
 

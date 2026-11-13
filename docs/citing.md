@@ -8,8 +8,8 @@ If you use data obtained through GeoQuery in your research, please cite the foll
 
 ## Citing individual datasets
 
-You must also cite each individual dataset you use. Citation and source information for every dataset is included in the metadata file (PDF / HTML) delivered with your results.
+You must also cite each individual dataset you use. Citation and source information for every dataset is included in the documentation file (`<request id>_documentation.html`) delivered with your results, and on each dataset's page in the [data documentation](data_documentation/datasets/index.md).
 
 ## Questions
 
-For citation guidance or questions about specific datasets, visit the GitHub repository](https://github.com/aiddata/geoquery) or contact us at [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu).
+For citation guidance or questions about specific datasets, visit the [GitHub repository](https://github.com/aiddata/geoquery) or contact us at [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu).

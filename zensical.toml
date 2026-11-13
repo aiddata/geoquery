@@ -58,12 +58,10 @@ nav = [
   { "Using GeoQuery" = [
     { "Overview" = "using-geoquery/index.md" },
     { "Getting Started" = "using-geoquery/getting-started.md" },
+    { "Using Your Results" = "using-geoquery/results.md" },
+    { "Accounts and History" = "using-geoquery/accounts.md" },
     { "Research and Use Cases" = "using-geoquery/research-and-use-cases.md" },
-    { "Tutorials" = [
-      { "Overview" = "using-geoquery/tutorials/index.md" },
-      { "Example A" = "using-geoquery/tutorials/example-a.md" },
-      { "Example B" = "using-geoquery/tutorials/example-b.md" },
-    ]},
+    { "Tutorials" = "using-geoquery/tutorials/index.md" },
   ]},
   { "FAQ" = "faq.md" },
   { "Citing GeoQuery" = "citing.md" },
@@ -104,6 +102,11 @@ nav = [
       ]},
     ]},
     { "Partner with Us" = "get-involved/partner-with-us.md" },
+  ]},
+  { "About" = [
+    { "Privacy Policy" = "privacy.md" },
+    { "Terms of Use" = "terms.md" },
+    { "Accessibility" = "accessibility.md" },
   ]},
 ]
 

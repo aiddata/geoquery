@@ -12,4 +12,4 @@ If you maintain geospatial datasets that would benefit the GeoQuery user communi
 
 ## Get in Touch
 
-To discuss partnership opportunities, please contact the AidData team at [geoquery@aiddata.org](mailto:geoquery@aiddata.org) or visit [aiddata.org](https://www.aiddata.org).
+To discuss partnership opportunities, please contact our partnerships team at [awooley@aiddata.org](mailto:awooley@aiddata.org), or visit [aiddata.org/geoquery](https://www.aiddata.org/geoquery).

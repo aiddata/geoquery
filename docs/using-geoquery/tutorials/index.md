@@ -2,11 +2,11 @@
 
 Step-by-step guides and worked examples for getting the most out of GeoQuery.
 
-For video tutorials and research application examples, visit [aiddata.org/geo](https://aiddata.org/geo).
+For video tutorials and research application examples, visit [aiddata.org/geoquery](https://www.aiddata.org/geoquery).
 
 ## Available tutorials
 
 - [Public API demo](public-api-demo.ipynb) — a runnable notebook walking through every `/api/public/v1/` endpoint, kept up to date as the API changes.
 - [STAC API demo](stac-api-demo.ipynb) — a runnable notebook walking through every `/api/stac/v1/` endpoint, including a real STAC-client (`pystac-client`) interop example, kept up to date as the API changes.
 
-*More tutorials coming soon. Check back or visit [aiddata.org/geo](https://aiddata.org/geo) for the latest resources.*
+*More tutorials coming soon. Check back or visit [aiddata.org/geoquery](https://www.aiddata.org/geoquery) for the latest resources.*
