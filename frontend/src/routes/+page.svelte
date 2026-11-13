@@ -28,6 +28,8 @@
 	import * as Alert from '#lib/components/ui/alert/index.js';
 	import { ArrowRight, TriangleAlert } from '@lucide/svelte';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
+	import { auth } from '#lib/stores/auth.js';
+	import { welcomeEligible, dismissWelcome } from '#lib/welcome.js';
 	import { features } from '#lib/stores/features.js';
 	import { bbox as turfBbox } from '@turf/bbox';
 
@@ -159,18 +161,23 @@
 		});
 	});
 
-	let showWelcome = $state(browser ? !sessionStorage.getItem('welcomeDismissed') : false);
-	$effect(() => {
-		if (!showWelcome && browser) sessionStorage.setItem('welcomeDismissed', '1');
-	});
+	// Shown in a browser's first session only (see lib/welcome.ts), and never to
+	// signed-in users, so it waits for the auth check rather than flashing open.
+	const welcomeAllowed = browser && welcomeEligible();
+	let welcomeClosed = $state(false);
+	const showWelcome = $derived(welcomeAllowed && !welcomeClosed && $auth.status === 'anonymous');
+	function closeWelcome() {
+		welcomeClosed = true;
+		dismissWelcome();
+	}
 
-	// When the welcome modal opens, the selection panel starts centered where the
-	// modal is, so closing the modal leaves the next step in the same place. The
-	// first boundary selection docks it top left for the rest of the visit.
-	// Decided after mount: the server render cannot know about the modal.
+	// When the welcome modal opens, the selection panel moves to the center where
+	// the modal is, so closing the modal leaves the next step in the same place.
+	// The first boundary selection docks it top left for the rest of the visit.
+	// Starts docked: the server render cannot know about the modal.
 	let panelDocked = $state(true);
-	onMount(() => {
-		if (showWelcome) panelDocked = false;
+	$effect(() => {
+		if (showWelcome && browseBoundaries.length === 0 && !$customBoundary.active) panelDocked = false;
 	});
 
 	function dockPanel() {
@@ -389,7 +396,7 @@
 	<CoverageStatus loading={datasetCountLoading} count={datasetCount} error={datasetCountError} />
 {/snippet}
 
-<WelcomeModal bind:open={showWelcome} />
+<WelcomeModal bind:open={() => showWelcome, (open) => { if (!open) closeWelcome(); }} />
 
 <div class="relative flex h-[calc(100vh-8rem)] flex-col">
 	<!-- Left panel: search + selection status -->
