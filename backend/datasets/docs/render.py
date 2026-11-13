@@ -47,7 +47,8 @@ def _table(rows) -> str:
     rows = [(label, value) for label, value in rows if value]
     if not rows:
         return ""
-    return "| | |\n|---|---|\n" + "".join(f"| {label} | {value} |\n" for label, value in rows) + "\n"
+    # Named headers: empty header cells leave screen readers with unlabelled columns.
+    return "| Field | Value |\n|---|---|\n" + "".join(f"| {label} | {value} |\n" for label, value in rows) + "\n"
 
 
 def _label(text) -> str:
