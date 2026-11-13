@@ -16,7 +16,7 @@ To use your own boundary, use the custom boundary upload form available from the
 
 ## Multiple boundaries
 
-You can select as many boundary sets as you like in a single request, across countries and levels (for example, Ghana ADM1, Ghana ADM2 and Tanzania ADM1). Selecting individual features, such as a few districts, is only available within one boundary set at a time. Previously processed data is cached, so repeat selections are returned much faster.
+You can select as many boundary sets as you like in a single request, across countries and levels (for example, Ghana ADM1, Ghana ADM2 and Tanzania ADM1). Selecting individual features, such as a few districts, is only available within one boundary set at a time. Each boundary set is kept separate: every area gets its own row in your results, labelled with its boundary set, so if your sets overlap, for example a country's ADM1 and ADM2 levels, each area is still summarized on its own rather than combined or intersected. Previously processed data is cached, so repeat selections are returned much faster.
 
 ## Data formats
 

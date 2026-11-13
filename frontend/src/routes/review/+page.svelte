@@ -5,7 +5,7 @@
 	import { cart, cartCount } from '#lib/stores/cart.js';
 	import { selection, selectionSummary } from '#lib/stores/selection.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
-	import { submitRequest, type SubmittedRequest, type CustomBoundaryPayload } from '#lib/api.js';
+	import { fetchFeatureIds, submitRequest, type SubmittedRequest, type CustomBoundaryPayload } from '#lib/api.js';
 	import { auth } from '#lib/stores/auth.js';
 	import { gtagEvent } from '#lib/analytics.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -32,6 +32,31 @@
 	const visibleFcs = $derived(
 		boundariesCollapsible && !showAllBoundaries ? selectedFcs.slice(0, BOUNDARY_PREVIEW) : selectedFcs
 	);
+
+	// Per-set area counts, so a multi-set selection reads as a stack of sets
+	// (16 + 260 = 276 rows), not an intersection. The store only keeps the
+	// combined id list, so each set is counted on its own; the counts are a
+	// nicety, and the card falls back to the combined total without them.
+	let fcCounts = $state<Record<number, number>>({});
+	$effect(() => {
+		const fcs = selectedFcs;
+		if (fcs.length < 2) return;
+		let cancelled = false;
+		Promise.all(fcs.map(async (fc) => [fc.id, (await fetchFeatureIds([fc.id])).length] as const))
+			.then((entries) => {
+				if (!cancelled) fcCounts = Object.fromEntries(entries);
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	});
+	const rowTotal = $derived(
+		selectedFcs.length > 1 && selectedFcs.every((fc) => fc.id in fcCounts)
+			? selectedFcs.reduce((n, fc) => n + fcCounts[fc.id], 0)
+			: null
+	);
+	const areas = (n: number) => `${n.toLocaleString()} area${n === 1 ? '' : 's'}`;
 
 	// Redirect only if the cart was already empty on arrival (e.g. direct URL access).
 	// If the user empties it themselves, let them stay.
@@ -260,7 +285,9 @@
 									{#if selectedFcs.length > 1}
 										<ul id="review-boundary-list" class="mt-1 space-y-0.5 font-bold">
 											{#each visibleFcs as fc (fc.id)}
-												<li class="break-words">{fc.title ?? fc.name}</li>
+												<li class="break-words">
+													{fc.title ?? fc.name}{#if fc.id in fcCounts}<span class="ml-1 font-normal text-muted-foreground">· {areas(fcCounts[fc.id])}</span>{/if}
+												</li>
 											{/each}
 										</ul>
 										{#if boundariesCollapsible}
@@ -280,7 +307,12 @@
 										<p class="mt-1 break-words font-bold">{$selectionSummary.label}</p>
 									{/if}
 									<p class="text-sm text-muted-foreground">{$selectionSummary.detail}</p>
-									{#if resolvedFeatureIds.length > 0}
+									{#if rowTotal !== null}
+										<p class="mt-0.5 text-xs text-muted-foreground">
+											{rowTotal.toLocaleString()} row{rowTotal === 1 ? '' : 's'} in your results: one for each
+											area in each set. Overlapping sets are kept separate, not combined.
+										</p>
+									{:else if resolvedFeatureIds.length > 0}
 										<p class="mt-0.5 text-xs text-muted-foreground">
 											{resolvedFeatureIds.length} feature{resolvedFeatureIds.length === 1 ? '' : 's'} total
 										</p>

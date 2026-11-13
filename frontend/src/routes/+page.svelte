@@ -396,6 +396,16 @@
 	<CoverageStatus loading={datasetCountLoading} count={datasetCount} error={datasetCountError} />
 {/snippet}
 
+<!-- Shown whenever more than one boundary set is selected, overlapping or not:
+     results stack the sets, one row per area, rather than intersecting them. -->
+{#snippet multiSetNote()}
+	<div class="rounded-md border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+		<strong>Each boundary set is kept separate.</strong> Every area gets its own row in your
+		results, labelled with its boundary set. Areas that overlap are included once in each set,
+		not combined or intersected.
+	</div>
+{/snippet}
+
 <WelcomeModal bind:open={() => showWelcome, (open) => { if (!open) closeWelcome(); }} />
 
 <div class="relative flex h-[calc(100vh-8rem)] flex-col">
@@ -480,6 +490,8 @@
 								add, or click a selected feature to deselect it.
 							{/if}
 						</div>
+					{:else if browseBoundaries.length > 1}
+						<div class="mt-3">{@render multiSetNote()}</div>
 					{/if}
 				{:else if activeTab === 'browse'}
 					{#if boundaryLoadError}
@@ -494,6 +506,9 @@
 						/>
 					{/if}
 
+					{#if browseBoundaries.length > 1}
+						<div class="mt-4">{@render multiSetNote()}</div>
+					{/if}
 					{#if browseBoundaries.length > 0}
 						<div class="mt-4 pt-3 border-t flex items-center justify-between gap-2">
 							{@render coverageStatus()}
