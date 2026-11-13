@@ -14,15 +14,24 @@
 	import { Separator } from '#lib/components/ui/separator/index.js';
 	import * as Card from '#lib/components/ui/card/index.js';
 	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
-	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
-	import { ChevronLeft, ChevronRight, Trash2, Send, CheckCircle, CircleAlert, TriangleAlert } from '@lucide/svelte';
+	import { ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, Send, CheckCircle, CircleAlert, TriangleAlert } from '@lucide/svelte';
 	import { formatKwargs } from '#lib/utils.js';
 
 	$effect(() => {
 		currentStep.set('review');
 	});
+
+	// Multi-boundary selections list every collection; past this many, the rest
+	// sit behind a "Show all" toggle. (One extra is shown rather than hidden.)
+	const BOUNDARY_PREVIEW = 5;
+	let showAllBoundaries = $state(false);
+	const selectedFcs = $derived($selection?.mode === 'multi' ? $selection.fcs : []);
+	const boundariesCollapsible = $derived(selectedFcs.length > BOUNDARY_PREVIEW + 1);
+	const visibleFcs = $derived(
+		boundariesCollapsible && !showAllBoundaries ? selectedFcs.slice(0, BOUNDARY_PREVIEW) : selectedFcs
+	);
 
 	// Redirect only if the cart was already empty on arrival (e.g. direct URL access).
 	// If the user empties it themselves, let them stay.
@@ -216,7 +225,7 @@
 					<Card.Root class="bg-muted/40">
 						<Card.Header class="pb-3">
 							<div class="flex items-start justify-between gap-2">
-								<div class="min-w-0 flex-1">
+								<div class="min-w-0 flex-1 cursor-default">
 									<p class="text-xs font-bold text-muted-foreground">Custom Boundary</p>
 									<p class="mt-1 truncate font-bold">{$customBoundary.fileName}</p>
 									<p class="text-sm text-muted-foreground">
@@ -235,7 +244,8 @@
 										</div>
 									{/if}
 								</div>
-								<Button variant="ghost" size="sm" onclick={() => goto('/')}>
+								<Button variant="outline" size="sm" onclick={() => goto('/')}>
+									<Pencil />
 									Change
 								</Button>
 							</div>
@@ -245,34 +255,39 @@
 					<Card.Root class="bg-muted/40">
 						<Card.Header class="pb-3">
 							<div class="min-w-0 flex items-start justify-between gap-2">
-								<div class="min-w-0 flex-1">
+								<div class="min-w-0 flex-1 cursor-default">
 									<p class="text-xs font-bold text-muted-foreground">Geographic Selection</p>
-									{#if $selection?.mode === 'multi' && $selection.fcs.length > 1}
-										<Tooltip.Provider>
-											<Tooltip.Root>
-												<Tooltip.Trigger class="mt-1 w-full text-left">
-													<p class="truncate font-bold">{$selectionSummary.label}</p>
-												</Tooltip.Trigger>
-												<Tooltip.Content>
-													<ul class="space-y-0.5 text-xs">
-														{#each $selection.fcs as fc}
-															<li>{fc.title ?? fc.name}</li>
-														{/each}
-													</ul>
-												</Tooltip.Content>
-											</Tooltip.Root>
-										</Tooltip.Provider>
+									{#if selectedFcs.length > 1}
+										<ul id="review-boundary-list" class="mt-1 space-y-0.5 font-bold">
+											{#each visibleFcs as fc (fc.id)}
+												<li class="break-words">{fc.title ?? fc.name}</li>
+											{/each}
+										</ul>
+										{#if boundariesCollapsible}
+											<Button
+												variant="ghost"
+												size="sm"
+												class="mt-1 -ml-2 text-muted-foreground"
+												aria-expanded={showAllBoundaries}
+												aria-controls="review-boundary-list"
+												onclick={() => (showAllBoundaries = !showAllBoundaries)}
+											>
+												<ChevronDown class="transition-transform {showAllBoundaries ? 'rotate-180' : ''}" />
+												{showAllBoundaries ? 'Show fewer' : `Show all ${selectedFcs.length}`}
+											</Button>
+										{/if}
 									{:else}
-										<p class="mt-1 truncate font-bold">{$selectionSummary.label}</p>
+										<p class="mt-1 break-words font-bold">{$selectionSummary.label}</p>
 									{/if}
-									<p class="truncate text-sm text-muted-foreground">{$selectionSummary.detail}</p>
+									<p class="text-sm text-muted-foreground">{$selectionSummary.detail}</p>
 									{#if resolvedFeatureIds.length > 0}
 										<p class="mt-0.5 text-xs text-muted-foreground">
 											{resolvedFeatureIds.length} feature{resolvedFeatureIds.length === 1 ? '' : 's'} total
 										</p>
 									{/if}
 								</div>
-								<Button variant="ghost" size="sm" onclick={() => goto('/')}>
+								<Button variant="outline" size="sm" onclick={() => goto('/')}>
+									<Pencil />
 									Change
 								</Button>
 							</div>
