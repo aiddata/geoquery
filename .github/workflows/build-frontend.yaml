@@ -13,6 +13,9 @@ on:
     paths:
       - "frontend/**"
       - ".github/workflows/build-frontend.yaml"
+      # Built into the image: HelpPanel imports it (frontend/Containerfile
+      # copies docs/ for this). Without it here, FAQ edits never reach the app.
+      - "docs/faq.md"
 jobs:
   build:
     name: Build Image
