@@ -4,7 +4,7 @@
 	import { currentStep } from '#lib/stores/ui.js';
 	import { cart, cartCount, type CartItem } from '#lib/stores/cart.js';
 	import { datasetChoices } from '#lib/stores/datasetChoices.js';
-	import { selection, selectionSummary } from '#lib/stores/selection.js';
+	import { selection, selectionSummary, selectionFcIds } from '#lib/stores/selection.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
 	import { fetchFeatureIds, submitRequest, type SubmittedRequest, type CustomBoundaryPayload } from '#lib/api.js';
 	import { auth } from '#lib/stores/auth.js';
@@ -86,6 +86,17 @@
 	let boundaryConsent = $state(false);
 
 	let resolvedFeatureIds = $derived($selection?.resolvedFeatureIds ?? []);
+
+	// Boundaries are saved as they're picked on the map, so the full feature
+	// list may still be resolving when Review opens: resolve it here if so.
+	$effect(() => {
+		if (!$selection || resolvedFeatureIds.length > 0) return;
+		const fcIds = $selectionFcIds;
+		if (!fcIds.length) return;
+		fetchFeatureIds(fcIds)
+			.then((ids) => selection.setResolvedFeatureIds(ids))
+			.catch(console.error);
+	});
 	let isCustomMode = $derived($customBoundary.saved && $customBoundary.active);
 	let canSubmit = $derived(
 		requestName.trim() !== '' &&

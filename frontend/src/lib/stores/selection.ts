@@ -15,13 +15,13 @@ export interface SingleFCSelection {
 	mode: 'single';
 	fc: FCRef;
 	featureIds: number[]; // Feature.id — empty means entire collection
-	resolvedFeatureIds: number[]; // full flat list for requests/coverage (set on proceed)
+	resolvedFeatureIds: number[]; // full flat list for requests/coverage (empty until resolved)
 }
 
 export interface MultiFCSelection {
 	mode: 'multi';
 	fcs: FCRef[];
-	resolvedFeatureIds: number[]; // full flat list for requests/coverage (set on proceed)
+	resolvedFeatureIds: number[]; // full flat list for requests/coverage (empty until resolved)
 }
 
 export type ActiveSelection = SingleFCSelection | MultiFCSelection | null;
@@ -33,6 +33,19 @@ function createSelectionStore() {
 
 	return {
 		subscribe,
+
+		/**
+		 * Replace the selection with these boundaries (one = single mode, keeping
+		 * any feature sub-selection; several = multi mode; none = cleared). A
+		 * feature sub-selection is already its own resolved list; otherwise the
+		 * resolved list starts empty until setResolvedFeatureIds fills it.
+		 */
+		replace(fcs: FCRef[], featureIds: number[] = []) {
+			if (fcs.length === 0) set(null);
+			else if (fcs.length === 1)
+				set({ mode: 'single', fc: fcs[0], featureIds: [...featureIds], resolvedFeatureIds: [...featureIds] });
+			else set({ mode: 'multi', fcs: [...fcs], resolvedFeatureIds: [] });
+		},
 
 		/** Start a single-FC selection. Clears any existing selection. */
 		setSingleFC(fc: FCRef) {

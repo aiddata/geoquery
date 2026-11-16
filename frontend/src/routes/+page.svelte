@@ -8,11 +8,11 @@
 	import Seo from '#lib/components/layout/Seo.svelte';
 	import { APP_JSON_LD } from '#lib/seo.js';
 	import { get } from 'svelte/store';
-	import { onMount, tick } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/env';
 	import { currentStep } from '#lib/stores/ui.js';
-	import { selection, type FCRef } from '#lib/stores/selection.js';
+	import { selection, customizeHref, type FCRef } from '#lib/stores/selection.js';
 	import { cartCount } from '#lib/stores/cart.js';
 	import { searchBoundaries, fetchFeatureIds, fetchDatasetsForFeatures, fetchBoundaryPresets, type BoundaryResult, type BoundaryPreset } from '#lib/api.js';
 	import GeographySearch from '#lib/components/map/GeographySearch.svelte';
@@ -35,8 +35,10 @@
 
 	// ── Working selection ────────────────────────────────────────────────────────
 	// The map page edits a local selection: the boundary chips plus, when exactly
-	// one boundary is chosen, any features clicked on the map. Coverage is checked
-	// live as it changes. Nothing is written to the store until "Find Data".
+	// one boundary is chosen, any features clicked on the map. Every change is
+	// saved to the selection store straight away, so the request (and the
+	// Customize and Review steps) always follow what is selected here. Coverage
+	// is checked live as it changes. "Find Data" only moves on to Customize.
 
 	function fcRefToBoundary(fc: FCRef): BoundaryResult {
 		return {
@@ -142,7 +144,6 @@
 		browseBoundaries = [];
 		pendingFeatureIds = [];
 		currentBbox = null;
-		findDataError = null;
 		selection.clear();
 		customBoundary.reset();
 		activeTab = 'explore';
@@ -232,30 +233,39 @@
 		try { return turfBbox(fc) as Bbox; } catch { return null; }
 	});
 
-	// Async state
-	let findingData = $state(false);
-	let findDataError = $state<string | null>(null);
 
 	let selectionKey = $derived(
 		selectionKeyOf(browseBoundaries.map((b) => b.id), pendingFeatureIds)
 	);
 
-	// Key of the selection last committed to the store, to warn when the working
-	// selection no longer matches the one the cart was built from.
-	let committedKey = $derived.by(() => {
-		const sel = $selection;
+	// Save every change to the store. Skipped while it already matches (as on
+	// arrival), so a resolved feature list already in the store is kept.
+	function storeKey(): string | null {
+		const sel = get(selection);
 		if (!sel) return null;
 		if (sel.mode === 'single') return selectionKeyOf([sel.fc.id], sel.featureIds);
 		return selectionKeyOf(sel.fcs.map((fc) => fc.id), []);
+	}
+	$effect(() => {
+		if ($customBoundary.active) return;
+		const key = selectionKey;
+		const fcs = browseBoundaries.map(boundaryToFcRef);
+		const featureIds = fcs.length === 1 ? [...pendingFeatureIds] : [];
+		if (fcs.length === 0 ? get(selection) === null : key === untrack(storeKey)) return;
+		untrack(() => selection.replace(fcs, featureIds));
 	});
-	let selectionChanged = $derived(browseBoundaries.length > 0 && selectionKey !== committedKey);
+
+	// Warn when datasets were chosen for a different selection than the one
+	// now on the map: the selection as the page opened, compared with now.
+	const arrivalKey = selectionKeyOf(_init.boundaries.map((b) => b.id), _init.featureIds);
+	let selectionChanged = $derived(
+		_init.boundaries.length > 0 && browseBoundaries.length > 0 && selectionKey !== arrivalKey
+	);
 
 	// Running dataset count for the current working selection
 	let datasetCount = $state<number | null>(null);
 	let datasetCountLoading = $state(false);
 	let datasetCountError = $state(false);
-	// Flat Feature.id list resolved by the coverage check, reused on "Find Data"
-	let resolvedIds: { key: string; ids: number[] } | null = null;
 
 	$effect(() => {
 		const key = selectionKey;
@@ -271,7 +281,8 @@
 			try {
 				const ids = featureIds.length > 0 ? featureIds : await fetchFeatureIds(fcIds);
 				if (cancelled) return;
-				resolvedIds = { key, ids };
+				// The request needs the flat list; save it while it still matches.
+				if (key === storeKey()) selection.setResolvedFeatureIds(ids);
 				const datasets = await fetchDatasetsForFeatures(ids);
 				if (!cancelled) { datasetCount = datasets.length; datasetCountLoading = false; }
 			} catch {
@@ -283,9 +294,7 @@
 	});
 
 	// Nothing to find once coverage has confirmed there are no datasets
-	let findDataDisabled = $derived(
-		findingData || (!datasetCountLoading && datasetCount === 0)
-	);
+	let findDataDisabled = $derived(!datasetCountLoading && datasetCount === 0);
 
 	// ── Derived map display values ───────────────────────────────────────────────
 
@@ -331,53 +340,16 @@
 		if (!keepFeatures) pendingFeatureIds = [];
 
 		browseBoundaries = boundaries;
-		findDataError = null;
 
 		const bbox = unionBbox(boundaries.map((b) => b.bbox));
 		if (bbox) currentBbox = bbox;
 	}
 
-	async function handleFindData() {
+	/** Move on to Customize; the selection itself is already saved. */
+	function handleFindData() {
 		if (browseBoundaries.length === 0 || findDataDisabled) return;
-		findDataError = null;
-		findingData = true;
-		try {
-			// Deactivate custom boundary mode when committing a standard boundary
-			customBoundary.deactivate();
-
-			const fcs = browseBoundaries.map(boundaryToFcRef);
-			const featureIds = fcs.length === 1 ? [...pendingFeatureIds] : [];
-
-			// Write the working selection to the store
-			selection.clear();
-			selection.setSingleFC(fcs[0]);
-			if (fcs.length === 1) {
-				for (const id of featureIds) selection.toggleFeature(id);
-			} else {
-				for (const fc of fcs.slice(1)) selection.addFC(fc);
-			}
-
-			// Resolve flat Feature.id list for coverage checks and request submission,
-			// reusing the list from the live coverage check when it is current
-			const ids =
-				resolvedIds?.key === selectionKey
-					? resolvedIds.ids
-					: featureIds.length > 0
-						? featureIds
-						: await fetchFeatureIds(fcs.map((fc) => fc.id));
-			selection.setResolvedFeatureIds(ids);
-
-			if (fcs.length === 1) {
-				goto('/customize?selection');
-			} else {
-				goto(`/customize?fc=${fcs.map((fc) => fc.id).join(',')}`);
-			}
-		} catch (err) {
-			console.error('Failed to commit selection:', err);
-			findDataError = 'Something went wrong. Please try again.';
-		} finally {
-			findingData = false;
-		}
+		const href = get(customizeHref);
+		if (href) goto(href);
 	}
 
 	function handleFeatureClick(featureId: number) {
@@ -423,7 +395,7 @@
 		<div class="card-surface flex flex-col min-h-0">
 			<div class="p-4 pb-2 shrink-0">
 				<div class="flex items-start justify-between gap-2 {canBrowse || canCustom ? 'mb-3' : ''}">
-					<h2 class="text-h4 text-primary">
+					<h2 class="text-h4 text-foreground">
 						Select Boundaries to Begin
 					</h2>
 					{#if browseBoundaries.length > 0 || $customBoundary.fileName || $customBoundary.active}
@@ -476,7 +448,7 @@
 						bind:searchText={boundarySearch}
 						featuredBoundaries={featuredBoundaries}
 						selectedBoundaries={browseBoundaries}
-						proceedLabel={findingData ? 'Loading…' : 'Find Data'}
+						proceedLabel="Find Data"
 						proceedDisabled={findDataDisabled}
 						onSelect={handleSelect}
 						onProceed={handleFindData}
@@ -487,8 +459,8 @@
 					{#if browseBoundaries.length === 1}
 						<div class="mt-3 rounded-md border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
 							{#if pendingFeatureIds.length === 0}
-								Click features on the map to narrow your selection, or press
-								<strong>Find Data</strong> to use the entire collection.
+								Click features on the map to narrow your selection, or leave them all
+								unselected to use the entire collection.
 							{:else}
 								<strong>{pendingFeatureIds.length}</strong>
 								{pendingFeatureIds.length === 1 ? 'feature' : 'features'} selected — click more to
@@ -518,8 +490,8 @@
 						<div class="mt-4 pt-3 border-t flex items-center justify-between gap-2">
 							{@render coverageStatus()}
 							<Button size="sm" disabled={findDataDisabled} onclick={handleFindData}>
-								{findingData ? 'Loading…' : 'Find Data'}
-								{#if !findingData}<ArrowRight />{/if}
+								Find Data
+								<ArrowRight />
 							</Button>
 						</div>
 					{/if}
@@ -528,10 +500,6 @@
 				{/if}
 
 				{#if activeTab !== 'custom'}
-					{#if findDataError}
-						<p class="mt-2 text-xs text-destructive">{findDataError}</p>
-					{/if}
-
 					{#if selectionChanged && $cartCount > 0}
 						<Alert.Root variant="warning" role="status" class="mt-3">
 							<TriangleAlert />

@@ -2,7 +2,7 @@
 
 ## Submitting a request
 
-1. **Select boundaries.** Open the GeoQuery application and search for a country or boundary set, or pick one from the featured list. To narrow a single boundary set to a few areas, click them on the map. Then click **Find Data**.
+1. **Select boundaries.** Open the GeoQuery application and search for a country or boundary set, or pick one from the featured list. To narrow a single boundary set to a few areas, click them on the map. Your selection is saved as you go. Click **Find Data**, or **2. Customize Datasets** at the top, to move on.
 2. **Choose datasets.** Browse the datasets available for your boundaries. For each one, choose the statistics and time periods you want: most datasets are added to your request as soon as you choose, and a check mark shows they're in. Datasets of events or locations, which you filter instead (such as conflict events), need you to click **Add to Request**, and can be added more than once with different filters. Your choices are kept as you move around GeoQuery.
 3. **Review.** Click **Review Request** to check your boundaries and datasets. Use **Edit options** on any dataset to go back and change it.
 4. **Submit.** In the Review & Submit panel, give your request a name and enter your email address (if you're signed in, your account's email is used), then click **Submit Request**.
