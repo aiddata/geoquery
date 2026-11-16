@@ -137,7 +137,7 @@
 			<CircleCheck class="size-4 shrink-0 text-success-text" aria-hidden="true" />
 			<span>
 				<strong class="text-foreground">In your request.</strong>
-				{isFeature ? 'Change the filters to add another version.' : 'Changes are saved automatically; Reset removes it.'}
+				{isFeature ? 'Change the filters to add another version.' : 'Changes are saved automatically; Reset this dataset removes it.'}
 			</span>
 		{:else if saveState === 'unsaved'}
 			<CircleAlert class="size-4 shrink-0 text-warning-text" aria-hidden="true" />

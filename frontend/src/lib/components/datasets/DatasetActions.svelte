@@ -32,9 +32,19 @@
 </script>
 
 <div class="flex flex-wrap items-center gap-2">
-	<Button variant="outline" size="sm" onclick={onReset}>
+	<!-- Only ever this dataset: a raster's options (and its entry in the request),
+	     or a feature dataset's measure, split and filter options on screen (its
+	     versions stay) -->
+	<Button
+		variant="outline"
+		size="sm"
+		onclick={onReset}
+		title={isFeature
+			? 'Put the measure, split and filter options shown here back to their defaults. Versions already in your request, and other datasets, are kept.'
+			: 'Clear this dataset’s options and remove it from your request. Other datasets are kept.'}
+	>
 		<RotateCcw />
-		Reset
+		{isFeature ? 'Reset options' : 'Reset this dataset'}
 	</Button>
 
 	{#if isFeature && saveState === 'editing'}

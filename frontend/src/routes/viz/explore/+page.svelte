@@ -561,7 +561,7 @@
 		<Collapsible.Root bind:open={boundariesOpen} class="border-b">
 			<Collapsible.Trigger class="section-trigger">
 				<ChevronDown class="section-chevron {boundariesOpen ? 'rotate-180' : ''}" />
-				<span>Boundaries</span>
+				<span>Boundary Sets</span>
 			</Collapsible.Trigger>
 			<Collapsible.Content class="px-4 pb-4 pt-2 space-y-3">
 				<!-- Chips for selected FCs -->

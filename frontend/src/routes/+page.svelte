@@ -384,7 +384,7 @@
 		<div class="rounded-md border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
 			{#if pendingFeatureIds.length === 0}
 				Click features on the map to narrow your selection, or leave them all
-				unselected to use the entire collection.
+				unselected to use the entire boundary set.
 				<button type="button" class="font-bold text-link hover:text-link-hover hover:underline md:hidden" onclick={openDetail}>
 					Open map
 				</button>

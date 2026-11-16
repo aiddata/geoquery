@@ -301,7 +301,7 @@ def boundaries_index(pages) -> str:
         out.extend(f"| [{_label(p.place)}]({p.slug}.md) | {_levels(p)} |\n" for p in countries)
         out.append("\n")
     if others:
-        out.append("## Other boundary sets\n\n| Boundaries | Collections | Source |\n|---|---|---|\n")
+        out.append("## Other boundary sets\n\n| Boundaries | Boundary sets | Source |\n|---|---|---|\n")
         out.extend(
             f"| [{_label(p.title)}]({p.slug}.md) | {len(p.collections)} | {cell(p.collections[0].source_name)} |\n"
             for p in others

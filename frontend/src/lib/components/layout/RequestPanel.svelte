@@ -25,7 +25,7 @@
 
 	const plural = (n: number, word: string) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
 
-	// "X features across Y boundaries selected"; the boundary name until the
+	// "X features across Y boundary sets selected"; the boundary name until the
 	// feature count has resolved.
 	const boundaryLabel = $derived.by(() => {
 		if ($customBoundary.saved && $customBoundary.active) {
@@ -36,7 +36,7 @@
 		const features = $selection.resolvedFeatureIds.length;
 		const sets = $selectionFcIds.length;
 		return features > 0
-			? `${plural(features, 'feature')} across ${sets === 1 ? '1 boundary' : `${sets} boundaries`} selected`
+			? `${plural(features, 'feature')} across ${sets === 1 ? '1 boundary set' : `${sets} boundary sets`} selected`
 			: ($selectionSummary?.label ?? null);
 	});
 
@@ -57,7 +57,7 @@
 			id: 'map',
 			title: '1. Select Boundaries',
 			href: '/',
-			summary: boundaryLabel ?? 'No boundaries selected',
+			summary: boundaryLabel ?? 'No boundary sets selected',
 			blocked: ''
 		},
 		{
