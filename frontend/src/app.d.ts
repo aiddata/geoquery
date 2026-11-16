@@ -5,7 +5,10 @@ declare global {
 		// interface Error {}
 		// interface Locals {}
 		// interface PageData {}
-		// interface PageState {}
+		interface PageState {
+			/** A request step's detail view is open on a narrow screen (lib/stepDetail.ts) */
+			detail?: boolean;
+		}
 		// interface Platform {}
 	}
 

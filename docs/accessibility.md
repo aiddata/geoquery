@@ -30,7 +30,7 @@ What works well:
 - **Option checkboxes on the Customize page** aren't announced with their names by screen readers.
 - **Some details appear only on mouse hover**, such as the source and license of boundary sets in the Browse All list.
 - **Status changes**, such as a dataset being added to your request, aren't always announced to screen readers.
-- **Narrow windows and high zoom.** GeoQuery is designed for screens at least 1,024 pixels wide. On smaller screens, and at high browser zoom, pages are shown zoomed out or scroll sideways.
+- **Narrow windows and high zoom.** GeoQuery is designed for screens at least 1,024 pixels wide. On narrower screens, including phones, and at high browser zoom, the layout squeezes to fit.
 
 We're working on these, and the most important ones first.
 

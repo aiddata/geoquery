@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { afterNavigate } from '$app/navigation';
+	import { afterNavigate, onNavigate } from '$app/navigation';
 	import { gtagEvent } from '#lib/analytics.js';
 	import { initAuth } from '#lib/stores/auth.js';
 	import '@fontsource/barlow/400.css';
@@ -21,11 +21,32 @@
 			});
 		}
 	});
+	// Moving between the request steps animates (layout.css, "Step
+	// transitions"): the panel's sections resize in place, and the main area
+	// fades the next step in over the last, or the last out over the previous.
+	// Browsers without view transitions just navigate.
+	const STEP_PATHS = ['/', '/customize', '/review'];
+	onNavigate((navigation) => {
+		if (!document.startViewTransition) return;
+		const from = STEP_PATHS.indexOf(navigation.from?.url.pathname ?? '');
+		const to = STEP_PATHS.indexOf(navigation.to?.url.pathname ?? '');
+		if (from < 0 || to < 0 || from === to) return;
+
+		const root = document.documentElement;
+		root.dataset.stepDirection = to > from ? 'forward' : 'back';
+		return new Promise((resolve) => {
+			const transition = document.startViewTransition(async () => {
+				resolve();
+				await navigation.complete;
+			});
+			transition.finished.finally(() => delete root.dataset.stepDirection);
+		});
+	});
+
 	import Header from '#lib/components/layout/Header.svelte';
 	import Sidebar from '#lib/components/layout/Sidebar.svelte';
 	import StatusBanner from '#lib/components/layout/StatusBanner.svelte';
 	import SupportBanner from '#lib/components/layout/SupportBanner.svelte';
-	import SmallScreenNotice from '#lib/components/layout/SmallScreenNotice.svelte';
 	import { TooltipProvider } from '#lib/components/ui/tooltip/index.js';
 	let { children } = $props();
 
@@ -41,9 +62,9 @@
 </svelte:head>
 
 <TooltipProvider>
-	<div class="flex min-h-screen flex-col">
+	<!-- data-detail: a step's detail view is open on a narrow screen (lib/stepDetail.ts) -->
+	<div class="flex min-h-screen flex-col" data-detail={page.state.detail ? 'open' : 'closed'}>
 		<StatusBanner />
-		<SmallScreenNotice />
 		<Header {showSteps} />
 
 		<main class="flex-1">

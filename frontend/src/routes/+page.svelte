@@ -27,7 +27,9 @@
 	import CustomBoundaryPanel from '#lib/components/map/CustomBoundaryPanel.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
-	import { ArrowRight, TriangleAlert } from '@lucide/svelte';
+	import { ArrowRight, Map as MapIcon, TriangleAlert } from '@lucide/svelte';
+	import DetailBack from '#lib/components/layout/DetailBack.svelte';
+	import { openDetail } from '#lib/stepDetail.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
 	import { auth } from '#lib/stores/auth.js';
 	import { welcomeEligible, dismissWelcome } from '#lib/welcome.js';
@@ -366,21 +368,48 @@
 	</div>
 {/snippet}
 
+<!-- Right under the Explore tab's search box. -->
+{#snippet exploreSearchNote()}
+	{#if browseBoundaries.length > 1}
+		{@render multiSetNote()}
+	{/if}
+{/snippet}
+
+<!-- Under the Explore tab's selected chips, above Find Data: coverage, then
+     how to narrow a single boundary set. -->
+{#snippet exploreSelectionNotes()}
+	{@render coverageStatus()}
+	{#if browseBoundaries.length === 1}
+		<!-- Feature-selection hint once a single boundary is selected -->
+		<div class="rounded-md border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+			{#if pendingFeatureIds.length === 0}
+				Click features on the map to narrow your selection, or leave them all
+				unselected to use the entire collection.
+				<button type="button" class="font-bold text-link hover:text-link-hover hover:underline md:hidden" onclick={openDetail}>
+					Open map
+				</button>
+			{:else}
+				<strong>{pendingFeatureIds.length}</strong>
+				{pendingFeatureIds.length === 1 ? 'feature' : 'features'} selected — click more to
+				add, or click a selected feature to deselect it.
+				<button type="button" class="font-bold text-link hover:text-link-hover hover:underline md:hidden" onclick={openDetail}>
+					Open map
+				</button>
+			{/if}
+		</div>
+	{/if}
+{/snippet}
+
 <WelcomeModal bind:open={() => showWelcome, (open) => { if (!open) closeWelcome(); }} />
 
-<div class="flex h-[calc(100vh-8rem)]">
+<div class="flex h-[calc(100dvh-var(--header-height,8rem))]">
 	<RequestPanel active="map">
 		{#snippet actions()}
-			{#if browseBoundaries.length > 0 || $customBoundary.fileName || $customBoundary.active}
-						<Button
-							size="sm"
-							variant="ghost"
-							onclick={resetAll}
-							class="shrink-0 text-xs text-muted-foreground hover:text-destructive -mr-1 -mt-1"
-						>
-							Restart
-						</Button>
-					{/if}
+			<!-- Narrow screens: the map is a view of its own (lib/stepDetail.ts) -->
+			<Button size="sm" variant="outline" class="-my-1 md:hidden" onclick={openDetail}>
+				<MapIcon />
+				Show map
+			</Button>
 		{/snippet}
 		<!-- Tabs -->
 				{#if canBrowse || canCustom}
@@ -432,24 +461,10 @@
 						proceedDisabled={findDataDisabled}
 						onSelect={handleSelect}
 						onProceed={handleFindData}
-						belowSelection={coverageStatus}
+						onClear={resetAll}
+						belowSearch={exploreSearchNote}
+						belowSelection={exploreSelectionNotes}
 					/>
-
-					<!-- Feature-selection hint once a single boundary is selected -->
-					{#if browseBoundaries.length === 1}
-						<div class="mt-3 rounded-md border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-							{#if pendingFeatureIds.length === 0}
-								Click features on the map to narrow your selection, or leave them all
-								unselected to use the entire collection.
-							{:else}
-								<strong>{pendingFeatureIds.length}</strong>
-								{pendingFeatureIds.length === 1 ? 'feature' : 'features'} selected — click more to
-								add, or click a selected feature to deselect it.
-							{/if}
-						</div>
-					{:else if browseBoundaries.length > 1}
-						<div class="mt-3">{@render multiSetNote()}</div>
-					{/if}
 				{:else if activeTab === 'browse'}
 					{#if boundaryLoadError}
 						<p class="text-sm text-destructive py-2">{boundaryLoadError}</p>
@@ -466,15 +481,32 @@
 					{#if browseBoundaries.length > 1}
 						<div class="mt-4">{@render multiSetNote()}</div>
 					{/if}
+					<!-- Find Data always, disabled until something is selected -->
 					{#if browseBoundaries.length > 0}
-						<div class="mt-4 pt-3 border-t flex items-center justify-between gap-2">
-							{@render coverageStatus()}
-							<Button size="sm" disabled={findDataDisabled} onclick={handleFindData}>
-								Find Data
-								<ArrowRight />
-							</Button>
-						</div>
+						<div class="mt-4 border-t pt-3">{@render coverageStatus()}</div>
 					{/if}
+					<div class="mt-3 flex items-center justify-between gap-2">
+						{#if browseBoundaries.length > 0}
+							<Button
+								size="sm"
+								variant="outline"
+								onclick={resetAll}
+								class="text-muted-foreground hover:text-destructive"
+							>
+								Clear All
+							</Button>
+						{:else}
+							<span></span>
+						{/if}
+						<Button
+							size="sm"
+							disabled={findDataDisabled || browseBoundaries.length === 0}
+							onclick={handleFindData}
+						>
+							Find Data
+							<ArrowRight />
+						</Button>
+					</div>
 				{:else if activeTab === 'custom'}
 					<CustomBoundaryPanel />
 				{/if}
@@ -482,7 +514,8 @@
 	</RequestPanel>
 
 	<!-- Map, beside the panel -->
-	<div class="relative flex min-w-0 flex-1 flex-col">
+	<div class="step-main relative flex min-w-0 flex-1 flex-col">
+	<DetailBack label="Boundaries" class="absolute left-4 top-4 z-10 shadow-card" />
 	<!-- Zoom Controls -->
 	<div class="absolute right-4 top-4 z-10 flex flex-col items-center gap-1">
 		<ZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />

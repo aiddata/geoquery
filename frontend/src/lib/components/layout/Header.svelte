@@ -35,6 +35,13 @@
 		{ id: 'search', label: 'Customize Datasets' },
 		{ id: 'review', label: 'Review & Submit' }
 	];
+
+	// Published as --header-height, so the step pages can fill the rest of the
+	// screen whatever the header's height (the steps band hides below lg)
+	let headerHeight = $state(0);
+	$effect(() => {
+		if (headerHeight) document.documentElement.style.setProperty('--header-height', `${headerHeight}px`);
+	});
 </script>
 
 <!-- Small arrow at the top right of a link that opens another site. -->
@@ -43,10 +50,17 @@
 	<span class="sr-only">(opens in a new tab)</span>
 {/snippet}
 
-<header class="sticky top-0 z-50 w-full bg-card shadow-card">
+<!-- Heights are multiples of --lh, one line of body text (1.6em at the header's
+     17px), so the header keeps its proportions if the base text size changes. -->
+<header
+	bind:offsetHeight={headerHeight}
+	class="sticky top-0 z-50 w-full bg-card shadow-card [--lh:calc(var(--text-base--line-height)*1em)]"
+>
 	<!-- Main Header -->
-	<div class="flex min-h-20 items-center justify-between px-4">
-		<!-- Logo -->
+	<!-- A size container, so the GeoQuery wordmark can drop out only when the
+	     row itself has no room left beside the controls. -->
+	<div class="@container flex min-h-[calc(3*var(--lh))] items-center justify-between gap-3 px-4">
+		<!-- Logo: AidData's goes first on narrow screens; GeoQuery's stays. -->
 		<div class="flex shrink-0 items-center gap-3">
 			<!-- AidData's own white-lettered logo for dark mode; the triangles keep their colours. -->
 			<a
@@ -54,13 +68,16 @@
 				target="_blank"
 				rel="noopener noreferrer"
 				aria-label="AidData (opens in a new tab)"
+				class="hidden md:block"
 			>
-				<img src={aiddataLogo} alt="" class="h-[2.3rem] w-auto sm:h-[2.875rem] dark:hidden" />
-				<img src={aiddataLogoWhite} alt="" class="hidden h-[2.3rem] w-auto sm:h-[2.875rem] dark:block" />
+				<img src={aiddataLogo} alt="" class="h-[calc(1.7*var(--lh))] w-auto dark:hidden" />
+				<img src={aiddataLogoWhite} alt="" class="hidden h-[calc(1.7*var(--lh))] w-auto dark:block" />
 			</a>
-			<span class="hidden h-10 w-px bg-border md:block" aria-hidden="true"></span>
-			<a href="/" class="hidden md:block" aria-label="GeoQuery home">
-				<img src={geoqueryText} alt="" class="h-10 w-auto brightness-0 dark:invert" />
+			<span class="hidden h-[calc(1.5*var(--lh))] w-px bg-border md:block" aria-hidden="true"></span>
+			<!-- 21.25rem of content box (padding excluded): the ~200px wordmark, the row
+			     gap and the three icon-only controls (~128px). -->
+			<a href="/" class="hidden @min-[21.25rem]:block" aria-label="GeoQuery home">
+				<img src={geoqueryText} alt="" class="h-[calc(1.5*var(--lh))] w-auto brightness-0 dark:invert" />
 			</a>
 		</div>
 
@@ -113,9 +130,10 @@
 		</div>
 	</div>
 
-	<!-- Step Indicator (only on workflow pages) -->
+	<!-- Step Indicator (only on workflow pages). Not below lg, where the panel's
+	     own step headers are enough and the height is better spent on content. -->
 	{#if showSteps}
-		<div class="flex min-h-12 items-center justify-between bg-band px-4">
+		<div class="flex min-h-[calc(1.75*var(--lh))] items-center justify-between bg-band px-4 max-lg:hidden">
 			<div aria-label="Request progress" class="flex items-center gap-1">
 				{#each steps as step, i (step.id)}
 					{#if i > 0}

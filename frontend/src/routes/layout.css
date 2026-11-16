@@ -318,10 +318,6 @@
     }
     body {
         @apply bg-background font-body text-base text-foreground;
-        /* The narrowest layout GeoQuery supports (lib/smallScreen.ts): narrower
-           windows scroll sideways instead of squeezing the page. Phones get a
-           1024px viewport from app.html, so this only bites on desktop. */
-        min-width: 1024px;
     }
     h1,
     h2,
@@ -486,4 +482,93 @@
     .aid-plot figure > div {
         forced-color-adjust: none;
     }
+}
+
+/* ── Step transitions ─────────────────────────────────────────────────────────
+   View transitions between the request steps (onNavigate in +layout.svelte,
+   which sets data-step-direction for the duration). The main area beside the
+   panel is .step-main on each step page; the panel's three sections are
+   named panel-map, panel-search and panel-review (RequestPanel.svelte). */
+.step-main {
+    view-transition-name: step-main;
+}
+
+::view-transition-group(*) {
+    animation-duration: 250ms;
+    animation-timing-function: ease;
+}
+
+/* Panel sections change height. Show each snapshot at its natural size,
+   pinned to the top and clipped, so a growing section uncovers its content
+   instead of stretching it. */
+::view-transition-group(panel-map),
+::view-transition-group(panel-search),
+::view-transition-group(panel-review) {
+    overflow: clip;
+}
+::view-transition-old(panel-map),
+::view-transition-new(panel-map),
+::view-transition-old(panel-search),
+::view-transition-new(panel-search),
+::view-transition-old(panel-review),
+::view-transition-new(panel-review) {
+    height: 100%;
+    object-fit: none;
+    object-position: top;
+}
+
+/* Main area, forward: the next step fades in over the last, which holds. */
+::view-transition-old(step-main) {
+    animation: none;
+}
+::view-transition-new(step-main) {
+    animation: step-fade-in 250ms ease both;
+    mix-blend-mode: normal;
+}
+
+/* Back: the step being left fades out over the previous one. */
+:root[data-step-direction="back"]::view-transition-old(step-main) {
+    animation: step-fade-out 250ms ease both;
+    mix-blend-mode: normal;
+    z-index: 1;
+}
+:root[data-step-direction="back"]::view-transition-new(step-main) {
+    animation: none;
+}
+
+@keyframes step-fade-in {
+    from { opacity: 0; }
+}
+@keyframes step-fade-out {
+    to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+        animation: none !important;
+    }
+}
+
+/* ── Narrow step pages ────────────────────────────────────────────────────────
+   Below md the panel takes the full width, so a step page shows its panel or
+   its detail view (.step-main), not both: data-detail on the layout's wrapper
+   says which (lib/stepDetail.ts). The detail slides in over the panel. */
+@media (width < 48rem) {
+    [data-detail="closed"] .step-main,
+    [data-detail="open"] .request-panel {
+        display: none;
+    }
+    [data-detail="open"] .step-main {
+        animation: detail-in 200ms ease-out;
+    }
+}
+
+@keyframes detail-in {
+    from { transform: translateX(2rem); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .step-main { animation: none !important; }
 }

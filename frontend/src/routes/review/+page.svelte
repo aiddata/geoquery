@@ -5,6 +5,9 @@
 	import { cart, cartCount, type CartItem } from '#lib/stores/cart.js';
 	import { datasetChoices } from '#lib/stores/datasetChoices.js';
 	import { selection, selectionSummary, selectionFcIds } from '#lib/stores/selection.js';
+	import DetailBack from '#lib/components/layout/DetailBack.svelte';
+	import { requestForm } from '#lib/stores/requestForm.js';
+	import { openDetail } from '#lib/stepDetail.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
 	import { fetchFeatureIds, submitRequest, type SubmittedRequest, type CustomBoundaryPayload } from '#lib/api.js';
 	import { auth } from '#lib/stores/auth.js';
@@ -70,8 +73,14 @@
 		}
 	});
 
-	let requestName = $state(`Request ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
-	let email = $state('');
+	// Kept for the session (lib/stores/requestForm.ts), so leaving the step and
+	// coming back finds the form as it was left
+	const savedForm = $requestForm;
+	let requestName = $state(
+		savedForm.name ??
+			`Request ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+	);
+	let email = $state(savedForm.email);
 
 	// Signed-in users submit under their account email so the request is
 	// linked to their account; anonymous users type an email as before.
@@ -82,10 +91,35 @@
 		}
 	});
 
+	// Arriving at this step, start in the email box if it still needs filling.
+	// Once sign-in is known (a signed-in user's is filled in and locked), and
+	// only once, without taking focus from anything the user has gone to.
+	let emailInput = $state<HTMLInputElement | null>(null);
+	let emailFocusChecked = false;
+	$effect(() => {
+		if (emailFocusChecked || $auth.status === 'loading' || !emailInput) return;
+		emailFocusChecked = true;
+		const idle = !document.activeElement || document.activeElement === document.body;
+		if (!email && idle) emailInput.focus();
+	});
+
 	let submitting = $state(false);
 	let submitError = $state<string | null>(null);
 	let submitted = $state<SubmittedRequest | null>(null);
-	let boundaryConsent = $state(false);
+	let boundaryConsent = $state(savedForm.boundaryConsent);
+
+	$effect(() => {
+		const name = requestName;
+		const consent = boundaryConsent;
+		// A signed-in user's email is their account's, not something they typed
+		const typed = isSignedIn ? undefined : email;
+		if (submitted) return;
+		requestForm.update((f) => ({
+			name,
+			email: typed ?? f.email,
+			boundaryConsent: consent
+		}));
+	});
 
 	let resolvedFeatureIds = $derived($selection?.resolvedFeatureIds ?? []);
 	// Feature versions need distinct, non-empty names (they prefix output columns)
@@ -225,6 +259,7 @@
 			cart.clear();
 			selection.clear();
 			customBoundary.reset();
+			requestForm.resetAfterSubmit();
 		} catch (err) {
 			submitError = err instanceof Error ? err.message : 'Submission failed. Please try again.';
 		} finally {
@@ -235,7 +270,7 @@
 
 <Seo title="Review Request" noindex />
 
-<div class="flex h-[calc(100vh-8rem)] flex-col">
+<div class="flex h-[calc(100dvh-var(--header-height,8rem))] flex-col">
 	<!-- Success state -->
 	{#if submitted}
 		<div class="flex flex-1 items-center justify-center p-8">
@@ -272,6 +307,23 @@
 	<div class="flex min-h-0 flex-1">
 		<RequestPanel active="review">
 						<div class="space-y-4">
+							<!-- Narrow screens: the review is optional, a view of its own (lib/stepDetail.ts) -->
+							<button
+								type="button"
+								onclick={openDetail}
+								class="flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors hover:bg-accent md:hidden"
+							>
+								<span class="min-w-0">
+									<span class="block text-sm font-bold">Review your request</span>
+									<span class="block truncate text-xs text-muted-foreground">
+										{[isCustomMode ? $customBoundary.fileName : $selectionSummary?.label, `${$cartCount} ${$cartCount === 1 ? 'dataset' : 'datasets'}`]
+											.filter(Boolean)
+											.join(' · ')}
+									</span>
+								</span>
+								<ChevronRight class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+							</button>
+
 							<div class="space-y-2">
 								<Label for="request-name">Request Name</Label>
 								<Input
@@ -286,6 +338,7 @@
 								<Input
 									id="email"
 									type="email"
+									bind:ref={emailInput}
 									bind:value={email}
 									placeholder="you@example.com"
 									disabled={isSignedIn}
@@ -349,7 +402,8 @@
 						</div>
 		</RequestPanel>
 
-		<div class="relative min-w-0 flex-1 overflow-auto p-4 md:p-6">
+		<div class="step-main relative min-w-0 flex-1 overflow-auto p-4 md:p-6">
+			<DetailBack label="Submit" class="mb-4" />
 			<div class="mx-auto max-w-3xl">
 			<section aria-labelledby="review-heading" class="space-y-4">
 				<h2 id="review-heading" class="text-h4">Review your Selections</h2>

@@ -1,3 +1,50 @@
+<script lang="ts" module>
+	import type { Map as MlMap } from 'maplibre-gl';
+	import type { Bbox as KeptBbox } from '#lib/utils/bbox.js';
+
+	// One MapLibre map for the page session. When the map page unmounts (going
+	// on to Customize or Review), the map's element is parked off screen at
+	// the same size instead of the map being removed, and the next MapFrame
+	// adopts it: the camera, tiles and layers are as they were left, with
+	// nothing to reload or redraw. Parked, MapLibre idles: it renders only
+	// when something changes. A page reload starts a new map.
+	let kept: { map: MlMap; element: HTMLDivElement; loaded: boolean } | null = null;
+	let parking: HTMLDivElement | null = null;
+	// The mounted MapFrame's hook for theme changes, which the map follows even
+	// while parked
+	let onThemeApplied = () => {};
+
+	function park(map: MlMap, element: HTMLDivElement) {
+		if (!parking) {
+			parking = document.createElement('div');
+			parking.setAttribute('aria-hidden', 'true');
+			parking.inert = true;
+			parking.style.cssText =
+				'position: fixed; top: 0; left: -200vw; overflow: hidden; visibility: hidden; pointer-events: none;';
+			document.body.appendChild(parking);
+		}
+		// The size MapLibre last laid the map out at (by the time this runs, the
+		// page has already removed the map's old parent, so it can't be
+		// measured). Unchanged, the map isn't resized and keeps its pixels.
+		const canvas = map.getCanvas();
+		parking.style.width = canvas.style.width;
+		parking.style.height = canvas.style.height;
+		parking.appendChild(element);
+	}
+
+	// State that belongs to the map rather than to one MapFrame, so it carries
+	// over with it.
+	// The extent last zoomed to: the same extent again is not zoomed to again.
+	let fittedBbox: KeptBbox | null = null;
+	// Sorted ids of the selection the multi source was built for
+	let multiKeyOnMap: string | null = null;
+	let prevSelectedIds: number[] = [];
+	// Cluster ring images: see onRingImageMissing and setRingPalette
+	let ringPalette: string[] = [];
+	let ringVersion = 0;
+	const ringImages = new Set<string>();
+</script>
+
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import * as maplibregl from 'maplibre-gl';
@@ -66,7 +113,6 @@
 
 	let popup: maplibregl.Popup | null = null;
 	let hoveredFeatureId: number | null = null;
-	let prevSelectedIds: number[] = [];
 
 	const fcSourceId = (name: string) => `fc-tiles-${name}`;
 	const fcFillId = (name: string) => `fc-fill-${name}`;
@@ -84,8 +130,6 @@
 	const MULTI_LINE = 'fc-multi-line';
 	const MULTI_CLUSTER = 'fc-multi-cluster';
 	const MULTI_CLUSTER_LABEL = 'fc-multi-cluster-label';
-	// Sorted ids of the selection the multi source was built for
-	let multiKeyOnMap: string | null = null;
 
 	/** A paint value per boundary, matched on the fc_id each multi-tile feature carries. */
 	function byFc(
@@ -171,9 +215,8 @@
 	// image resolver) from these colors,
 	// index-aligned with the boundaries the ring expression was built for. A new
 	// palette gets a new version in the image ids, so no stale ring is reused.
-	let ringPalette: string[] = [];
-	let ringVersion = 0;
-	const ringImages = new Set<string>();
+	// (ringPalette, ringVersion and ringImages are in the module script: they
+	// belong to the map, which outlives this component.)
 
 	/**
 	 * The ring image id for a cluster: radius, then each selected boundary's arc in
@@ -311,45 +354,69 @@
 	const INITIAL_ZOOM = 2;
 
 	onMount(() => {
-		let stopTheme: (() => void) | undefined;
-		protomapsApiKey().then((key) => {
-			map = new maplibregl.Map({
-				container: mapContainer,
-				style: basemapStyle(get(resolvedTheme), key, ATTRIBUTION),
-				center: INITIAL_CENTER,
-				zoom: INITIAL_ZOOM,
-				// Symbols cut rather than cross-fade as tiles change. A cluster's ring
-				// and count are symbols on a disc that cannot fade, so the default
-				// 300 ms fade left half-faded rings around discs that had already
-				// gone. Map-wide: basemap labels cut too.
-				fadeDuration: 0
-			});
+		let destroyed = false;
+		let detach: (() => void) | undefined;
 
-			map.on('load', () => {
-				mapReady = true;
-				onZoomChange?.(map!.getZoom());
-			});
-
-			stopTheme = followTheme(map, key, () => themeTick++, ATTRIBUTION);
-
-			map.on('zoom', () => {
-				onZoomChange?.(map!.getZoom());
-			});
-
+		// Wire the map to this component: its zoom readout, theme hook and ring
+		// images, and the effects below (through `map` and `mapReady`).
+		function attach(m: maplibregl.Map) {
+			const onZoom = () => onZoomChange?.(m.getZoom());
+			m.on('zoom', onZoom);
+			onThemeApplied = () => themeTick++;
 			// Cluster rings are drawn as their images are first needed. A resolver,
 			// not a styleimagemissing listener: since MapLibre 6 an image added from
 			// the event comes too late for the tile that asked, which then lays out
 			// its clusters with no ring.
-			map.setMissingStyleImageResolver((id) => onRingImageMissing(map!, id));
+			m.setMissingStyleImageResolver((id) => onRingImageMissing(m, id));
+			map = m;
+			const ready = () => {
+				if (destroyed) return;
+				mapReady = true;
+				onZoom();
+			};
+			if (kept?.loaded) ready();
+			else m.once('load', ready);
+			detach = () => {
+				m.off('zoom', onZoom);
+				onThemeApplied = () => {};
+			};
+		}
 
-			map.on('error', (e) => {
-				console.error('MapLibre error:', e.error?.message || e);
+		if (kept) {
+			mapContainer.appendChild(kept.element);
+			attach(kept.map);
+		} else {
+			protomapsApiKey().then((key) => {
+				if (destroyed) return;
+				const element = document.createElement('div');
+				element.style.cssText = 'width: 100%; height: 100%;';
+				mapContainer.appendChild(element);
+				const m = new maplibregl.Map({
+					container: element,
+					style: basemapStyle(get(resolvedTheme), key, ATTRIBUTION),
+					center: INITIAL_CENTER,
+					zoom: INITIAL_ZOOM,
+					// Symbols cut rather than cross-fade as tiles change. A cluster's ring
+					// and count are symbols on a disc that cannot fade, so the default
+					// 300 ms fade left half-faded rings around discs that had already
+					// gone. Map-wide: basemap labels cut too.
+					fadeDuration: 0
+				});
+				const entry = { map: m, element, loaded: false };
+				kept = entry;
+				m.once('load', () => (entry.loaded = true));
+				followTheme(m, key, () => onThemeApplied(), ATTRIBUTION);
+				m.on('error', (e) => {
+					console.error('MapLibre error:', e.error?.message || e);
+				});
+				attach(m);
 			});
-		});
+		}
 
 		return () => {
-			stopTheme?.();
-			map?.remove();
+			destroyed = true;
+			detach?.();
+			if (kept) park(kept.map, kept.element);
 		};
 	});
 
@@ -697,17 +764,47 @@
 		prevSelectedIds = ids;
 	});
 
-	// Zoom to bbox
+	// Zoom to bbox when it changes: not when the kept map comes back with the
+	// extent it was last zoomed to, so it stays where it was left.
+	const sameBbox = (a: Bbox | null, b: Bbox | null) =>
+		a === b || (!!a && !!b && a.every((v, i) => v === b[i]));
+
 	$effect(() => {
-		if (!map || !mapReady || !bbox) return;
-		const [west, south, east, north] = bbox;
-		map.fitBounds(
-			[
-				[west, south],
-				[east, north]
-			],
-			{ padding: 40, maxZoom: 12 }
-		);
+		if (!map || !mapReady) return;
+		if (!bbox) {
+			// Cleared: the next extent is new, even if it matches the old one.
+			fittedBbox = null;
+			return;
+		}
+		if (sameBbox(bbox, fittedBbox)) return;
+		const m = map;
+		const target = bbox;
+		const [west, south, east, north] = target;
+		// Recorded when it happens: a fit still waiting when the map is put away
+		// is owed next time.
+		const fit = () => {
+			fittedBbox = target;
+			m.fitBounds(
+				[
+					[west, south],
+					[east, north]
+				],
+				{ padding: 40, maxZoom: 12 }
+			);
+		};
+		// Hidden (a narrow screen showing the panel), the map lays out at a
+		// stand-in size; fit once it's shown and has its real one.
+		if (m.getContainer().clientWidth > 0) {
+			fit();
+			return;
+		}
+		const onResize = () => {
+			if (m.getContainer().clientWidth === 0) return;
+			m.off('resize', onResize);
+			fit();
+		};
+		m.on('resize', onResize);
+		return () => m.off('resize', onResize);
 	});
 
 	// Sync user-uploaded GeoJSON layer

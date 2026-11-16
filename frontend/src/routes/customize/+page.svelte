@@ -5,7 +5,9 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { currentStep } from '#lib/stores/ui.js';
-	import { cart, type CartItem } from '#lib/stores/cart.js';
+	import DetailBack from '#lib/components/layout/DetailBack.svelte';
+	import { openDetail } from '#lib/stepDetail.js';
+	import { cart, cartCount, type CartItem } from '#lib/stores/cart.js';
 	import { datasetChoices } from '#lib/stores/datasetChoices.js';
 	import {
 		selection,
@@ -27,7 +29,7 @@
 	import { type FilterSelection } from '#lib/stores/cart.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
 	import { bbox as turfBbox } from '@turf/bbox';
-	import { TriangleAlert } from '@lucide/svelte';
+	import { ArrowRight, TriangleAlert } from '@lucide/svelte';
 	import DatasetMetadata from '#lib/components/datasets/DatasetMetadata.svelte';
 	import DatasetSelector from '#lib/components/datasets/DatasetSelector.svelte';
 	import RasterOptions from '#lib/components/datasets/RasterOptions.svelte';
@@ -315,6 +317,9 @@
 	});
 
 	function handleDatasetSelect(dataset: DatasetSummary) {
+		// On a narrow screen the dataset takes over the screen (lib/stepDetail.ts),
+		// even the one already open
+		openDetail();
 		if (dataset.name === selectedDatasetSummary?.name) return;
 		// Drop the old detail now, so nothing can save the next dataset's
 		// choices under the previous name while its detail loads.
@@ -439,7 +444,7 @@
 
 <Seo title="Customize Datasets" description="Browse GeoQuery's datasets, including population, nighttime lights, climate, land cover, conflict and health, and choose the years and statistics to extract for your boundaries." />
 
-<div class="flex h-[calc(100vh-8rem)]">
+<div class="flex h-[calc(100dvh-var(--header-height,8rem))]">
 	<RequestPanel active="search" bare>
 		{#if !resolvedIds.length && !isCustomMode}
 			<p class="px-4 py-6 text-sm text-muted-foreground">Loading available datasets…</p>
@@ -449,20 +454,38 @@
 				<p class="mt-2 text-sm text-muted-foreground">{loadError}</p>
 			</div>
 		{:else}
-			<DatasetSelector
-				{datasets}
-				{categories}
-				selectedDataset={selectedDatasetSummary}
-				onSelect={handleDatasetSelect}
-				{outOfRangeNames}
-				{unsavedNames}
-				columnCounts={columnsByDataset($cart)}
-			/>
+			<div class="min-h-0 flex-1">
+				<DatasetSelector
+					{datasets}
+					{categories}
+					selectedDataset={selectedDatasetSummary}
+					onSelect={handleDatasetSelect}
+					{outOfRangeNames}
+					{unsavedNames}
+					columnCounts={columnsByDataset($cart)}
+				/>
+			</div>
 		{/if}
+		<!-- On to the next step, as Find Data is on the boundary step: always
+		     here, disabled until the request has a dataset in it -->
+		<div class="border-t p-4">
+			<Button class="w-full" disabled={$cartCount === 0} onclick={() => goto('/review')}>
+				Continue to Review
+				<ArrowRight />
+			</Button>
+		</div>
 	</RequestPanel>
 
 	<!-- The open dataset, beside the panel -->
-	<div class="flex min-w-0 flex-1 flex-col">
+	<div class="step-main flex min-w-0 flex-1 flex-col">
+		<!-- Narrow screens: back to the list, "Done" once this dataset is in the request -->
+		<div class="border-b bg-card px-4 py-2 md:hidden">
+			{#if selectedDatasetSummary && inRequestNames.has(selectedDatasetSummary.name)}
+				<DetailBack label="Done" done />
+			{:else}
+				<DetailBack label="Datasets" />
+			{/if}
+		</div>
 		{#if isCustomMode}
 			<div class="flex items-center gap-2 bg-warning-bg px-4 py-2 text-sm text-foreground" role="note">
 				<TriangleAlert class="size-4 shrink-0 text-warning-text" aria-hidden="true" />

@@ -101,7 +101,7 @@
     <div class="mb-6">
         <Button variant="ghost" onclick={() => goto("/")}>
             <ArrowLeft />
-            Back to Map
+            Back
         </Button>
     </div>
 

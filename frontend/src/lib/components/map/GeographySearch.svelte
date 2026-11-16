@@ -15,7 +15,11 @@
 		selectedBoundaries?: BoundaryResult[]; // External selection state (optional)
 		onSelect?: (boundaries: BoundaryResult[]) => void;
 		onProceed?: (boundaries: BoundaryResult[]) => void;
-		/** Rendered directly under the selected chips, e.g. a coverage status line. */
+		/** Clears the whole selection; shown at the left of the proceed row. */
+		onClear?: () => void;
+		/** Rendered directly under the search box, e.g. a note about the selection. */
+		belowSearch?: Snippet;
+		/** Rendered directly under the selected chips, above the proceed button, e.g. coverage status. */
 		belowSelection?: Snippet;
 		/** The search box text; bindable so the page's Restart can clear it. */
 		searchText?: string;
@@ -29,6 +33,8 @@
 		selectedBoundaries: externalSelection = undefined,
 		onSelect,
 		onProceed,
+		onClear,
+		belowSearch,
 		belowSelection,
 		searchText = $bindable('')
 	}: Props = $props();
@@ -101,34 +107,6 @@
 </script>
 
 <div class="space-y-3">
-	<!-- Selected chips -->
-	{#if selectedBoundaries.length > 0}
-		<!-- Five rows of chips (28px each, 4px gaps) before it scrolls -->
-		<div class="max-h-[9.75rem] overflow-y-auto flex flex-wrap gap-1">
-			{#each selectedBoundaries as boundary, idx (boundary.id)}
-				<div class="inline-flex items-center gap-1 rounded-md bg-primary/15 py-0.5 pr-0.5 pl-2 text-sm font-bold">
-					<span
-						class="inline-block size-3 shrink-0 rounded-sm border border-chart-edge"
-						style="background-color: {colorForIndex(idx)}"
-						data-swatch
-						aria-hidden="true"
-					></span>
-					<span class="truncate max-w-xs">{boundary.title || boundary.name}</span>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						class="size-6 hover:bg-primary/30"
-						onclick={() => removeBoundary(boundary.id)}
-						aria-label="Remove {boundary.title || boundary.name}"
-					>
-						<X class="size-3.5" />
-					</Button>
-				</div>
-			{/each}
-		</div>
-		{@render belowSelection?.()}
-	{/if}
-
 	<!-- Search Input -->
 	<div class="relative">
 		<Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -173,6 +151,8 @@
 		{/if}
 	</div>
 
+	{@render belowSearch?.()}
+
 	{#if !searchText.trim()}
 		<p class="text-sm">
 			<a
@@ -184,8 +164,8 @@
 		</p>
 	{/if}
 
-	<!-- Featured boundaries (shown when no text in search) -->
-	{#if !searchText.trim() && featuredBoundaries.length > 0}
+	<!-- Featured boundaries: a way to start, so only until something is selected -->
+	{#if !searchText.trim() && featuredBoundaries.length > 0 && selectedBoundaries.length === 0}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div onmousedown={(e) => e.preventDefault()}>
 			<p class="text-sm text-muted-foreground">
@@ -203,26 +183,65 @@
 		</div>
 	{/if}
 
-	<!-- Action buttons -->
+	<!-- Selected chips, then whatever the page shows about them -->
 	{#if selectedBoundaries.length > 0}
-		<!-- Starting over is the panel's Restart button. -->
-		<div class="flex justify-end pt-2">
-			{#if proceedTooltip}
-				<Tooltip.Root>
-					<Tooltip.Trigger>
-						<Button size="sm" disabled={proceedDisabled} onclick={proceed}>
-							{proceedLabel}
-							<ChevronRight />
-						</Button>
-					</Tooltip.Trigger>
-					<Tooltip.Content>{proceedTooltip}</Tooltip.Content>
-				</Tooltip.Root>
-			{:else}
-				<Button size="sm" disabled={proceedDisabled} onclick={proceed}>
-					{proceedLabel}
-					<ChevronRight />
-				</Button>
-			{/if}
-		</div>
+		<!-- Five rows of chips (28px each, 4px gaps) before it scrolls -->
+		<section aria-labelledby="your-selections" class="space-y-1.5">
+			<h3 id="your-selections" class="text-sm text-foreground">Your Selections</h3>
+			<div class="max-h-[9.75rem] overflow-y-auto flex flex-wrap gap-1">
+			{#each selectedBoundaries as boundary, idx (boundary.id)}
+				<div class="inline-flex items-center gap-1 rounded-md bg-primary/15 py-0.5 pr-0.5 pl-2 text-sm font-bold">
+					<span
+						class="inline-block size-3 shrink-0 rounded-sm border border-chart-edge"
+						style="background-color: {colorForIndex(idx)}"
+						data-swatch
+						aria-hidden="true"
+					></span>
+					<span class="truncate max-w-xs">{boundary.title || boundary.name}</span>
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						class="size-6 hover:bg-primary/30"
+						onclick={() => removeBoundary(boundary.id)}
+						aria-label="Remove {boundary.title || boundary.name}"
+					>
+						<X class="size-3.5" />
+					</Button>
+				</div>
+			{/each}
+			</div>
+		</section>
+		{@render belowSelection?.()}
 	{/if}
+
+	<!-- Action buttons: the proceed button always, disabled until something is
+	     selected; Clear All once there's something to clear -->
+	{#snippet proceedButton()}
+		<Button size="sm" disabled={proceedDisabled || selectedBoundaries.length === 0} onclick={proceed}>
+			{proceedLabel}
+			<ChevronRight />
+		</Button>
+	{/snippet}
+	<div class="flex items-center justify-between gap-2 pt-2">
+		{#if onClear && selectedBoundaries.length > 0}
+				<Button
+					size="sm"
+					variant="outline"
+					onclick={onClear}
+					class="text-muted-foreground hover:text-destructive"
+				>
+					Clear All
+				</Button>
+			{:else}
+				<span></span>
+			{/if}
+		{#if proceedTooltip}
+			<Tooltip.Root>
+				<Tooltip.Trigger>{@render proceedButton()}</Tooltip.Trigger>
+				<Tooltip.Content>{proceedTooltip}</Tooltip.Content>
+			</Tooltip.Root>
+		{:else}
+			{@render proceedButton()}
+		{/if}
+	</div>
 </div>
