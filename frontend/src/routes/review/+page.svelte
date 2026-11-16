@@ -262,7 +262,7 @@
 	{:else}
 
 	<!-- One column: submit first, then the selections being submitted -->
-	<div class="flex-1 overflow-auto p-4 md:p-6">
+	<div class="relative flex-1 overflow-auto p-4 md:p-6">
 		<div class="mx-auto max-w-3xl space-y-8">
 			<section aria-labelledby="submit-heading">
 				<Card.Root>
