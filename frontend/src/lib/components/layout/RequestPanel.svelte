@@ -64,7 +64,11 @@
 			id: 'search',
 			title: '2. Customize Datasets',
 			href: $customizeHref,
-			summary: '',
+			// Every entry counts, so two versions of one dataset are two selections
+			summary:
+				$cart.length > 0
+					? `${plural(totalColumns, 'column')} across ${plural($cart.length, 'dataset selection')}`
+					: 'No datasets added yet',
 			blocked: 'Select boundaries first'
 		},
 		{
