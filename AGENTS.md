@@ -28,7 +28,7 @@ docker compose up # add --build after changing dependencies or a Containerfile
 - Django admin: http://localhost:8000/admin/
 - MCP server (streamable HTTP): http://localhost:8001/mcp
 
-Services: `db` (PostGIS), `rabbitmq` (Celery broker), `backend` (Django), `mcp` (FastMCP), `worker-processing` (extract worker, claiming extract tasks from Postgres), `worker-background` (Celery worker), `beat` (Celery scheduler), `frontend` (Vite).
+Services: `db` (PostGIS), `rabbitmq` (Celery broker), `backend` (Django), `mcp` (FastMCP), `worker-processing` (extract worker, claiming extract tasks from Postgres; behind the `extract` profile, so it only starts with `docker compose --profile extract up`), `worker-background` (Celery worker), `beat` (Celery scheduler), `frontend` (Vite).
 
 ### Running Commands
 
