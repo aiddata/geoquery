@@ -94,3 +94,10 @@ class LandmarkmapFilterAggTests(SimpleTestCase):
     def test_missing_index_falls_back_to_a_full_scan(self):
         with self.assertLogs(lm.logger, "WARNING"):
             self.assertIsNone(lm._candidate_rowids(Path(self.tmp.name) / "nope.gpkg", self.single))
+
+    def test_coverage_is_the_only_outcome(self):
+        expected = self.share(self.single)
+        [(_, value)] = lm.landmarkmap_filter_and_agg(self.single, self.path, "lm", outcome="coverage")
+        self.assertEqual(value, expected)
+        with self.assertRaises(ValueError):
+            lm.landmarkmap_filter_and_agg(self.single, self.path, "lm", outcome="area")

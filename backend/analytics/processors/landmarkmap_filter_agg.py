@@ -128,15 +128,25 @@ def _build_clauses(filters_agg: dict) -> list[str]:
     return clauses
 
 
-def landmarkmap_filter_and_agg(feat, dataset_path, name, **filters):
+# The one measure this processor computes: the share (0-1) of each area
+# covered by the matching lands. Named so requests can state it as an outcome
+# like the other filter-and-aggregate datasets.
+OUTCOMES = ("coverage",)
+
+
+def landmarkmap_filter_and_agg(feat, dataset_path, name, outcome="coverage", **filters):
     """Filter LandmarkMap features by spatial and attribute criteria, then aggregate.
 
     Filters with aggregate=True are applied as a single pass and summed together.
     Filters with aggregate=False each produce one output column per selected value
     (or one column per combination when multiple non-aggregate filters are present).
 
-    No outcome variable to aggregate. The result is simply the percentage of the feat that is covered by the filtered LandmarkMap features. The output is a list of tuples (column_name, value).
+    The measure is the share of the feat covered by the filtered LandmarkMap
+    features (outcome "coverage", the only one). The output is a list of
+    tuples (column_name, value).
     """
+    if outcome not in OUTCOMES:
+        raise ValueError(f"Unknown LandMark outcome {outcome!r}")
     agg_filters = {}
     non_agg_filters = {}
     for key, value in filters.items():

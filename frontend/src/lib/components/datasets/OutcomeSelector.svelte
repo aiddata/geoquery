@@ -16,27 +16,24 @@
 	<OptionsSection
 		id="measure"
 		title="Measure"
-		summary="The value added up for each area."
-		help="Each area's result is the total of this value across the records that pass the filters. For example, a deaths estimate adds up deaths, while an event count adds one for each event."
+		summary="What each area's result measures."
+		help="Each area's result is this measure, worked out from the records that pass the filters. For example, a deaths estimate adds up deaths, an event count adds one for each event, and a coverage share is the part of the area the matching records cover."
 	>
-		{#if entries.length === 1}
-			<p class="text-xs font-bold">{entries[0][1]}</p>
-		{:else}
-			<div role="radiogroup" aria-labelledby="measure-heading" class="flex flex-wrap gap-x-4 gap-y-2">
-				{#each entries as [key, label] (key)}
-					<label class="flex cursor-pointer items-center gap-2 text-xs">
-						<input
-							type="radio"
-							name="outcome"
-							value={key}
-							checked={selected === key}
-							onchange={() => onSelect(key)}
-							class="size-4 accent-primary"
-						/>
-						{label}
-					</label>
-				{/each}
-			</div>
-		{/if}
+		<!-- Radios even for a single measure, so every dataset reads the same -->
+		<div role="radiogroup" aria-labelledby="measure-heading" class="flex flex-wrap gap-x-4 gap-y-2">
+			{#each entries as [key, label] (key)}
+				<label class="flex cursor-pointer items-center gap-2 text-xs">
+					<input
+						type="radio"
+						name="outcome"
+						value={key}
+						checked={selected === key}
+						onchange={() => onSelect(key)}
+						class="size-4 accent-primary"
+					/>
+					{label}
+				</label>
+			{/each}
+		</div>
 	</OptionsSection>
 {/if}

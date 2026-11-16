@@ -25,12 +25,23 @@ def _bbox_clause(dataset_path, feat):
         return None
 
 
-def cports_v20_dynamic_filter_and_agg(feat, dataset_path, name, **filters):
+# Outcomes this processor can add up, by the key the dataset's "outcomes"
+# metadata offers. One for now; another column here is another measure.
+OUTCOMES = {"value": "value"}
+
+
+def cports_v20_dynamic_filter_and_agg(feat, dataset_path, name, outcome="value", **filters):
     """Filter CPORTS v2.0 dynamic dataset by spatial and attribute criteria, then aggregate.
+
+    Args:
+        outcome: Key of the measure to add up (see OUTCOMES); "value" is the
+            commitment value.
 
     Round results to integers.
     """
-    agg_field = "value"
+    if outcome not in OUTCOMES:
+        raise ValueError(f"Unknown CPORTS outcome {outcome!r}")
+    agg_field = OUTCOMES[outcome]
 
     clauses = []
 
