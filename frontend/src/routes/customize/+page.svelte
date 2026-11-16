@@ -33,7 +33,7 @@
 	import RasterOptions from '#lib/components/datasets/RasterOptions.svelte';
 	import FilterAndAggOptions from '#lib/components/datasets/FilterAndAggOptions.svelte';
 	import OutcomeSelector from '#lib/components/datasets/OutcomeSelector.svelte';
-	import SelectionSummary from '#lib/components/datasets/SelectionSummary.svelte';
+	import DatasetActions from '#lib/components/datasets/DatasetActions.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { ChevronLeft, ArrowRight } from '@lucide/svelte';
 	import { cartCount } from '#lib/stores/cart.js';
@@ -477,7 +477,7 @@
 			</div>
 		</div>
 	{:else}
-		<!-- Three-panel layout (min-width enforced; scrolls horizontally on narrow screens) -->
+		<!-- Two-panel layout: dataset list and the open dataset (min-width enforced) -->
 		<div class="flex flex-1 overflow-hidden">
 			<!-- Left Panel: Dataset Selector -->
 			<div class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r bg-card">
@@ -495,12 +495,19 @@
 			<!-- Center Panel: Dataset Configuration. Scrolls vertically only. -->
 			<div class="min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-background">
 				{#if !selectedDatasetDetail && !detailLoading}
-					<div class="flex h-full items-center justify-center">
+					<div class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
 						<p class="text-muted-foreground">
 							{selectedDatasetSummary
 								? 'Loading dataset configuration...'
 								: 'Select a dataset from the list to configure it.'}
 						</p>
+						{#if !selectedDatasetSummary}
+							<p class="max-w-md text-xs text-muted-foreground">
+								Raster datasets join your request as soon as you choose their options. Feature
+								datasets need <strong>Add to Request</strong>, and can be added more than once with
+								different filters.
+							</p>
+						{/if}
 					</div>
 				{:else if detailLoading}
 					<div class="flex h-full items-center justify-center">
@@ -525,8 +532,20 @@
 						/>
 					</div>
 
-					<!-- Configuration area -->
-					<h3 class="px-4 pt-4 text-base font-semibold">Select Dataset Options</h3>
+					<!-- Configuration area: heading, then Reset, Add / Update and status -->
+					<div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-4">
+						<h3 class="text-base font-semibold">Select Dataset Options</h3>
+						<DatasetActions
+							dataset={selectedDatasetDetail}
+							isFeature={isFeature(selectedDatasetDetail)}
+							extractTypes={rasterOptions.extractTypes}
+							selectedResources={rasterOptions.resources}
+							{saveState}
+							onAddToRequest={handleAddToRequest}
+							onUpdateRequest={handleUpdateRequest}
+							onReset={handleReset}
+						/>
+					</div>
 					{#if selectedDatasetDetail.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters}
 						{#if selectedDatasetDetail.outcomes}
 							<OutcomeSelector
@@ -554,20 +573,6 @@
 						/>
 					{/if}
 				{/if}
-			</div>
-
-			<!-- Right Panel: Selection Summary -->
-			<div class="flex h-full w-72 shrink-0 flex-col overflow-hidden border-l bg-card">
-				<SelectionSummary
-					dataset={selectedDatasetDetail}
-					extractTypes={selectedDatasetDetail?.processing_class === 'filter_and_agg' ? undefined : rasterOptions.extractTypes}
-					selectedResources={selectedDatasetDetail?.processing_class === 'filter_and_agg' ? undefined : rasterOptions.resources}
-					filterSelections={selectedDatasetDetail?.processing_class === 'filter_and_agg' ? filterSelections : undefined}
-					onAddToRequest={handleAddToRequest}
-					onUpdateRequest={handleUpdateRequest}
-					onReset={handleReset}
-					{saveState}
-				/>
 			</div>
 		</div>
 	{/if}
