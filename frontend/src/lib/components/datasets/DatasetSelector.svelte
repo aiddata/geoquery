@@ -18,6 +18,8 @@
 		inRequestNames?: Set<string>;
 		/** Feature datasets whose current filters aren't in the request; marked with an exclamation. */
 		unsavedNames?: Set<string>;
+		/** Columns each dataset adds to the output, across its entries in the request */
+		columnCounts?: Map<string, number>;
 	}
 
 	let {
@@ -27,7 +29,8 @@
 		onSelect,
 		outOfRangeNames = new Set(),
 		inRequestNames = new Set(),
-		unsavedNames = new Set()
+		unsavedNames = new Set(),
+		columnCounts = new Map()
 	}: Props = $props();
 
 	let searchText = $state('');
@@ -181,6 +184,13 @@
 							</p>
 							{#if outOfRangeNames.has(dataset.name)}
 								<Badge variant="warning">out of range</Badge>
+							{/if}
+							{#if columnCounts.get(dataset.name)}
+								{@const cols = columnCounts.get(dataset.name)!}
+								<!-- Bottom right, under the check: what this dataset adds to the output -->
+								<span class="ml-auto text-xs tabular-nums text-muted-foreground">
+									{cols.toLocaleString()} column{cols === 1 ? '' : 's'}
+								</span>
 							{/if}
 						</div>
 					</button>

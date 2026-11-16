@@ -36,6 +36,7 @@
 	import DatasetActions from '#lib/components/datasets/DatasetActions.svelte';
 	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
 	import OutputSummary from '#lib/components/datasets/OutputSummary.svelte';
+	import { columnsByDataset } from '#lib/utils/outputColumns.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 
 	$effect(() => {
@@ -429,6 +430,7 @@
 				{outOfRangeNames}
 				{inRequestNames}
 				{unsavedNames}
+				columnCounts={columnsByDataset($cart)}
 			/>
 		{/if}
 	</RequestPanel>
