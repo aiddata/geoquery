@@ -8,7 +8,7 @@ from pathlib import Path
 from statistics import median
 
 from django.db.models import Count
-from django.db.models.functions import TruncDay, TruncMonth, TruncYear
+from django.db.models.functions import Lower, Trim, TruncDay, TruncMonth, TruncYear
 
 from analytics.models import ExtractTask, LegacyRequest, Request
 from datasets.models import Dataset
@@ -74,26 +74,16 @@ class StatsBuilder:
         }
         total = sum(raw.values())
 
-        # Time series for every combination of field × period
-        time_series: dict[str, dict[str, list]] = {}
-        trunc_fns = {"day": TruncDay, "month": TruncMonth, "year": TruncYear}
-        fmt_str   = {"day": "%Y-%m-%d", "month": "%Y-%m", "year": "%Y"}
+        # Time series for every combination of field × period, for the
+        # current system and, separately, for requests imported from earlier
+        # versions (the page can show or hide those).
+        fmt_str = {"day": "%Y-%m-%d", "month": "%Y-%m", "year": "%Y"}
+        time_series = _request_series(Request)
+        legacy_time_series = _request_series(LegacyRequest)
 
-        for field in ("submit_time", "complete_time"):
-            time_series[field] = {}
-            qs = Request.objects.using(_DB).filter(**{f"{field}__isnull": False})
-            for period, trunc_fn in trunc_fns.items():
-                rows = (
-                    qs.annotate(bucket=trunc_fn(field))
-                    .values("bucket")
-                    .annotate(count=Count("id"))
-                    .order_by("bucket")
-                )
-                time_series[field][period] = [
-                    {"date": r["bucket"].strftime(fmt_str[period]), "count": r["count"]}
-                    for r in rows
-                    if r["bucket"] is not None
-                ]
+        # When the current system took over: the day of its first request.
+        first = Request.objects.using(_DB).order_by("submit_time").values_list("submit_time", flat=True).first()
+        cutover = first.strftime("%Y-%m-%d") if first else None
 
         # One grouped scan per dataset supplies both counts and completions.
         # Explicit dataset filters prune partitions and bound each query's
@@ -149,14 +139,39 @@ class StatsBuilder:
             .filter(fc__in=_public_collections())
             .count(),
             "turnaround": self._turnaround(),
+            **self._people(),
             **self._most_requested(),
             "status_counts": status_counts,
             "extract_counts": extract_counts,
             "time_series": time_series,
             "extract_time_series": extract_time_series,
             "legacy_request_count": legacy_request_count,
+            "legacy_time_series": legacy_time_series,
+            "cutover": cutover,
             "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         }
+
+    def _people(self) -> dict:
+        """Distinct requesters, and the organizations they come from.
+
+        Counted across current requests and those imported from earlier
+        versions of GeoQuery. People are counted by email address, and
+        organizations by email domain, so a personal provider such as
+        gmail.com counts as one organization.
+        """
+        def emails(model) -> set[str]:
+            rows = (
+                model.objects.using(_DB)
+                .exclude(contact__isnull=True)
+                .annotate(email=Lower(Trim("contact")))
+                .values_list("email", flat=True)
+                .distinct()
+            )
+            return {e for e in rows if e and "@" in e}
+
+        everyone = emails(Request) | emails(LegacyRequest)
+        domains = {a.rsplit("@", 1)[1] for a in everyone} - {""}
+        return {"users": len(everyone), "organizations": len(domains)}
 
     def _turnaround(self) -> dict:
         """Median and 90th-percentile submit-to-complete time, recent requests only."""
@@ -221,6 +236,30 @@ class StatsBuilder:
             if fc_id in fc_titles
         ][:TOP_N]
         return {"top_datasets": top_datasets, "top_boundary_sets": top_boundary_sets}
+
+
+_TRUNC = {"day": (TruncDay, "%Y-%m-%d"), "month": (TruncMonth, "%Y-%m"), "year": (TruncYear, "%Y")}
+
+
+def _request_series(model) -> dict[str, dict[str, list]]:
+    """Request counts by submit and completion date, per day, month and year."""
+    series: dict[str, dict[str, list]] = {}
+    for field in ("submit_time", "complete_time"):
+        series[field] = {}
+        qs = model.objects.using(_DB).filter(**{f"{field}__isnull": False})
+        for period, (trunc_fn, fmt) in _TRUNC.items():
+            rows = (
+                qs.annotate(bucket=trunc_fn(field))
+                .values("bucket")
+                .annotate(count=Count("id"))
+                .order_by("bucket")
+            )
+            series[field][period] = [
+                {"date": r["bucket"].strftime(fmt), "count": r["count"]}
+                for r in rows
+                if r["bucket"] is not None
+            ]
+    return series
 
 
 def _public_collections():

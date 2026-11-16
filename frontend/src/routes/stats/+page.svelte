@@ -4,6 +4,7 @@
 	import { Card, CardContent, CardHeader, CardTitle } from '#lib/components/ui/card/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import BarChart from '#lib/components/stats/BarChart.svelte';
+	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import {
 		fetchStats,
 		fetchServiceStatus,
@@ -66,6 +67,14 @@
 	let extPeriod = $state<Period>('day');
 
 	let requestSeries = $derived(stats?.time_series?.[field]?.[period] ?? []);
+	// Requests from earlier versions of GeoQuery, stacked under the current
+	// ones unless hidden, with a line where the current system took over.
+	let showLegacy = $state(true);
+	let legacySeries = $derived(showLegacy ? (stats?.legacy_time_series?.[field]?.[period] ?? []) : []);
+	let hasLegacy = $derived((stats?.legacy_time_series?.[field]?.[period]?.length ?? 0) > 0);
+	let cutoverBucket = $derived(
+		stats?.cutover ? stats.cutover.slice(0, period === 'day' ? 10 : period === 'month' ? 7 : 4) : null
+	);
 	let extractSeries = $derived(stats?.extract_time_series?.[extPeriod] ?? []);
 
 	const fmt = (n: number | undefined | null) => (n ?? 0).toLocaleString();
@@ -121,6 +130,8 @@
 				: null
 		},
 		{ label: 'Results extracted', value: stats?.extract_counts?.completed, note: 'one per area, dataset and period' },
+		{ label: 'Users', value: stats?.users, note: 'by email address, all versions of GeoQuery' },
+		{ label: 'Organizations', value: stats?.organizations, note: 'by email domain, all versions of GeoQuery' },
 		{ label: 'Datasets available', value: stats?.datasets_available, note: null },
 		{
 			label: 'Boundary sets available',
@@ -270,14 +281,14 @@
 			</CardContent>
 		</Card>
 	{:else if loading && !stats}
-		<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-			{#each Array(4) as _, i (i)}
+		<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+			{#each Array(6) as _, i (i)}
 				<Card><CardContent class="py-6"><div class="h-12 animate-pulse rounded bg-muted"></div></CardContent></Card>
 			{/each}
 		</div>
 	{:else if stats}
 		<!-- Headline figures -->
-		<div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+		<div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
 			{#each headline as h (h.label)}
 				<Card>
 					<CardContent class="pt-5">
@@ -360,9 +371,25 @@
 								period,
 								(v) => (period = v)
 							)}
+							{#if hasLegacy}
+								<label class="flex cursor-pointer items-center gap-2 text-sm">
+									<Checkbox checked={showLegacy} onCheckedChange={(v) => (showLegacy = v === true)} />
+									Earlier versions
+								</label>
+							{/if}
 						</div>
 					</div>
-					<BarChart data={requestSeries} label="requests" series={1} title="Requests over time" />
+					<BarChart
+						data={requestSeries}
+						label="requests"
+						series={1}
+						title="Requests over time"
+						earlier={legacySeries}
+						earlierLabel="Earlier versions"
+						currentLabel="GeoQuery 2.0"
+						cutover={showLegacy ? cutoverBucket : null}
+						cutoverLabel="GeoQuery 2.0"
+					/>
 				</div>
 			</CardContent>
 		</Card>

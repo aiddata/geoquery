@@ -383,3 +383,47 @@ class StatusEndpointTests(ReplicaReadsTestMixin, TestCase):
         old = datetime.now(timezone.utc).timestamp() - 4 * 3600
         os.utime(self.snapshot, (old, old))
         self.assertEqual(self.status()["state"], "delayed")
+
+
+class PeopleCountTests(ReplicaReadsTestMixin, TestCase):
+    """Users by email address and organizations by email domain."""
+
+    def legacy(self, contact, n):
+        from analytics.models import LegacyRequest
+
+        LegacyRequest.objects.create(
+            id=str(n) * 24, contact=contact, custom_name="Legacy",
+            submit_time=datetime(2018, 1, 1, tzinfo=timezone.utc),
+            complete_time=datetime(2018, 1, 1, 1, tzinfo=timezone.utc),
+            boundary_title="Kenya ADM1", boundary_name="ken_adm1_gadm28",
+            boundary_group="ken_gadm28", dataset_titles=["Population"],
+            dataset_count=1, data={},
+        )
+
+    def test_users_and_organizations_span_current_and_earlier_requests(self):
+        from analytics.models import Request
+
+        for contact in ("Ann@uni.edu", " ann@uni.edu ", "bo@uni.edu", "cy@gmail.com", "", None, "not-an-email"):
+            Request.objects.create(contact=contact, status=1, data={})
+        self.legacy("ann@uni.edu", 1)  # already counted
+        self.legacy("dee@agency.org", 2)  # only in earlier versions
+
+        data = StatsBuilder().collect()
+
+        # ann (case and spaces ignored), bo, cy, dee
+        self.assertEqual(data["users"], 4)
+        # uni.edu, gmail.com, agency.org
+        self.assertEqual(data["organizations"], 3)
+
+    def test_legacy_requests_have_their_own_series_and_a_cutover(self):
+        from analytics.models import Request
+
+        self.legacy("dee@agency.org", 2)
+        r = Request.objects.create(contact="a@b.c", status=1, data={})
+        Request.objects.filter(id=r.id).update(submit_time=datetime(2026, 5, 4, 12, tzinfo=timezone.utc))
+
+        data = StatsBuilder().collect()
+
+        self.assertEqual(data["legacy_time_series"]["submit_time"]["year"], [{"date": "2018", "count": 1}])
+        self.assertEqual(data["time_series"]["submit_time"]["year"], [{"date": "2026", "count": 1}])
+        self.assertEqual(data["cutover"], "2026-05-04")
