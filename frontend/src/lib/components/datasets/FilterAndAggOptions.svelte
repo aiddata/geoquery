@@ -4,6 +4,7 @@
 	import { Label } from '#lib/components/ui/label/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { ScrollArea } from '#lib/components/ui/scroll-area/index.js';
+	import OptionsSection from './OptionsSection.svelte';
 	import type { DatasetFilter } from '#lib/api.js';
 	import type { FilterSelection, RangeSelection, CategoricalSelection } from '#lib/stores/cart.js';
 
@@ -34,10 +35,24 @@
 	function clamp(val: number, min: number, max: number) {
 		return Math.max(min, Math.min(max, val));
 	}
+
+	// Filters marked aggregate: false split the results into a column per
+	// selected value (one per combination when there are several); the rest
+	// (aggregate defaults to true) only narrow which records are added up.
+	const entries = $derived(Object.entries(filters));
+	const splitFields = $derived(entries.filter(([, f]) => f.aggregate === false));
+	const filterFields = $derived(entries.filter(([, f]) => f.aggregate !== false));
+
+	// Columns the current split choices produce for each area.
+	const splitColumns = $derived(
+		splitFields.reduce(
+			(n, [key, f]) => n * (f.type === 'categorical' ? getCategoricalSelection(key, f).selected.length : 1),
+			1
+		)
+	);
 </script>
 
-<div class="flex flex-wrap gap-4 p-4">
-	{#each Object.entries(filters) as [key, filter]}
+{#snippet filterCard(key: string, filter: DatasetFilter)}
 		{#if filter.type === 'range'}
 			{@const sel = getRangeSelection(key, filter)}
 			<Card.Root class="w-56 shrink-0">
@@ -142,5 +157,36 @@
 				</Card.Content>
 			</Card.Root>
 		{/if}
-	{/each}
-</div>
+{/snippet}
+
+<!-- Rendered inside the Customize page's options column, after Measure. -->
+{#if splitFields.length > 0}
+	<OptionsSection
+		id="split"
+		title="Split results by"
+		summary="Each value you select gets its own column in your results."
+		help="Instead of a single total, each area gets a separate column for every selected value, for example one column per year. With more than one split field, there is a column for every combination. Unselected values are left out."
+		note="{splitColumns} column{splitColumns === 1 ? '' : 's'} per area"
+	>
+		<div class="flex flex-wrap gap-4">
+			{#each splitFields as [key, filter] (key)}
+				{@render filterCard(key, filter)}
+			{/each}
+		</div>
+	</OptionsSection>
+{/if}
+
+{#if filterFields.length > 0}
+	<OptionsSection
+		id="filter"
+		title="Filter records"
+		summary="Only matching records are counted, and they are added together into one value."
+		help="These narrow which records are included. Records outside a range, or with a value you've unselected, are left out. Everything that matches is combined into one total per area (or per column, when results are split)."
+	>
+		<div class="flex flex-wrap gap-4">
+			{#each filterFields as [key, filter] (key)}
+				{@render filterCard(key, filter)}
+			{/each}
+		</div>
+	</OptionsSection>
+{/if}

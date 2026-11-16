@@ -504,6 +504,8 @@
 						/>
 					</div>
 					{#if selectedDatasetDetail.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters}
+						<!-- Measure, Split results by, Filter records: one section each -->
+						<div class="mt-4 space-y-4 pb-4">
 						{#if selectedDatasetDetail.outcomes}
 							<OutcomeSelector
 								outcomes={selectedDatasetDetail.outcomes}
@@ -522,6 +524,7 @@
 								saveFeatureChoices();
 							}}
 						/>
+						</div>
 					{:else}
 						<RasterOptions
 							dataset={selectedDatasetDetail}
