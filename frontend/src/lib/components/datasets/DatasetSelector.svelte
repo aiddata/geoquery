@@ -31,7 +31,6 @@
 	}: Props = $props();
 
 	let searchText = $state('');
-	let searchFocused = $state(false);
 	let selectedCategory = $state('all');
 	let sortField = $state<'date_updated' | 'title'>('date_updated');
 	let sortAsc = $state(false);
@@ -92,10 +91,9 @@
 			<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 			<Input
 				bind:value={searchText}
-				placeholder={selectedDataset ? (selectedDataset.title ?? selectedDataset.name) : 'Search datasets...'}
-				class="pl-10 {!searchFocused && selectedDataset && !searchText ? 'placeholder:text-foreground' : ''}"
-				onfocus={() => (searchFocused = true)}
-				onblur={() => (searchFocused = false)}
+				placeholder="Search datasets..."
+				aria-label="Search datasets"
+				class="pl-10"
 			/>
 		</div>
 
