@@ -379,6 +379,13 @@
 		<strong>Each boundary set is kept separate.</strong> Every area gets its own row in your
 		results, labelled with its boundary set. Areas that overlap are included once in each set,
 		not combined or intersected.
+		<a
+			href="https://docs.geoquery.org/using-geoquery/multiple-boundaries/"
+			target="_blank"
+			rel="noopener noreferrer"
+			class="text-link hover:text-link-hover hover:underline"
+			>Learn more<span class="sr-only"> about multiple boundary sets (opens in a new tab)</span></a
+		>
 	</div>
 {/snippet}
 

@@ -58,6 +58,7 @@ nav = [
   { "Using GeoQuery" = [
     { "Overview" = "using-geoquery/index.md" },
     { "Getting Started" = "using-geoquery/getting-started.md" },
+    { "Multiple Boundary Sets" = "using-geoquery/multiple-boundaries.md" },
     { "Using Your Results" = "using-geoquery/results.md" },
     { "Accounts and History" = "using-geoquery/accounts.md" },
     { "Research and Use Cases" = "using-geoquery/research-and-use-cases.md" },
