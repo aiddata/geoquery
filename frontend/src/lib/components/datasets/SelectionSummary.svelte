@@ -41,6 +41,17 @@
 
 	const isFeature = $derived(filterSelections !== undefined);
 
+	// What an incomplete raster still needs: an extract option, and a time
+	// period when the dataset has them (as on the Customize page).
+	const missing = $derived.by(() => {
+		if (!dataset) return '';
+		const hasPeriods = dataset.temporal_name !== 'Temporally Invariant' && dataset.resources.length > 0;
+		const needsExtract = !(extractTypes?.length ?? 0);
+		const needsPeriod = hasPeriods && !(selectedResources?.length ?? 0);
+		if (needsExtract && needsPeriod) return 'extract option and one time period';
+		return needsPeriod ? 'time period' : 'extract option';
+	});
+
 	let summaryLines = $derived.by(() => {
 		if (!dataset) return [];
 		const lines: string[] = [];
@@ -140,7 +151,7 @@
 				</p>
 			{:else if saveState === 'incomplete'}
 				<p class="text-xs text-muted-foreground" role="status">
-					Choose at least one extract option to add this dataset to your request.
+					Choose at least one {missing} to add this dataset to your request.
 				</p>
 			{/if}
 			{#if isFeature && saveState === 'editing'}

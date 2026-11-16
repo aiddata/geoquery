@@ -227,12 +227,22 @@
 		return key && $cart.some((i) => i.datasetName === detail.name && kwargsKey(i.kwargs) === key) ? key : null;
 	});
 
+	/**
+	 * Whether a raster's options make a complete request entry: at least one
+	 * extract option, and at least one time period when the dataset has them
+	 * (the same rule RasterOptions uses to show the Time Periods card).
+	 */
+	function rasterComplete(detail: DatasetDetail, options: { extractTypes: string[]; resources: string[] }): boolean {
+		const hasPeriods = detail.temporal_name !== 'Temporally Invariant' && detail.resources.length > 0;
+		return options.extractTypes.length > 0 && (!hasPeriods || options.resources.length > 0);
+	}
+
 	/** What the summary panel shows about the open dataset. */
 	const saveState = $derived.by((): 'saved' | 'unsaved' | 'editing' | 'incomplete' | null => {
 		const detail = selectedDatasetDetail;
 		if (!detail) return null;
 		if (isFeature(detail)) return featureSaved ? 'saved' : editingKey ? 'editing' : 'unsaved';
-		return rasterOptions.extractTypes.length > 0 ? 'saved' : 'incomplete';
+		return rasterComplete(detail, rasterOptions) ? 'saved' : 'incomplete';
 	});
 
 	// Marks in the dataset list: in the request (check), or feature choices
@@ -341,13 +351,17 @@
 		rasterOptions = options;
 		const detail = selectedDatasetDetail;
 		if (!detail) return;
-		if (options.extractTypes.length > 0) {
+		if (rasterComplete(detail, options)) {
 			cart.setRasterItem(buildRasterItem(detail, options));
 			datasetChoices.clear(detail.name);
 		} else {
+			// Not complete yet: out of the request, but keep what's been chosen.
 			cart.removeRasterItem(detail.name);
-			if (options.resources.length > 0) datasetChoices.save(detail.name, { rasterOptions: $state.snapshot(options) });
-			else datasetChoices.clear(detail.name);
+			if (options.extractTypes.length > 0 || options.resources.length > 0) {
+				datasetChoices.save(detail.name, { rasterOptions: $state.snapshot(options) });
+			} else {
+				datasetChoices.clear(detail.name);
+			}
 		}
 	}
 
