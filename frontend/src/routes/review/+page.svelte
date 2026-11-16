@@ -267,11 +267,105 @@
 		</div>
 	{:else}
 
-	<!-- Two-panel layout -->
-	<div class="flex flex-1 flex-col overflow-auto md:flex-row md:overflow-hidden">
-		<!-- Left: Selections list -->
-		<div class="flex-1 overflow-auto p-4 md:p-6">
-			<div class="mx-auto max-w-2xl space-y-4">
+	<!-- One column: submit first, then the selections being submitted -->
+	<div class="flex-1 overflow-auto p-4 md:p-6">
+		<div class="mx-auto max-w-3xl space-y-8">
+			<section aria-labelledby="submit-heading">
+				<Card.Root>
+					<Card.Header>
+						<h2 id="submit-heading" class="text-h4">Submit your Request</h2>
+					</Card.Header>
+					<Card.Content>
+						<div class="space-y-4">
+							<div class="space-y-2">
+								<Label for="request-name">Request Name</Label>
+								<Input
+									id="request-name"
+									bind:value={requestName}
+									placeholder="My data request"
+								/>
+							</div>
+
+							<div class="space-y-2">
+								<Label for="email">Email</Label>
+								<Input
+									id="email"
+									type="email"
+									bind:value={email}
+									placeholder="you@example.com"
+									disabled={isSignedIn}
+								/>
+								{#if isSignedIn}
+									<p class="text-xs text-muted-foreground">
+										Submitting as {email} — this request will be linked to your account.
+										Manage addresses in <a href="/account" class="underline">your account</a>.
+									</p>
+								{:else}
+									<p class="text-xs text-muted-foreground">
+										We'll send a download link to this address when your data is ready.
+									</p>
+								{/if}
+							</div>
+
+							<Separator />
+
+							<p class="text-xs text-muted-foreground">
+								All datasets will be extracted for the same
+								{resolvedFeatureIds.length === 0
+									? 'feature selection'
+									: resolvedFeatureIds.length === 1
+										? '1 feature'
+										: `${resolvedFeatureIds.length} features`}.
+								Actual dataset coverage may vary across selected features.
+							</p>
+
+							{#if isCustomMode}
+								<Alert.Root variant="warning" role="note" class="p-3">
+									<TriangleAlert />
+									<Alert.Title>Custom boundary data notice</Alert.Title>
+									<Alert.Description class="space-y-3">
+									<p>
+										Your uploaded boundary data will be stored on GeoQuery's servers and included with your
+										request results. Anyone with your request link can view it — results pages are not
+										publicly listed, but are not access-controlled beyond the unique request ID URL.
+									</p>
+									<p>
+										Result files are stored on W&amp;M's computing infrastructure and are not publically available but also not protected by  security measures other than standard file system permissions. The uploaded data will not be used for any purpose other than processing your request without your explicit permission.
+									</p>
+									<div class="flex items-start gap-2">
+										<Checkbox id="boundary-consent" bind:checked={boundaryConsent} class="mt-0.5 shrink-0" />
+										<label for="boundary-consent" class="cursor-pointer font-bold">I understand, confirm I have permission to upload this data, and consent to my boundary data being stored and shared as described above.</label>
+									</div>
+									</Alert.Description>
+								</Alert.Root>
+							{/if}
+
+							{#if submitError}
+								<Alert.Root variant="destructive">
+									<CircleAlert />
+									<Alert.Description>{submitError}</Alert.Description>
+								</Alert.Root>
+							{/if}
+
+							<Button class="w-full" size="lg" disabled={!canSubmit} onclick={handleSubmit}>
+								<Send />
+								{submitting ? 'Submitting…' : 'Submit Request'}
+							</Button>
+						</div>
+					</Card.Content>
+				</Card.Root>
+			</section>
+
+			<section aria-labelledby="review-heading" class="space-y-4">
+				<h2 id="review-heading" class="text-h4">Review your Selections</h2>
+
+				<div class="flex items-center justify-between">
+					<h3 class="text-base font-semibold">Boundaries</h3>
+					<Button variant="outline" size="sm" onclick={() => goto('/')}>
+						<Pencil />
+						Modify Boundaries
+					</Button>
+				</div>
 
 				{#if isCustomMode}
 					<Card.Root class="bg-muted/40">
@@ -296,10 +390,6 @@
 										</div>
 									{/if}
 								</div>
-								<Button variant="outline" size="sm" onclick={() => goto('/')}>
-									<Pencil />
-									Change
-								</Button>
 							</div>
 						</Card.Header>
 					</Card.Root>
@@ -345,17 +435,13 @@
 										</p>
 									{/if}
 								</div>
-								<Button variant="outline" size="sm" onclick={() => goto('/')}>
-									<Pencil />
-									Change
-								</Button>
 							</div>
 						</Card.Header>
 					</Card.Root>
 				{/if}
 
 				<div class="flex items-center justify-between">
-					<h2 class="text-h4">Your Selections</h2>
+					<h3 class="text-base font-semibold">Datasets</h3>
 					<Button variant="outline" size="sm" onclick={() => goto(customizeUrl())}>
 						Add Another Dataset
 					</Button>
@@ -440,90 +526,7 @@
 						</Card.Header>
 					</Card.Root>
 				{/each}
-			</div>
-		</div>
-
-		<!-- Right: Submit form -->
-		<div class="shrink-0 overflow-auto border-t bg-card p-4 md:w-96 md:border-l md:border-t-0 md:p-6">
-			<h2 class="text-h4">Review &amp; Submit</h2>
-			<Separator class="my-4" />
-
-			<div class="space-y-4">
-				<div class="space-y-2">
-					<Label for="request-name">Request Name</Label>
-					<Input
-						id="request-name"
-						bind:value={requestName}
-						placeholder="My data request"
-					/>
-				</div>
-
-				<div class="space-y-2">
-					<Label for="email">Email</Label>
-					<Input
-						id="email"
-						type="email"
-						bind:value={email}
-						placeholder="you@example.com"
-						disabled={isSignedIn}
-					/>
-					{#if isSignedIn}
-						<p class="text-xs text-muted-foreground">
-							Submitting as {email} — this request will be linked to your account.
-							Manage addresses in <a href="/account" class="underline">your account</a>.
-						</p>
-					{:else}
-						<p class="text-xs text-muted-foreground">
-							We'll send a download link to this address when your data is ready.
-						</p>
-					{/if}
-				</div>
-
-				<Separator />
-
-				<p class="text-xs text-muted-foreground">
-					All datasets will be extracted for the same
-					{resolvedFeatureIds.length === 0
-						? 'feature selection'
-						: resolvedFeatureIds.length === 1
-							? '1 feature'
-							: `${resolvedFeatureIds.length} features`}.
-					Actual dataset coverage may vary across selected features.
-				</p>
-
-				{#if isCustomMode}
-					<Alert.Root variant="warning" role="note" class="p-3">
-						<TriangleAlert />
-						<Alert.Title>Custom boundary data notice</Alert.Title>
-						<Alert.Description class="space-y-3">
-						<p>
-							Your uploaded boundary data will be stored on GeoQuery's servers and included with your
-							request results. Anyone with your request link can view it — results pages are not
-							publicly listed, but are not access-controlled beyond the unique request ID URL.
-						</p>
-						<p>
-							Result files are stored on W&amp;M's computing infrastructure and are not publically available but also not protected by  security measures other than standard file system permissions. The uploaded data will not be used for any purpose other than processing your request without your explicit permission.
-						</p>
-						<div class="flex items-start gap-2">
-							<Checkbox id="boundary-consent" bind:checked={boundaryConsent} class="mt-0.5 shrink-0" />
-							<label for="boundary-consent" class="cursor-pointer font-bold">I understand, confirm I have permission to upload this data, and consent to my boundary data being stored and shared as described above.</label>
-						</div>
-						</Alert.Description>
-					</Alert.Root>
-				{/if}
-
-				{#if submitError}
-					<Alert.Root variant="destructive">
-						<CircleAlert />
-						<Alert.Description>{submitError}</Alert.Description>
-					</Alert.Root>
-				{/if}
-
-				<Button class="w-full" size="lg" disabled={!canSubmit} onclick={handleSubmit}>
-					<Send />
-					{submitting ? 'Submitting…' : 'Submit Request'}
-				</Button>
-			</div>
+			</section>
 		</div>
 	</div>
 	{/if}
