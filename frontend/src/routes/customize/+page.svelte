@@ -6,6 +6,7 @@
 	import { goto } from '$app/navigation';
 	import { currentStep } from '#lib/stores/ui.js';
 	import { cart, type CartItem } from '#lib/stores/cart.js';
+	import { datasetChoices } from '#lib/stores/datasetChoices.js';
 	import {
 		selection,
 		selectionFcIds,
@@ -161,71 +162,102 @@
 		return s;
 	}
 
-	// Choices made for a dataset but not yet added to the request, keyed by
-	// dataset name. Switching to another dataset keeps them here, so coming
-	// back restores them instead of starting over; adding or resetting clears
-	// them. Datasets with an entry (or the open one with choices) get the
-	// "open" dot in the list.
-	type Draft = {
-		rasterOptions: { extractTypes: string[]; resources: string[] };
-		filterSelections: Record<string, FilterSelection>;
-		selectedOutcome: string;
-	};
-	let drafts = $state<Record<string, Draft>>({});
-
 	function defaultOutcome(detail: DatasetDetail): string {
 		return detail.outcomes ? (Object.keys(detail.outcomes)[0] ?? '') : '';
 	}
 
-	// Whether the open dataset has choices worth keeping. Feature datasets
-	// start with every filter selected, so for them it means "changed from
-	// the defaults".
-	const currentHasChoices = $derived.by(() => {
+	function isFeature(detail: DatasetDetail | null): boolean {
+		return detail?.processing_class === 'filter_and_agg' && !!detail.filters;
+	}
+
+	const kwargsKey = (kwargs: Record<string, unknown> | null | undefined) => JSON.stringify(kwargs ?? null);
+
+	// How options are saved (GEO-104):
+	// - Rasters go straight into the cart as they change: one entry per
+	//   dataset, replaced on every change. At least one extract option makes a
+	//   valid entry; none (or Reset) removes it. Choices that aren't valid yet
+	//   wait in datasetChoices.
+	// - Feature datasets keep their current filters in datasetChoices, and
+	//   still need Add to Request. Each distinct set of filters is its own
+	//   cart entry, so a dataset can be added more than once.
+	// datasetChoices is a store, so all of this survives leaving the page.
+
+	/** A raster dataset's cart entry (rasters have at most one). */
+	function rasterCartItem(name: string): CartItem | undefined {
+		return $cart.find((i) => i.datasetName === name && i.kwargs == null);
+	}
+
+	function buildRasterItem(detail: DatasetDetail, options: { extractTypes: string[]; resources: string[] }): CartItem {
+		return {
+			// Keep a name the user gave it on the Review page.
+			customName: rasterCartItem(detail.name)?.customName ?? detail.title ?? detail.name,
+			datasetName: detail.name,
+			datasetTitle: detail.title ?? detail.name,
+			datasetType: detail.type,
+			processingClass: detail.processing_class,
+			extractTypes: [...options.extractTypes],
+			resources: [...options.resources],
+			resourceLabels: options.resources.map((name) => {
+				const res = detail.resources.find((r) => r.name === name);
+				return res?.label ?? res?.temporal ?? name;
+			})
+		};
+	}
+
+	// Feature datasets: the kwargs the open dataset's filters produce, and
+	// whether the cart already holds exactly those.
+	const currentKwargs = $derived(
+		selectedDatasetDetail && isFeature(selectedDatasetDetail)
+			? buildFilterKwargs(filterSelections, selectedDatasetDetail.filters, selectedOutcome)
+			: null
+	);
+	const featureSaved = $derived(
+		!!currentKwargs &&
+			$cart.some(
+				(i) => i.datasetName === selectedDatasetDetail?.name && kwargsKey(i.kwargs) === kwargsKey(currentKwargs)
+			)
+	);
+
+	// Opened from the Review page's "Edit options": the cart entry being
+	// edited, while it's still in the cart. Update Request replaces it.
+	const editingKey = $derived.by(() => {
 		const detail = selectedDatasetDetail;
-		if (!detail) return false;
-		if (detail.processing_class === 'filter_and_agg' && detail.filters) {
-			return (
-				JSON.stringify(filterSelections) !== JSON.stringify(initFilterSelections(detail.filters)) ||
-				selectedOutcome !== defaultOutcome(detail)
-			);
-		}
-		return rasterOptions.extractTypes.length > 0 || rasterOptions.resources.length > 0;
+		if (!detail) return null;
+		const key = $datasetChoices[detail.name]?.editingKey;
+		return key && $cart.some((i) => i.datasetName === detail.name && kwargsKey(i.kwargs) === key) ? key : null;
 	});
 
-	const openDatasetNames = $derived.by(() => {
-		const names = new Set(Object.keys(drafts));
-		const current = selectedDatasetDetail?.name;
-		if (current) {
-			if (currentHasChoices) names.add(current);
-			else names.delete(current);
+	/** What the summary panel shows about the open dataset. */
+	const saveState = $derived.by((): 'saved' | 'unsaved' | 'editing' | 'incomplete' | null => {
+		const detail = selectedDatasetDetail;
+		if (!detail) return null;
+		if (isFeature(detail)) return featureSaved ? 'saved' : editingKey ? 'editing' : 'unsaved';
+		return rasterOptions.extractTypes.length > 0 ? 'saved' : 'incomplete';
+	});
+
+	// Marks in the dataset list: in the request (check), or feature choices
+	// that differ from everything in the request (exclamation).
+	const inRequestNames = $derived(new Set($cart.map((i) => i.datasetName)));
+	const unsavedNames = $derived.by(() => {
+		const names = new Set<string>();
+		for (const [name, choices] of Object.entries($datasetChoices)) {
+			if (!choices.kwargs) continue;
+			const key = kwargsKey(choices.kwargs);
+			if (!$cart.some((i) => i.datasetName === name && kwargsKey(i.kwargs) === key)) names.add(name);
 		}
 		return names;
 	});
 
-	function saveDraft() {
-		const name = selectedDatasetDetail?.name;
-		if (!name) return;
-		if (currentHasChoices) {
-			drafts[name] = {
-				rasterOptions: { extractTypes: [...rasterOptions.extractTypes], resources: [...rasterOptions.resources] },
-				filterSelections: structuredClone($state.snapshot(filterSelections)),
-				selectedOutcome
-			};
-		} else {
-			delete drafts[name];
-		}
-	}
-
+	// Load a feature dataset's saved filters (or its defaults) when it opens.
 	$effect(() => {
 		const detail = selectedDatasetDetail;
-		// Read without tracking: saving a draft must not re-run this.
-		const draft = detail ? untrack(() => drafts[detail.name]) : undefined;
-		if (detail?.processing_class === 'filter_and_agg' && detail.filters) {
-			filterSelections = draft
-				? structuredClone($state.snapshot(draft.filterSelections))
-				: initFilterSelections(detail.filters);
+		const saved = detail ? untrack(() => datasetChoices.get(detail.name)) : undefined;
+		if (detail && isFeature(detail)) {
+			filterSelections = saved?.filterSelections
+				? structuredClone(saved.filterSelections)
+				: initFilterSelections(detail.filters!);
 		}
-		selectedOutcome = detail ? (draft?.selectedOutcome ?? defaultOutcome(detail)) : '';
+		selectedOutcome = detail ? (saved?.selectedOutcome ?? defaultOutcome(detail)) : '';
 	});
 
 	// Fetch datasets when resolved feature IDs become available (standard) or in custom mode
@@ -256,6 +288,19 @@
 			});
 	});
 
+	// Opened from the Review page's "Edit options" link (?dataset=name):
+	// open that dataset once the list has loaded.
+	let openedFromLink = false;
+	$effect(() => {
+		const wanted = page.url.searchParams.get('dataset');
+		if (!wanted || openedFromLink || datasets.length === 0) return;
+		const dataset = datasets.find((d) => d.name === wanted);
+		if (dataset) {
+			openedFromLink = true;
+			untrack(() => handleDatasetSelect(dataset));
+		}
+	});
+
 	// Fetch full detail when a dataset is selected
 	$effect(() => {
 		if (!selectedDatasetSummary) {
@@ -279,62 +324,93 @@
 
 	function handleDatasetSelect(dataset: DatasetSummary) {
 		if (dataset.name === selectedDatasetSummary?.name) return;
-		saveDraft();
 		// Drop the old detail now, so nothing can save the next dataset's
 		// choices under the previous name while its detail loads.
 		selectedDatasetDetail = null;
 		selectedDatasetSummary = dataset;
-		const draft = drafts[dataset.name];
-		rasterOptions = draft
-			? { extractTypes: [...draft.rasterOptions.extractTypes], resources: [...draft.rasterOptions.resources] }
-			: { extractTypes: [], resources: [] };
+		const inCart = rasterCartItem(dataset.name);
+		const waiting = datasetChoices.get(dataset.name)?.rasterOptions;
+		rasterOptions = inCart
+			? { extractTypes: [...(inCart.extractTypes ?? [])], resources: [...(inCart.resources ?? [])] }
+			: waiting
+				? { extractTypes: [...waiting.extractTypes], resources: [...waiting.resources] }
+				: { extractTypes: [], resources: [] };
 	}
 
-	function handleAddToRequest(customName: string) {
-		if (!selectedDatasetDetail) return;
+	function handleRasterChange(options: { extractTypes: string[]; resources: string[] }) {
+		rasterOptions = options;
+		const detail = selectedDatasetDetail;
+		if (!detail) return;
+		if (options.extractTypes.length > 0) {
+			cart.setRasterItem(buildRasterItem(detail, options));
+			datasetChoices.clear(detail.name);
+		} else {
+			cart.removeRasterItem(detail.name);
+			if (options.resources.length > 0) datasetChoices.save(detail.name, { rasterOptions: $state.snapshot(options) });
+			else datasetChoices.clear(detail.name);
+		}
+	}
 
-		const isFilterAndAgg = selectedDatasetDetail.processing_class === 'filter_and_agg';
+	function saveFeatureChoices() {
+		const detail = selectedDatasetDetail;
+		if (!detail || !isFeature(detail)) return;
+		// Plain copies: the store clones what it's given, and reactive proxies
+		// can't be cloned.
+		const selections = $state.snapshot(filterSelections);
+		datasetChoices.save(detail.name, {
+			filterSelections: selections,
+			selectedOutcome,
+			kwargs: buildFilterKwargs(selections, detail.filters, selectedOutcome),
+			editingKey: datasetChoices.get(detail.name)?.editingKey
+		});
+	}
 
-		const item: CartItem = {
-			customName: customName || selectedDatasetDetail.title || selectedDatasetDetail.name,
-			datasetName: selectedDatasetDetail.name,
-			datasetTitle: selectedDatasetDetail.title ?? selectedDatasetDetail.name,
-			datasetType: selectedDatasetDetail.type,
-			processingClass: selectedDatasetDetail.processing_class,
-			...(isFilterAndAgg
-				? {
-					filterSelections: { ...filterSelections },
-					kwargs: buildFilterKwargs(filterSelections, selectedDatasetDetail.filters, selectedOutcome),
-				}
-				: {
-					extractTypes: [...rasterOptions.extractTypes],
-					resources: [...rasterOptions.resources],
-					resourceLabels: rasterOptions.resources.map((name) => {
-						const res = selectedDatasetDetail!.resources.find((r) => r.name === name);
-						return res?.label ?? res?.temporal ?? name;
-					}),
-				}),
+	function buildFeatureItem(detail: DatasetDetail): CartItem {
+		const selections = $state.snapshot(filterSelections);
+		return {
+			customName: detail.title ?? detail.name,
+			datasetName: detail.name,
+			datasetTitle: detail.title ?? detail.name,
+			datasetType: detail.type,
+			processingClass: detail.processing_class,
+			filterSelections: selections,
+			kwargs: buildFilterKwargs(selections, detail.filters, selectedOutcome)
 		};
+	}
 
-		cart.upsertItem(item);
-		delete drafts[item.datasetName];
+	/** Leave edit mode: the filters stay, but no longer replace an entry. */
+	function stopEditing(name: string) {
+		const choices = datasetChoices.get(name);
+		if (choices?.editingKey) datasetChoices.save(name, { ...choices, editingKey: undefined });
+	}
 
-		// Reset for next selection
-		selectedDatasetSummary = null;
-		selectedDatasetDetail = null;
-		rasterOptions = { extractTypes: [], resources: [] };
-		filterSelections = {};
+	/** Replace the entry opened with "Edit options" with the current filters. */
+	function handleUpdateRequest() {
+		const detail = selectedDatasetDetail;
+		if (!detail || !isFeature(detail) || !editingKey) return;
+		cart.replaceFeatureItem(detail.name, editingKey, buildFeatureItem(detail));
+		stopEditing(detail.name);
+	}
+
+	/** Feature datasets only: rasters are already in the cart. Adds a new version. */
+	function handleAddToRequest() {
+		const detail = selectedDatasetDetail;
+		if (!detail || !isFeature(detail)) return;
+		cart.upsertItem(buildFeatureItem(detail));
+		stopEditing(detail.name);
 	}
 
 	function handleReset() {
-		if (selectedDatasetDetail) delete drafts[selectedDatasetDetail.name];
-		if (selectedDatasetDetail?.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters) {
-			filterSelections = initFilterSelections(selectedDatasetDetail.filters);
-			if (selectedDatasetDetail.outcomes) {
-				selectedOutcome = Object.keys(selectedDatasetDetail.outcomes)[0] ?? '';
-			}
+		const detail = selectedDatasetDetail;
+		if (!detail) return;
+		datasetChoices.clear(detail.name);
+		if (isFeature(detail)) {
+			// Entries already added stay in the request; Reset only clears the form.
+			filterSelections = initFilterSelections(detail.filters!);
+			selectedOutcome = defaultOutcome(detail);
 		} else {
 			rasterOptions = { extractTypes: [], resources: [] };
+			cart.removeRasterItem(detail.name);
 		}
 	}
 </script>
@@ -397,7 +473,8 @@
 					selectedDataset={selectedDatasetSummary}
 					onSelect={handleDatasetSelect}
 					{outOfRangeNames}
-					openNames={openDatasetNames}
+					{inRequestNames}
+					{unsavedNames}
 				/>
 			</div>
 
@@ -441,19 +518,25 @@
 							<OutcomeSelector
 								outcomes={selectedDatasetDetail.outcomes}
 								selected={selectedOutcome}
-								onSelect={(key) => (selectedOutcome = key)}
+								onSelect={(key) => {
+									selectedOutcome = key;
+									saveFeatureChoices();
+								}}
 							/>
 						{/if}
 						<FilterAndAggOptions
 							filters={selectedDatasetDetail.filters}
 							selections={filterSelections}
-							onSelectionsChange={(s) => (filterSelections = s)}
+							onSelectionsChange={(s) => {
+								filterSelections = s;
+								saveFeatureChoices();
+							}}
 						/>
 					{:else}
 						<RasterOptions
 							dataset={selectedDatasetDetail}
 							options={rasterOptions}
-							onOptionsChange={(o) => (rasterOptions = o)}
+							onOptionsChange={handleRasterChange}
 						/>
 					{/if}
 				{/if}
@@ -467,8 +550,9 @@
 					selectedResources={selectedDatasetDetail?.processing_class === 'filter_and_agg' ? undefined : rasterOptions.resources}
 					filterSelections={selectedDatasetDetail?.processing_class === 'filter_and_agg' ? filterSelections : undefined}
 					onAddToRequest={handleAddToRequest}
+					onUpdateRequest={handleUpdateRequest}
 					onReset={handleReset}
-					hasChoices={currentHasChoices}
+					{saveState}
 				/>
 			</div>
 		</div>

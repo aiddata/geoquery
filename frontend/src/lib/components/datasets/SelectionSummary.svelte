@@ -4,7 +4,7 @@
 	import { Label } from '#lib/components/ui/label/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Separator } from '#lib/components/ui/separator/index.js';
-	import { ShoppingCart, RotateCcw } from '@lucide/svelte';
+	import { ShoppingCart, RotateCcw, Check, CircleAlert, CircleCheck, Pencil, Plus } from '@lucide/svelte';
 	import type { DatasetDetail } from '#lib/api.js';
 	import type { FilterSelection } from '#lib/stores/cart.js';
 
@@ -13,10 +13,19 @@
 		extractTypes?: string[];
 		selectedResources?: string[];
 		filterSelections?: Record<string, FilterSelection>;
-		onAddToRequest: (customName: string) => void;
+		/** Feature datasets only: rasters are added as their options change. */
+		onAddToRequest: () => void;
+		/** Feature datasets opened with "Edit options": replace that entry. */
+		onUpdateRequest?: () => void;
 		onReset: () => void;
-		/** The open dataset has choices that aren't in the request yet. */
-		hasChoices?: boolean;
+		/**
+		 * saved: the current options are in the request.
+		 * unsaved: feature dataset whose current filters aren't in the request.
+		 * editing: like unsaved, but opened with "Edit options" from Review,
+		 *   so Update Request can replace the entry being edited.
+		 * incomplete: raster dataset with no extract option chosen yet.
+		 */
+		saveState?: 'saved' | 'unsaved' | 'editing' | 'incomplete' | null;
 	}
 
 	let {
@@ -25,11 +34,12 @@
 		selectedResources,
 		filterSelections,
 		onAddToRequest,
+		onUpdateRequest,
 		onReset,
-		hasChoices = false
+		saveState = null
 	}: Props = $props();
 
-	let customName = $state('');
+	const isFeature = $derived(filterSelections !== undefined);
 
 	let summaryLines = $derived.by(() => {
 		if (!dataset) return [];
@@ -59,7 +69,6 @@
 		return lines;
 	});
 
-	let canAdd = $derived(!!dataset && (filterSelections !== undefined || (extractTypes?.length ?? 0) > 0));
 </script>
 
 <div class="flex h-full flex-col">
@@ -69,7 +78,8 @@
 		{#if !dataset}
 			<p class="text-sm text-muted-foreground">Select a dataset to begin configuring your query.</p>
 			<p class="text-xs text-muted-foreground">
-				You can add the same dataset more than once, with different options.
+				Raster datasets join your request as soon as you choose their options. Feature datasets
+				need <strong>Add to Request</strong>, and can be added more than once with different filters.
 			</p>
 		{:else}
 			<!-- FLAG: restore the Input below (and remove the <p>) to allow custom name editing -->
@@ -102,19 +112,64 @@
 	<!-- Actions pinned to bottom -->
 	{#if dataset}
 		<div class="mt-auto space-y-2 border-t p-4">
-			{#if hasChoices}
+			{#if saveState === 'saved'}
 				<p class="flex items-start gap-2 text-xs text-muted-foreground" role="status">
-					<span class="mt-1 size-2 shrink-0 rounded-full bg-primary" aria-hidden="true"></span>
+					<CircleCheck class="mt-px size-4 shrink-0 text-success-text" aria-hidden="true" />
 					<span>
-						<strong class="text-foreground">Not added yet.</strong> Your choices are kept if you look
-						at other datasets, but they're only in your request once you click Add to Request.
+						<strong class="text-foreground">In your request.</strong>
+						{isFeature
+							? 'Change the filters to add another version of this dataset.'
+							: 'Changes are saved automatically. Reset removes it from your request.'}
 					</span>
 				</p>
+			{:else if saveState === 'unsaved'}
+				<p class="flex items-start gap-2 text-xs text-muted-foreground" role="status">
+					<CircleAlert class="mt-px size-4 shrink-0 text-warning-text" aria-hidden="true" />
+					<span>
+						<strong class="text-foreground">Not added yet.</strong> These filters are saved, but
+						they're only in your request once you click Add to Request.
+					</span>
+				</p>
+			{:else if saveState === 'editing'}
+				<p class="flex items-start gap-2 text-xs text-muted-foreground" role="status">
+					<CircleAlert class="mt-px size-4 shrink-0 text-warning-text" aria-hidden="true" />
+					<span>
+						<strong class="text-foreground">Editing a version in your request.</strong> Update it with
+						these filters, or keep it and add these as a new version.
+					</span>
+				</p>
+			{:else if saveState === 'incomplete'}
+				<p class="text-xs text-muted-foreground" role="status">
+					Choose at least one extract option to add this dataset to your request.
+				</p>
 			{/if}
-			<Button class="w-full" disabled={!canAdd} onclick={() => onAddToRequest(customName)}>
-				<ShoppingCart />
-				Add to Request
-			</Button>
+			{#if isFeature && saveState === 'editing'}
+				<Button class="w-full" onclick={onUpdateRequest}>
+					<Pencil />
+					Update Request
+				</Button>
+				<Button variant="outline" class="w-full" onclick={onAddToRequest}>
+					<Plus />
+					Add as New Version
+				</Button>
+			{:else if isFeature && saveState === 'unsaved'}
+				<Button class="w-full" onclick={onAddToRequest}>
+					<ShoppingCart />
+					Add to Request
+				</Button>
+			{:else}
+				<!-- Rasters are added automatically, and feature filters already in
+				     the request don't need adding again: shown, but not clickable. -->
+				<Button class="w-full" disabled>
+					{#if saveState === 'saved'}
+						<Check />
+						Added to Request
+					{:else}
+						<ShoppingCart />
+						Add to Request
+					{/if}
+				</Button>
+			{/if}
 			<Button variant="outline" class="w-full" onclick={onReset}>
 				<RotateCcw />
 				Reset

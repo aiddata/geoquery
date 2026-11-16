@@ -2,7 +2,8 @@
 	import Seo from '#lib/components/layout/Seo.svelte';
 	import { goto } from '$app/navigation';
 	import { currentStep } from '#lib/stores/ui.js';
-	import { cart, cartCount } from '#lib/stores/cart.js';
+	import { cart, cartCount, type CartItem } from '#lib/stores/cart.js';
+	import { datasetChoices } from '#lib/stores/datasetChoices.js';
 	import { selection, selectionSummary } from '#lib/stores/selection.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
 	import { fetchFeatureIds, submitRequest, type SubmittedRequest, type CustomBoundaryPayload } from '#lib/api.js';
@@ -136,6 +137,32 @@
 			return `/customize?fc=${$selection.fcs.map((fc) => fc.id).join(',')}`;
 		}
 		return '/';
+	}
+
+	/** Open an item's dataset on Customize with that item's options loaded. */
+	function editItem(item: CartItem) {
+		// Rasters load from the cart itself; a feature item's filters are put
+		// back as the dataset's current choices, so Customize shows exactly
+		// this version (as already in the request).
+		if (item.kwargs != null) {
+			const outcome = item.kwargs.outcome;
+			datasetChoices.save(item.datasetName, {
+				filterSelections: item.filterSelections,
+				selectedOutcome: typeof outcome === 'string' ? outcome : undefined,
+				kwargs: item.kwargs,
+				// Update Request on Customize replaces this entry.
+				editingKey: JSON.stringify(item.kwargs)
+			});
+		}
+		const base = customizeUrl();
+		goto(`${base}${base.includes('?') ? '&' : '?'}dataset=${encodeURIComponent(item.datasetName)}`);
+	}
+
+	function removeItem(index: number) {
+		const item = $cart[index];
+		cart.removeItem(index);
+		// A raster's options live in the cart; removing it starts the dataset over.
+		if (item && item.kwargs == null) datasetChoices.clear(item.datasetName);
 	}
 
 	async function handleSubmit() {
@@ -368,8 +395,17 @@
 										/>
 										<Button
 											variant="ghost"
+											size="sm"
+											class="shrink-0 text-muted-foreground"
+											onclick={() => editItem(item)}
+										>
+											<Pencil />
+											Edit options
+										</Button>
+										<Button
+											variant="ghost"
 											size="icon-sm"
-											onclick={() => cart.removeItem(i)}
+											onclick={() => removeItem(i)}
 											class="text-muted-foreground hover:text-destructive"
 											aria-label="Remove {item.customName || item.datasetTitle}"
 										>

@@ -85,6 +85,42 @@ function createCartStore() {
 				return items.map((it, i) => (i === idx ? merged : it));
 			});
 		},
+		/**
+		 * Put a raster dataset's current options in the cart, replacing (not
+		 * merging with) its existing entry. Rasters have one entry each, kept in
+		 * step with the Customize page as options change.
+		 */
+		setRasterItem(item: CartItem) {
+			update((items) => {
+				const idx = items.findIndex((i) => i.datasetName === item.datasetName && i.kwargs == null);
+				if (idx === -1) return [...items, item];
+				return items.map((it, i) => (i === idx ? item : it));
+			});
+		},
+		/** Remove a raster dataset's entry (the one without kwargs). */
+		removeRasterItem(datasetName: string) {
+			update((items) => items.filter((i) => !(i.datasetName === datasetName && i.kwargs == null)));
+		},
+		/**
+		 * Replace one feature entry (found by its kwargs) with an edited version,
+		 * in place: same position in the list, and the name the user gave it.
+		 * Adds the item instead if that entry is gone.
+		 */
+		replaceFeatureItem(datasetName: string, oldKwargsKey: string, item: CartItem) {
+			update((items) => {
+				const idx = items.findIndex(
+					(i) => i.datasetName === datasetName && JSON.stringify(i.kwargs ?? null) === oldKwargsKey
+				);
+				if (idx === -1) return [...items, item];
+				const next = { ...item, customName: items[idx].customName };
+				// Drop any other entry that already had the new filters, so the edit
+				// doesn't leave two identical versions.
+				const newKey = JSON.stringify(item.kwargs ?? null);
+				return items
+					.map((it, i) => (i === idx ? next : it))
+					.filter((it, i) => i === idx || !(it.datasetName === datasetName && JSON.stringify(it.kwargs ?? null) === newKey));
+			});
+		},
 		removeItem(index: number) {
 			update((items) => items.filter((_, i) => i !== index));
 		},
