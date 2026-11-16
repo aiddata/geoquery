@@ -52,7 +52,7 @@
 
 	const where = $derived(
 		`For each of the ${plural(features, 'feature')} ` +
-			(boundaries === 1 ? 'in the boundary you selected' : `across the ${n(boundaries)} boundaries you selected`)
+			(boundaries === 1 ? 'in the boundary set you selected' : `across the ${n(boundaries)} boundary sets you selected`)
 	);
 
 	// Rasters: one column per statistic per time period (a categorical
