@@ -450,6 +450,16 @@
 
 			<!-- Tab content (scrolls if too tall; explore tab needs overflow-visible so its dropdown isn't clipped) -->
 			<div class="px-4 pb-4 pt-2 min-h-0 flex-1 {activeTab === 'explore' ? 'overflow-visible' : 'overflow-y-auto'}">
+				<!-- Above the boundary search, so it's seen before changing anything else -->
+				{#if activeTab !== 'custom' && selectionChanged && $cartCount > 0}
+					<Alert.Root variant="warning" role="status" class="mb-3">
+						<TriangleAlert />
+						<Alert.Description>
+							Your selection has changed. Actual dataset coverage may vary across selected features.
+						</Alert.Description>
+					</Alert.Root>
+				{/if}
+
 				{#if activeTab === 'explore'}
 					<GeographySearch
 						bind:searchText={boundarySearch}
@@ -506,16 +516,6 @@
 					<CustomBoundaryPanel />
 				{/if}
 
-				{#if activeTab !== 'custom'}
-					{#if selectionChanged && $cartCount > 0}
-						<Alert.Root variant="warning" role="status" class="mt-3">
-							<TriangleAlert />
-							<Alert.Description>
-								Your selection has changed. Actual dataset coverage may vary across selected features.
-							</Alert.Description>
-						</Alert.Root>
-					{/if}
-				{/if}
 			</div>
 		</div>
 	</div>
