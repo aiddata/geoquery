@@ -5,7 +5,7 @@
 	import { ScrollArea } from '#lib/components/ui/scroll-area/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
-	import { Search, ArrowUpDown, ChevronDown, ChevronUp, CircleAlert, CircleCheck } from '@lucide/svelte';
+	import { Search, ArrowUpDown, ChevronDown, ChevronUp, CircleAlert } from '@lucide/svelte';
 	import type { DatasetSummary, DatasetCategory } from '#lib/api.js';
 
 	interface Props {
@@ -14,8 +14,6 @@
 		selectedDataset: DatasetSummary | null;
 		onSelect: (dataset: DatasetSummary) => void;
 		outOfRangeNames?: Set<string>;
-		/** Datasets in the request; marked with a check. */
-		inRequestNames?: Set<string>;
 		/** Feature datasets whose current filters aren't in the request; marked with an exclamation. */
 		unsavedNames?: Set<string>;
 		/** Columns each dataset adds to the output, across its entries in the request */
@@ -28,7 +26,6 @@
 		selectedDataset,
 		onSelect,
 		outOfRangeNames = new Set(),
-		inRequestNames = new Set(),
 		unsavedNames = new Set(),
 		columnCounts = new Map()
 	}: Props = $props();
@@ -170,12 +167,6 @@
 									aria-hidden="true"
 								/>
 								<span class="sr-only">(filters not added to your request yet)</span>
-							{:else if inRequestNames.has(dataset.name)}
-								<CircleCheck
-									class="mt-0.5 size-4 shrink-0 text-success-text"
-									aria-hidden="true"
-								/>
-								<span class="sr-only">(in your request)</span>
 							{/if}
 						</p>
 						<div class="mt-0.5 flex items-center gap-1.5">
@@ -187,9 +178,9 @@
 							{/if}
 							{#if columnCounts.get(dataset.name)}
 								{@const cols = columnCounts.get(dataset.name)!}
-								<!-- Bottom right, under the check: what this dataset adds to the output -->
+								<!-- Bottom right: what this dataset adds to the output (its mark of being in the request) -->
 								<span class="ml-auto text-xs tabular-nums text-muted-foreground">
-									{cols.toLocaleString()} column{cols === 1 ? '' : 's'}
+									{cols.toLocaleString()} column{cols === 1 ? '' : 's'}<span class="sr-only"> in your request</span>
 								</span>
 							{/if}
 						</div>

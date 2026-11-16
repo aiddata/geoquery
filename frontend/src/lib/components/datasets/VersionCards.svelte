@@ -3,7 +3,8 @@
 	import type { CartItem } from '#lib/stores/cart.js';
 	import { cleanVersionName, entryColumns, narrowedFilters } from '#lib/utils/outputColumns.js';
 	import { Input } from '#lib/components/ui/input/index.js';
-	import { Pencil } from '@lucide/svelte';
+	import { Pencil, Trash2 } from '@lucide/svelte';
+	import { Button } from '#lib/components/ui/button/index.js';
 
 	// A feature dataset's versions in the request, one card each. Clicking a
 	// card loads that version into the options below to edit, so Update
@@ -15,6 +16,8 @@
 		/** Request positions whose name is empty or a duplicate */
 		invalid: Set<number>;
 		onRename: (index: number, name: string) => void;
+		/** Remove this version from the request */
+		onRemove: (index: number) => void;
 		/** kwargs key of the version being edited, if any */
 		editingKey: string | null;
 		/** kwargs key of the options shown below */
@@ -22,7 +25,7 @@
 		onEdit: (item: CartItem) => void;
 	}
 
-	let { dataset, entries, invalid, onRename, editingKey, currentKey, onEdit }: Props = $props();
+	let { dataset, entries, invalid, onRename, onRemove, editingKey, currentKey, onEdit }: Props = $props();
 
 	const keyOf = (item: CartItem) => JSON.stringify(item.kwargs ?? null);
 
@@ -76,6 +79,15 @@
 					{:else if currentKey === key}
 						<span class="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Shown below</span>
 					{/if}
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						class="shrink-0 text-muted-foreground hover:text-destructive"
+						aria-label="Remove {item.customName || 'this version'} from your request"
+						onclick={() => onRemove(index)}
+					>
+						<Trash2 />
+					</Button>
 				</div>
 				{#if invalid.has(index)}
 					<p class="px-3 pt-1 text-xs text-destructive">

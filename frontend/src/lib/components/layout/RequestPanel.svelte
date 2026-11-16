@@ -4,7 +4,8 @@
 	import { ArrowRight, Pencil } from '@lucide/svelte';
 	import { selection, selectionFcIds, selectionSummary, customizeHref } from '#lib/stores/selection.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
-	import { cartCount } from '#lib/stores/cart.js';
+	import { cart, cartCount } from '#lib/stores/cart.js';
+	import { entryColumns } from '#lib/utils/outputColumns.js';
 	import type { Step } from '#lib/stores/ui.js';
 
 	// The request's three steps as one docked column, the same on every step
@@ -39,6 +40,8 @@
 			: ($selectionSummary?.label ?? null);
 	});
 
+	const totalColumns = $derived($cart.reduce((n, item) => n + entryColumns(item), 0));
+
 	type Section = {
 		id: Step;
 		title: string;
@@ -61,7 +64,11 @@
 			id: 'search',
 			title: '2. Customize Datasets',
 			href: $customizeHref,
-			summary: $cartCount > 0 ? `${$cartCount} in your request` : 'No datasets added yet',
+			// Every entry counts, so two versions of one dataset are two items
+			summary:
+				$cart.length > 0
+					? `${plural(totalColumns, 'column')} across ${plural($cart.length, 'dataset selection')}`
+					: 'No datasets added yet',
 			blocked: 'Select boundaries first'
 		},
 		{

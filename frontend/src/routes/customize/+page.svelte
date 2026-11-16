@@ -455,7 +455,6 @@
 				selectedDataset={selectedDatasetSummary}
 				onSelect={handleDatasetSelect}
 				{outOfRangeNames}
-				{inRequestNames}
 				{unsavedNames}
 				columnCounts={columnsByDataset($cart)}
 			/>
@@ -520,6 +519,7 @@
 						entries={featureEntries}
 						invalid={invalidNames}
 						onRename={(index, name) => cart.updateItemName(index, name)}
+						onRemove={(index) => cart.removeItem(index)}
 						{editingKey}
 						currentKey={kwargsKey(buildFilterKwargs($state.snapshot(filterSelections), selectedDatasetDetail.filters, selectedOutcome))}
 						onEdit={editVersion}
