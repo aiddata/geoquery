@@ -5,10 +5,8 @@
 	import ThemeMenu from '#lib/components/layout/ThemeMenu.svelte';
 	import { openSidebar, currentStep, type Step } from '#lib/stores/ui.js';
 	import { features } from '#lib/stores/features.js';
-	import { customizeHref } from '#lib/stores/selection.js';
-	import { cartCount } from '#lib/stores/cart.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
-	import { ArrowRight, ChevronRight, ChevronUp, Map, Menu as MenuIcon } from '@lucide/svelte';
+	import { ChevronRight, ChevronUp, Map, Menu as MenuIcon } from '@lucide/svelte';
 	import aiddataLogo from '#lib/assets/aiddata_logo.svg';
 	import aiddataLogoWhite from '#lib/assets/aiddata_logo_white.png';
 	import geoqueryText from '#lib/assets/geoquery_text.svg';
@@ -30,19 +28,13 @@
 		{ label: 'Past Requests', href: '/requests' }
 	];
 
-	// The workflow steps double as navigation. A step is a link once it can be
-	// reached: Customize after boundaries are confirmed, Review once the
-	// request has a dataset in it.
-	const steps = $derived<{ id: Step; label: string; href: string | null }[]>([
-		{ id: 'map', label: '1. Select Boundary', href: '/' },
-		{ id: 'search', label: '2. Customize Datasets', href: $customizeHref },
-		{
-			id: 'review',
-			label: `3. Review Request${$cartCount > 0 ? ` (${$cartCount})` : ''}`,
-			href: $cartCount > 0 ? '/review' : null
-		}
-	]);
-	const currentIndex = $derived(steps.findIndex((s) => s.id === $currentStep));
+	// Where you are in the request: plain breadcrumbs, not links. The
+	// request panel on each step page is the navigation.
+	const steps: { id: Step; label: string }[] = [
+		{ id: 'map', label: 'Select Boundaries' },
+		{ id: 'search', label: 'Customize Datasets' },
+		{ id: 'review', label: 'Review & Submit' }
+	];
 </script>
 
 <!-- Small arrow at the top right of a link that opens another site. -->
@@ -124,48 +116,19 @@
 	<!-- Step Indicator (only on workflow pages) -->
 	{#if showSteps}
 		<div class="flex min-h-12 items-center justify-between bg-band px-4">
-			<nav aria-label="Request steps" class="flex items-center gap-1 sm:gap-2">
+			<div aria-label="Request progress" class="flex items-center gap-1">
 				{#each steps as step, i (step.id)}
 					{#if i > 0}
-						<ChevronRight class="size-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+						<ChevronRight class="size-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
 					{/if}
-					{#if i === currentIndex}
-						<!-- Where you are: plain text with a thin underline, no fill. -->
-						<span
-							class="flex items-center border-b-2 border-primary px-1 py-1 text-sm font-bold text-foreground sm:px-2"
-							aria-current="step"
-						>
-							{step.label}
-						</span>
-					{:else if step.href && i === currentIndex + 1}
-						<!-- The step to go to next: the one filled, button-like control. -->
-						<a
-							href={step.href}
-							class="flex items-center gap-1 rounded-md bg-primary px-2 py-1.5 text-sm font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:px-3"
-						>
-							{step.label}
-							<ArrowRight class="size-4" aria-hidden="true" />
-						</a>
-					{:else if step.href}
-						<!-- A step you can go back (or ahead) to. -->
-						<a
-							href={step.href}
-							class="flex items-center rounded-md px-1 py-1.5 text-sm font-bold text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring sm:px-2"
-						>
-							{step.label}
-						</a>
-					{:else}
-						<!-- Not reachable yet. -->
-						<span
-							class="flex cursor-not-allowed items-center px-1 py-1.5 text-sm font-bold text-muted-foreground/50 sm:px-2"
-							aria-disabled="true"
-							title={step.id === 'search' ? 'Select a boundary first' : 'Add a dataset first'}
-						>
-							{step.label}
-						</span>
-					{/if}
+					<span
+						class="px-1 text-xs {$currentStep === step.id ? 'font-bold text-foreground' : 'text-muted-foreground'}"
+						aria-current={$currentStep === step.id ? 'step' : undefined}
+					>
+						{step.label}
+					</span>
 				{/each}
-			</nav>
+			</div>
 
 			{#if $features.has('visualize')}
 				<Button

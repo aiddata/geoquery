@@ -1,0 +1,124 @@
+<script lang="ts">
+	import type { Snippet } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { ArrowRight, Pencil } from '@lucide/svelte';
+	import { selection, selectionFcIds, selectionSummary, customizeHref } from '#lib/stores/selection.js';
+	import { customBoundary } from '#lib/stores/customBoundary.js';
+	import { cartCount } from '#lib/stores/cart.js';
+	import type { Step } from '#lib/stores/ui.js';
+
+	// The request's three steps as one docked column, the same on every step
+	// page: the current step's section is expanded (its page passes the body),
+	// the others are one-line headers that navigate to their step once it can
+	// be reached.
+	interface Props {
+		active: Step;
+		children: Snippet;
+		/** Controls at the right of the expanded section's header, e.g. Restart */
+		actions?: Snippet;
+		/** The body brings its own padding and scrolling (e.g. the dataset list) */
+		bare?: boolean;
+	}
+
+	let { active, children, actions, bare = false }: Props = $props();
+
+	const plural = (n: number, word: string) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+
+	// "X features across Y boundaries selected"; the boundary name until the
+	// feature count has resolved.
+	const boundaryLabel = $derived.by(() => {
+		if ($customBoundary.saved && $customBoundary.active) {
+			const n = $customBoundary.featureCount;
+			return n ? `${plural(n, 'feature')} in a custom boundary` : $customBoundary.fileName || 'Custom boundary';
+		}
+		if (!$selection) return null;
+		const features = $selection.resolvedFeatureIds.length;
+		const sets = $selectionFcIds.length;
+		return features > 0
+			? `${plural(features, 'feature')} across ${sets === 1 ? '1 boundary' : `${sets} boundaries`} selected`
+			: ($selectionSummary?.label ?? null);
+	});
+
+	type Section = {
+		id: Step;
+		title: string;
+		href: string | null;
+		/** Second line of the collapsed header */
+		summary: string;
+		/** Why a collapsed header can't be clicked yet */
+		blocked: string;
+	};
+
+	const sections = $derived<Section[]>([
+		{
+			id: 'map',
+			title: '1. Select Boundaries',
+			href: '/',
+			summary: boundaryLabel ?? 'No boundaries selected',
+			blocked: ''
+		},
+		{
+			id: 'search',
+			title: '2. Customize Datasets',
+			href: $customizeHref,
+			summary: $cartCount > 0 ? `${$cartCount} in your request` : 'No datasets added yet',
+			blocked: 'Select boundaries first'
+		},
+		{
+			id: 'review',
+			title: '3. Review & Submit',
+			href: $cartCount > 0 ? '/review' : null,
+			summary: '',
+			blocked: 'Add a dataset first'
+		}
+	]);
+</script>
+
+<nav aria-label="Request steps" class="flex h-full w-[25rem] max-w-[45vw] shrink-0 flex-col overflow-hidden border-r bg-card">
+	{#each sections as s (s.id)}
+		{#if s.id === active}
+			<section aria-labelledby="panel-{s.id}" class="flex min-h-0 flex-1 flex-col border-b last:border-b-0">
+				<div class="flex items-center justify-between gap-2 px-4 pb-2 pt-4">
+					<h2 id="panel-{s.id}" class="text-h4 text-foreground" aria-current="step">{s.title}</h2>
+					{@render actions?.()}
+				</div>
+				<div class={bare ? 'flex min-h-0 flex-1 flex-col' : 'min-h-0 flex-1 overflow-y-auto px-4 pb-4'}>
+					{@render children()}
+				</div>
+			</section>
+		{:else if s.href}
+			<button
+				type="button"
+				onclick={() => goto(s.href!)}
+				class="group flex w-full items-center justify-between gap-3 border-b px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+			>
+				<span class="min-w-0">
+					<span class="block text-sm font-bold text-foreground">{s.title}</span>
+					{#if s.summary}
+						<span class="block truncate text-xs text-muted-foreground">{s.summary}</span>
+					{/if}
+				</span>
+				{#if s.id === 'review'}
+					<!-- The step that's ready next: the one filled control in the panel -->
+					<span class="flex shrink-0 items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-xs font-bold text-primary-foreground group-hover:bg-primary/90">
+						Review ({$cartCount})
+						<ArrowRight class="size-3.5" aria-hidden="true" />
+					</span>
+				{:else}
+					<Pencil class="size-4 shrink-0 text-muted-foreground group-hover:text-foreground" aria-hidden="true" />
+				{/if}
+			</button>
+		{:else}
+			<div
+				class="flex cursor-not-allowed items-center justify-between gap-3 border-b px-4 py-3 last:border-b-0"
+				aria-disabled="true"
+				title={s.blocked}
+			>
+				<span class="min-w-0">
+					<span class="block text-sm font-bold text-muted-foreground/60">{s.title}</span>
+					<span class="block text-xs text-muted-foreground/60">{s.blocked}</span>
+				</span>
+			</div>
+		{/if}
+	{/each}
+</nav>

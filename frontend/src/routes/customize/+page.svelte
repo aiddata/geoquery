@@ -34,6 +34,7 @@
 	import FilterAndAggOptions from '#lib/components/datasets/FilterAndAggOptions.svelte';
 	import OutcomeSelector from '#lib/components/datasets/OutcomeSelector.svelte';
 	import DatasetActions from '#lib/components/datasets/DatasetActions.svelte';
+	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 
 	$effect(() => {
@@ -409,131 +410,124 @@
 
 <Seo title="Customize Datasets" description="Browse GeoQuery's datasets, including population, nighttime lights, climate, land cover, conflict and health, and choose the years and statistics to extract for your boundaries." />
 
-<div class="flex h-[calc(100vh-8rem)] flex-col">
-	{#if isCustomMode}
-		<div class="flex items-center gap-2 bg-warning-bg px-4 py-2 text-sm text-foreground" role="note">
-			<TriangleAlert class="size-4 shrink-0 text-warning-text" aria-hidden="true" />
-			<span>
-				<strong>Custom boundary:</strong> Precise coverage cannot be verified. All datasets are shown.
-				Datasets flagged <span class="font-bold">out of range</span> likely have no data for your area.
-			</span>
-		</div>
-	{/if}
-
-	{#if !resolvedIds.length && !isCustomMode}
-		<!-- Waiting for feature IDs to resolve -->
-		<div class="flex flex-1 items-center justify-center">
-			<p class="text-muted-foreground">Loading available datasets…</p>
-		</div>
-	{:else if loadError}
-		<!-- Error state -->
-		<div class="flex flex-1 items-center justify-center">
-			<div class="max-w-md text-center">
-				<p class="text-lg font-bold text-destructive">Failed to load datasets</p>
+<div class="flex h-[calc(100vh-8rem)]">
+	<RequestPanel active="search" bare>
+		{#if !resolvedIds.length && !isCustomMode}
+			<p class="px-4 py-6 text-sm text-muted-foreground">Loading available datasets…</p>
+		{:else if loadError}
+			<div class="px-4 py-6">
+				<p class="font-bold text-destructive">Failed to load datasets</p>
 				<p class="mt-2 text-sm text-muted-foreground">{loadError}</p>
 			</div>
-		</div>
-	{:else}
-		<!-- Two-panel layout: dataset list and the open dataset (min-width enforced) -->
-		<div class="flex flex-1 overflow-hidden">
-			<!-- Left Panel: Dataset Selector -->
-			<div class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r bg-card">
-				<DatasetSelector
-					{datasets}
-					{categories}
-					selectedDataset={selectedDatasetSummary}
-					onSelect={handleDatasetSelect}
-					{outOfRangeNames}
-					{inRequestNames}
-					{unsavedNames}
-				/>
+		{:else}
+			<DatasetSelector
+				{datasets}
+				{categories}
+				selectedDataset={selectedDatasetSummary}
+				onSelect={handleDatasetSelect}
+				{outOfRangeNames}
+				{inRequestNames}
+				{unsavedNames}
+			/>
+		{/if}
+	</RequestPanel>
+
+	<!-- The open dataset, beside the panel -->
+	<div class="flex min-w-0 flex-1 flex-col">
+		{#if isCustomMode}
+			<div class="flex items-center gap-2 bg-warning-bg px-4 py-2 text-sm text-foreground" role="note">
+				<TriangleAlert class="size-4 shrink-0 text-warning-text" aria-hidden="true" />
+				<span>
+					<strong>Custom boundary:</strong> Precise coverage cannot be verified. All datasets are shown.
+					Datasets flagged <span class="font-bold">out of range</span> likely have no data for your area.
+				</span>
 			</div>
+		{/if}
 
-			<!-- Center Panel: Dataset Configuration. Scrolls vertically only. -->
-			<div class="min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-background">
-				{#if !selectedDatasetDetail && !detailLoading}
-					<div class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-						<p class="text-muted-foreground">
-							{selectedDatasetSummary
-								? 'Loading dataset configuration...'
-								: 'Select a dataset from the list to configure it.'}
+		<!-- Center Panel: Dataset Configuration. Scrolls vertically only. -->
+		<div class="min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-background">
+			{#if !selectedDatasetDetail && !detailLoading}
+				<div class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+					<p class="text-muted-foreground">
+						{selectedDatasetSummary
+							? 'Loading dataset configuration...'
+							: 'Select a dataset from the list to configure it.'}
+					</p>
+					{#if !selectedDatasetSummary}
+						<p class="max-w-md text-xs text-muted-foreground">
+							Raster datasets join your request as soon as you choose their options. Feature
+							datasets need <strong>Add to Request</strong>, and can be added more than once with
+							different filters.
 						</p>
-						{#if !selectedDatasetSummary}
-							<p class="max-w-md text-xs text-muted-foreground">
-								Raster datasets join your request as soon as you choose their options. Feature
-								datasets need <strong>Add to Request</strong>, and can be added more than once with
-								different filters.
-							</p>
-						{/if}
-					</div>
-				{:else if detailLoading}
-					<div class="flex h-full items-center justify-center">
-						<p class="text-muted-foreground">Loading dataset details...</p>
-					</div>
-				{:else if selectedDatasetDetail}
-					<!-- Dataset title bar -->
-					<div class="border-b bg-muted/30 px-4 py-3">
-						<h2 class="">
-							{selectedDatasetDetail.title ?? selectedDatasetDetail.name}
-						</h2>
-						{#if selectedDatasetDetail.description}
-							<p class="mt-1 text-sm text-muted-foreground">
-								{selectedDatasetDetail.description}
-							</p>
-						{/if}
-						<DatasetMetadata
-							dataset={selectedDatasetDetail}
-							bbox={selectedDatasetSummary?.bbox}
-							bind:citeOpen={metadataCiteOpen}
-							bind:moreOpen={metadataMoreOpen}
-						/>
-					</div>
+					{/if}
+				</div>
+			{:else if detailLoading}
+				<div class="flex h-full items-center justify-center">
+					<p class="text-muted-foreground">Loading dataset details...</p>
+				</div>
+			{:else if selectedDatasetDetail}
+				<!-- Dataset title bar -->
+				<div class="border-b bg-muted/30 px-4 py-3">
+					<h2 class="">
+						{selectedDatasetDetail.title ?? selectedDatasetDetail.name}
+					</h2>
+					{#if selectedDatasetDetail.description}
+						<p class="mt-1 text-sm text-muted-foreground">
+							{selectedDatasetDetail.description}
+						</p>
+					{/if}
+					<DatasetMetadata
+						dataset={selectedDatasetDetail}
+						bbox={selectedDatasetSummary?.bbox}
+						bind:citeOpen={metadataCiteOpen}
+						bind:moreOpen={metadataMoreOpen}
+					/>
+				</div>
 
-					<!-- Configuration area: heading, then Reset, Add / Update and status -->
-					<div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-4">
-						<h3 class="text-base font-semibold">Select Dataset Options</h3>
-						<DatasetActions
-							dataset={selectedDatasetDetail}
-							isFeature={isFeature(selectedDatasetDetail)}
-							extractTypes={rasterOptions.extractTypes}
-							selectedResources={rasterOptions.resources}
-							{saveState}
-							onAddToRequest={handleAddToRequest}
-							onUpdateRequest={handleUpdateRequest}
-							onReset={handleReset}
-						/>
-					</div>
-					{#if selectedDatasetDetail.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters}
-						<!-- Measure, Split results by, Filter records: one section each -->
-						<div class="mt-4 space-y-4 pb-4">
-						{#if selectedDatasetDetail.outcomes}
-							<OutcomeSelector
-								outcomes={selectedDatasetDetail.outcomes}
-								selected={selectedOutcome}
-								onSelect={(key) => {
-									selectedOutcome = key;
-									saveFeatureChoices();
-								}}
-							/>
-						{/if}
-						<FilterAndAggOptions
-							filters={selectedDatasetDetail.filters}
-							selections={filterSelections}
-							onSelectionsChange={(s) => {
-								filterSelections = s;
+				<!-- Configuration area: heading, then Reset, Add / Update and status -->
+				<div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-4">
+					<h3 class="text-base font-semibold">Select Dataset Options</h3>
+					<DatasetActions
+						dataset={selectedDatasetDetail}
+						isFeature={isFeature(selectedDatasetDetail)}
+						extractTypes={rasterOptions.extractTypes}
+						selectedResources={rasterOptions.resources}
+						{saveState}
+						onAddToRequest={handleAddToRequest}
+						onUpdateRequest={handleUpdateRequest}
+						onReset={handleReset}
+					/>
+				</div>
+				{#if selectedDatasetDetail.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters}
+					<!-- Measure, Split results by, Filter records: one section each -->
+					<div class="mt-4 space-y-4 pb-4">
+					{#if selectedDatasetDetail.outcomes}
+						<OutcomeSelector
+							outcomes={selectedDatasetDetail.outcomes}
+							selected={selectedOutcome}
+							onSelect={(key) => {
+								selectedOutcome = key;
 								saveFeatureChoices();
 							}}
 						/>
-						</div>
-					{:else}
-						<RasterOptions
-							dataset={selectedDatasetDetail}
-							options={rasterOptions}
-							onOptionsChange={handleRasterChange}
-						/>
 					{/if}
+					<FilterAndAggOptions
+						filters={selectedDatasetDetail.filters}
+						selections={filterSelections}
+						onSelectionsChange={(s) => {
+							filterSelections = s;
+							saveFeatureChoices();
+						}}
+					/>
+					</div>
+				{:else}
+					<RasterOptions
+						dataset={selectedDatasetDetail}
+						options={rasterOptions}
+						onOptionsChange={handleRasterChange}
+					/>
 				{/if}
-			</div>
+			{/if}
 		</div>
-	{/if}
+	</div>
 </div>

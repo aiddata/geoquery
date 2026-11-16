@@ -17,6 +17,7 @@
 	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
 	import { ChevronRight, ChevronDown, Pencil, Trash2, Send, CheckCircle, CircleAlert, TriangleAlert } from '@lucide/svelte';
 	import { formatKwargs } from '#lib/utils.js';
 
@@ -261,15 +262,9 @@
 		</div>
 	{:else}
 
-	<!-- One column: submit first, then the selections being submitted -->
-	<div class="relative flex-1 overflow-auto p-4 md:p-6">
-		<div class="mx-auto max-w-3xl space-y-8">
-			<section aria-labelledby="submit-heading">
-				<Card.Root>
-					<Card.Header>
-						<h2 id="submit-heading" class="text-h4">Submit your Request</h2>
-					</Card.Header>
-					<Card.Content>
+	<!-- The form in the panel; what's being submitted in the main area -->
+	<div class="flex min-h-0 flex-1">
+		<RequestPanel active="review">
 						<div class="space-y-4">
 							<div class="space-y-2">
 								<Label for="request-name">Request Name</Label>
@@ -346,10 +341,10 @@
 								{submitting ? 'Submitting…' : 'Submit Request'}
 							</Button>
 						</div>
-					</Card.Content>
-				</Card.Root>
-			</section>
+		</RequestPanel>
 
+		<div class="relative min-w-0 flex-1 overflow-auto p-4 md:p-6">
+			<div class="mx-auto max-w-3xl">
 			<section aria-labelledby="review-heading" class="space-y-4">
 				<h2 id="review-heading" class="text-h4">Review your Selections</h2>
 
@@ -521,6 +516,7 @@
 					</Card.Root>
 				{/each}
 			</section>
+			</div>
 		</div>
 	</div>
 	{/if}

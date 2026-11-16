@@ -35,3 +35,4 @@ manage_secrets.sh
 /docs/data_documentation/datasets/
 /docs/data_documentation/boundaries/
 /.github/scripts/__pycache__/
+.superpowers/
