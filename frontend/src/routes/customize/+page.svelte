@@ -34,6 +34,10 @@
 	import FilterAndAggOptions from '#lib/components/datasets/FilterAndAggOptions.svelte';
 	import OutcomeSelector from '#lib/components/datasets/OutcomeSelector.svelte';
 	import DatasetActions from '#lib/components/datasets/DatasetActions.svelte';
+	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
+	import OutputSummary from '#lib/components/datasets/OutputSummary.svelte';
+	import VersionCards from '#lib/components/datasets/VersionCards.svelte';
+	import { columnsByDataset, cleanVersionName, invalidVersionNames, uniqueVersionName } from '#lib/utils/outputColumns.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 
 	$effect(() => {
@@ -360,7 +364,8 @@
 	function buildFeatureItem(detail: DatasetDetail): CartItem {
 		const selections = $state.snapshot(filterSelections);
 		return {
-			customName: detail.title ?? detail.name,
+			// Unique per version: it prefixes this version's output columns
+			customName: uniqueVersionName(cleanVersionName(detail.name), $cart),
 			datasetName: detail.name,
 			datasetTitle: detail.title ?? detail.name,
 			datasetType: detail.type,
@@ -371,6 +376,31 @@
 	}
 
 	/** Leave edit mode: the filters stay, but no longer replace an entry. */
+	// The open feature dataset's versions in the request, shown as cards
+	const featureEntries = $derived(
+		selectedDatasetDetail && isFeature(selectedDatasetDetail)
+			? $cart
+					.map((item, index) => ({ item, index }))
+					.filter(({ item }) => item.datasetName === selectedDatasetDetail!.name)
+			: []
+	);
+	const invalidNames = $derived(invalidVersionNames($cart));
+
+	/** Load a version from the request into the options, to edit and replace it. */
+	function editVersion(item: CartItem) {
+		const detail = selectedDatasetDetail;
+		if (!detail || !item.kwargs) return;
+		filterSelections = structuredClone(item.filterSelections ?? initFilterSelections(detail.filters!));
+		const outcome = item.kwargs.outcome;
+		selectedOutcome = typeof outcome === 'string' ? outcome : defaultOutcome(detail);
+		datasetChoices.save(detail.name, {
+			filterSelections: $state.snapshot(filterSelections),
+			selectedOutcome,
+			kwargs: item.kwargs,
+			editingKey: kwargsKey(item.kwargs)
+		});
+	}
+
 	function stopEditing(name: string) {
 		const choices = datasetChoices.get(name);
 		if (choices?.editingKey) datasetChoices.save(name, { ...choices, editingKey: undefined });
@@ -409,131 +439,149 @@
 
 <Seo title="Customize Datasets" description="Browse GeoQuery's datasets, including population, nighttime lights, climate, land cover, conflict and health, and choose the years and statistics to extract for your boundaries." />
 
-<div class="flex h-[calc(100vh-8rem)] flex-col">
-	{#if isCustomMode}
-		<div class="flex items-center gap-2 bg-warning-bg px-4 py-2 text-sm text-foreground" role="note">
-			<TriangleAlert class="size-4 shrink-0 text-warning-text" aria-hidden="true" />
-			<span>
-				<strong>Custom boundary:</strong> Precise coverage cannot be verified. All datasets are shown.
-				Datasets flagged <span class="font-bold">out of range</span> likely have no data for your area.
-			</span>
-		</div>
-	{/if}
-
-	{#if !resolvedIds.length && !isCustomMode}
-		<!-- Waiting for feature IDs to resolve -->
-		<div class="flex flex-1 items-center justify-center">
-			<p class="text-muted-foreground">Loading available datasets…</p>
-		</div>
-	{:else if loadError}
-		<!-- Error state -->
-		<div class="flex flex-1 items-center justify-center">
-			<div class="max-w-md text-center">
-				<p class="text-lg font-bold text-destructive">Failed to load datasets</p>
+<div class="flex h-[calc(100vh-8rem)]">
+	<RequestPanel active="search" bare>
+		{#if !resolvedIds.length && !isCustomMode}
+			<p class="px-4 py-6 text-sm text-muted-foreground">Loading available datasets…</p>
+		{:else if loadError}
+			<div class="px-4 py-6">
+				<p class="font-bold text-destructive">Failed to load datasets</p>
 				<p class="mt-2 text-sm text-muted-foreground">{loadError}</p>
 			</div>
-		</div>
-	{:else}
-		<!-- Two-panel layout: dataset list and the open dataset (min-width enforced) -->
-		<div class="flex flex-1 overflow-hidden">
-			<!-- Left Panel: Dataset Selector -->
-			<div class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r bg-card">
-				<DatasetSelector
-					{datasets}
-					{categories}
-					selectedDataset={selectedDatasetSummary}
-					onSelect={handleDatasetSelect}
-					{outOfRangeNames}
-					{inRequestNames}
-					{unsavedNames}
-				/>
+		{:else}
+			<DatasetSelector
+				{datasets}
+				{categories}
+				selectedDataset={selectedDatasetSummary}
+				onSelect={handleDatasetSelect}
+				{outOfRangeNames}
+				{unsavedNames}
+				columnCounts={columnsByDataset($cart)}
+			/>
+		{/if}
+	</RequestPanel>
+
+	<!-- The open dataset, beside the panel -->
+	<div class="flex min-w-0 flex-1 flex-col">
+		{#if isCustomMode}
+			<div class="flex items-center gap-2 bg-warning-bg px-4 py-2 text-sm text-foreground" role="note">
+				<TriangleAlert class="size-4 shrink-0 text-warning-text" aria-hidden="true" />
+				<span>
+					<strong>Custom boundary:</strong> Precise coverage cannot be verified. All datasets are shown.
+					Datasets flagged <span class="font-bold">out of range</span> likely have no data for your area.
+				</span>
 			</div>
+		{/if}
 
-			<!-- Center Panel: Dataset Configuration. Scrolls vertically only. -->
-			<div class="min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-background">
-				{#if !selectedDatasetDetail && !detailLoading}
-					<div class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-						<p class="text-muted-foreground">
-							{selectedDatasetSummary
-								? 'Loading dataset configuration...'
-								: 'Select a dataset from the list to configure it.'}
+		<!-- Center Panel: Dataset Configuration. Scrolls vertically only. -->
+		<div class="min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-background">
+			{#if !selectedDatasetDetail && !detailLoading}
+				<div class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+					<p class="text-muted-foreground">
+						{selectedDatasetSummary
+							? 'Loading dataset configuration...'
+							: 'Select a dataset from the list to configure it.'}
+					</p>
+					{#if !selectedDatasetSummary}
+						<p class="max-w-md text-xs text-muted-foreground">
+							Raster datasets join your request as soon as you choose their options. Feature
+							datasets need <strong>Add to Request</strong>, and can be added more than once with
+							different filters.
 						</p>
-						{#if !selectedDatasetSummary}
-							<p class="max-w-md text-xs text-muted-foreground">
-								Raster datasets join your request as soon as you choose their options. Feature
-								datasets need <strong>Add to Request</strong>, and can be added more than once with
-								different filters.
-							</p>
-						{/if}
-					</div>
-				{:else if detailLoading}
-					<div class="flex h-full items-center justify-center">
-						<p class="text-muted-foreground">Loading dataset details...</p>
-					</div>
-				{:else if selectedDatasetDetail}
-					<!-- Dataset title bar -->
-					<div class="border-b bg-muted/30 px-4 py-3">
-						<h2 class="">
-							{selectedDatasetDetail.title ?? selectedDatasetDetail.name}
-						</h2>
-						{#if selectedDatasetDetail.description}
-							<p class="mt-1 text-sm text-muted-foreground">
-								{selectedDatasetDetail.description}
-							</p>
-						{/if}
-						<DatasetMetadata
-							dataset={selectedDatasetDetail}
-							bbox={selectedDatasetSummary?.bbox}
-							bind:citeOpen={metadataCiteOpen}
-							bind:moreOpen={metadataMoreOpen}
-						/>
-					</div>
+					{/if}
+				</div>
+			{:else if detailLoading}
+				<div class="flex h-full items-center justify-center">
+					<p class="text-muted-foreground">Loading dataset details...</p>
+				</div>
+			{:else if selectedDatasetDetail}
+				<!-- Dataset title bar -->
+				<div class="border-b bg-muted/30 px-4 py-3">
+					<h2 class="">
+						{selectedDatasetDetail.title ?? selectedDatasetDetail.name}
+					</h2>
+					{#if selectedDatasetDetail.description}
+						<p class="mt-1 text-sm text-muted-foreground">
+							{selectedDatasetDetail.description}
+						</p>
+					{/if}
+					<DatasetMetadata
+						dataset={selectedDatasetDetail}
+						bbox={selectedDatasetSummary?.bbox}
+						bind:citeOpen={metadataCiteOpen}
+						bind:moreOpen={metadataMoreOpen}
+					/>
+				</div>
 
-					<!-- Configuration area: heading, then Reset, Add / Update and status -->
-					<div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-4">
-						<h3 class="text-base font-semibold">Select Dataset Options</h3>
-						<DatasetActions
-							dataset={selectedDatasetDetail}
-							isFeature={isFeature(selectedDatasetDetail)}
-							extractTypes={rasterOptions.extractTypes}
-							selectedResources={rasterOptions.resources}
-							{saveState}
-							onAddToRequest={handleAddToRequest}
-							onUpdateRequest={handleUpdateRequest}
-							onReset={handleReset}
-						/>
-					</div>
-					{#if selectedDatasetDetail.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters}
-						<!-- Measure, Split results by, Filter records: one section each -->
-						<div class="mt-4 space-y-4 pb-4">
-						{#if selectedDatasetDetail.outcomes}
-							<OutcomeSelector
-								outcomes={selectedDatasetDetail.outcomes}
-								selected={selectedOutcome}
-								onSelect={(key) => {
-									selectedOutcome = key;
-									saveFeatureChoices();
-								}}
-							/>
-						{/if}
-						<FilterAndAggOptions
-							filters={selectedDatasetDetail.filters}
-							selections={filterSelections}
-							onSelectionsChange={(s) => {
-								filterSelections = s;
+				{#if featureEntries.length > 0}
+					<VersionCards
+						dataset={selectedDatasetDetail}
+						entries={featureEntries}
+						invalid={invalidNames}
+						onRename={(index, name) => cart.updateItemName(index, name)}
+						onRemove={(index) => cart.removeItem(index)}
+						{editingKey}
+						currentKey={kwargsKey(buildFilterKwargs($state.snapshot(filterSelections), selectedDatasetDetail.filters, selectedOutcome))}
+						onEdit={editVersion}
+					/>
+				{/if}
+
+				<!-- What the output will hold: from the current filters for feature datasets,
+				     and a placeholder for rasters until they're in the request -->
+				<OutputSummary
+						dataset={selectedDatasetDetail}
+						isFeature={isFeature(selectedDatasetDetail)}
+						features={isCustomMode ? ($customBoundary.featureCount ?? 0) : resolvedIds.length}
+						boundaries={isCustomMode ? 1 : $selectionFcIds.length}
+						extractTypes={rasterOptions.extractTypes}
+						resources={rasterOptions.resources}
+						{filterSelections}
+						outcome={selectedOutcome}
+						{saveState}
+						empty={!isFeature(selectedDatasetDetail) && !inRequestNames.has(selectedDatasetDetail.name)}
+					/>
+
+				<!-- Configuration area: heading, then Reset, Add / Update and status -->
+				<div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-4">
+					<h3 class="text-base font-semibold">Select Dataset Options</h3>
+					<DatasetActions
+						isFeature={isFeature(selectedDatasetDetail)}
+						{saveState}
+						onAddToRequest={handleAddToRequest}
+						onUpdateRequest={handleUpdateRequest}
+						onReset={handleReset}
+					/>
+				</div>
+				{#if selectedDatasetDetail.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters}
+					<!-- Measure, Split results by, Filter records: one section each -->
+					<div class="mt-4 space-y-4 pb-4">
+					{#if selectedDatasetDetail.outcomes}
+						<OutcomeSelector
+							outcomes={selectedDatasetDetail.outcomes}
+							selected={selectedOutcome}
+							onSelect={(key) => {
+								selectedOutcome = key;
 								saveFeatureChoices();
 							}}
 						/>
-						</div>
-					{:else}
-						<RasterOptions
-							dataset={selectedDatasetDetail}
-							options={rasterOptions}
-							onOptionsChange={handleRasterChange}
-						/>
 					{/if}
+					<FilterAndAggOptions
+						filters={selectedDatasetDetail.filters}
+						selections={filterSelections}
+						onSelectionsChange={(s) => {
+							filterSelections = s;
+							saveFeatureChoices();
+						}}
+					/>
+					</div>
+				{:else}
+					<RasterOptions
+						dataset={selectedDatasetDetail}
+						options={rasterOptions}
+						onOptionsChange={handleRasterChange}
+					/>
 				{/if}
-			</div>
+			{/if}
 		</div>
-	{/if}
+	</div>
 </div>

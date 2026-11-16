@@ -57,12 +57,16 @@ def _to_web_spec(spec: dict) -> dict:
             "Each dataset needs a 'name', e.g. {'name': 'esa_landcover', "
             "'extract_types': ['mean']}."
         )
-    return {
+    translated = {
         "datasetName": name,
         "extractTypes": spec.get("extract_types") or [],
         "resources": spec.get("resources") or [],
         "kwargs": spec.get("kwargs") or None,
     }
+    # Filtered datasets: the version's output column prefix, when given
+    if spec.get("column_name"):
+        translated["name"] = spec["column_name"]
+    return translated
 
 
 def _resolve_feature_ids(user, boundary: str) -> tuple[list[int], object]:

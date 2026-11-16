@@ -28,7 +28,7 @@ from features.models import FeatMap, Feature, FeatureCollection
 from analytics.background_metrics import record_request_outcome
 from analytics.changes import Generations, only_valid, read_states, recheck
 from analytics.models import ExtractTask, ProcessingOption, Request, RequestMap
-from analytics.services import requested_resource_ids
+from analytics.services import feature_column_names, requested_resource_ids
 from analytics.tasks.documentation import DocBuilder
 from analytics.tasks.email import GeoEmail, plain_and_html
 from analytics.tasks.merge import merge_task_features, merge_task_results
@@ -964,7 +964,9 @@ def _build_output(request, task_map, download_server, requests_dir, assets_dir, 
         request_json = build_dir / "request_details.json"
 
         merge_status, merge_df = merge_task_results(
-            task_map, resource_ids=requested_resource_ids(request)
+            task_map,
+            resource_ids=requested_resource_ids(request),
+            column_names=feature_column_names(request),
         )
         if merge_status != "Success":
             raise Exception(

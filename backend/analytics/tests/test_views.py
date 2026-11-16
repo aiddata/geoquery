@@ -104,6 +104,22 @@ class RequestViewStandardSubmissionTest(TestCase):
             [t.kwargs for t in ExtractTask.objects.all()], [None, {"buffer": 10}]
         )
 
+    def test_feature_versions_are_stored_with_unique_cleaned_names(self):
+        resp = self.submit(
+            datasets=[
+                {"datasetName": self.dataset.name, "kwargs": {"buffer": 10}, "name": "My version!"},
+                {"datasetName": self.dataset.name, "kwargs": {"buffer": 20}, "name": "my version"},
+                {"datasetName": self.dataset.name, "kwargs": {"buffer": 30}},
+                {"datasetName": self.dataset.name},
+            ]
+        )
+
+        req = Request.objects.get(id=resp.json()["id"])
+        self.assertEqual(
+            [d["name"] for d in req.data["datasets"]],
+            ["My_version", "my_version_2", self.dataset.name, None],
+        )
+
     def test_resubmission_with_same_kwargs_reuses_task(self):
         ds_with_kwargs = [
             {"datasetName": self.dataset.name, "kwargs": {"buffer": 10}}

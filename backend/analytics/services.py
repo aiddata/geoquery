@@ -21,6 +21,8 @@ one SELECT, one bulk INSERT, one re-SELECT -- rather than per task.
 
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass, field
 
 from django.conf import settings
@@ -108,12 +110,36 @@ class ResolvedDataset:
     fms: list[FeatMap]
     task_kwargs: dict | None
     task_sets: tuple[TaskSet, ...] = ()
+    # Feature datasets only: the prefix for this spec's output columns
+    column_name: str | None = None
 
     @property
     def task_count(self) -> int:
         # Every (feature, task set) pair is distinct, so the product is the
         # exact task count, not an upper bound.
         return len(self.fms) * len(self.task_sets)
+
+
+_NAME_DISALLOWED = re.compile(r"[^A-Za-z0-9_]")
+
+
+def clean_column_name(name: str) -> str:
+    """A feature-dataset version's output column prefix: spaces become
+    underscores and anything but letters, digits and underscores is dropped."""
+    return _NAME_DISALLOWED.sub("", (name or "").strip().replace(" ", "_"))
+
+
+def _unique_name(base: str, taken: set[str]) -> str:
+    name, n = base, 2
+    while name.lower() in taken:
+        name, n = f"{base}_{n}", n + 1
+    taken.add(name.lower())
+    return name
+
+
+def canonical_kwargs(kwargs: dict | None) -> str:
+    """Key-order-independent form of task kwargs, for matching tasks to specs."""
+    return json.dumps(kwargs, sort_keys=True)
 
 
 def _task_sets(dataset, pos, resources, task_kwargs) -> tuple[TaskSet, ...]:
@@ -210,6 +236,9 @@ def resolve_request_plan(user, feature_ids: list[int], datasets: list[dict]) -> 
     resolved: list[ResolvedDataset] = []
     warnings: list[str] = []
     visible_fcs = visible_feature_collections(user)
+    # Output column prefixes of feature-dataset versions, kept unique so two
+    # versions of one dataset never write to the same columns.
+    taken_names: set[str] = set()
 
     for ds in datasets:
         dataset_name = (ds.get("datasetName") or "").strip()
@@ -251,6 +280,11 @@ def resolve_request_plan(user, feature_ids: list[int], datasets: list[dict]) -> 
             )
             continue
 
+        column_name = None
+        if task_kwargs is not None:
+            base = clean_column_name(ds.get("name") or "") or clean_column_name(dataset_name) or "dataset"
+            column_name = _unique_name(base, taken_names)
+
         resolved.append(
             ResolvedDataset(
                 spec=ds,
@@ -260,6 +294,7 @@ def resolve_request_plan(user, feature_ids: list[int], datasets: list[dict]) -> 
                 fms=fms,
                 task_kwargs=task_kwargs,
                 task_sets=_task_sets(dataset_obj, pos, resource_list, task_kwargs),
+                column_name=column_name,
             )
         )
 
@@ -495,6 +530,9 @@ def _build_tasks(plan: RequestPlan) -> tuple[dict[int, int], list[dict]]:
         valid_datasets.append(
             {
                 "dataset_name": resolved.dataset.name,
+                "dataset_id": resolved.dataset.id,
+                # Feature datasets: the prefix of this version's output columns
+                "name": resolved.column_name,
                 "dataset_type": (ds.get("datasetType") or "").strip() or None,
                 "extract_types": ds.get("extractTypes") or [],
                 "resources": ds.get("resources") or [],
@@ -521,6 +559,17 @@ def requested_resource_ids(request: Request) -> set[int] | None:
     if not datasets or any("resource_ids" not in d for d in datasets):
         return None
     return {rid for d in datasets for rid in d["resource_ids"]}
+
+
+def feature_column_names(request: Request) -> dict[tuple[int, str], str]:
+    """Output column prefix for each feature-dataset version in a request,
+    keyed by (dataset id, canonical kwargs). Empty for requests made before
+    versions were named, which keep the "{dataset}_{outcome}" prefix."""
+    names = {}
+    for d in (request.data or {}).get("datasets") or []:
+        if d.get("name") and d.get("kwargs") is not None and d.get("dataset_id") is not None:
+            names[(d["dataset_id"], canonical_kwargs(d["kwargs"]))] = d["name"]
+    return names
 
 
 def create_request(

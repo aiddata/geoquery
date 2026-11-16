@@ -527,6 +527,14 @@ export interface Stats {
 	boundary_sets_available?: number;
 	/** Features (areas) across the available boundary sets. */
 	boundary_features_available?: number;
+	/** Distinct requester emails, and their email domains (organizations),
+	 * across current requests and those from earlier versions. */
+	users?: number;
+	organizations?: number;
+	/** Requests from earlier versions, in the same shape as `time_series`. */
+	legacy_time_series?: Record<'submit_time' | 'complete_time', Record<string, StatsPoint[]>>;
+	/** Day (YYYY-MM-DD) of the current system's first request. */
+	cutover?: string | null;
 	/** Submit-to-complete time over requests completed in the last `days` days. */
 	turnaround?: { days: number; count: number; median_seconds: number | null; p90_seconds: number | null };
 	/** Public datasets and boundary sets in the most requests, current GeoQuery only. */

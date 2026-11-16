@@ -23,6 +23,7 @@
 	import { colorForIndex, lineWidthForLevel } from '#lib/utils/boundaryStyle.js';
 	import { unionBbox, type Bbox } from '#lib/utils/bbox.js';
 	import WelcomeModal from '#lib/components/map/WelcomeModal.svelte';
+	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
 	import CustomBoundaryPanel from '#lib/components/map/CustomBoundaryPanel.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
@@ -176,26 +177,6 @@
 		dismissWelcome();
 	}
 
-	// When the welcome modal opens, the selection panel moves to the center where
-	// the modal is, so closing the modal leaves the next step in the same place.
-	// The first boundary selection docks it top left for the rest of the visit.
-	// Starts docked: the server render cannot know about the modal.
-	let panelDocked = $state(true);
-	$effect(() => {
-		if (showWelcome && browseBoundaries.length === 0 && !$customBoundary.active) panelDocked = false;
-	});
-
-	function dockPanel() {
-		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-		if (!document.startViewTransition || reduceMotion) {
-			panelDocked = true;
-			return;
-		}
-		document.startViewTransition(async () => {
-			panelDocked = true;
-			await tick();
-		});
-	}
 
 	let mapFrame: MapFrame;
 	let mapZoom = $state(2);
@@ -221,10 +202,6 @@
 	// Features clicked on the map; only meaningful when exactly one boundary is selected
 	let pendingFeatureIds = $state<number[]>(_init.featureIds);
 	let currentBbox = $state<Bbox | null>(_init.bbox);
-
-	$effect(() => {
-		if (!panelDocked && (browseBoundaries.length > 0 || $customBoundary.active)) dockPanel();
-	});
 
 	let userBbox = $derived.by(() => {
 		if (!$customBoundary.active) return null;
@@ -391,21 +368,10 @@
 
 <WelcomeModal bind:open={() => showWelcome, (open) => { if (!open) closeWelcome(); }} />
 
-<div class="relative flex h-[calc(100vh-8rem)] flex-col">
-	<!-- Left panel: search + selection status -->
-	<div
-		class="absolute z-10 max-w-[calc(100vw-2rem)] space-y-2 flex flex-col [view-transition-name:boundary-panel] {panelDocked
-			? 'left-4 top-4 bottom-4 w-96'
-			: 'left-1/2 top-1/2 max-h-[calc(100%-2rem)] w-[36rem] -translate-x-1/2 -translate-y-1/2'}"
-	>
-		<!-- Tabbed selection card -->
-		<div class="card-surface flex flex-col min-h-0">
-			<div class="p-4 pb-2 shrink-0">
-				<div class="flex items-start justify-between gap-2 {canBrowse || canCustom ? 'mb-3' : ''}">
-					<h2 class="text-h4 text-foreground">
-						Select Boundaries to Begin
-					</h2>
-					{#if browseBoundaries.length > 0 || $customBoundary.fileName || $customBoundary.active}
+<div class="flex h-[calc(100vh-8rem)]">
+	<RequestPanel active="map">
+		{#snippet actions()}
+			{#if browseBoundaries.length > 0 || $customBoundary.fileName || $customBoundary.active}
 						<Button
 							size="sm"
 							variant="ghost"
@@ -415,8 +381,8 @@
 							Restart
 						</Button>
 					{/if}
-				</div>
-				<!-- Tabs -->
+		{/snippet}
+		<!-- Tabs -->
 				{#if canBrowse || canCustom}
 					<div class="grid {canBrowse && canCustom ? 'grid-cols-3' : 'grid-cols-2'} gap-1 rounded-md bg-muted p-1">
 						<button
@@ -446,10 +412,7 @@
 						{/if}
 					</div>
 				{/if}
-			</div>
-
-			<!-- Tab content (scrolls if too tall; explore tab needs overflow-visible so its dropdown isn't clipped) -->
-			<div class="px-4 pb-4 pt-2 min-h-0 flex-1 {activeTab === 'explore' ? 'overflow-visible' : 'overflow-y-auto'}">
+		<div class="{canBrowse || canCustom ? 'mt-3' : ''}">
 				<!-- Above the boundary search, so it's seen before changing anything else -->
 				{#if activeTab !== 'custom' && selectionChanged && $cartCount > 0}
 					<Alert.Root variant="warning" role="status" class="mb-3">
@@ -515,11 +478,11 @@
 				{:else if activeTab === 'custom'}
 					<CustomBoundaryPanel />
 				{/if}
-
-			</div>
 		</div>
-	</div>
+	</RequestPanel>
 
+	<!-- Map, beside the panel -->
+	<div class="relative flex min-w-0 flex-1 flex-col">
 	<!-- Zoom Controls -->
 	<div class="absolute right-4 top-4 z-10 flex flex-col items-center gap-1">
 		<ZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
@@ -545,4 +508,5 @@
 		onFeatureClick={handleFeatureClick}
 		userGeoJSON={$customBoundary.active ? $customBoundary.finalFeatures : null}
 	/>
+	</div>
 </div>

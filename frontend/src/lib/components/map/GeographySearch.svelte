@@ -103,7 +103,8 @@
 <div class="space-y-3">
 	<!-- Selected chips -->
 	{#if selectedBoundaries.length > 0}
-		<div class="max-h-20 overflow-y-auto flex flex-wrap gap-1">
+		<!-- Five rows of chips (28px each, 4px gaps) before it scrolls -->
+		<div class="max-h-[9.75rem] overflow-y-auto flex flex-wrap gap-1">
 			{#each selectedBoundaries as boundary, idx (boundary.id)}
 				<div class="inline-flex items-center gap-1 rounded-md bg-primary/15 py-0.5 pr-0.5 pl-2 text-sm font-bold">
 					<span
