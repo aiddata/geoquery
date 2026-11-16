@@ -35,6 +35,7 @@
 	import OutcomeSelector from '#lib/components/datasets/OutcomeSelector.svelte';
 	import DatasetActions from '#lib/components/datasets/DatasetActions.svelte';
 	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
+	import OutputSummary from '#lib/components/datasets/OutputSummary.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 
 	$effect(() => {
@@ -484,14 +485,26 @@
 					/>
 				</div>
 
+				<!-- What the output will hold: from the current filters for feature datasets,
+				     and a placeholder for rasters until they're in the request -->
+				<OutputSummary
+						dataset={selectedDatasetDetail}
+						isFeature={isFeature(selectedDatasetDetail)}
+						features={isCustomMode ? ($customBoundary.featureCount ?? 0) : resolvedIds.length}
+						boundaries={isCustomMode ? 1 : $selectionFcIds.length}
+						extractTypes={rasterOptions.extractTypes}
+						resources={rasterOptions.resources}
+						{filterSelections}
+						outcome={selectedOutcome}
+						{saveState}
+						empty={!isFeature(selectedDatasetDetail) && !inRequestNames.has(selectedDatasetDetail.name)}
+					/>
+
 				<!-- Configuration area: heading, then Reset, Add / Update and status -->
 				<div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-4">
 					<h3 class="text-base font-semibold">Select Dataset Options</h3>
 					<DatasetActions
-						dataset={selectedDatasetDetail}
 						isFeature={isFeature(selectedDatasetDetail)}
-						extractTypes={rasterOptions.extractTypes}
-						selectedResources={rasterOptions.resources}
 						{saveState}
 						onAddToRequest={handleAddToRequest}
 						onUpdateRequest={handleUpdateRequest}
