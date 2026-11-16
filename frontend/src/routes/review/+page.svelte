@@ -2,8 +2,9 @@
 	import Seo from '#lib/components/layout/Seo.svelte';
 	import { goto } from '$app/navigation';
 	import { currentStep } from '#lib/stores/ui.js';
-	import { cart, cartCount } from '#lib/stores/cart.js';
-	import { selection, selectionSummary } from '#lib/stores/selection.js';
+	import { cart, cartCount, type CartItem } from '#lib/stores/cart.js';
+	import { datasetChoices } from '#lib/stores/datasetChoices.js';
+	import { selection, selectionSummary, selectionFcIds } from '#lib/stores/selection.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
 	import { fetchFeatureIds, submitRequest, type SubmittedRequest, type CustomBoundaryPayload } from '#lib/api.js';
 	import { auth } from '#lib/stores/auth.js';
@@ -16,7 +17,7 @@
 	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
-	import { ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, Send, CheckCircle, CircleAlert, TriangleAlert } from '@lucide/svelte';
+	import { ChevronRight, ChevronDown, Pencil, Trash2, Send, CheckCircle, CircleAlert, TriangleAlert } from '@lucide/svelte';
 	import { formatKwargs } from '#lib/utils.js';
 
 	$effect(() => {
@@ -85,6 +86,17 @@
 	let boundaryConsent = $state(false);
 
 	let resolvedFeatureIds = $derived($selection?.resolvedFeatureIds ?? []);
+
+	// Boundaries are saved as they're picked on the map, so the full feature
+	// list may still be resolving when Review opens: resolve it here if so.
+	$effect(() => {
+		if (!$selection || resolvedFeatureIds.length > 0) return;
+		const fcIds = $selectionFcIds;
+		if (!fcIds.length) return;
+		fetchFeatureIds(fcIds)
+			.then((ids) => selection.setResolvedFeatureIds(ids))
+			.catch(console.error);
+	});
 	let isCustomMode = $derived($customBoundary.saved && $customBoundary.active);
 	let canSubmit = $derived(
 		requestName.trim() !== '' &&
@@ -136,6 +148,32 @@
 			return `/customize?fc=${$selection.fcs.map((fc) => fc.id).join(',')}`;
 		}
 		return '/';
+	}
+
+	/** Open an item's dataset on Customize with that item's options loaded. */
+	function editItem(item: CartItem) {
+		// Rasters load from the cart itself; a feature item's filters are put
+		// back as the dataset's current choices, so Customize shows exactly
+		// this version (as already in the request).
+		if (item.kwargs != null) {
+			const outcome = item.kwargs.outcome;
+			datasetChoices.save(item.datasetName, {
+				filterSelections: item.filterSelections,
+				selectedOutcome: typeof outcome === 'string' ? outcome : undefined,
+				kwargs: item.kwargs,
+				// Update Request on Customize replaces this entry.
+				editingKey: JSON.stringify(item.kwargs)
+			});
+		}
+		const base = customizeUrl();
+		goto(`${base}${base.includes('?') ? '&' : '?'}dataset=${encodeURIComponent(item.datasetName)}`);
+	}
+
+	function removeItem(index: number) {
+		const item = $cart[index];
+		cart.removeItem(index);
+		// A raster's options live in the cart; removing it starts the dataset over.
+		if (item && item.kwargs == null) datasetChoices.clear(item.datasetName);
 	}
 
 	async function handleSubmit() {
@@ -191,23 +229,6 @@
 <Seo title="Review Request" noindex />
 
 <div class="flex h-[calc(100vh-8rem)] flex-col">
-	<!-- Top bar -->
-	<div class="flex items-center gap-3 border-b bg-muted/30 px-4 py-2">
-		{#if !submitted}
-			<Button variant="ghost" size="sm" onclick={() => history.back()}>
-				<ChevronLeft />
-				Back
-			</Button>
-			<span class="text-sm text-muted-foreground">|</span>
-			<span class="text-sm">
-				Review &amp; Submit ({$cartCount}
-				{$cartCount === 1 ? 'dataset' : 'datasets'})
-			</span>
-		{:else}
-			<span class="text-sm font-bold">Request Submitted</span>
-		{/if}
-	</div>
-
 	<!-- Success state -->
 	{#if submitted}
 		<div class="flex flex-1 items-center justify-center p-8">
@@ -240,11 +261,105 @@
 		</div>
 	{:else}
 
-	<!-- Two-panel layout -->
-	<div class="flex flex-1 flex-col overflow-auto md:flex-row md:overflow-hidden">
-		<!-- Left: Selections list -->
-		<div class="flex-1 overflow-auto p-4 md:p-6">
-			<div class="mx-auto max-w-2xl space-y-4">
+	<!-- One column: submit first, then the selections being submitted -->
+	<div class="relative flex-1 overflow-auto p-4 md:p-6">
+		<div class="mx-auto max-w-3xl space-y-8">
+			<section aria-labelledby="submit-heading">
+				<Card.Root>
+					<Card.Header>
+						<h2 id="submit-heading" class="text-h4">Submit your Request</h2>
+					</Card.Header>
+					<Card.Content>
+						<div class="space-y-4">
+							<div class="space-y-2">
+								<Label for="request-name">Request Name</Label>
+								<Input
+									id="request-name"
+									bind:value={requestName}
+									placeholder="My data request"
+								/>
+							</div>
+
+							<div class="space-y-2">
+								<Label for="email">Email</Label>
+								<Input
+									id="email"
+									type="email"
+									bind:value={email}
+									placeholder="you@example.com"
+									disabled={isSignedIn}
+								/>
+								{#if isSignedIn}
+									<p class="text-xs text-muted-foreground">
+										Submitting as {email} — this request will be linked to your account.
+										Manage addresses in <a href="/account" class="underline">your account</a>.
+									</p>
+								{:else}
+									<p class="text-xs text-muted-foreground">
+										We'll send a download link to this address when your data is ready.
+									</p>
+								{/if}
+							</div>
+
+							<Separator />
+
+							<p class="text-xs text-muted-foreground">
+								All datasets will be extracted for the same
+								{resolvedFeatureIds.length === 0
+									? 'feature selection'
+									: resolvedFeatureIds.length === 1
+										? '1 feature'
+										: `${resolvedFeatureIds.length} features`}.
+								Actual dataset coverage may vary across selected features.
+							</p>
+
+							{#if isCustomMode}
+								<Alert.Root variant="warning" role="note" class="p-3">
+									<TriangleAlert />
+									<Alert.Title>Custom boundary data notice</Alert.Title>
+									<Alert.Description class="space-y-3">
+									<p>
+										Your uploaded boundary data will be stored on GeoQuery's servers and included with your
+										request results. Anyone with your request link can view it — results pages are not
+										publicly listed, but are not access-controlled beyond the unique request ID URL.
+									</p>
+									<p>
+										Result files are stored on W&amp;M's computing infrastructure and are not publically available but also not protected by  security measures other than standard file system permissions. The uploaded data will not be used for any purpose other than processing your request without your explicit permission.
+									</p>
+									<div class="flex items-start gap-2">
+										<Checkbox id="boundary-consent" bind:checked={boundaryConsent} class="mt-0.5 shrink-0" />
+										<label for="boundary-consent" class="cursor-pointer font-bold">I understand, confirm I have permission to upload this data, and consent to my boundary data being stored and shared as described above.</label>
+									</div>
+									</Alert.Description>
+								</Alert.Root>
+							{/if}
+
+							{#if submitError}
+								<Alert.Root variant="destructive">
+									<CircleAlert />
+									<Alert.Description>{submitError}</Alert.Description>
+								</Alert.Root>
+							{/if}
+
+							<Button class="w-full" size="lg" disabled={!canSubmit} onclick={handleSubmit}>
+								<Send />
+								{submitting ? 'Submitting…' : 'Submit Request'}
+							</Button>
+						</div>
+					</Card.Content>
+				</Card.Root>
+			</section>
+
+			<section aria-labelledby="review-heading" class="space-y-4">
+				<h2 id="review-heading" class="text-h4">Review your Selections</h2>
+
+				<div class="flex items-center justify-between">
+					<h3 class="text-base font-semibold">Boundaries</h3>
+					<Button variant="outline" size="sm" onclick={() => goto('/')}>
+						<Pencil />
+						Modify Boundaries
+					</Button>
+				</div>
 
 				{#if isCustomMode}
 					<Card.Root class="bg-muted/40">
@@ -269,10 +384,6 @@
 										</div>
 									{/if}
 								</div>
-								<Button variant="outline" size="sm" onclick={() => goto('/')}>
-									<Pencil />
-									Change
-								</Button>
 							</div>
 						</Card.Header>
 					</Card.Root>
@@ -318,17 +429,13 @@
 										</p>
 									{/if}
 								</div>
-								<Button variant="outline" size="sm" onclick={() => goto('/')}>
-									<Pencil />
-									Change
-								</Button>
 							</div>
 						</Card.Header>
 					</Card.Root>
 				{/if}
 
 				<div class="flex items-center justify-between">
-					<h2 class="text-h4">Your Selections</h2>
+					<h3 class="text-base font-semibold">Datasets</h3>
 					<Button variant="outline" size="sm" onclick={() => goto(customizeUrl())}>
 						Add Another Dataset
 					</Button>
@@ -368,8 +475,17 @@
 										/>
 										<Button
 											variant="ghost"
+											size="sm"
+											class="shrink-0 text-muted-foreground"
+											onclick={() => editItem(item)}
+										>
+											<Pencil />
+											Edit options
+										</Button>
+										<Button
+											variant="ghost"
 											size="icon-sm"
-											onclick={() => cart.removeItem(i)}
+											onclick={() => removeItem(i)}
 											class="text-muted-foreground hover:text-destructive"
 											aria-label="Remove {item.customName || item.datasetTitle}"
 										>
@@ -404,90 +520,7 @@
 						</Card.Header>
 					</Card.Root>
 				{/each}
-			</div>
-		</div>
-
-		<!-- Right: Submit form -->
-		<div class="shrink-0 overflow-auto border-t bg-card p-4 md:w-96 md:border-l md:border-t-0 md:p-6">
-			<h2 class="text-h4">Review &amp; Submit</h2>
-			<Separator class="my-4" />
-
-			<div class="space-y-4">
-				<div class="space-y-2">
-					<Label for="request-name">Request Name</Label>
-					<Input
-						id="request-name"
-						bind:value={requestName}
-						placeholder="My data request"
-					/>
-				</div>
-
-				<div class="space-y-2">
-					<Label for="email">Email</Label>
-					<Input
-						id="email"
-						type="email"
-						bind:value={email}
-						placeholder="you@example.com"
-						disabled={isSignedIn}
-					/>
-					{#if isSignedIn}
-						<p class="text-xs text-muted-foreground">
-							Submitting as {email} — this request will be linked to your account.
-							Manage addresses in <a href="/account" class="underline">your account</a>.
-						</p>
-					{:else}
-						<p class="text-xs text-muted-foreground">
-							We'll send a download link to this address when your data is ready.
-						</p>
-					{/if}
-				</div>
-
-				<Separator />
-
-				<p class="text-xs text-muted-foreground">
-					All datasets will be extracted for the same
-					{resolvedFeatureIds.length === 0
-						? 'feature selection'
-						: resolvedFeatureIds.length === 1
-							? '1 feature'
-							: `${resolvedFeatureIds.length} features`}.
-					Actual dataset coverage may vary across selected features.
-				</p>
-
-				{#if isCustomMode}
-					<Alert.Root variant="warning" role="note" class="p-3">
-						<TriangleAlert />
-						<Alert.Title>Custom boundary data notice</Alert.Title>
-						<Alert.Description class="space-y-3">
-						<p>
-							Your uploaded boundary data will be stored on GeoQuery's servers and included with your
-							request results. Anyone with your request link can view it — results pages are not
-							publicly listed, but are not access-controlled beyond the unique request ID URL.
-						</p>
-						<p>
-							Result files are stored on W&amp;M's computing infrastructure and are not publically available but also not protected by  security measures other than standard file system permissions. The uploaded data will not be used for any purpose other than processing your request without your explicit permission.
-						</p>
-						<div class="flex items-start gap-2">
-							<Checkbox id="boundary-consent" bind:checked={boundaryConsent} class="mt-0.5 shrink-0" />
-							<label for="boundary-consent" class="cursor-pointer font-bold">I understand, confirm I have permission to upload this data, and consent to my boundary data being stored and shared as described above.</label>
-						</div>
-						</Alert.Description>
-					</Alert.Root>
-				{/if}
-
-				{#if submitError}
-					<Alert.Root variant="destructive">
-						<CircleAlert />
-						<Alert.Description>{submitError}</Alert.Description>
-					</Alert.Root>
-				{/if}
-
-				<Button class="w-full" size="lg" disabled={!canSubmit} onclick={handleSubmit}>
-					<Send />
-					{submitting ? 'Submitting…' : 'Submit Request'}
-				</Button>
-			</div>
+			</section>
 		</div>
 	</div>
 	{/if}

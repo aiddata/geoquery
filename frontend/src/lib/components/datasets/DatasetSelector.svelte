@@ -5,7 +5,7 @@
 	import { ScrollArea } from '#lib/components/ui/scroll-area/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
-	import { Search, ArrowUpDown, ChevronDown, ChevronUp } from '@lucide/svelte';
+	import { Search, ArrowUpDown, ChevronDown, ChevronUp, CircleAlert, CircleCheck } from '@lucide/svelte';
 	import type { DatasetSummary, DatasetCategory } from '#lib/api.js';
 
 	interface Props {
@@ -14,11 +14,21 @@
 		selectedDataset: DatasetSummary | null;
 		onSelect: (dataset: DatasetSummary) => void;
 		outOfRangeNames?: Set<string>;
-		/** Datasets with choices not yet added to the request; marked with a dot. */
-		openNames?: Set<string>;
+		/** Datasets in the request; marked with a check. */
+		inRequestNames?: Set<string>;
+		/** Feature datasets whose current filters aren't in the request; marked with an exclamation. */
+		unsavedNames?: Set<string>;
 	}
 
-	let { datasets, categories, selectedDataset, onSelect, outOfRangeNames = new Set(), openNames = new Set() }: Props = $props();
+	let {
+		datasets,
+		categories,
+		selectedDataset,
+		onSelect,
+		outOfRangeNames = new Set(),
+		inRequestNames = new Set(),
+		unsavedNames = new Set()
+	}: Props = $props();
 
 	let searchText = $state('');
 	let searchFocused = $state(false);
@@ -153,13 +163,18 @@
 					>
 						<p class="flex items-start gap-2 text-sm font-bold leading-snug">
 							<span class="min-w-0 flex-1">{dataset.title ?? dataset.name}</span>
-							{#if openNames.has(dataset.name)}
-								<span
-									class="mt-1.5 size-2 shrink-0 rounded-full bg-primary"
-									title="Choices not added to your request yet"
+							{#if unsavedNames.has(dataset.name)}
+								<CircleAlert
+									class="mt-0.5 size-4 shrink-0 text-warning-text"
 									aria-hidden="true"
-								></span>
-								<span class="sr-only">(choices not added to your request yet)</span>
+								/>
+								<span class="sr-only">(filters not added to your request yet)</span>
+							{:else if inRequestNames.has(dataset.name)}
+								<CircleCheck
+									class="mt-0.5 size-4 shrink-0 text-success-text"
+									aria-hidden="true"
+								/>
+								<span class="sr-only">(in your request)</span>
 							{/if}
 						</p>
 						<div class="mt-0.5 flex items-center gap-1.5">

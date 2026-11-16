@@ -1,4 +1,5 @@
 import { writable, derived } from 'svelte/store';
+import { customBoundary } from './customBoundary.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -14,13 +15,13 @@ export interface SingleFCSelection {
 	mode: 'single';
 	fc: FCRef;
 	featureIds: number[]; // Feature.id — empty means entire collection
-	resolvedFeatureIds: number[]; // full flat list for requests/coverage (set on proceed)
+	resolvedFeatureIds: number[]; // full flat list for requests/coverage (empty until resolved)
 }
 
 export interface MultiFCSelection {
 	mode: 'multi';
 	fcs: FCRef[];
-	resolvedFeatureIds: number[]; // full flat list for requests/coverage (set on proceed)
+	resolvedFeatureIds: number[]; // full flat list for requests/coverage (empty until resolved)
 }
 
 export type ActiveSelection = SingleFCSelection | MultiFCSelection | null;
@@ -32,6 +33,19 @@ function createSelectionStore() {
 
 	return {
 		subscribe,
+
+		/**
+		 * Replace the selection with these boundaries (one = single mode, keeping
+		 * any feature sub-selection; several = multi mode; none = cleared). A
+		 * feature sub-selection is already its own resolved list; otherwise the
+		 * resolved list starts empty until setResolvedFeatureIds fills it.
+		 */
+		replace(fcs: FCRef[], featureIds: number[] = []) {
+			if (fcs.length === 0) set(null);
+			else if (fcs.length === 1)
+				set({ mode: 'single', fc: fcs[0], featureIds: [...featureIds], resolvedFeatureIds: [...featureIds] });
+			else set({ mode: 'multi', fcs: [...fcs], resolvedFeatureIds: [] });
+		},
 
 		/** Start a single-FC selection. Clears any existing selection. */
 		setSingleFC(fc: FCRef) {
@@ -148,4 +162,16 @@ export const selectionSummary = derived(selection, ($sel) => {
 		label: $sel.fcs.map((fc) => fc.title ?? fc.name).join(', '),
 		detail: `${$sel.fcs.length} boundary collection${$sel.fcs.length === 1 ? '' : 's'}`
 	};
+});
+
+/**
+ * Where "2. Customize Datasets" leads: the Customize page for the boundaries
+ * last confirmed with Find Data (or a saved custom boundary), or null when
+ * nothing has been confirmed yet.
+ */
+export const customizeHref = derived([selection, customBoundary], ([$sel, $custom]): string | null => {
+	if ($custom.saved && $custom.active) return '/customize';
+	if (!$sel) return null;
+	if ($sel.mode === 'single') return '/customize?selection';
+	return `/customize?fc=${$sel.fcs.map((fc) => fc.id).join(',')}`;
 });
