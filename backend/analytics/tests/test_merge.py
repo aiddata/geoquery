@@ -219,6 +219,38 @@ class MergeTaskResultsTestCase(TestCase):
         self.assertEqual(row["other_resource.mean"], 2.0)
         self.assertNotIn("acled_none.mean", df.columns)
 
+    def test_named_feature_versions_get_separate_columns(self):
+        from analytics.services import canonical_kwargs
+
+        resource = DatasetResource.objects.create(dataset=self.dataset, name="acled_none", path="a.gpkg")
+        v1 = {"outcome": "fatalities", "year": {"type": "categorical", "selected": ["2020"], "aggregate": False}}
+        v2 = {"outcome": "fatalities", "year": {"type": "categorical", "selected": ["2021"], "aggregate": False}}
+        from analytics.tasks.processing import kwargs_hash
+
+        t1, t2 = self.make_task([resource], kwargs=v1), self.make_task([resource], kwargs=v2)
+        for task, kw, value in ((t1, v1, 1.0), (t2, v2, 2.0)):
+            # Stored names keep the kwargs hash, as the processor writes them
+            ExtractData.objects.create(
+                extract_task=task, dataset_id=self.dataset.id,
+                name=f"acled_filter_agg_{kwargs_hash(kw)}_2020", float_values=[value],
+            )
+        names = {
+            # key order differs from the task's, as JSONB may return it
+            (self.dataset.id, canonical_kwargs(dict(reversed(list(v1.items()))))): "battles_2020",
+            (self.dataset.id, canonical_kwargs(v2)): "my_version",
+        }
+
+        status, df = merge_task_results({t1.id: self.dataset.id, t2.id: self.dataset.id}, column_names=names)
+
+        self.assertEqual(status, "Success")
+        row = df.iloc[0]
+        # The output drops the hash; the stored names keep it
+        self.assertEqual(row["battles_2020.acled_filter_agg_2020"], 1.0)
+        self.assertEqual(row["my_version.acled_filter_agg_2020"], 2.0)
+        self.assertEqual(sorted(c for c in df.columns if "." in c and not c.startswith("boundary.")),
+                         ["battles_2020.acled_filter_agg_2020", "my_version.acled_filter_agg_2020"])
+        self.assertTrue(all(len(n.split("_")[3]) == 8 for n in ExtractData.objects.values_list("name", flat=True)))
+
     # --- int/str typed columns coerce correctly ---------------------------
 
     def test_int_and_str_typed_columns(self):

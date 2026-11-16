@@ -165,13 +165,21 @@ def merge_task_features(task_map):
     return "Success", merged_gdf
 
 
-def merge_task_results(task_map, resource_ids=None):
+def merge_task_results(task_map, resource_ids=None, column_names=None):
     """merge processing task results for the given {task_id: dataset_id} mapping
 
     ``resource_ids`` keeps only those resources' positions: a request for some
     months of a grouped dataset links tasks that cover the whole bucket (see
     analytics.services.requested_resource_ids). None keeps every position.
+
+    ``column_names`` maps (dataset id, canonical kwargs) to a feature-dataset
+    version's column prefix (analytics.services.feature_column_names), so two
+    versions of one dataset get separate columns.
     """
+    from analytics.services import canonical_kwargs
+    from analytics.tasks.processing import kwargs_hash
+
+    column_names = column_names or {}
     rows = {}
     lookups = _MergeLookups()
     # Materialised so the chunks below preserve task_map's order: `rows` is
@@ -207,8 +215,20 @@ def merge_task_results(task_map, resource_ids=None):
             # the CSV column reads "acled_event_count.*" instead of "acled_none.*".
             # Computed independently per resource -- in a grouped task, each
             # position may or may not end in "_none" regardless of the others.
+            version_name = (
+                column_names.get((dataset_id, canonical_kwargs(task_item.kwargs)))
+                if task_item.kwargs is not None
+                else None
+            )
+            # A named version's columns read "<name>.<result>": the stored
+            # result name keeps its kwargs hash (it keeps tasks' results
+            # apart in the database), but the name already does that here.
+            hash_suffix = f"_{kwargs_hash(task_item.kwargs)}" if version_name else None
             dr_names = []
             for resource in resources:
+                if version_name:
+                    dr_names.append(version_name)
+                    continue
                 dr_name = resource.name
                 if (
                     dr_name.endswith("_none")
@@ -265,7 +285,8 @@ def merge_task_results(task_map, resource_ids=None):
                     # pd.DataFrame assembles rows below.
                     if i >= len(values) or values[i] is None:
                         continue
-                    rows[key][f"{dr_name}.{td.name}"] = coerce(values[i])
+                    result = td.name.replace(hash_suffix, "", 1) if hash_suffix else td.name
+                    rows[key][f"{dr_name}.{result}"] = coerce(values[i])
 
     if not rows:
         return "Empty", None

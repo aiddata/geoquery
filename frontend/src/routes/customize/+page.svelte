@@ -36,7 +36,8 @@
 	import DatasetActions from '#lib/components/datasets/DatasetActions.svelte';
 	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
 	import OutputSummary from '#lib/components/datasets/OutputSummary.svelte';
-	import { columnsByDataset } from '#lib/utils/outputColumns.js';
+	import VersionCards from '#lib/components/datasets/VersionCards.svelte';
+	import { columnsByDataset, cleanVersionName, invalidVersionNames, uniqueVersionName } from '#lib/utils/outputColumns.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 
 	$effect(() => {
@@ -363,7 +364,8 @@
 	function buildFeatureItem(detail: DatasetDetail): CartItem {
 		const selections = $state.snapshot(filterSelections);
 		return {
-			customName: detail.title ?? detail.name,
+			// Unique per version: it prefixes this version's output columns
+			customName: uniqueVersionName(cleanVersionName(detail.name), $cart),
 			datasetName: detail.name,
 			datasetTitle: detail.title ?? detail.name,
 			datasetType: detail.type,
@@ -374,6 +376,31 @@
 	}
 
 	/** Leave edit mode: the filters stay, but no longer replace an entry. */
+	// The open feature dataset's versions in the request, shown as cards
+	const featureEntries = $derived(
+		selectedDatasetDetail && isFeature(selectedDatasetDetail)
+			? $cart
+					.map((item, index) => ({ item, index }))
+					.filter(({ item }) => item.datasetName === selectedDatasetDetail!.name)
+			: []
+	);
+	const invalidNames = $derived(invalidVersionNames($cart));
+
+	/** Load a version from the request into the options, to edit and replace it. */
+	function editVersion(item: CartItem) {
+		const detail = selectedDatasetDetail;
+		if (!detail || !item.kwargs) return;
+		filterSelections = structuredClone(item.filterSelections ?? initFilterSelections(detail.filters!));
+		const outcome = item.kwargs.outcome;
+		selectedOutcome = typeof outcome === 'string' ? outcome : defaultOutcome(detail);
+		datasetChoices.save(detail.name, {
+			filterSelections: $state.snapshot(filterSelections),
+			selectedOutcome,
+			kwargs: item.kwargs,
+			editingKey: kwargsKey(item.kwargs)
+		});
+	}
+
 	function stopEditing(name: string) {
 		const choices = datasetChoices.get(name);
 		if (choices?.editingKey) datasetChoices.save(name, { ...choices, editingKey: undefined });
@@ -486,6 +513,18 @@
 						bind:moreOpen={metadataMoreOpen}
 					/>
 				</div>
+
+				{#if featureEntries.length > 0}
+					<VersionCards
+						dataset={selectedDatasetDetail}
+						entries={featureEntries}
+						invalid={invalidNames}
+						onRename={(index, name) => cart.updateItemName(index, name)}
+						{editingKey}
+						currentKey={kwargsKey(buildFilterKwargs($state.snapshot(filterSelections), selectedDatasetDetail.filters, selectedOutcome))}
+						onEdit={editVersion}
+					/>
+				{/if}
 
 				<!-- What the output will hold: from the current filters for feature datasets,
 				     and a placeholder for rasters until they're in the request -->

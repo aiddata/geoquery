@@ -20,6 +20,7 @@
 	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
 	import { ChevronRight, ChevronDown, Pencil, Trash2, Send, CheckCircle, CircleAlert, TriangleAlert } from '@lucide/svelte';
 	import { formatKwargs } from '#lib/utils.js';
+	import { cleanVersionName, invalidVersionNames } from '#lib/utils/outputColumns.js';
 
 	$effect(() => {
 		currentStep.set('review');
@@ -87,6 +88,8 @@
 	let boundaryConsent = $state(false);
 
 	let resolvedFeatureIds = $derived($selection?.resolvedFeatureIds ?? []);
+	// Feature versions need distinct, non-empty names (they prefix output columns)
+	let invalidNames = $derived(invalidVersionNames($cart));
 
 	// Boundaries are saved as they're picked on the map, so the full feature
 	// list may still be resolving when Review opens: resolve it here if so.
@@ -103,6 +106,7 @@
 		requestName.trim() !== '' &&
 		/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(email) &&
 		$cartCount > 0 &&
+		invalidNames.size === 0 &&
 		(resolvedFeatureIds.length > 0 || isCustomMode) &&
 		(!isCustomMode || boundaryConsent) &&
 		!submitting
@@ -208,6 +212,8 @@
 					resources: item.resources,
 					resourceLabels: item.resourceLabels,
 					kwargs: item.kwargs,
+					// Feature datasets: this version's output column prefix
+					...(item.kwargs ? { name: item.customName } : {}),
 				}))
 			});
 			submitted = result;
@@ -464,8 +470,14 @@
 											id="review-item-name-{i}"
 											type="text"
 											value={item.customName}
-											oninput={(e) =>
-												cart.updateItemName(i, (e.target as HTMLInputElement).value)}
+											oninput={(e) => {
+												const el = e.target as HTMLInputElement;
+												// Feature versions name output columns: keep the name clean as typed
+												if (item.kwargs) el.value = cleanVersionName(el.value);
+												cart.updateItemName(i, el.value);
+											}}
+											aria-invalid={invalidNames.has(i) || undefined}
+											aria-describedby={invalidNames.has(i) ? `review-item-name-error-${i}` : undefined}
 											class="flex-1 font-bold"
 										/>
 										<Button
@@ -487,6 +499,12 @@
 											<Trash2 />
 										</Button>
 									</div>
+									{#if invalidNames.has(i)}
+										<p id="review-item-name-error-{i}" class="mt-1 pl-11 text-xs text-destructive">
+											{item.customName ? 'Another version already uses this name.' : 'Give this version a name.'}
+											It names this version's columns in your results.
+										</p>
+									{/if}
 
 									<Collapsible.Content class="mt-3 space-y-1 pl-7 text-sm text-muted-foreground">
 										<p><span class="font-bold">Dataset:</span> {item.datasetTitle}</p>

@@ -53,6 +53,11 @@ def get_batch_func(op):
     return _batch_registry.get(op)
 
 
+def kwargs_hash(task_kwargs) -> str:
+    """The 8-character hash of a task's kwargs that suffixes its result names."""
+    return hashlib.md5(json.dumps(task_kwargs, sort_keys=True).encode()).hexdigest()[:8]
+
+
 def _op_kwargs(short_name, po_kwargs, task_kwargs):
     """Keyword arguments for one processor call, including the result name.
 
@@ -64,10 +69,7 @@ def _op_kwargs(short_name, po_kwargs, task_kwargs):
         op_kwargs.update(po_kwargs)
     if task_kwargs:
         op_kwargs.update(task_kwargs)
-        kwargs_hash = hashlib.md5(
-            json.dumps(task_kwargs, sort_keys=True).encode()
-        ).hexdigest()[:8]
-        op_kwargs["name"] = f"{short_name}_{kwargs_hash}"
+        op_kwargs["name"] = f"{short_name}_{kwargs_hash(task_kwargs)}"
     return op_kwargs
 
 

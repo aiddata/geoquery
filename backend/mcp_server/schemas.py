@@ -40,6 +40,17 @@ class DatasetSpec(TypedDict, total=False):
         dict | None,
         Field(description="Dataset-specific filter arguments, if the dataset takes any."),
     ]
+    column_name: Annotated[
+        str,
+        Field(
+            description=(
+                "Filtered datasets only: prefix for this version's output columns "
+                "(letters, digits and underscores; spaces become underscores). "
+                "Defaults to the dataset name, made unique when a dataset is "
+                "requested more than once."
+            )
+        ),
+    ]
 
 
 # Recurring argument descriptions. Written once so the same wording reaches the
