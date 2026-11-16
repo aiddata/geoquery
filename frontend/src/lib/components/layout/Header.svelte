@@ -8,7 +8,7 @@
 	import { customizeHref } from '#lib/stores/selection.js';
 	import { cartCount } from '#lib/stores/cart.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
-	import { ChevronUp, Map, Menu as MenuIcon } from '@lucide/svelte';
+	import { ArrowRight, ChevronRight, ChevronUp, Map, Menu as MenuIcon } from '@lucide/svelte';
 	import aiddataLogo from '#lib/assets/aiddata_logo.svg';
 	import aiddataLogoWhite from '#lib/assets/aiddata_logo_white.png';
 	import geoqueryText from '#lib/assets/geoquery_text.svg';
@@ -42,6 +42,7 @@
 			href: $cartCount > 0 ? '/review' : null
 		}
 	]);
+	const currentIndex = $derived(steps.findIndex((s) => s.id === $currentStep));
 </script>
 
 <!-- Small arrow at the top right of a link that opens another site. -->
@@ -126,25 +127,37 @@
 			<nav aria-label="Request steps" class="flex items-center gap-1 sm:gap-2">
 				{#each steps as step, i (step.id)}
 					{#if i > 0}
-						<span class="text-muted-foreground">/</span>
+						<ChevronRight class="size-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
 					{/if}
-					{#if $currentStep === step.id}
+					{#if i === currentIndex}
+						<!-- Where you are: plain text with a thin underline, no fill. -->
 						<span
-							class="flex items-center rounded-md bg-primary px-2 py-1.5 text-sm font-bold text-primary-foreground sm:px-3"
+							class="flex items-center border-b-2 border-primary px-1 py-1 text-sm font-bold text-foreground sm:px-2"
 							aria-current="step"
 						>
 							{step.label}
 						</span>
-					{:else if step.href}
+					{:else if step.href && i === currentIndex + 1}
+						<!-- The step to go to next: the one filled, button-like control. -->
 						<a
 							href={step.href}
-							class="flex items-center rounded-md px-2 py-1.5 text-sm font-bold text-foreground underline-offset-4 hover:bg-accent hover:underline focus-visible:outline-2 focus-visible:outline-ring sm:px-3"
+							class="flex items-center gap-1 rounded-md bg-primary px-2 py-1.5 text-sm font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:px-3"
+						>
+							{step.label}
+							<ArrowRight class="size-4" aria-hidden="true" />
+						</a>
+					{:else if step.href}
+						<!-- A step you can go back (or ahead) to. -->
+						<a
+							href={step.href}
+							class="flex items-center rounded-md px-1 py-1.5 text-sm font-bold text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring sm:px-2"
 						>
 							{step.label}
 						</a>
 					{:else}
+						<!-- Not reachable yet. -->
 						<span
-							class="flex cursor-default items-center rounded-md px-2 py-1.5 text-sm font-bold text-muted-foreground sm:px-3"
+							class="flex cursor-not-allowed items-center px-1 py-1.5 text-sm font-bold text-muted-foreground/50 sm:px-2"
 							aria-disabled="true"
 							title={step.id === 'search' ? 'Select a boundary first' : 'Add a dataset first'}
 						>
