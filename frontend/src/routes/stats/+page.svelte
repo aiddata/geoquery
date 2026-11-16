@@ -67,7 +67,7 @@
 	let extPeriod = $state<Period>('day');
 
 	let requestSeries = $derived(stats?.time_series?.[field]?.[period] ?? []);
-	// Requests from earlier versions of GeoQuery, stacked under the current
+	// Requests from GeoQuery 1.0, stacked under the current
 	// ones unless hidden, with a line where the current system took over.
 	let showLegacy = $state(true);
 	let legacySeries = $derived(showLegacy ? (stats?.legacy_time_series?.[field]?.[period] ?? []) : []);
@@ -126,12 +126,12 @@
 			label: 'Requests completed',
 			value: stats?.status_counts?.completed,
 			note: stats?.legacy_request_count
-				? `plus ${fmt(stats.legacy_request_count)} from earlier versions`
+				? `plus ${fmt(stats.legacy_request_count)} from GeoQuery 1.0`
 				: null
 		},
 		{ label: 'Results extracted', value: stats?.extract_counts?.completed, note: 'one per area, dataset and period' },
-		{ label: 'Users', value: stats?.users, note: 'by email address, all versions of GeoQuery' },
-		{ label: 'Organizations', value: stats?.organizations, note: 'by email domain, all versions of GeoQuery' },
+		{ label: 'Users', value: stats?.users, note: 'by email address, GeoQuery 1.0 and 2.0' },
+		{ label: 'Organizations', value: stats?.organizations, note: 'by email domain, GeoQuery 1.0 and 2.0' },
 		{ label: 'Datasets available', value: stats?.datasets_available, note: null },
 		{
 			label: 'Boundary sets available',
@@ -374,7 +374,7 @@
 							{#if hasLegacy}
 								<label class="flex cursor-pointer items-center gap-2 text-sm">
 									<Checkbox checked={showLegacy} onCheckedChange={(v) => (showLegacy = v === true)} />
-									Earlier versions
+									GeoQuery 1.0
 								</label>
 							{/if}
 						</div>
@@ -385,7 +385,7 @@
 						series={1}
 						title="Requests over time"
 						earlier={legacySeries}
-						earlierLabel="Earlier versions"
+						earlierLabel="GeoQuery 1.0"
 						currentLabel="GeoQuery 2.0"
 						cutover={showLegacy ? cutoverBucket : null}
 						cutoverLabel="GeoQuery 2.0"
