@@ -1,4 +1,5 @@
 import { writable, derived } from 'svelte/store';
+import { customBoundary } from './customBoundary.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -148,4 +149,16 @@ export const selectionSummary = derived(selection, ($sel) => {
 		label: $sel.fcs.map((fc) => fc.title ?? fc.name).join(', '),
 		detail: `${$sel.fcs.length} boundary collection${$sel.fcs.length === 1 ? '' : 's'}`
 	};
+});
+
+/**
+ * Where "2. Customize Datasets" leads: the Customize page for the boundaries
+ * last confirmed with Find Data (or a saved custom boundary), or null when
+ * nothing has been confirmed yet.
+ */
+export const customizeHref = derived([selection, customBoundary], ([$sel, $custom]): string | null => {
+	if ($custom.saved && $custom.active) return '/customize';
+	if (!$sel) return null;
+	if ($sel.mode === 'single') return '/customize?selection';
+	return `/customize?fc=${$sel.fcs.map((fc) => fc.id).join(',')}`;
 });

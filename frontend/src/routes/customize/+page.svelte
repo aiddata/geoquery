@@ -35,8 +35,6 @@
 	import OutcomeSelector from '#lib/components/datasets/OutcomeSelector.svelte';
 	import DatasetActions from '#lib/components/datasets/DatasetActions.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
-	import { ChevronLeft, ArrowRight } from '@lucide/svelte';
-	import { cartCount } from '#lib/stores/cart.js';
 
 	$effect(() => {
 		currentStep.set('search');
@@ -67,26 +65,6 @@
 		fetchFeatureIds(fcIds)
 			.then((ids) => selection.setResolvedFeatureIds(ids))
 			.catch(console.error);
-	});
-
-	// Human-readable label for the top bar
-	let selectionLabel = $derived.by(() => {
-		if (isCustomMode) return $customBoundary.fileName || 'Custom boundary';
-		if ($selection?.mode === 'single')
-			return $selection.fc.short_name ?? $selection.fc.title ?? $selection.fc.name;
-		if ($selection?.mode === 'multi') {
-			const names = $selection.fcs.map((fc) => fc.short_name ?? fc.title ?? fc.name);
-			if (names.length <= 2) return names.join(', ');
-			const rest = names.length - 2;
-			return `${names[0]}, ${names[1]}, and ${rest} other${rest > 1 ? 's' : ''}`;
-		}
-		return '';
-	});
-
-	let selectionTooltip = $derived.by(() => {
-		if ($selection?.mode === 'multi' && $selection.fcs.length > 2)
-			return $selection.fcs.map((fc) => fc.title ?? fc.name).join('\n');
-		return '';
 	});
 
 	// Bbox of the user's uploaded boundary for out-of-range flagging
@@ -432,27 +410,6 @@
 <Seo title="Customize Datasets" description="Browse GeoQuery's datasets, including population, nighttime lights, climate, land cover, conflict and health, and choose the years and statistics to extract for your boundaries." />
 
 <div class="flex h-[calc(100vh-8rem)] flex-col">
-	<!-- Top bar with back navigation and selection info -->
-	<div class="flex items-center gap-3 border-b bg-muted/30 px-4 py-2">
-		<Button variant="ghost" size="sm" onclick={() => goto('/')}>
-			<ChevronLeft />
-			Back to Map
-		</Button>
-		<span class="text-sm text-muted-foreground">|</span>
-		<span class="truncate text-sm" title={selectionTooltip || undefined}>
-			<strong>{selectionLabel || 'No selection'}</strong>
-		</span>
-
-		{#if $cartCount > 0}
-			<div class="ml-auto">
-				<Button size="sm" href="/review">
-					Review Request ({$cartCount})
-					<ArrowRight />
-				</Button>
-			</div>
-		{/if}
-	</div>
-
 	{#if isCustomMode}
 		<div class="flex items-center gap-2 bg-warning-bg px-4 py-2 text-sm text-foreground" role="note">
 			<TriangleAlert class="size-4 shrink-0 text-warning-text" aria-hidden="true" />

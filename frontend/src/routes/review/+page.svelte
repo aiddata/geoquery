@@ -17,7 +17,7 @@
 	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
-	import { ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, Send, CheckCircle, CircleAlert, TriangleAlert } from '@lucide/svelte';
+	import { ChevronRight, ChevronDown, Pencil, Trash2, Send, CheckCircle, CircleAlert, TriangleAlert } from '@lucide/svelte';
 	import { formatKwargs } from '#lib/utils.js';
 
 	$effect(() => {
@@ -218,23 +218,6 @@
 <Seo title="Review Request" noindex />
 
 <div class="flex h-[calc(100vh-8rem)] flex-col">
-	<!-- Top bar -->
-	<div class="flex items-center gap-3 border-b bg-muted/30 px-4 py-2">
-		{#if !submitted}
-			<Button variant="ghost" size="sm" onclick={() => history.back()}>
-				<ChevronLeft />
-				Back
-			</Button>
-			<span class="text-sm text-muted-foreground">|</span>
-			<span class="text-sm">
-				Review &amp; Submit ({$cartCount}
-				{$cartCount === 1 ? 'dataset' : 'datasets'})
-			</span>
-		{:else}
-			<span class="text-sm font-bold">Request Submitted</span>
-		{/if}
-	</div>
-
 	<!-- Success state -->
 	{#if submitted}
 		<div class="flex flex-1 items-center justify-center p-8">

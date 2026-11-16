@@ -5,6 +5,8 @@
 	import ThemeMenu from '#lib/components/layout/ThemeMenu.svelte';
 	import { openSidebar, currentStep, type Step } from '#lib/stores/ui.js';
 	import { features } from '#lib/stores/features.js';
+	import { customizeHref } from '#lib/stores/selection.js';
+	import { cartCount } from '#lib/stores/cart.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import { ChevronUp, Map, Menu as MenuIcon } from '@lucide/svelte';
 	import aiddataLogo from '#lib/assets/aiddata_logo.svg';
@@ -28,11 +30,18 @@
 		{ label: 'Past Requests', href: '/requests' }
 	];
 
-	const steps: { id: Step; label: string }[] = [
-		{ id: 'map', label: '1. Select Boundary' },
-		{ id: 'search', label: '2. Customize Datasets' },
-		{ id: 'review', label: '3. Review Request' }
-	];
+	// The workflow steps double as navigation. A step is a link once it can be
+	// reached: Customize after boundaries are confirmed, Review once the
+	// request has a dataset in it.
+	const steps = $derived<{ id: Step; label: string; href: string | null }[]>([
+		{ id: 'map', label: '1. Select Boundary', href: '/' },
+		{ id: 'search', label: '2. Customize Datasets', href: $customizeHref },
+		{
+			id: 'review',
+			label: `3. Review Request${$cartCount > 0 ? ` (${$cartCount})` : ''}`,
+			href: $cartCount > 0 ? '/review' : null
+		}
+	]);
 </script>
 
 <!-- Small arrow at the top right of a link that opens another site. -->
@@ -114,21 +123,36 @@
 	<!-- Step Indicator (only on workflow pages) -->
 	{#if showSteps}
 		<div class="flex min-h-12 items-center justify-between bg-band px-4">
-			<div class="flex items-center gap-1 sm:gap-2">
-				{#each steps as step, i}
+			<nav aria-label="Request steps" class="flex items-center gap-1 sm:gap-2">
+				{#each steps as step, i (step.id)}
 					{#if i > 0}
 						<span class="text-muted-foreground">/</span>
 					{/if}
-					<span
-						class="flex items-center rounded-md px-2 py-1.5 text-sm font-bold sm:px-3
-							{$currentStep === step.id
-							? 'bg-primary text-primary-foreground'
-							: 'text-muted-foreground'}"
-					>
-						{step.label}
-					</span>
+					{#if $currentStep === step.id}
+						<span
+							class="flex items-center rounded-md bg-primary px-2 py-1.5 text-sm font-bold text-primary-foreground sm:px-3"
+							aria-current="step"
+						>
+							{step.label}
+						</span>
+					{:else if step.href}
+						<a
+							href={step.href}
+							class="flex items-center rounded-md px-2 py-1.5 text-sm font-bold text-foreground underline-offset-4 hover:bg-accent hover:underline focus-visible:outline-2 focus-visible:outline-ring sm:px-3"
+						>
+							{step.label}
+						</a>
+					{:else}
+						<span
+							class="flex cursor-default items-center rounded-md px-2 py-1.5 text-sm font-bold text-muted-foreground sm:px-3"
+							aria-disabled="true"
+							title={step.id === 'search' ? 'Select a boundary first' : 'Add a dataset first'}
+						>
+							{step.label}
+						</span>
+					{/if}
 				{/each}
-			</div>
+			</nav>
 
 			{#if $features.has('visualize')}
 				<Button
