@@ -44,9 +44,10 @@
 	});
 </script>
 
-<!-- Small arrow at the top right of a link that opens another site. -->
+<!-- Small arrow at the top right of a link that opens another site. It takes
+     the link's own colour so it reads as part of the label. -->
 {#snippet externalMark()}
-	<ChevronUp class="-ml-1.5 -mt-0.5 size-2.5 rotate-[40deg] self-start text-muted-foreground" stroke-width={3} aria-hidden="true" />
+	<ChevronUp class="-ml-2 -mt-0.5 size-2.5 rotate-[40deg] self-start" stroke-width={3} aria-hidden="true" />
 	<span class="sr-only">(opens in a new tab)</span>
 {/snippet}
 
