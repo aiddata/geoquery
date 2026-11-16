@@ -122,6 +122,9 @@ services:
       - rabbitmq
 
   worker-processing:
+    # Off by default: extract tasks stay queued in Postgres until this worker
+    # runs. Start it with `docker compose --profile extract up`.
+    profiles: [extract]
     build:
       context: .
       dockerfile: backend/Containerfile
