@@ -616,7 +616,7 @@
 
 			<!-- FC list -->
 			<div class="px-4 py-3">
-				<div class="panel-title">Feature Collections</div>
+				<div class="panel-title">Boundary Sets</div>
 				<div bind:this={fcListEl} class="space-y-0.5">
 					{#each fcOrder as fc (fc)}
 						<div class="fc-row" data-fc={fc}>

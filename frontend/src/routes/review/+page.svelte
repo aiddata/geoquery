@@ -409,10 +409,10 @@
 				<h2 id="review-heading" class="text-h4">Review your Selections</h2>
 
 				<div class="flex items-center justify-between">
-					<h3 class="text-base font-semibold">Boundaries</h3>
+					<h3 class="text-base font-semibold">Boundary Sets</h3>
 					<Button variant="outline" size="sm" onclick={() => goto('/')}>
 						<Pencil />
-						Modify Boundaries
+						Modify Boundary Sets
 					</Button>
 				</div>
 

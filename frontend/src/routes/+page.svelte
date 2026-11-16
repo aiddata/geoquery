@@ -384,7 +384,7 @@
 		<div class="rounded-md border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
 			{#if pendingFeatureIds.length === 0}
 				Click features on the map to narrow your selection, or leave them all
-				unselected to use the entire collection.
+				unselected to use the entire boundary set.
 				<button type="button" class="font-bold text-link hover:text-link-hover hover:underline md:hidden" onclick={openDetail}>
 					Open map
 				</button>
@@ -519,7 +519,9 @@
 	<!-- Zoom Controls -->
 	<div class="absolute right-4 top-4 z-10 flex flex-col items-center gap-1">
 		<ZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
+		<!-- Zoom level readout: hidden for now -->
 		<div
+			hidden
 			title="Zoom level"
 			class="flex cursor-default flex-col items-center rounded-md bg-card/85 px-1.5 py-0.5 font-ui text-muted-foreground shadow-card"
 		>
