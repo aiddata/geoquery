@@ -38,9 +38,10 @@
 	let filteredDatasets = $derived.by(() => {
 		let result = datasets;
 
-		// Filter by category tag
+		// Filter by category: any of the category's tags (settings.DATASET_CATEGORIES)
 		if (selectedCategory !== 'all') {
-			result = result.filter((d) => d.tags?.includes(selectedCategory));
+			const wanted = new Set(categories.find((c) => c.tag === selectedCategory)?.tags ?? []);
+			result = result.filter((d) => d.tags?.some((t) => wanted.has(t.toLowerCase())));
 		}
 
 		// Filter by search text

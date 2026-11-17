@@ -205,8 +205,11 @@ export interface DatasetDetail extends DatasetSummary {
 }
 
 export interface DatasetCategory {
+	/** Stable key for the category */
 	tag: string;
 	display: string;
+	/** Dataset tags that put a dataset in this category (any one is enough) */
+	tags: string[];
 }
 
 // ── Features API ───────────────────────────────────────────────

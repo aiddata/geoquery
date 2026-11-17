@@ -1,4 +1,6 @@
+from django.conf import settings
 from django.db.models import Q
+from django.utils.text import slugify
 from rest_framework import generics
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -95,30 +97,25 @@ class DatasetDetailView(generics.RetrieveAPIView):
 
 
 class DatasetCategoryView(generics.ListAPIView):
-    """Return the distinct dataset tag categories.
+    """The dataset category menu: settings.DATASET_CATEGORIES, in order.
 
-    Returns a list of {tag, display} objects derived from the tags
-    ArrayField across every dataset visible to the caller.
+    Each category is {tag, display, tags}: a stable key, its display name, and
+    the dataset tags that put a dataset in it (any one is enough). Categories
+    with no dataset visible to the caller are left out.
     """
 
     def list(self, request, *args, **kwargs):
-        tags = (
+        tags_in_use = set()
+        for tag_list in (
             _replica_datasets(request.user)
             .exclude(tags__isnull=True)
-            .exclude(tags=[])
             .values_list("tags", flat=True)
-        )
+        ):
+            tags_in_use.update(t.lower() for t in tag_list)
 
-        # Flatten and deduplicate
-        seen = set()
         categories = []
-        for tag_list in tags:
-            for tag in tag_list:
-                if tag not in seen:
-                    seen.add(tag)
-                    categories.append(
-                        {"tag": tag, "display": tag.replace("_", " ").title()}
-                    )
-
-        categories.sort(key=lambda c: c["display"])
+        for display, tags in settings.DATASET_CATEGORIES.items():
+            wanted = [t.lower() for t in tags]
+            if tags_in_use.intersection(wanted):
+                categories.append({"tag": slugify(display).replace("-", "_"), "display": display, "tags": wanted})
         return Response(categories)

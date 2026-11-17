@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import json
 import os
 from pathlib import Path
 
@@ -650,6 +651,34 @@ STATS_REPORT_ENABLED = STATS_REPORT_INTERVAL_SECONDS > 0
 # The /stats page's status line reads "Backlogged" once the oldest unfinished
 # request has waited longer than this.
 STATUS_BACKLOG_MINUTES = int(os.environ.get("STATUS_BACKLOG_MINUTES", "180"))
+
+# The dataset category menu on Customize: display name -> dataset tags. A
+# dataset is in a category when it has any of the listed tags, so datasets can
+# be in several and categories need no tags of their own. Each list holds the
+# tags today's datasets use plus descriptive tags for future ones. Menu order
+# follows this dict; categories with no visible datasets are left out.
+# Override with DATASET_CATEGORIES (a JSON object of the same shape).
+DATASET_CATEGORIES = {
+    "Access & Infrastructure": ["accessibility", "infrastructure", "roads", "travel time", "transport"],
+    "Climate & Weather": [
+        "temperature", "land surface temperature", "precipitation", "lightning",
+        "climate", "weather", "rainfall", "drought",
+    ],
+    "Conflict & Governance": [
+        "acled", "ucdp", "political", "land tenure", "drug", "gold",
+        "conflict events", "governance", "elections",
+    ],
+    "Economic Activity": ["nighttimelights", "aiddata", "gdp", "development finance", "trade"],
+    "Environment & Land": [
+        "landcover", "land cover", "vegetation", "conservation", "air quality", "co2", "dem",
+        "land tenure", "land use", "forest", "biodiversity", "terrain", "emissions",
+    ],
+    "Health": ["health", "healthcare", "mortality", "air quality", "population", "disease", "nutrition"],
+    "Natural Resources & Energy": ["resources", "energy", "mining", "minerals", "oil and gas"],
+    "Population": ["population", "demographics", "urbanization"],
+}
+if os.environ.get("DATASET_CATEGORIES"):
+    DATASET_CATEGORIES = json.loads(os.environ["DATASET_CATEGORIES"])
 
 CELERY_BEAT_SCHEDULE = {
     # Both sweeps used to be hourly interval schedules, for two reasons that
