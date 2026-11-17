@@ -9,7 +9,11 @@ import type { CartItem } from '#lib/stores/cart.js';
  * - Feature datasets: the product of the values selected in each split
  *   (aggregate: false) field; filter fields only narrow the records.
  */
-export function entryColumns(item: CartItem): number {
+/** The parts of a request entry that decide its columns: a cart item, or a
+ * stored request's dataset mapped to the same names. */
+export type ColumnSource = Pick<CartItem, 'kwargs' | 'extractTypes' | 'resources'>;
+
+export function entryColumns(item: ColumnSource): number {
 	if (item.kwargs) {
 		let columns = 1;
 		for (const value of Object.values(item.kwargs)) {

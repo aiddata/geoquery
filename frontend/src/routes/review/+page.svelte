@@ -9,7 +9,7 @@
 	import { requestForm } from '#lib/stores/requestForm.js';
 	import { openDetail } from '#lib/stepDetail.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
-	import { fetchFeatureIds, submitRequest, type SubmittedRequest, type CustomBoundaryPayload } from '#lib/api.js';
+	import { fetchDatasetDetail, fetchFeatureIds, submitRequest, type DatasetDetail, type SubmittedRequest, type CustomBoundaryPayload } from '#lib/api.js';
 	import { auth } from '#lib/stores/auth.js';
 	import { gtagEvent } from '#lib/analytics.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -22,8 +22,8 @@
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
 	import { ChevronRight, ChevronDown, Pencil, Trash2, Send, CheckCircle, CircleAlert, TriangleAlert } from '@lucide/svelte';
-	import { formatKwargs } from '#lib/utils.js';
-	import { cleanVersionName, invalidVersionNames } from '#lib/utils/outputColumns.js';
+	import { cleanVersionName, entryColumns, invalidVersionNames } from '#lib/utils/outputColumns.js';
+	import DatasetEntryDetails from '#lib/components/datasets/DatasetEntryDetails.svelte';
 
 	$effect(() => {
 		currentStep.set('review');
@@ -125,6 +125,27 @@
 	// Feature versions need distinct, non-empty names (they prefix output columns)
 	let invalidNames = $derived(invalidVersionNames($cart));
 
+	const plural = (n: number, word: string) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+	// Section summaries, as in the request panel
+	const totalColumns = $derived($cart.reduce((n, item) => n + entryColumns(item), 0));
+	const boundarySummary = $derived.by(() => {
+		if (isCustomMode) return $customBoundary.featureCount ? `${plural($customBoundary.featureCount, 'feature')} in a custom boundary` : null;
+		if (!resolvedFeatureIds.length) return null;
+		const sets = $selectionFcIds.length;
+		return `${plural(resolvedFeatureIds.length, 'feature')} across ${sets === 1 ? '1 boundary set' : `${sets} boundary sets`}`;
+	});
+
+	// Dataset definitions, for the entries' display names and filter details
+	let details = $state<Record<string, DatasetDetail>>({});
+	$effect(() => {
+		for (const name of new Set($cart.map((i) => i.datasetName))) {
+			if (details[name]) continue;
+			fetchDatasetDetail(name)
+				.then((d) => (details = { ...details, [name]: d }))
+				.catch(() => {});
+		}
+	});
+
 	// Boundaries are saved as they're picked on the map, so the full feature
 	// list may still be resolving when Review opens: resolve it here if so.
 	$effect(() => {
@@ -145,26 +166,6 @@
 		(!isCustomMode || boundaryConsent) &&
 		!submitting
 	);
-
-	function formatResources(resources: string[], labels?: string[]): string {
-		const display = labels ?? resources;
-		const nums = display.map((r) => {
-			const n = parseInt(r);
-			return String(n) === r.trim() ? n : NaN;
-		});
-		if (nums.some((n) => isNaN(n))) return display.slice().sort().join(', ');
-
-		const sorted = nums.slice().sort((a, b) => a - b);
-		const groups: number[][] = [[sorted[0]]];
-		for (let i = 1; i < sorted.length; i++) {
-			const last = groups[groups.length - 1];
-			if (sorted[i] === last[last.length - 1] + 1) last.push(sorted[i]);
-			else groups.push([sorted[i]]);
-		}
-		return groups
-			.map((g) => (g.length > 2 ? `${g[0]}-${g[g.length - 1]}` : g.join(', ')))
-			.join(', ');
-	}
 
 	function formatOperation(op: { type: string; params: Record<string, unknown> }): string {
 		if (op.type === 'buffer') {
@@ -404,7 +405,10 @@
 				<h2 id="review-heading" class="text-h4">Review your Selections</h2>
 
 				<div class="flex items-center justify-between">
-					<h3 class="text-base font-semibold">Boundary Sets</h3>
+					<div>
+						<h3 class="text-base font-semibold">Boundary Sets</h3>
+						{#if boundarySummary}<p class="text-xs text-muted-foreground">{boundarySummary}</p>{/if}
+					</div>
 					<Button variant="outline" size="sm" onclick={() => goto('/')}>
 						<Pencil />
 						Modify Boundary Sets
@@ -485,7 +489,14 @@
 				{/if}
 
 				<div class="flex items-center justify-between">
-					<h3 class="text-base font-semibold">Datasets</h3>
+					<div>
+						<h3 class="text-base font-semibold">Datasets</h3>
+						{#if $cartCount > 0}
+							<p class="text-xs text-muted-foreground">
+								{plural(totalColumns, 'column')} across {plural($cartCount, 'dataset selection')}
+							</p>
+						{/if}
+					</div>
 					<Button variant="outline" size="sm" onclick={() => goto(customizeUrl())}>
 						Add Another Dataset
 					</Button>
@@ -529,6 +540,9 @@
 											aria-describedby={invalidNames.has(i) ? `review-item-name-error-${i}` : undefined}
 											class="flex-1 font-bold"
 										/>
+										<span class="shrink-0 text-xs tabular-nums text-muted-foreground">
+											{plural(entryColumns(item), 'column')}
+										</span>
 										<Button
 											variant="ghost"
 											size="sm"
@@ -555,28 +569,18 @@
 										</p>
 									{/if}
 
-									<Collapsible.Content class="mt-3 space-y-1 pl-7 text-sm text-muted-foreground">
-										<p><span class="font-bold">Dataset:</span> {item.datasetTitle}</p>
-										<p><span class="font-bold">Type:</span> {item.datasetType}</p>
-										{#if item.extractTypes && item.extractTypes.length > 0}
-											<p>
-												<span class="font-bold">Extract types:</span>
-												{item.extractTypes.join(', ')}
-											</p>
+									<Collapsible.Content class="mt-3 space-y-2 pl-7">
+										{#if item.kwargs && item.customName !== item.datasetTitle}
+											<p class="text-xs text-muted-foreground">{item.datasetTitle}</p>
 										{/if}
-										{#if item.resources && item.resources.length > 0}
-											<p>
-												<span class="font-bold">Time periods:</span>
-												{formatResources(item.resources, item.resourceLabels)}
-											</p>
-										{/if}
-										{#if item.kwargs}
-											<p>
-												<span class="font-bold">Filters:</span>
-												{formatKwargs(item.kwargs)}
-											</p>
-										{/if}
-								</Collapsible.Content>
+										<DatasetEntryDetails
+											extractTypes={item.extractTypes}
+											resources={item.resources}
+											resourceLabels={item.resourceLabels}
+											kwargs={item.kwargs}
+											detail={details[item.datasetName]}
+										/>
+									</Collapsible.Content>
 								</Collapsible.Root>
 							</div>
 						</Card.Header>

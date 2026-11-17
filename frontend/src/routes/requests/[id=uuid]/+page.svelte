@@ -2,14 +2,15 @@
 	import Seo from '#lib/components/layout/Seo.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { fetchRequestDetail, type RequestDetail } from '#lib/api.js';
+	import { fetchDatasetDetail, fetchRequestDetail, type DatasetDetail, type RequestDetail } from '#lib/api.js';
+	import DatasetEntryDetails from '#lib/components/datasets/DatasetEntryDetails.svelte';
+	import { entryColumns } from '#lib/utils/outputColumns.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Card from '#lib/components/ui/card/index.js';
 	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
 	import StatusBadge, { requestStatusMeaning } from '#lib/components/StatusBadge.svelte';
 	import { ArrowLeft, Download, RefreshCw, ChevronRight, CircleAlert, Map } from '@lucide/svelte';
-	import { formatKwargs } from '#lib/utils.js';
 	import { features } from '#lib/stores/features.js';
 
 	const TERMINAL_STATUSES = new Set([1, -2]);
@@ -44,26 +45,41 @@
 		return new Date(dateStr).toLocaleString();
 	}
 
-	function formatResources(resources: string[], labels?: string[]): string {
-		const display = labels ?? resources;
-		const nums = display.map((r) => {
-			const n = parseInt(r);
-			return String(n) === r.trim() ? n : NaN;
-		});
-		if (nums.some((n) => isNaN(n))) return display.slice().sort().join(', ');
-		const sorted = nums.slice().sort((a, b) => a - b);
-		const groups: number[][] = [[sorted[0]]];
-		for (let i = 1; i < sorted.length; i++) {
-			const last = groups[groups.length - 1];
-			if (sorted[i] === last[last.length - 1] + 1) last.push(sorted[i]);
-			else groups.push([sorted[i]]);
-		}
-		return groups
-			.map((g) => (g.length > 2 ? `${g[0]}-${g[g.length - 1]}` : g.join(', ')))
-			.join(', ');
-	}
-
 	let featureCount = $derived(request?.data?.feature_ids?.length ?? 0);
+
+	const plural = (n: number, word: string) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+	// Requests don't store how many boundary sets they used; the saved summary
+	// says "N boundary sets" (or, before Nov 2026, "N boundary collections")
+	// when there were several.
+	let boundarySets = $derived.by(() => {
+		const m = request?.data?.selection_detail?.match(/(\d+) boundary (?:sets?|collections?)/);
+		return m ? Number(m[1]) : 1;
+	});
+	let boundarySummary = $derived(
+		request?.data?.is_custom_boundary
+			? `${plural(featureCount, 'feature')} in a custom boundary`
+			: `${plural(featureCount, 'feature')} across ${boundarySets === 1 ? '1 boundary set' : `${boundarySets} boundary sets`}`
+	);
+
+	// Each stored dataset as the column helper and details component read it
+	const entries = $derived(
+		(request?.data?.datasets ?? []).map((d) => ({
+			...d,
+			source: { kwargs: d.kwargs ?? undefined, extractTypes: d.extract_types ?? [], resources: d.resources ?? [] }
+		}))
+	);
+	let totalColumns = $derived(entries.reduce((n, e) => n + entryColumns(e.source), 0));
+
+	// Dataset definitions, for titles, display names and filter details
+	let details = $state<Record<string, DatasetDetail>>({});
+	$effect(() => {
+		for (const name of new Set(entries.map((e) => e.dataset_name))) {
+			if (details[name]) continue;
+			fetchDatasetDetail(name)
+				.then((d) => (details = { ...details, [name]: d }))
+				.catch(() => {});
+		}
+	});
 
 	function formatOperation(op: { type: string; params: Record<string, unknown> }): string {
 		if (op.type === 'buffer') return `Buffer — ${op.params.distance ?? ''} ${op.params.units ?? 'km'}`;
@@ -181,9 +197,7 @@
 							<p class="truncate text-sm text-muted-foreground">{request.data.selection_detail}</p>
 						{/if}
 						{#if featureCount > 0}
-							<p class="mt-0.5 text-xs text-muted-foreground">
-								{featureCount} feature{featureCount === 1 ? '' : 's'} total
-							</p>
+							<p class="mt-0.5 text-xs text-muted-foreground">{boundarySummary}</p>
 						{/if}
 						{#if request.data.boundary_operations?.length}
 							<div class="mt-2 border-t pt-2">
@@ -202,45 +216,41 @@
 			{/if}
 
 			<!-- Dataset items -->
-			{#if request.data?.datasets?.length > 0}
+			{#if entries.length > 0}
 				<div class="space-y-3">
-					{#each request.data.datasets as item}
+					<p class="text-xs text-muted-foreground">
+						{plural(totalColumns, 'column')} across {plural(entries.length, 'dataset selection')}
+					</p>
+					{#each entries as item, i (i)}
+						{@const title = details[item.dataset_name]?.title ?? item.dataset_name}
 						<Card.Root>
 							<Card.Header class="pb-3">
 								<Collapsible.Root class="min-w-0">
 									<div class="min-w-0 flex items-center gap-3">
 										<Collapsible.Trigger>
 											{#snippet child({ props })}
-												<Button {...props} variant="ghost" size="icon-sm" class="text-muted-foreground" aria-label="Show details for {item.dataset_name}">
+												<Button {...props} variant="ghost" size="icon-sm" class="text-muted-foreground" aria-label="Show details for {item.name ?? title}">
 													<ChevronRight class="transition-transform [[data-state=open]_&]:rotate-90" />
 												</Button>
 											{/snippet}
 										</Collapsible.Trigger>
-										<p class="min-w-0 flex-1 truncate text-sm font-bold">{item.dataset_name}</p>
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm font-bold">{item.name ?? title}</p>
+											{#if item.name}<p class="truncate text-xs text-muted-foreground">{title}</p>{/if}
+										</div>
+										<span class="shrink-0 text-xs tabular-nums text-muted-foreground">
+											{plural(entryColumns(item.source), 'column')}
+										</span>
 									</div>
 
-									<Collapsible.Content class="mt-3 space-y-1 pl-7 text-sm text-muted-foreground">
-										{#if item.dataset_type}
-											<p><span class="font-bold">Type:</span> {item.dataset_type}</p>
-										{/if}
-										{#if item.extract_types && item.extract_types.length > 0}
-											<p>
-												<span class="font-bold">Extract types:</span>
-												{item.extract_types.join(', ')}
-											</p>
-										{/if}
-										{#if item.resources && item.resources.length > 0}
-											<p>
-												<span class="font-bold">Time periods:</span>
-												{formatResources(item.resources, item.resource_labels)}
-											</p>
-										{/if}
-										{#if item.kwargs}
-											<p>
-												<span class="font-bold">Filters:</span>
-												{formatKwargs(item.kwargs)}
-											</p>
-										{/if}
+									<Collapsible.Content class="mt-3 pl-7">
+										<DatasetEntryDetails
+											extractTypes={item.extract_types}
+											resources={item.resources}
+											resourceLabels={item.resource_labels}
+											kwargs={item.kwargs}
+											detail={details[item.dataset_name]}
+										/>
 									</Collapsible.Content>
 								</Collapsible.Root>
 							</Card.Header>

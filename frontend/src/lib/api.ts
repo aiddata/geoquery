@@ -324,6 +324,8 @@ export interface LegacyRequestDetail extends LegacyPastRequest {
 
 export interface StoredDataset {
 	dataset_name: string;
+	/** Feature datasets: the version's name (its output column prefix) */
+	name?: string | null;
 	dataset_type: string | null;
 	extract_types?: string[];
 	resources?: string[];
