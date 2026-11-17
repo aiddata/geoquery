@@ -211,7 +211,7 @@
 				<strong>Featured Boundaries: </strong>
 				{#each featuredBoundaries as boundary, i}
 					<button
-						class="text-link hover:text-link-hover hover:underline disabled:opacity-50"
+						class="inline-block min-h-6 py-0.5 text-left text-link hover:text-link-hover hover:underline disabled:opacity-50"
 						disabled={selectedBoundaries.some((b) => b.id === boundary.id)}
 						onclick={() => addBoundary(boundary)}
 					>
