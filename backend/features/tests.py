@@ -672,3 +672,26 @@ class GeoboundariesAdm0TitleTests(TestCase):
         self.assertEqual(
             titles(), {**before, "gB_57dcd43_NEW_ADM0": "T NEW (Republic)"}
         )
+
+
+class GeoBoundariesVersionTagTests(SimpleTestCase):
+    def test_version_comes_from_the_title(self):
+        from features.management.commands.ingest_geoboundaries import collection_tags, version_tag
+
+        meta = {"title": "geoBoundaries v6 - Ghana ADM1", "tags": ["geoboundaries", "administrative"]}
+        self.assertEqual(version_tag(meta), "geoboundaries_v6")
+        self.assertEqual(collection_tags(meta), ["geoboundaries", "administrative", "geoboundaries_v6"])
+
+    def test_metadata_version_wins_and_is_normalised(self):
+        from features.management.commands.ingest_geoboundaries import version_tag
+
+        self.assertEqual(version_tag({"title": "geoBoundaries v6 - X", "other": {"version": "7"}}), "geoboundaries_v7")
+        self.assertEqual(version_tag({"title": "x", "other": {"version": "V8"}}), "geoboundaries_v8")
+
+    def test_unknown_version_adds_no_tag_and_no_duplicates(self):
+        from features.management.commands.ingest_geoboundaries import collection_tags, version_tag
+
+        self.assertIsNone(version_tag({"title": "Some boundaries"}))
+        self.assertEqual(collection_tags({"title": "Some boundaries", "tags": ["a"]}), ["a"])
+        already = {"title": "geoBoundaries v6 - X", "tags": ["geoboundaries_v6"]}
+        self.assertEqual(collection_tags(already), ["geoboundaries_v6"])

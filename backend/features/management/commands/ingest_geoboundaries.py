@@ -1,5 +1,6 @@
 import concurrent.futures
 import json
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -16,6 +17,35 @@ from features.models import FeatMap, Feature, FeatureCollection
 # boundaryCanonical values that name no unit type. "gbOpen" is the release
 # family, filled in where the canonical name was missing.
 _NOT_CANONICAL = {"", "unknown", "gbopen", "nan"}
+
+
+_VERSION_IN_TITLE = re.compile(r"geoBoundaries\s+(v\d+)", re.IGNORECASE)
+
+
+def version_tag(adm_meta):
+    """The release tag for a boundary set, e.g. "geoboundaries_v6", or None.
+
+    Taken from metadata "other.version" when present, otherwise from the
+    title ("geoBoundaries v6 - Ghana ADM1"). Lets boundary presets match one
+    release, so sets from different releases never mix.
+    """
+    version = (adm_meta.get("other") or {}).get("version")
+    if not version:
+        match = _VERSION_IN_TITLE.search(adm_meta.get("title") or "")
+        version = match.group(1) if match else None
+    if not version:
+        return None
+    version = str(version).strip().lower()
+    return f"geoboundaries_{version if version.startswith('v') else 'v' + version}"
+
+
+def collection_tags(adm_meta):
+    """The metadata tags, plus the release tag when the version is known."""
+    tags = list(adm_meta.get("tags") or [])
+    tag = version_tag(adm_meta)
+    if tag and tag not in tags:
+        tags.append(tag)
+    return tags
 
 
 def collection_title(adm_meta):
@@ -227,7 +257,7 @@ class Command(BaseIngestCommand):
                 "title": collection_title(adm_meta),
                 "description": adm_meta["description"],
                 "details": adm_meta.get("details", ""),
-                "tags": adm_meta["tags"],
+                "tags": collection_tags(adm_meta),
                 "citation": adm_meta["citation"],
                 "source_name": adm_meta["source_name"],
                 "source_url": adm_meta["source_url"],
