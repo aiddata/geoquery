@@ -12,6 +12,7 @@ boundaries (``ready``) and what would have to be processed first
 """
 
 from __future__ import annotations
+from datasets.measures import measure_label, split_measure
 
 import re
 from typing import Annotated
@@ -410,7 +411,12 @@ def _get_dataset(user, name: str, include_resources: bool = False) -> dict:
         "license_url": ds.license_url,
         "citation": ds.citation,
         "extract_types": [
-            {"short_name": po.short_name, "description": po.description or ""}
+            {
+                "short_name": po.short_name,
+                # What the option measures, e.g. "Average light intensity"
+                "label": measure_label(po.short_name, po.description),
+                "description": split_measure(po.description)[1],
+            }
             for po in options
         ],
         "filters": other.get("filters"),

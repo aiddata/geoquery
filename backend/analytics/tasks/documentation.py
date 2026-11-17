@@ -10,6 +10,7 @@ from django.conf import (
 )
 
 from analytics.models import ProcessingOption, Request
+from datasets.measures import split_measure
 
 GEOQUERY_CITATION = (
     "Goodman, S., BenYishay, A., Lv, Z., &amp; Runfola, D. (2019). "
@@ -234,15 +235,19 @@ class DocBuilder:
                     }
                 except Exception:
                     po_desc = {}
-                et_items = "".join(
-                    f"<li><strong>{self._esc(et)}</strong>"
-                    + (f" — {self._esc(po_desc[et])}" if po_desc.get(et) else "")
-                    + "</li>"
-                    for et in extract_types
-                )
+                def _measure_item(et):
+                    label, detail = split_measure(po_desc.get(et))
+                    head = (
+                        f"<strong>{self._esc(label)}</strong> (<code>{self._esc(et)}</code>)"
+                        if label
+                        else f"<strong>{self._esc(et)}</strong>"
+                    )
+                    return f"<li>{head}" + (f" — {self._esc(detail)}" if detail else "") + "</li>"
+
+                et_items = "".join(_measure_item(et) for et in extract_types)
                 rows.append(
                     self._kv(
-                        f"Extract types ({len(extract_types)})",
+                        f"Measures ({len(extract_types)})",
                         f"<ul style='margin:0;padding-left:1.2em;'>{et_items}</ul>",
                     )
                 )

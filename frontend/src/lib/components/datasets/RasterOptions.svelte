@@ -5,6 +5,9 @@
 	import { ScrollArea } from '#lib/components/ui/scroll-area/index.js';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import type { DatasetDetail, ExtractType } from '#lib/api.js';
+	import { Info } from '@lucide/svelte';
+	import OptionsSection from './OptionsSection.svelte';
+	import { parseMeasure } from '#lib/utils/measures.js';
 
 	interface RasterSelection {
 		extractTypes: string[];
@@ -78,6 +81,11 @@
 		}
 	}
 
+	// Each option's label and explanation, from its description
+	const measures = $derived(
+		dataset.extract_types.map((type) => ({ type, ...parseMeasure(type.short_name, type.description) }))
+	);
+
 	function formatTemporal(dateStr: string | null): string {
 		if (!dateStr) return 'Unknown';
 		try {
@@ -92,32 +100,34 @@
 	}
 </script>
 
-<!-- Side by side when the panel is wide enough, stacked when not (as in
-     FilterAndAggOptions); the panel itself never scrolls sideways. -->
-<div class="flex flex-wrap gap-4 p-4">
-	<!-- Extract Types Card -->
-	<Card.Root class="w-72 max-w-full">
-		<Card.Header class="pb-2">
-			<Card.Title class="text-sm">
-				Extract Options
-				<span class="ml-1 text-xs text-muted-foreground">
-					({options.extractTypes.length}/{dataset.extract_types.length})
-				</span>
-			</Card.Title>
-		</Card.Header>
-		<Card.Content class="pt-0">
-			<div class="space-y-2">
-				<!-- Select All -->
-				<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-				<div class="flex cursor-pointer items-center gap-2 border-b pb-2" onclick={toggleAllExtracts}>
-					<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-					<span onclick={(e) => e.stopPropagation()}>
-						<Checkbox checked={allExtractsSelected} onCheckedChange={toggleAllExtracts} aria-label="All extract options" />
+<!-- Measure first, then time periods: one section each, as for feature datasets -->
+<div class="mt-4 space-y-4 pb-4">
+	<OptionsSection
+		id="measure"
+		title="Measure"
+		summary="What each feature's result measures. Choose one or more."
+		help="Each measure summarises the dataset's values within each feature, for example their average or highest value. Every measure you choose adds a column for each time period."
+	>
+		<Card.Root class="w-72 max-w-full gap-2">
+			<Card.Header class="pb-0">
+				<Card.Title class="text-sm">
+					Measures
+					<span class="ml-1 text-xs text-muted-foreground">
+						({options.extractTypes.length}/{dataset.extract_types.length})
 					</span>
-					<Label class="cursor-pointer text-xs font-bold">All Extract Options</Label>
-				</div>
-
-				{#each dataset.extract_types as type}
+				</Card.Title>
+			</Card.Header>
+			<Card.Content class="space-y-2 pt-0">
+			<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+			<div class="flex cursor-pointer items-center gap-2 border-b pb-2" onclick={toggleAllExtracts}>
+				<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+				<span onclick={(e) => e.stopPropagation()}>
+					<Checkbox checked={allExtractsSelected} onCheckedChange={toggleAllExtracts} aria-label="All measures" />
+				</span>
+				<Label class="cursor-pointer text-xs font-bold">All measures</Label>
+			</div>
+			{#each measures as { type, label, detail } (type.short_name)}
+				<div class="flex items-center gap-2">
 					<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 					<div class="flex cursor-pointer items-center gap-2" onclick={() => toggleExtractType(type)}>
 						<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -125,53 +135,59 @@
 							<Checkbox
 								checked={options.extractTypes.includes(type.short_name)}
 								onCheckedChange={() => toggleExtractType(type)}
-								aria-label={type.short_name}
+								aria-label={label}
+								value={type.short_name}
 							/>
 						</span>
-						{#if type.description}
-							<Tooltip.Provider>
-								<Tooltip.Root>
-									<Tooltip.Trigger class="text-left">
-										<Label class="cursor-pointer text-xs font-normal capitalize">
-											{type.short_name}
-										</Label>
-									</Tooltip.Trigger>
-									<Tooltip.Content>
-										<p class="max-w-56 text-xs">{type.description}</p>
-									</Tooltip.Content>
-								</Tooltip.Root>
-							</Tooltip.Provider>
-						{:else}
-							<Label class="cursor-pointer text-xs font-normal capitalize">{type.short_name}</Label>
-						{/if}
+						<Label class="cursor-pointer text-xs font-normal">{label}</Label>
 					</div>
-				{/each}
-			</div>
-		</Card.Content>
-	</Card.Root>
+					{#if detail}
+						<Tooltip.Provider>
+							<Tooltip.Root>
+								<Tooltip.Trigger
+									class="rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+									aria-label="About {label}"
+								>
+									<Info class="size-3.5" aria-hidden="true" />
+								</Tooltip.Trigger>
+								<Tooltip.Content>
+									<p class="max-w-64 text-xs">{detail}</p>
+								</Tooltip.Content>
+							</Tooltip.Root>
+						</Tooltip.Provider>
+					{/if}
+				</div>
+			{/each}
+			</Card.Content>
+		</Card.Root>
+	</OptionsSection>
 
-	<!-- Temporal Resources Card (only if temporally varying) -->
 	{#if isTemporallyVarying}
-		<Card.Root class="w-72 max-w-full">
-			<Card.Header class="pb-2">
-				<Card.Title class="text-sm">
-					Time Periods
-					<span class="ml-1 text-xs text-muted-foreground">
-						({options.resources.length}/{dataset.resources.length})
-					</span>
-				</Card.Title>
-			</Card.Header>
-			<Card.Content class="pt-0">
+		<OptionsSection
+			id="periods"
+			title="Time periods"
+			summary="Each period you select adds a column for each measure."
+			help="Choose the years or months to extract. Shift-click to select a range."
+		>
+			<Card.Root class="w-72 max-w-full gap-2">
+				<Card.Header class="pb-0">
+					<Card.Title class="text-sm">
+						Time Periods
+						<span class="ml-1 text-xs text-muted-foreground">
+							({options.resources.length}/{dataset.resources.length})
+						</span>
+					</Card.Title>
+				</Card.Header>
+				<Card.Content class="pt-0">
 				<ScrollArea class="h-64">
 					<div class="space-y-2 pr-3">
-						<!-- Select All -->
 						<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 						<div class="flex cursor-pointer items-center gap-2 border-b pb-2" onclick={toggleAllResources}>
 							<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 							<span onclick={(e) => e.stopPropagation()}>
 								<Checkbox checked={allResourcesSelected} onCheckedChange={toggleAllResources} aria-label="All time periods" />
 							</span>
-							<Label class="cursor-pointer text-xs font-bold">All Time Periods</Label>
+							<Label class="cursor-pointer text-xs font-bold">All time periods</Label>
 						</div>
 
 						{#each dataset.resources as resource, i}
@@ -192,7 +208,8 @@
 						{/each}
 					</div>
 				</ScrollArea>
-			</Card.Content>
-		</Card.Root>
+				</Card.Content>
+			</Card.Root>
+		</OptionsSection>
 	{/if}
 </div>

@@ -7,6 +7,7 @@ improvements apply to all past requests without re-running anything.
 """
 
 from __future__ import annotations
+from datasets.measures import split_measure
 
 import json
 from contextlib import contextmanager
@@ -301,7 +302,8 @@ def _col_descriptions_for(po_keys_per_col: dict[str, tuple[int, str]]) -> dict[s
             for col, key in po_keys_per_col.items():
                 desc = po_descriptions.get(key)
                 if desc:
-                    col_descriptions[col] = desc
+                    label, detail = split_measure(desc)
+                    col_descriptions[col] = f"{label}: {detail}" if label and detail else (label or detail)
     return col_descriptions
 
 

@@ -2,6 +2,7 @@
 	import type { DatasetDetail } from '#lib/api.js';
 	import type { FilterSelection } from '#lib/stores/cart.js';
 	import { CircleAlert, CircleCheck } from '@lucide/svelte';
+	import { parseMeasure } from '#lib/utils/measures.js';
 
 	// One or two sentences tying the boundary selection to the open dataset's
 	// options: how many features, and what the output will hold for each.
@@ -42,12 +43,18 @@
 		const hasPeriods = dataset.temporal_name !== 'Temporally Invariant' && dataset.resources.length > 0;
 		const needsExtract = extractTypes.length === 0;
 		const needsPeriod = hasPeriods && resources.length === 0;
-		if (needsExtract && needsPeriod) return 'extract option and one time period';
+		if (needsExtract && needsPeriod) return 'measure and one time period';
 		if (needsPeriod) return 'time period';
-		return needsExtract ? 'extract option' : null;
+		return needsExtract ? 'measure' : null;
 	});
 
 	const n = (v: number) => v.toLocaleString();
+
+	// A measure's label from its extract option's description ("Label {{{...}}}")
+	const measureLabel = (shortName: string) =>
+		parseMeasure(shortName, dataset.extract_types.find((t) => t.short_name === shortName)?.description).label;
+	const listLabels = (labels: string[]) =>
+		labels.length <= 2 ? labels.join(' and ') : `${labels.slice(0, -1).join(', ')} and ${labels.at(-1)}`;
 	const plural = (v: number, one: string, many = `${one}s`) => `${n(v)} ${v === 1 ? one : many}`;
 
 	const where = $derived(
@@ -65,9 +72,10 @@
 		const categorical = extractTypes.some((t) => /categor/i.test(t));
 		return {
 			columns: extractTypes.length * periods,
+			// "Average light intensity and Maximum light intensity across 3 years"
 			text:
-				`${plural(extractTypes.length, 'aggregation measure')}` +
-				(hasPeriods ? ` and ${plural(periods, unit[0], unit[1])}` : ''),
+				listLabels(extractTypes.map((t) => measureLabel(t))) +
+				(hasPeriods ? ` across ${plural(periods, unit[0], unit[1])}` : ''),
 			categorical
 		};
 	});
@@ -122,7 +130,7 @@
 		<p>
 			{where}, your output will contain <strong>{plural(raster.columns, 'column')}</strong>, based on {raster.text}.
 			{#if raster.categorical}
-				The categorical measure adds one column for each category rather than one in total.
+				A count by class adds one column for each class rather than one in total.
 			{/if}
 		</p>
 	{/if}

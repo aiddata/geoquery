@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { DatasetDetail } from '#lib/api.js';
 	import { entryColumns } from '#lib/utils/outputColumns.js';
+	import { parseMeasure } from '#lib/utils/measures.js';
 
 	// What one request entry extracts, as labelled rows: statistics and time
 	// periods for rasters; measure, split fields and filters for feature
@@ -99,8 +100,8 @@
 		{/if}
 	{:else}
 		{#if extractTypes.length > 0}
-			<dt class="text-xs font-bold text-muted-foreground">Statistics</dt>
-			<dd>{@render chips(extractTypes)}</dd>
+			<dt class="text-xs font-bold text-muted-foreground">Measures</dt>
+			<dd>{@render chips(extractTypes.map((t) => parseMeasure(t, detail?.extract_types.find((e) => e.short_name === t)?.description).label))}</dd>
 		{/if}
 		{#if periods.length > 0}
 			<dt class="text-xs font-bold text-muted-foreground">Time periods</dt>
