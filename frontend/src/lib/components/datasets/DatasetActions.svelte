@@ -17,6 +17,8 @@
 		 */
 		saveState: 'saved' | 'unsaved' | 'editing' | 'incomplete' | null;
 		onAddToRequest: () => void;
+		/** Name of the version adding would merge into (it only adds values to a split) */
+		mergeInto?: string | null;
 		onUpdateRequest: () => void;
 		onReset: () => void;
 	}
@@ -25,6 +27,7 @@
 		isFeature,
 		saveState,
 		onAddToRequest,
+		mergeInto = null,
 		onUpdateRequest,
 		onReset
 	}: Props = $props();
@@ -76,4 +79,7 @@
 		</Button>
 	{/if}
 
+	{#if isFeature && mergeInto && (saveState === 'unsaved' || saveState === 'editing')}
+		<p class="text-xs text-muted-foreground">Adds these values to the existing version “{mergeInto}”</p>
+	{/if}
 </div>

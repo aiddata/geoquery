@@ -41,6 +41,7 @@
 	import OutputSummary from '#lib/components/datasets/OutputSummary.svelte';
 	import VersionCards from '#lib/components/datasets/VersionCards.svelte';
 	import { columnsByDataset, cleanVersionName, invalidVersionNames, uniqueVersionName } from '#lib/utils/outputColumns.js';
+	import { mergeFeatureVersions, versionCovers } from '#lib/utils/featureMerge.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 
 	$effect(() => {
@@ -235,12 +236,32 @@
 			? buildFilterKwargs(filterSelections, selectedDatasetDetail.filters, selectedOutcome)
 			: null
 	);
+	// In the request already: an identical version, or one that covers these
+	// options (adding them would merge in nothing). The version being edited
+	// counts only when identical, so narrowing it can still be saved.
 	const featureSaved = $derived(
 		!!currentKwargs &&
 			$cart.some(
-				(i) => i.datasetName === selectedDatasetDetail?.name && kwargsKey(i.kwargs) === kwargsKey(currentKwargs)
+				(i) =>
+					i.datasetName === selectedDatasetDetail?.name &&
+					(kwargsKey(i.kwargs) === kwargsKey(currentKwargs) ||
+						(kwargsKey(i.kwargs) !== editingKey && versionCovers(i, currentKwargs!)))
 			)
 	);
+
+	// The version Add would merge these options into (same filters and measure,
+	// other years), so the button can say so.
+	const mergeTarget = $derived.by(() => {
+		const detail = selectedDatasetDetail;
+		if (!detail || !currentKwargs || featureSaved) return null;
+		const hit = $cart.find(
+			(i) =>
+				i.datasetName === detail.name &&
+				kwargsKey(i.kwargs) !== editingKey &&
+				mergeFeatureVersions(i, { ...i, kwargs: currentKwargs! })
+		);
+		return hit ? hit.customName || detail.title || detail.name : null;
+	});
 
 	// Opened from the Review page's "Edit options": the cart entry being
 	// edited, while it's still in the cart. Update Request replaces it.
@@ -277,7 +298,13 @@
 		for (const [name, choices] of Object.entries($datasetChoices)) {
 			if (!choices.kwargs) continue;
 			const key = kwargsKey(choices.kwargs);
-			if (!$cart.some((i) => i.datasetName === name && kwargsKey(i.kwargs) === key)) names.add(name);
+			const covered = $cart.some(
+				(i) =>
+					i.datasetName === name &&
+					(kwargsKey(i.kwargs) === key ||
+						(kwargsKey(i.kwargs) !== choices.editingKey && versionCovers(i, choices.kwargs!)))
+			);
+			if (!covered) names.add(name);
 		}
 		return names;
 	});
@@ -611,6 +638,7 @@
 						isFeature={isFeature(selectedDatasetDetail)}
 						{saveState}
 						onAddToRequest={handleAddToRequest}
+						mergeInto={mergeTarget}
 						onUpdateRequest={handleUpdateRequest}
 						onReset={handleReset}
 					/>

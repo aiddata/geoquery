@@ -1,4 +1,5 @@
 import { writable, derived } from 'svelte/store';
+import { mergeFeatureVersions } from '#lib/utils/featureMerge.js';
 
 export interface RangeSelection {
 	type: 'range';
@@ -40,18 +41,15 @@ function createCartStore() {
 		/** Add item, or merge into the existing entry for the same dataset. */
 		upsertItem(item: CartItem) {
 			update((items) => {
-				const itemKwargs = JSON.stringify(item.kwargs ?? null);
-				const hasKwargs = item.kwargs != null;
-
-				// Items with kwargs are keyed by (datasetName + kwargs): different kwarg
-				// combinations are independent cart slots; identical ones replace in place.
-				if (hasKwargs) {
-					const idx = items.findIndex(
-						(i) => i.datasetName === item.datasetName &&
-							JSON.stringify(i.kwargs ?? null) === itemKwargs
-					);
-					if (idx === -1) return [...items, item];
-					return items.map((it, i) => (i === idx ? item : it));
+				// Feature datasets: a version that matches an existing one apart from
+				// one split field's values (e.g. years) merges into it, like a
+				// raster's periods; anything else is a separate version.
+				if (item.kwargs != null) {
+					for (let idx = 0; idx < items.length; idx++) {
+						const merged = mergeFeatureVersions(items[idx], item);
+						if (merged) return items.map((it, i) => (i === idx ? merged : it));
+					}
+					return [...items, item];
 				}
 
 				const idx = items.findIndex((i) => i.datasetName === item.datasetName);
@@ -112,13 +110,20 @@ function createCartStore() {
 					(i) => i.datasetName === datasetName && JSON.stringify(i.kwargs ?? null) === oldKwargsKey
 				);
 				if (idx === -1) return [...items, item];
-				const next = { ...item, customName: items[idx].customName };
-				// Drop any other entry that already had the new filters, so the edit
-				// doesn't leave two identical versions.
-				const newKey = JSON.stringify(item.kwargs ?? null);
-				return items
-					.map((it, i) => (i === idx ? next : it))
-					.filter((it, i) => i === idx || !(it.datasetName === datasetName && JSON.stringify(it.kwargs ?? null) === newKey));
+				let next: CartItem = { ...item, customName: items[idx].customName };
+				// Fold in any other version the edit now matches (identical, or
+				// differing only in one split field's values), so it doesn't leave
+				// two versions with overlapping columns.
+				const absorbed = new Set<number>();
+				items.forEach((it, i) => {
+					if (i === idx) return;
+					const merged = mergeFeatureVersions(next, it);
+					if (merged) {
+						next = merged;
+						absorbed.add(i);
+					}
+				});
+				return items.map((it, i) => (i === idx ? next : it)).filter((_, i) => !absorbed.has(i));
 			});
 		},
 		removeItem(index: number) {
