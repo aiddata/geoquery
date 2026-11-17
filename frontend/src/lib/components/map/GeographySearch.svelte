@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '#lib/components/ui/button/index.js';
+	import ClearSearchButton from '#lib/components/ClearSearchButton.svelte';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import { ChevronRight, Search } from '@lucide/svelte';
@@ -179,9 +180,16 @@
 			bind:value={searchText}
 			placeholder="Search boundaries..."
 			aria-label="Search boundaries"
-			class="pl-10"
+			class="pl-10 pr-8"
 			onfocus={() => (searchFocused = true)}
 			onblur={() => (searchFocused = false)}
+		/>
+		<ClearSearchButton
+			value={searchText}
+			onClear={() => {
+				searchText = '';
+				inputEl?.focus();
+			}}
 		/>
 
 		<!-- Autocomplete dropdown -->

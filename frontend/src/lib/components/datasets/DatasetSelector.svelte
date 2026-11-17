@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Input } from '#lib/components/ui/input/index.js';
+	import ClearSearchButton from '#lib/components/ClearSearchButton.svelte';
 	import * as Select from '#lib/components/ui/select/index.js';
 	import * as Card from '#lib/components/ui/card/index.js';
 	import { ScrollArea } from '#lib/components/ui/scroll-area/index.js';
@@ -31,6 +32,7 @@
 	}: Props = $props();
 
 	let searchText = $state('');
+	let searchInput = $state<HTMLInputElement | null>(null);
 	let selectedCategory = $state('all');
 	let sortField = $state<'date_updated' | 'title'>('date_updated');
 	let sortAsc = $state(false);
@@ -91,10 +93,18 @@
 		<div class="relative">
 			<Search class="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
 			<Input
+				bind:ref={searchInput}
 				bind:value={searchText}
 				placeholder="Search datasets..."
 				aria-label="Search datasets"
-				class="h-8 pl-8 text-sm"
+				class="h-8 pl-8 pr-8 text-sm"
+			/>
+			<ClearSearchButton
+				value={searchText}
+				onClear={() => {
+					searchText = '';
+					searchInput?.focus();
+				}}
 			/>
 		</div>
 

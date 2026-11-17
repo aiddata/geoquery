@@ -12,6 +12,7 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
+	import ClearSearchButton from '#lib/components/ClearSearchButton.svelte';
 	import MapLegend from '#lib/components/viz/MapLegend.svelte';
 	import { basemapStyle, followTheme } from '#lib/map/basemap.js';
 	import { addChoroplethLayers, refreshChoroplethTheme, fcFillId, fcLineId, fcSourceId } from '#lib/map/choropleth.js';
@@ -58,6 +59,8 @@
 	let searchDebounce: ReturnType<typeof setTimeout> | null = null;
 
 	let selectedIds = $derived(new Set(selectedFCs.map((f) => f.id)));
+
+	let fcInput = $state<HTMLInputElement | null>(null);
 
 	async function onFcInput() {
 		if (searchDebounce) clearTimeout(searchDebounce);
@@ -591,11 +594,19 @@
 				<div class="relative">
 					<Search class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
 					<Input
-						type="text" placeholder="Quick search…" bind:value={fcQuery}
+						type="text" placeholder="Quick search…" bind:value={fcQuery} bind:ref={fcInput}
 						aria-label="Search boundaries"
 						oninput={onFcInput} onfocus={() => fcSearchOpen = true}
 						onblur={() => setTimeout(() => fcSearchOpen = false, 150)}
-						class="min-h-8 pl-8"
+						class="min-h-8 pl-8 pr-8"
+					/>
+					<ClearSearchButton
+						value={fcQuery}
+						onClear={() => {
+							fcQuery = '';
+							fcSuggestions = [];
+							fcInput?.focus();
+						}}
 					/>
 					{#if fcSearchOpen && fcSuggestions.length > 0}
 						<div class="absolute left-0 right-0 top-full z-50 mt-1 rounded-md border bg-popover text-popover-foreground shadow-card">
