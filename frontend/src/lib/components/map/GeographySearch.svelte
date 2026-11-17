@@ -2,10 +2,11 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
-	import { ChevronRight, Search, X } from '@lucide/svelte';
+	import { ChevronRight, Search } from '@lucide/svelte';
 	import type { Snippet } from 'svelte';
 	import { searchBoundaries, type BoundaryPreset, type BoundaryResult } from '#lib/api.js';
-	import { colorForIndex } from '#lib/utils/boundaryStyle.js';
+	import { colorForIndex, lineWidthForLevel } from '#lib/utils/boundaryStyle.js';
+	import SelectionLegend, { type LegendItem } from './SelectionLegend.svelte';
 
 	interface Props {
 		featuredBoundaries?: BoundaryResult[];
@@ -19,12 +20,18 @@
 		onClear?: () => void;
 		/** Rendered directly under the search box, e.g. a note about the selection. */
 		belowSearch?: Snippet;
-		/** Rendered directly under the selected chips, above the proceed button, e.g. coverage status. */
+		/** Rendered directly under the selection list, above the proceed button, e.g. coverage status. */
 		belowSelection?: Snippet;
 		/** The search box text; bindable so the page's Restart can clear it. */
 		searchText?: string;
 		/** Presets offered in the search results, each with the boundary sets it adds */
 		presets?: { preset: BoundaryPreset; members: BoundaryResult[] }[];
+		/** How each selected set is drawn on the map, in selection order; derived from the selection when absent. */
+		legendItems?: LegendItem[];
+		/** Zoom the map to a selected set (a click on its row). */
+		onZoom?: (id: number) => void;
+		/** Highlight a selected set on the map, or clear it with null. */
+		onHighlight?: (id: number | null) => void;
 	}
 
 	let {
@@ -39,7 +46,10 @@
 		belowSearch,
 		belowSelection,
 		searchText = $bindable(''),
-		presets = []
+		presets = [],
+		legendItems,
+		onZoom,
+		onHighlight
 	}: Props = $props();
 
 	// Presets whose name, description or an alias matches the search, with members to add
@@ -55,7 +65,7 @@
 		);
 	});
 
-	/** Add every boundary set of a preset not already selected, each as its own chip. */
+	/** Add every boundary set of a preset not already selected, each as its own row. */
 	function addPreset(members: BoundaryResult[]) {
 		const have = new Set(selectedBoundaries.map((b) => b.id));
 		const newSelection = [...selectedBoundaries, ...members.filter((b) => !have.has(b.id))];
@@ -73,6 +83,19 @@
 	let selectedBoundaries = $derived(externalSelection ?? internalSelection);
 
 	let inputEl = $state<HTMLInputElement | null>(null);
+
+	let legend = $derived<LegendItem[]>(
+		legendItems ??
+			selectedBoundaries.map((b, idx) => ({
+				id: b.id,
+				title: b.title || b.name,
+				color: colorForIndex(idx),
+				lineWidth: lineWidthForLevel(b.group_level),
+				level: b.group_level,
+				source: b.source_name,
+				group: b.group_title
+			}))
+	);
 
 	let autocompleteResults = $state<BoundaryResult[]>([]);
 	let isLoading = $state(false);
@@ -222,34 +245,9 @@
 		</div>
 	{/if}
 
-	<!-- Selected chips, then whatever the page shows about them -->
+	<!-- The selection as a key to the map, then whatever the page shows about it -->
 	{#if selectedBoundaries.length > 0}
-		<!-- Five rows of chips (28px each, 4px gaps) before it scrolls -->
-		<section aria-labelledby="your-selections" class="space-y-1.5">
-			<h2 id="your-selections" class="text-sm font-bold text-foreground">Your Selections</h2>
-			<div class="max-h-[9.75rem] overflow-y-auto flex flex-wrap gap-1">
-			{#each selectedBoundaries as boundary, idx (boundary.id)}
-				<div class="inline-flex items-center gap-1 rounded-md bg-primary/15 py-0.5 pr-0.5 pl-2 text-sm font-bold">
-					<span
-						class="inline-block size-3 shrink-0 rounded-sm border border-chart-edge"
-						style="background-color: {colorForIndex(idx)}"
-						data-swatch
-						aria-hidden="true"
-					></span>
-					<span class="truncate max-w-xs">{boundary.title || boundary.name}</span>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						class="size-6 hover:bg-primary/30"
-						onclick={() => removeBoundary(boundary.id)}
-						aria-label="Remove {boundary.title || boundary.name}"
-					>
-						<X class="size-3.5" />
-					</Button>
-				</div>
-			{/each}
-			</div>
-		</section>
+		<SelectionLegend items={legend} onZoom={onZoom} onRemove={removeBoundary} onHighlight={onHighlight} />
 		{@render belowSelection?.()}
 	{/if}
 
