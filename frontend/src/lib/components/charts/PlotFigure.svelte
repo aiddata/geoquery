@@ -62,6 +62,10 @@
 		void $tokenScheme; // theme or contrast mode changed: tokens resolve differently
 		if (!Plot || width === 0) return;
 		const plot = draw({ Plot, t: readTokens(), width });
+		// Plot puts aria-label on each mark's <g> ("bar", "rule"), which ARIA
+		// prohibits on an element with no role. The figure's own label,
+		// description and data table carry the content, so drop them.
+		plot.querySelectorAll('g[aria-label]:not([role])').forEach((g) => g.removeAttribute('aria-label'));
 		frame.replaceChildren(plot);
 		handle = { plot, title, subtitle };
 	});

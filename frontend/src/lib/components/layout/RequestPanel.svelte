@@ -97,7 +97,8 @@
 				style:view-transition-name="panel-{s.id}"
 			>
 				<div class="flex items-center justify-between gap-2 px-4 pt-4 {bare ? 'pb-1' : 'pb-2'}">
-					<h2 id="panel-{s.id}" class="text-h4 text-foreground" aria-current="step">{s.title}</h2>
+					<!-- The page's one top-level heading on each request step -->
+					<h1 id="panel-{s.id}" class="text-h4 text-foreground" aria-current="step">{s.title}</h1>
 					{@render actions?.()}
 				</div>
 				<div class={bare ? 'flex min-h-0 flex-1 flex-col' : 'min-h-0 flex-1 overflow-y-auto px-4 pb-4'}>

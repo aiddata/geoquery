@@ -198,7 +198,7 @@
 				href="https://docs.geoquery.org/data_documentation/boundaries/"
 				target="_blank"
 				rel="noopener noreferrer"
-				class="text-link hover:text-link-hover hover:underline">What boundaries are available?</a
+				class="inline-block min-h-6 py-0.5 text-link hover:text-link-hover hover:underline">What boundaries are available?</a
 			>
 		</p>
 	{/if}
@@ -226,7 +226,7 @@
 	{#if selectedBoundaries.length > 0}
 		<!-- Five rows of chips (28px each, 4px gaps) before it scrolls -->
 		<section aria-labelledby="your-selections" class="space-y-1.5">
-			<h3 id="your-selections" class="text-sm text-foreground">Your Selections</h3>
+			<h2 id="your-selections" class="text-sm font-bold text-foreground">Your Selections</h2>
 			<div class="max-h-[9.75rem] overflow-y-auto flex flex-wrap gap-1">
 			{#each selectedBoundaries as boundary, idx (boundary.id)}
 				<div class="inline-flex items-center gap-1 rounded-md bg-primary/15 py-0.5 pr-0.5 pl-2 text-sm font-bold">

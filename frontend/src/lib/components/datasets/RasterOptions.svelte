@@ -112,7 +112,7 @@
 				<div class="flex cursor-pointer items-center gap-2 border-b pb-2" onclick={toggleAllExtracts}>
 					<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 					<span onclick={(e) => e.stopPropagation()}>
-						<Checkbox checked={allExtractsSelected} onCheckedChange={toggleAllExtracts} />
+						<Checkbox checked={allExtractsSelected} onCheckedChange={toggleAllExtracts} aria-label="All extract options" />
 					</span>
 					<Label class="cursor-pointer text-xs font-bold">All Extract Options</Label>
 				</div>
@@ -125,6 +125,7 @@
 							<Checkbox
 								checked={options.extractTypes.includes(type.short_name)}
 								onCheckedChange={() => toggleExtractType(type)}
+								aria-label={type.short_name}
 							/>
 						</span>
 						{#if type.description}
@@ -168,7 +169,7 @@
 						<div class="flex cursor-pointer items-center gap-2 border-b pb-2" onclick={toggleAllResources}>
 							<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 							<span onclick={(e) => e.stopPropagation()}>
-								<Checkbox checked={allResourcesSelected} onCheckedChange={toggleAllResources} />
+								<Checkbox checked={allResourcesSelected} onCheckedChange={toggleAllResources} aria-label="All time periods" />
 							</span>
 							<Label class="cursor-pointer text-xs font-bold">All Time Periods</Label>
 						</div>
@@ -181,6 +182,7 @@
 									<Checkbox
 										checked={options.resources.includes(resource.name)}
 										onCheckedChange={() => {}}
+										aria-label={resource.label ?? formatTemporal(resource.temporal)}
 									/>
 								</span>
 								<Label class="cursor-pointer select-none text-xs font-normal">

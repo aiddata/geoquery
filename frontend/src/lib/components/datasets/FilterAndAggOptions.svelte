@@ -63,8 +63,9 @@
 				<Card.Content class="pt-0">
 					<div class="flex items-center gap-2">
 						<div class="flex-1 space-y-1">
-							<Label class="text-xs text-muted-foreground">From</Label>
+							<Label for="range-{key}-from" class="text-xs text-muted-foreground">From</Label>
 							<Input
+								id="range-{key}-from"
 								type="number"
 								min={filter.min}
 								max={sel.end}
@@ -78,8 +79,9 @@
 						</div>
 						<span class="mt-5 text-xs text-muted-foreground">–</span>
 						<div class="flex-1 space-y-1">
-							<Label class="text-xs text-muted-foreground">To</Label>
+							<Label for="range-{key}-to" class="text-xs text-muted-foreground">To</Label>
 							<Input
+								id="range-{key}-to"
 								type="number"
 								min={sel.start}
 								max={filter.max}
@@ -118,6 +120,7 @@
 								<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 								<span onclick={(e) => e.stopPropagation()}>
 									<Checkbox
+										aria-label="All {filter.display ?? key}"
 										checked={allSelected}
 										onCheckedChange={() => setSelection(key, { type: 'categorical', selected: allSelected ? [] : [...filter.categories] })}
 									/>
@@ -140,6 +143,7 @@
 									<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 									<span onclick={(e) => e.stopPropagation()}>
 										<Checkbox
+											aria-label={category}
 											{checked}
 											onCheckedChange={() => {
 												const next = checked

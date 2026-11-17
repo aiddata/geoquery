@@ -18,7 +18,7 @@
 </script>
 
 {#if banner.enabled && !dismissed}
-	<div class="relative z-50 flex items-center justify-center gap-2 px-4 py-2 text-sm {style}">
+	<section aria-label="Service notice" class="relative z-50 flex items-center justify-center gap-2 px-4 py-2 text-sm {style}">
 		<Icon class="h-4 w-4 shrink-0" />
 		<span>{banner.message}</span>
 		<Button
@@ -30,5 +30,5 @@
 		>
 			<X />
 		</Button>
-	</div>
+	</section>
 {/if}

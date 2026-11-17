@@ -2,6 +2,12 @@
 	import type { Map as MlMap } from 'maplibre-gl';
 	import type { Bbox as KeptBbox } from '#lib/utils/bbox.js';
 
+	/** Camera moves jump instead of animating when the user asks for reduced motion. */
+	function motion(): { animate: boolean } {
+		const reduce = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		return { animate: !reduce };
+	}
+
 	// One MapLibre map for the page session. When the map page unmounts (going
 	// on to Customize or Review), the map's element is parked off screen at
 	// the same size instead of the map being removed, and the next MapFrame
@@ -640,7 +646,7 @@
 		let clusterPopup: maplibregl.Popup | null = null;
 
 		const onClick = (e: maplibregl.MapLayerMouseEvent) => {
-			m.easeTo({ center: e.lngLat, zoom: m.getZoom() + CLUSTER_CLICK_ZOOM });
+			m.easeTo({ center: e.lngLat, zoom: m.getZoom() + CLUSTER_CLICK_ZOOM, ...motion() });
 		};
 		const onMove = (e: maplibregl.MapLayerMouseEvent) => {
 			const feature = e.features?.[0];
@@ -789,7 +795,7 @@
 					[west, south],
 					[east, north]
 				],
-				{ padding: 40, maxZoom: 12 }
+				{ padding: 40, maxZoom: 12, ...motion() }
 			);
 		};
 		// Hidden (a narrow screen showing the panel), the map lays out at a
@@ -842,15 +848,15 @@
 	});
 
 	export function zoomIn() {
-		map?.zoomIn();
+		map?.zoomIn(motion());
 	}
 
 	export function zoomOut() {
-		map?.zoomOut();
+		map?.zoomOut(motion());
 	}
 
 	export function resetView() {
-		map?.easeTo({ center: INITIAL_CENTER, zoom: INITIAL_ZOOM });
+		map?.easeTo({ center: INITIAL_CENTER, zoom: INITIAL_ZOOM, ...motion() });
 	}
 </script>
 

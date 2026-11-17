@@ -74,7 +74,7 @@
 	<!-- Category, search and sort, kept compact to leave room for the list -->
 	<div class="space-y-2 border-b px-4 pb-3 pt-1">
 		<Select.Root type="single" bind:value={selectedCategory}>
-			<Select.Trigger class="h-8 w-full text-sm">
+			<Select.Trigger class="h-8 w-full text-sm" aria-label="Dataset category">
 				{selectedCategory === 'all'
 					? 'All Categories'
 					: categories.find((c) => c.tag === selectedCategory)?.display ?? selectedCategory}

@@ -102,7 +102,8 @@
 	{#if loading && !request}
 		<p class="text-muted-foreground">Loading…</p>
 	{:else if error}
-		<p class="text-danger-text">{error}</p>
+		<h1 class="mb-2 text-h3">Request unavailable</h1>
+		<p class="text-danger-text" role="alert">{error}</p>
 	{:else if request}
 		<div class="space-y-4">
 

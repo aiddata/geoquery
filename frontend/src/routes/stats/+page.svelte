@@ -307,7 +307,7 @@
 		<!-- Requests -->
 		<Card class="mb-6">
 			<CardHeader>
-				<CardTitle>Requests</CardTitle>
+				<CardTitle><h2 class="text-[length:inherit] font-[inherit]">Requests</h2></CardTitle>
 			</CardHeader>
 			<CardContent class="flex flex-col gap-6">
 				<div class="grid gap-6 md:grid-cols-[3fr_2fr]">
@@ -397,7 +397,7 @@
 		<!-- Extract tasks -->
 		<Card class="mb-6">
 			<CardHeader>
-				<CardTitle>Extract tasks</CardTitle>
+				<CardTitle><h2 class="text-[length:inherit] font-[inherit]">Extract tasks</h2></CardTitle>
 				<p class="text-sm text-muted-foreground">
 					Each task extracts one dataset period for one feature. Tasks are shared between requests,
 					so a result is computed once and reused.
@@ -440,7 +440,7 @@
 		<!-- Most requested -->
 		<Card>
 			<CardHeader>
-				<CardTitle>Most requested</CardTitle>
+				<CardTitle><h2 class="text-[length:inherit] font-[inherit]">Most requested</h2></CardTitle>
 				<p class="text-sm text-muted-foreground">
 					By number of requests including each, since the current version of GeoQuery launched.
 				</p>

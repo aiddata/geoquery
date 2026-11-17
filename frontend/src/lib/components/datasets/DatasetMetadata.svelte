@@ -81,7 +81,7 @@
 					href={dataset.source_url}
 					target="_blank"
 					rel="noopener noreferrer"
-					class="inline-flex items-center gap-1 text-link hover:text-link-hover hover:underline"
+					class="inline-flex items-center gap-1 text-link underline hover:text-link-hover"
 				>
 					{sourceLabel}<ExternalLink class="h-3 w-3" />
 				</a>
@@ -130,7 +130,7 @@
 								href={part.href}
 								target="_blank"
 								rel="noopener noreferrer"
-								class="break-all text-link hover:text-link-hover hover:underline">{part.text}</a
+								class="break-all text-link underline hover:text-link-hover">{part.text}</a
 							>
 						{:else}{part.text}{/if}
 					{/each}
@@ -164,7 +164,7 @@
 								href={part.href}
 								target="_blank"
 								rel="noopener noreferrer"
-								class="break-all text-link hover:text-link-hover hover:underline">{part.text}</a
+								class="break-all text-link underline hover:text-link-hover">{part.text}</a
 							>
 						{:else}{part.text}{/if}
 					{/each}

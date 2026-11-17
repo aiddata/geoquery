@@ -17,7 +17,7 @@
 {#if visible}
 	<!-- Not below md: on a narrow screen it would sit over the panel's own
 	     controls (Find Data, Continue to Review) -->
-	<div class="fixed bottom-4 right-4 z-40 w-72 max-md:hidden rounded-xl bg-card text-card-foreground shadow-card contrast-more:border" data-slot="floating-panel">
+	<aside aria-label="Support GeoQuery" class="fixed bottom-4 right-4 z-40 w-72 max-md:hidden rounded-xl bg-card text-card-foreground shadow-card contrast-more:border" data-slot="floating-panel">
 		<div class="p-4">
 			<Button
 				variant="ghost"
@@ -40,5 +40,5 @@
 				Contact our partnerships team
 			</Button>
 		</div>
-	</div>
+	</aside>
 {/if}

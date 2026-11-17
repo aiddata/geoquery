@@ -45,7 +45,8 @@
 		<MapPin class="h-8 w-8 text-muted-foreground" />
 	</div>
 
-	<div class="text-7xl font-bold text-muted-foreground/30 mb-2">{status}</div>
+	<!-- Decorative: the heading below says what happened -->
+	<div class="text-7xl font-bold text-muted-foreground mb-2" aria-hidden="true">{status}</div>
 
 	<h1 class="mb-3 text-h2 text-foreground">{config.heading}</h1>
 

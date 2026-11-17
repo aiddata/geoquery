@@ -64,10 +64,17 @@
 <TooltipProvider>
 	<!-- data-detail: a step's detail view is open on a narrow screen (lib/stepDetail.ts) -->
 	<div class="flex min-h-screen flex-col" data-detail={page.state.detail ? 'open' : 'closed'}>
+		<!-- First stop for keyboard users: past the header to the page itself -->
+		<a
+			href="#main-content"
+			class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-card focus:px-4 focus:py-2 focus:font-bold focus:text-foreground focus:shadow-card focus:outline-2 focus:outline-ring"
+		>
+			Skip to main content
+		</a>
 		<StatusBanner />
 		<Header {showSteps} />
 
-		<main class="flex-1">
+		<main id="main-content" tabindex="-1" class="flex-1 focus:outline-none">
 			{@render children()}
 		</main>
 
