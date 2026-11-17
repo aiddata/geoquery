@@ -5,6 +5,7 @@
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { ScrollArea } from '#lib/components/ui/scroll-area/index.js';
 	import OptionsSection from './OptionsSection.svelte';
+	import { SPLIT_HELP, SPLIT_SUMMARY } from './optionsHelp.js';
 	import type { DatasetFilter } from '#lib/api.js';
 	import type { FilterSelection, RangeSelection, CategoricalSelection } from '#lib/stores/cart.js';
 
@@ -30,6 +31,32 @@
 		const s = selections[key];
 		if (s?.type === 'categorical') return s;
 		return { type: 'categorical', selected: [...filter.categories] };
+	}
+
+	// Shift-click selects a range from the last value clicked in the same
+	// field, as time periods do for raster datasets
+	let lastClicked = $state<{ key: string; index: number } | null>(null);
+
+	function toggleCategory(
+		key: string,
+		filter: Extract<DatasetFilter, { type: 'categorical' }>,
+		sel: CategoricalSelection,
+		index: number,
+		event?: MouseEvent
+	) {
+		const category = filter.categories[index];
+		const adding = !sel.selected.includes(category);
+		let next: string[];
+		if (event?.shiftKey && lastClicked?.key === key) {
+			const lo = Math.min(lastClicked.index, index);
+			const hi = Math.max(lastClicked.index, index);
+			const range = filter.categories.slice(lo, hi + 1);
+			next = adding ? [...new Set([...sel.selected, ...range])] : sel.selected.filter((c) => !range.includes(c));
+		} else {
+			next = adding ? [...sel.selected, category] : sel.selected.filter((c) => c !== category);
+		}
+		lastClicked = { key, index };
+		setSelection(key, { type: 'categorical', selected: next });
 	}
 
 	function clamp(val: number, min: number, max: number) {
@@ -128,32 +155,18 @@
 								<Label class="cursor-pointer text-xs font-bold">All</Label>
 							</div>
 
-							{#each filter.categories as category}
+							{#each filter.categories as category, i}
 								{@const checked = sel.selected.includes(category)}
 								<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 								<div
 									class="flex cursor-pointer items-center gap-2"
-									onclick={() => {
-										const next = checked
-											? sel.selected.filter((c) => c !== category)
-											: [...sel.selected, category];
-										setSelection(key, { type: 'categorical', selected: next });
-									}}
+									onclick={(e) => toggleCategory(key, filter, sel, i, e)}
 								>
 									<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-									<span onclick={(e) => e.stopPropagation()}>
-										<Checkbox
-											aria-label={category}
-											{checked}
-											onCheckedChange={() => {
-												const next = checked
-													? sel.selected.filter((c) => c !== category)
-													: [...sel.selected, category];
-												setSelection(key, { type: 'categorical', selected: next });
-											}}
-										/>
+									<span onclick={(e) => { e.stopPropagation(); toggleCategory(key, filter, sel, i, e); }}>
+										<Checkbox aria-label={category} {checked} onCheckedChange={() => {}} />
 									</span>
-									<Label class="cursor-pointer text-xs font-normal capitalize">{category}</Label>
+									<Label class="cursor-pointer select-none text-xs font-normal capitalize">{category}</Label>
 								</div>
 							{/each}
 						</div>
@@ -168,8 +181,8 @@
 	<OptionsSection
 		id="split"
 		title="Split results by"
-		summary="Each value you select gets its own column in your results."
-		help="Instead of a single total, each feature gets a separate column for every selected value, for example one column per year. With more than one split field, there is a column for every combination. Unselected values are left out."
+		summary={SPLIT_SUMMARY}
+		help={SPLIT_HELP}
 		note="{splitColumns} column{splitColumns === 1 ? '' : 's'} per feature"
 	>
 		<div class="flex flex-wrap gap-4">
@@ -185,7 +198,7 @@
 		id="filter"
 		title="Filter records"
 		summary="Only matching records are counted, and they are added together into one value."
-		help="These narrow which records are included. Records outside a range, or with a value you've unselected, are left out. Everything that matches is combined into one total per feature (or per column, when results are split)."
+		help="These narrow which records are included. Records outside a range, or with a value you've unselected, are left out. Everything that matches is combined into one total per feature (or per column, when results are split). Shift-click to select a range of values."
 	>
 		<div class="flex flex-wrap gap-4">
 			{#each filterFields as [key, filter] (key)}

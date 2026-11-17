@@ -7,6 +7,7 @@
 	import type { DatasetDetail, ExtractType } from '#lib/api.js';
 	import { Info } from '@lucide/svelte';
 	import OptionsSection from './OptionsSection.svelte';
+	import { SPLIT_HELP, SPLIT_SUMMARY } from './optionsHelp.js';
 	import { parseMeasure } from '#lib/utils/measures.js';
 
 	interface RasterSelection {
@@ -80,6 +81,10 @@
 			onOptionsChange({ ...options, resources: dataset.resources.map((r) => r.name) });
 		}
 	}
+
+	// Columns per feature: one per selected measure and time period, as the
+	// feature datasets' split pill counts them
+	const periodColumns = $derived(options.extractTypes.length * options.resources.length);
 
 	// Each option's label and explanation, from its description
 	const measures = $derived(
@@ -165,9 +170,10 @@
 	{#if isTemporallyVarying}
 		<OptionsSection
 			id="periods"
-			title="Time periods"
-			summary="Each period you select adds a column for each measure."
-			help="Choose the years or months to extract. Shift-click to select a range."
+			title="Split results by"
+			summary={SPLIT_SUMMARY}
+			help={SPLIT_HELP}
+			note="{periodColumns} column{periodColumns === 1 ? '' : 's'} per feature"
 		>
 			<Card.Root class="w-72 max-w-full gap-2">
 				<Card.Header class="pb-0">
