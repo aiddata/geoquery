@@ -89,6 +89,8 @@
 		activeFcName?: string | null;
 		selectedFeatureIds?: number[];
 		bbox?: Bbox | null;
+		/** One of two or more sets to draw above the others, heavier and more filled. */
+		highlightFcId?: number | null;
 		onFeatureClick?: (featureId: number) => void;
 		onZoomChange?: (zoom: number) => void;
 		userGeoJSON?: FeatureCollection | null;
@@ -100,6 +102,7 @@
 		activeFcName = null,
 		selectedFeatureIds = [],
 		bbox = null,
+		highlightFcId = null,
 		onFeatureClick,
 		onZoomChange,
 		userGeoJSON = null,
@@ -153,6 +156,10 @@
 	const SELECTED_EXTRA_WIDTH = 1.5;
 	// Each colored line sits on a forest casing 2px wider, keeping gold and sky lines visible on the light basemap
 	const CASING_EXTRA_WIDTH = 2;
+	// The set highlighted from the selection list gets a heavier outline and fill
+	const HIGHLIGHT_EXTRA_WIDTH = 1.5;
+	const FILL_OPACITY = 0.15;
+	const HIGHLIGHT_FILL_OPACITY = 0.35;
 
 	function lineWidth(base: number, extra = 0): maplibregl.ExpressionSpecification {
 		return [
@@ -513,7 +520,7 @@
 			type: 'fill',
 			source: MULTI_SOURCE,
 			'source-layer': MULTI_TILE_LAYER,
-			paint: { 'fill-color': color, 'fill-opacity': 0.15 }
+			paint: { 'fill-color': color, 'fill-opacity': FILL_OPACITY }
 		});
 
 		m.addLayer({
@@ -622,6 +629,35 @@
 		}
 		if (m.getLayer(USER_FILL)) m.setPaintProperty(USER_FILL, 'fill-color', readTokens().ring);
 		if (m.getLayer(USER_LINE)) m.setPaintProperty(USER_LINE, 'line-color', readTokens().ring);
+	});
+
+	// Draw the set highlighted in the selection list above the others, heavier
+	// and more filled. Only with two or more sets: one set has nothing to stand
+	// out from. Runs after the paint sync above, which sets the plain widths.
+	$effect(() => {
+		if (!map || !mapReady) return;
+		void themeTick;
+		const m = map;
+		const styles = fcStyles;
+		if (!m.getLayer(MULTI_LINE) || styles.length < 2) return;
+		const id = highlightFcId ?? -1;
+		const extra = (s: FcStyle) => (s.id === id ? HIGHLIGHT_EXTRA_WIDTH : 0);
+		const isHighlighted: maplibregl.ExpressionSpecification = ['==', ['get', 'fc_id'], id];
+		const sortKey: maplibregl.ExpressionSpecification = ['case', isHighlighted, 1, 0];
+		m.setPaintProperty(MULTI_LINE, 'line-width', byFc(styles, (s) => s.lineWidth + extra(s)));
+		m.setPaintProperty(
+			MULTI_CASING,
+			'line-width',
+			byFc(styles, (s) => s.lineWidth + CASING_EXTRA_WIDTH + extra(s))
+		);
+		m.setPaintProperty(MULTI_FILL, 'fill-opacity', [
+			'case',
+			isHighlighted,
+			HIGHLIGHT_FILL_OPACITY,
+			FILL_OPACITY
+		]);
+		m.setLayoutProperty(MULTI_LINE, 'line-sort-key', sortKey);
+		m.setLayoutProperty(MULTI_CASING, 'line-sort-key', sortKey);
 	});
 
 	function syncClusterPaint(
@@ -783,8 +819,15 @@
 			return;
 		}
 		if (sameBbox(bbox, fittedBbox)) return;
-		const m = map;
-		const target = bbox;
+		return fitWhenShown(map, bbox);
+	});
+
+	/**
+	 * Fit the map to an extent. Hidden (a narrow screen showing the panel), the
+	 * map lays out at a stand-in size, so it fits once it's shown and has its
+	 * real one. Returns a function that cancels a fit still waiting.
+	 */
+	function fitWhenShown(m: maplibregl.Map, target: Bbox): () => void {
 		const [west, south, east, north] = target;
 		// Recorded when it happens: a fit still waiting when the map is put away
 		// is owed next time.
@@ -798,11 +841,9 @@
 				{ padding: 40, maxZoom: 12, ...motion() }
 			);
 		};
-		// Hidden (a narrow screen showing the panel), the map lays out at a
-		// stand-in size; fit once it's shown and has its real one.
 		if (m.getContainer().clientWidth > 0) {
 			fit();
-			return;
+			return () => {};
 		}
 		const onResize = () => {
 			if (m.getContainer().clientWidth === 0) return;
@@ -811,7 +852,7 @@
 		};
 		m.on('resize', onResize);
 		return () => m.off('resize', onResize);
-	});
+	}
 
 	// Sync user-uploaded GeoJSON layer
 	$effect(() => {
@@ -853,6 +894,15 @@
 
 	export function zoomOut() {
 		map?.zoomOut(motion());
+	}
+
+	let cancelFit = () => {};
+
+	/** Zoom to an extent now, even the one last zoomed to: the map may have moved since. */
+	export function fitBbox(target: Bbox) {
+		if (!map || !mapReady) return;
+		cancelFit();
+		cancelFit = fitWhenShown(map, target);
 	}
 
 	export function resetView() {

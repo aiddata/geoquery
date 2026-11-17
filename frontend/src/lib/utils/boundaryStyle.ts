@@ -1,22 +1,46 @@
 /**
- * Per-FC styling helpers used by the map and the chip UI.
+ * Per-FC styling helpers used by the map and its selection legend.
  *
  * Colors are the design system's four chart series (design-system.md §11),
- * returned as CSS variables so chips follow the theme; MapFrame resolves them
- * for MapLibre. Past four collections the colors repeat, and line width
- * (driven by group_level, so ADM0 is thicker than ADM2) and the chip labels
- * tell collections apart.
+ * returned as CSS variables so the legend follows the theme; MapFrame resolves
+ * them for MapLibre. Past four collections the colors repeat, and line width
+ * (driven by group_level, so ADM0 is thicker than ADM2), the legend's labels
+ * and its hover highlight tell collections apart.
  */
 
 const SERIES_COUNT = 4;
 
 const DEFAULT_LINE_WIDTH = 1.5;
 
-/** Pick a stable color for a given chip index: `var(--chart-1)` … `var(--chart-4)`, cycling. */
+/** The color for a slot (see assignColorSlots): `var(--chart-1)` … `var(--chart-4)`, cycling. */
 export function colorForIndex(index: number): string {
 	// guard against negative or fractional indices
 	const i = ((Math.floor(index) % SERIES_COUNT) + SERIES_COUNT) % SERIES_COUNT;
 	return `var(--chart-${i + 1})`;
+}
+
+/**
+ * Give each selected boundary set a color slot that it keeps while it stays
+ * selected, so removing one doesn't recolor the rest. Sets already in `prev`
+ * keep their slot; sets no longer selected are dropped; each new set takes
+ * the least-used slot (lowest index on a tie), so the four colors are used
+ * once before any repeats.
+ */
+export function assignColorSlots(prev: ReadonlyMap<number, number>, ids: readonly number[]): Map<number, number> {
+	const slots = new Map<number, number>();
+	for (const id of ids) {
+		const slot = prev.get(id);
+		if (slot !== undefined) slots.set(id, slot);
+	}
+	const uses = Array<number>(SERIES_COUNT).fill(0);
+	for (const slot of slots.values()) uses[slot]++;
+	for (const id of ids) {
+		if (slots.has(id)) continue;
+		const slot = uses.indexOf(Math.min(...uses));
+		slots.set(id, slot);
+		uses[slot]++;
+	}
+	return slots;
 }
 
 /**

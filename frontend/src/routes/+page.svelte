@@ -20,7 +20,8 @@
 	import CoverageStatus from '#lib/components/map/CoverageStatus.svelte';
 	import ZoomControls from '#lib/components/map/ZoomControls.svelte';
 	import MapFrame, { type FcStyle } from '#lib/components/map/MapFrame.svelte';
-	import { colorForIndex, lineWidthForLevel } from '#lib/utils/boundaryStyle.js';
+	import type { LegendItem } from '#lib/components/map/SelectionLegend.svelte';
+	import { assignColorSlots, colorForIndex, lineWidthForLevel } from '#lib/utils/boundaryStyle.js';
 	import { unionBbox, type Bbox } from '#lib/utils/bbox.js';
 	import { resolvePreset } from '#lib/utils/presets.js';
 	import WelcomeModal from '#lib/components/map/WelcomeModal.svelte';
@@ -38,7 +39,7 @@
 	import { bbox as turfBbox } from '@turf/bbox';
 
 	// ── Working selection ────────────────────────────────────────────────────────
-	// The map page edits a local selection: the boundary chips plus, when exactly
+	// The map page edits a local selection: the boundary sets plus, when exactly
 	// one boundary is chosen, any features clicked on the map. Every change is
 	// saved to the selection store straight away, so the request (and the
 	// Customize and Review steps) always follow what is selected here. Coverage
@@ -287,22 +288,60 @@
 	// no group_level, so styles look it up here.
 	let boundariesByName = $derived(new Map(allBoundaries.map((b) => [b.name, b])));
 
-	// Per-FC display styles: distinct color cycled by index (matching the chip
-	// swatches), line width by ADM level. Falls back gracefully for boundaries
-	// without a group_level.
+	// Each set keeps its color while it stays selected, so removing one doesn't
+	// recolor the rest. Remembered across changes here rather than in state:
+	// whichever way the selection changes (search, Browse, Clear All), the
+	// slots follow it.
+	let colorSlotMemo = new Map<number, number>();
+	let colorSlots = $derived.by(() => {
+		colorSlotMemo = assignColorSlots(colorSlotMemo, browseBoundaries.map((b) => b.id));
+		return colorSlotMemo;
+	});
+
+	// Per-FC display styles: a color slot per set (matching the legend glyphs),
+	// line width by ADM level. Falls back gracefully for boundaries without a
+	// group_level.
 	let mapFcStyles = $derived.by<FcStyle[]>(() => {
-		return browseBoundaries.map((b, idx) => {
+		return browseBoundaries.map((b) => {
 			const meta = boundariesByName.get(b.name);
 			return {
 				id: b.id,
 				name: b.name,
 				bbox: meta?.bbox ?? b.bbox ?? null,
-				color: colorForIndex(idx),
+				color: colorForIndex(colorSlots.get(b.id) ?? 0),
 				lineWidth: lineWidthForLevel(meta?.group_level),
 				title: meta?.title ?? b.title
 			};
 		});
 	});
+
+	// The selection list, drawn as a key to the map
+	let legendItems = $derived<LegendItem[]>(
+		browseBoundaries.map((b, idx) => {
+			const meta = boundariesByName.get(b.name);
+			const style = mapFcStyles[idx];
+			return {
+				id: b.id,
+				title: meta?.title ?? b.title ?? b.name,
+				color: style.color,
+				lineWidth: style.lineWidth,
+				level: meta?.group_level ?? null,
+				source: meta?.source_name ?? null,
+				group: meta?.group_title ?? null
+			};
+		})
+	);
+
+	// The set hovered or focused in the selection list, highlighted on the map
+	let highlightedFcId = $state<number | null>(null);
+
+	/** Zoom the map to one selected set; on a narrow screen, show the map too. */
+	function zoomToBoundary(id: number) {
+		const bbox = mapFcStyles.find((s) => s.id === id)?.bbox;
+		if (!bbox) return;
+		openDetail();
+		mapFrame?.fitBbox(bbox);
+	}
 
 	// Feature clicking is available whenever exactly one boundary is selected.
 	let activeFcName = $derived(browseBoundaries.length === 1 ? browseBoundaries[0].name : null);
@@ -381,7 +420,7 @@
 	{/if}
 {/snippet}
 
-<!-- Under the Explore tab's selected chips, above Find Data: coverage, then
+<!-- Under the Explore tab's selection list, above Find Data: coverage, then
      how to narrow a single boundary set. -->
 {#snippet exploreSelectionNotes()}
 	{@render coverageStatus()}
@@ -471,6 +510,9 @@
 						onClear={resetAll}
 						belowSearch={exploreSearchNote}
 						belowSelection={exploreSelectionNotes}
+						{legendItems}
+						onZoom={zoomToBoundary}
+						onHighlight={(id) => (highlightedFcId = id)}
 					/>
 				{:else if activeTab === 'browse'}
 					{#if boundaryLoadError}
@@ -546,6 +588,7 @@
 		fcStyles={$customBoundary.active ? [] : mapFcStyles}
 		activeFcName={$customBoundary.active ? null : activeFcName}
 		selectedFeatureIds={$customBoundary.active ? [] : displaySelectedFeatureIds}
+		highlightFcId={$customBoundary.active ? null : highlightedFcId}
 		bbox={userBbox ?? currentBbox}
 		onFeatureClick={handleFeatureClick}
 		userGeoJSON={$customBoundary.active ? $customBoundary.finalFeatures : null}
