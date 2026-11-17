@@ -71,10 +71,10 @@
 </script>
 
 <div class="flex h-full flex-col">
-	<!-- Category Filter -->
-	<div class="space-y-3 border-b p-4">
+	<!-- Category, search and sort, kept compact to leave room for the list -->
+	<div class="space-y-2 border-b px-4 pb-3 pt-1">
 		<Select.Root type="single" bind:value={selectedCategory}>
-			<Select.Trigger class="w-full">
+			<Select.Trigger class="h-8 w-full text-sm">
 				{selectedCategory === 'all'
 					? 'All Categories'
 					: categories.find((c) => c.tag === selectedCategory)?.display ?? selectedCategory}
@@ -89,21 +89,22 @@
 
 		<!-- Search -->
 		<div class="relative">
-			<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+			<Search class="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
 			<Input
 				bind:value={searchText}
 				placeholder="Search datasets..."
 				aria-label="Search datasets"
-				class="pl-10"
+				class="h-8 pl-8 text-sm"
 			/>
 		</div>
 
 		<!-- Sort controls -->
-		<div class="flex items-center gap-2 text-sm">
-			<span class="text-muted-foreground">Sort by:</span>
+		<div class="flex items-center gap-1 text-xs">
+			<span class="mr-1 text-muted-foreground">Sort by:</span>
 			<Button
 				variant={sortField === 'date_updated' ? 'secondary' : 'ghost'}
 				size="sm"
+				class="h-7 px-2 text-xs"
 				onclick={() => {
 					if (sortField === 'date_updated') {
 						sortAsc = !sortAsc;
@@ -123,6 +124,7 @@
 			<Button
 				variant={sortField === 'title' ? 'secondary' : 'ghost'}
 				size="sm"
+				class="h-7 px-2 text-xs"
 				onclick={() => {
 					if (sortField === 'title') {
 						sortAsc = !sortAsc;
@@ -139,6 +141,9 @@
 						/>{/if}
 				{/if}
 			</Button>
+			<span class="ml-auto tabular-nums text-muted-foreground" aria-live="polite">
+				{filteredDatasets.length} of {datasets.length} datasets
+			</span>
 		</div>
 	</div>
 
@@ -170,10 +175,10 @@
 								<span class="sr-only">(filters not added to your request yet)</span>
 							{/if}
 						</p>
-						<div class="mt-0.5 flex items-center gap-1.5">
-							<p class="text-xs text-muted-foreground">
-								{dataset.processing_class === 'filter_and_agg' ? 'Feature' : 'Raster'}
-							</p>
+						<!-- Raster / Feature is in the dataset's metadata (More metadata); this line only
+						     appears for an out-of-range flag or a column count -->
+						{#if outOfRangeNames.has(dataset.name) || columnCounts.get(dataset.name)}
+						<div class="mt-px flex items-center gap-1.5">
 							{#if outOfRangeNames.has(dataset.name)}
 								<Badge variant="warning">out of range</Badge>
 							{/if}
@@ -185,14 +190,10 @@
 								</span>
 							{/if}
 						</div>
+						{/if}
 					</button>
 				{/each}
 			{/if}
 		</div>
 	</ScrollArea>
-
-	<!-- Count -->
-	<div class="border-t px-4 py-2 text-xs text-muted-foreground">
-		{filteredDatasets.length} of {datasets.length} datasets
-	</div>
 </div>

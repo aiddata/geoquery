@@ -468,8 +468,8 @@
 		{/if}
 		<!-- On to the next step, as Find Data is on the boundary step: always
 		     here, disabled until the request has a dataset in it -->
-		<div class="border-t p-4">
-			<Button class="w-full" disabled={$cartCount === 0} onclick={() => goto('/review')}>
+		<div class="border-t px-4 py-2.5">
+			<Button size="sm" class="w-full" disabled={$cartCount === 0} onclick={() => goto('/review')}>
 				Continue to Review
 				<ArrowRight />
 			</Button>
