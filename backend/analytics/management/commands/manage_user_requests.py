@@ -62,6 +62,20 @@ _HEARTBEAT_INTERVAL_SECONDS = 60
 _HEARTBEAT_JOIN_GRACE_SECONDS = 30
 
 
+
+# Request fields kept out of request_details.json: the results zip is shared
+# and passed around, so who asked for it stays in the database only.
+PRIVATE_REQUEST_FIELDS = frozenset({"contact", "user_id"})
+
+
+def public_request_details(request) -> dict:
+    """The request's fields for request_details.json, without personal ones."""
+    return {
+        k: v
+        for k, v in request.__dict__.items()
+        if not k.startswith("_") and k not in PRIVATE_REQUEST_FIELDS
+    }
+
 class _ClaimHeartbeat:
     """Keep a claim fresh while a long build runs.
 
@@ -985,7 +999,7 @@ def _build_output(request, task_map, download_server, requests_dir, assets_dir, 
 
         with open(request_json, "w") as rdoc_file:
             json.dump(
-                {k: v for k, v in request.__dict__.items() if not k.startswith("_")},
+                public_request_details(request),
                 rdoc_file,
                 indent=4,
                 default=str,

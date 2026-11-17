@@ -74,6 +74,22 @@ class DocBuilderAttributionTests(TestCase):
             DocBuilder(self.request, out, "http://localhost:8000").build_doc()
             return out.read_text(encoding="utf-8")
 
+    def test_requester_email_is_not_in_the_page(self):
+        html = self.render()
+
+        self.assertNotIn("a@example.com", html)
+        self.assertNotIn("<th>Email</th>", html)
+
+    def test_request_details_json_leaves_out_email_and_account(self):
+        from analytics.management.commands.manage_user_requests import public_request_details
+
+        details = public_request_details(self.request)
+
+        self.assertNotIn("contact", details)
+        self.assertNotIn("user_id", details)
+        self.assertNotIn("a@example.com", str(details))
+        self.assertEqual(details["custom_name"], "My export")
+
     def test_dataset_card_carries_a_license_row(self):
         html = self.render()
 

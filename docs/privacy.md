@@ -23,7 +23,7 @@ GeoQuery is a free service run by AidData, a research lab at William & Mary. Thi
 
 **When you submit a request**
 
-- The email address you enter, which we use to send you your results.
+- The email address you enter, which we use to send you your results. It isn't included in your results download, so you can share the download without sharing your address.
 - The details of your request: the boundaries and datasets you chose, the options you selected, and the name you gave it.
 
 **When you sign in with GitHub**

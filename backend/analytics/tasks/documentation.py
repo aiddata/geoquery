@@ -72,10 +72,11 @@ class DocBuilder:
     def _section_info(self) -> str:
         req = self.request
         dl_url = f"{self.download_server}/requests/{req.id}/{req.id}.zip"
+        # No email: the zip is shared and passed around, and the address
+        # stays in the database only.
         rows = [
             self._kv("Request Name", self._esc(req.custom_name or "—")),
             self._kv("Request ID", f"<code>{req.id}</code>"),
-            self._kv("Email", self._esc(req.contact or "—")),
             self._kv("Submitted", self._fmt_dt(req.submit_time)),
             self._kv("Completed", self._fmt_dt(req.complete_time)),
             self._kv(
