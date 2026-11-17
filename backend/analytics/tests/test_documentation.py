@@ -74,6 +74,18 @@ class DocBuilderAttributionTests(TestCase):
             DocBuilder(self.request, out, "http://localhost:8000").build_doc()
             return out.read_text(encoding="utf-8")
 
+    def test_completed_time_is_shown_once_stamped(self):
+        from analytics.management.commands.manage_user_requests import stamp_completion
+
+        self.assertIsNone(self.request.complete_time)
+        stamped = stamp_completion(self.request)
+
+        html = self.render()
+        self.assertIn(stamped.strftime("%Y"), html.split("<th>Completed</th>", 1)[1][:120])
+        self.assertNotIn("<th>Completed</th><td>—</td>", html.replace("\n", "").replace(" ", ""))
+        # An existing completion time is kept, not replaced
+        self.assertEqual(stamp_completion(self.request), stamped)
+
     def test_requester_email_is_not_in_the_page(self):
         html = self.render()
 

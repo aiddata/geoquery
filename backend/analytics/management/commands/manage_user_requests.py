@@ -68,6 +68,14 @@ _HEARTBEAT_JOIN_GRACE_SECONDS = 30
 PRIVATE_REQUEST_FIELDS = frozenset({"contact", "user_id"})
 
 
+def stamp_completion(request):
+    """Give an unfinished request its completion time, in memory only, so the
+    output built for it can show one. A time it already has is kept."""
+    if request.complete_time is None:
+        request.complete_time = timezone.now()
+    return request.complete_time
+
+
 def public_request_details(request) -> dict:
     """The request's fields for request_details.json, without personal ones."""
     return {
@@ -501,7 +509,11 @@ def _manage_user_requests(
                             else:
                                 updated = Request.objects.filter(
                                     id=request_id, status=2, process_time=claim.claim_time
-                                ).update(status=1, complete_time=timezone.now())
+                                ).update(
+                                    status=1,
+                                    # The time the zip's documentation shows
+                                    complete_time=updated_request_obj.complete_time or timezone.now(),
+                                )
                                 if updated:
                                     if staged is not None:
                                         _swap_output_into_place(
@@ -948,6 +960,11 @@ def _build_output(request, task_map, download_server, requests_dir, assets_dir, 
     """
     requests_dir = Path(requests_dir)
     assets_dir = Path(assets_dir)
+
+    # The documentation and request_details.json say when the request was
+    # completed, but it is only marked complete once this build is published.
+    # Stamp the time now; the completion sweep stores this same time.
+    stamp_completion(request)
 
     request_id = str(request.id)
     request_dir = requests_dir / request_id
