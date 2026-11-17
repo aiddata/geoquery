@@ -888,6 +888,101 @@
 		}
 	});
 
+	// Area of interest: dragged out on a layer laid over the map while drawing
+	// (so map clicks and panning don't fire), then kept on screen as a box that
+	// follows the map. An HTML overlay rather than a map layer, so it survives
+	// the basemap being swapped on a theme change.
+	let aoiDrawing = $state(false);
+	let aoiBox = $state<Bbox | null>(null);
+	let aoiStart = $state<[number, number] | null>(null);
+	let aoiEnd = $state<[number, number] | null>(null);
+	let aoiMoveTick = $state(0);
+	let aoiDone: ((bbox: Bbox | null) => void) | null = null;
+
+	$effect(() => {
+		const m = map;
+		if (!m) return;
+		const bump = () => aoiMoveTick++;
+		m.on('move', bump);
+		return () => {
+			m.off('move', bump);
+		};
+	});
+
+	/** The box on screen, in container pixels: the one being dragged, or the chosen area. */
+	const aoiRect = $derived.by(() => {
+		void aoiMoveTick;
+		if (aoiStart && aoiEnd) {
+			const [x0, y0] = aoiStart;
+			const [x1, y1] = aoiEnd;
+			return { left: Math.min(x0, x1), top: Math.min(y0, y1), width: Math.abs(x1 - x0), height: Math.abs(y1 - y0) };
+		}
+		if (aoiBox && map) {
+			const nw = map.project([aoiBox[0], aoiBox[3]]);
+			const se = map.project([aoiBox[2], aoiBox[1]]);
+			return { left: nw.x, top: nw.y, width: se.x - nw.x, height: se.y - nw.y };
+		}
+		return null;
+	});
+
+	/**
+	 * Let the user drag out an area; `onDone` gets its bbox, or null if
+	 * cancelled (Escape, or a click without a drag).
+	 */
+	export function startAreaSelect(onDone: (bbox: Bbox | null) => void) {
+		aoiDone?.(null);
+		aoiBox = null;
+		aoiStart = aoiEnd = null;
+		aoiDone = onDone;
+		aoiDrawing = true;
+	}
+
+	/** Stop drawing, or remove the chosen area. */
+	export function clearAreaSelect() {
+		const done = aoiDone;
+		aoiDone = null;
+		aoiDrawing = false;
+		aoiStart = aoiEnd = null;
+		aoiBox = null;
+		done?.(null);
+	}
+
+	function aoiPoint(e: PointerEvent): [number, number] {
+		const r = mapContainer.getBoundingClientRect();
+		return [e.clientX - r.left, e.clientY - r.top];
+	}
+
+	function aoiPointerDown(e: PointerEvent) {
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		aoiStart = aoiEnd = aoiPoint(e);
+	}
+
+	function aoiPointerMove(e: PointerEvent) {
+		if (aoiStart) aoiEnd = aoiPoint(e);
+	}
+
+	function aoiPointerUp(e: PointerEvent) {
+		if (!aoiStart || !map) return;
+		const [x0, y0] = aoiStart;
+		const [x1, y1] = aoiPoint(e);
+		aoiStart = aoiEnd = null;
+		// A click, not a drag: keep waiting for one
+		if (Math.abs(x1 - x0) < 4 || Math.abs(y1 - y0) < 4) return;
+		const a = map.unproject([Math.min(x0, x1), Math.max(y0, y1)]);
+		const b = map.unproject([Math.max(x0, x1), Math.min(y0, y1)]);
+		const clamp = (v: number, lim: number) => Math.max(-lim, Math.min(lim, v));
+		const box: Bbox = [clamp(a.lng, 180), clamp(a.lat, 90), clamp(b.lng, 180), clamp(b.lat, 90)];
+		aoiBox = box;
+		aoiDrawing = false;
+		const done = aoiDone;
+		aoiDone = null;
+		done?.(box);
+	}
+
+	function aoiKeydown(e: KeyboardEvent) {
+		if (aoiDrawing && e.key === 'Escape') clearAreaSelect();
+	}
+
 	export function zoomIn() {
 		map?.zoomIn(motion());
 	}
@@ -910,4 +1005,26 @@
 	}
 </script>
 
-<div bind:this={mapContainer} class="h-full w-full {className}"></div>
+<svelte:window onkeydown={aoiKeydown} />
+
+<div bind:this={mapContainer} class="h-full w-full {className}">
+	{#if aoiDrawing}
+		<div
+			class="absolute inset-0 z-[5] cursor-crosshair touch-none"
+			role="application"
+			aria-label="Drag to draw an area of interest. Press Escape to cancel."
+			onpointerdown={aoiPointerDown}
+			onpointermove={aoiPointerMove}
+			onpointerup={aoiPointerUp}
+		></div>
+	{/if}
+	{#if aoiRect}
+		<div
+			class="pointer-events-none absolute z-[5] border-2 border-dashed border-primary bg-primary/10"
+			style:left="{aoiRect.left}px"
+			style:top="{aoiRect.top}px"
+			style:width="{aoiRect.width}px"
+			style:height="{aoiRect.height}px"
+		></div>
+	{/if}
+</div>

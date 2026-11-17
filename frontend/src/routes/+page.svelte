@@ -14,8 +14,9 @@
 	import { currentStep } from '#lib/stores/ui.js';
 	import { selection, customizeHref, type FCRef } from '#lib/stores/selection.js';
 	import { cartCount } from '#lib/stores/cart.js';
-	import { searchBoundaries, fetchFeatureIds, fetchDatasetsForFeatures, fetchBoundaryPresets, type BoundaryResult, type BoundaryPreset } from '#lib/api.js';
+	import { searchBoundaries, intersectingBoundaryIds, fetchFeatureIds, fetchDatasetsForFeatures, fetchBoundaryPresets, type BoundaryResult, type BoundaryPreset } from '#lib/api.js';
 	import GeographySearch from '#lib/components/map/GeographySearch.svelte';
+	import AreaSelectPanel from '#lib/components/map/AreaSelectPanel.svelte';
 	import BoundaryBrowsePanel from '#lib/components/map/BoundaryBrowsePanel.svelte';
 	import CoverageStatus from '#lib/components/map/CoverageStatus.svelte';
 	import ZoomControls from '#lib/components/map/ZoomControls.svelte';
@@ -29,7 +30,7 @@
 	import CustomBoundaryPanel from '#lib/components/map/CustomBoundaryPanel.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
-	import { ArrowRight, ChevronDown, Map as MapIcon, TriangleAlert, Upload } from '@lucide/svelte';
+	import { ArrowRight, ChevronDown, Map as MapIcon, TriangleAlert, Upload, SquareDashedMousePointer } from '@lucide/svelte';
 	import DetailBack from '#lib/components/layout/DetailBack.svelte';
 	import { openDetail } from '#lib/stepDetail.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
@@ -370,6 +371,50 @@
 		if (bbox) currentBbox = bbox;
 	}
 
+	// Area of interest tool: drag a box on the map, then pick ADM levels to add
+	// every boundary set at those levels whose extent intersects it.
+	let aoiState = $state<'idle' | 'drawing' | 'choosing'>('idle');
+	// null while the lookup runs
+	let aoiMatches = $state<BoundaryResult[] | null>(null);
+	let aoiError = $state(false);
+
+	function toggleAreaSelect() {
+		if (aoiState !== 'idle') return endAreaSelect();
+		aoiState = 'drawing';
+		mapFrame?.startAreaSelect((bbox) => {
+			if (!bbox) {
+				aoiState = 'idle';
+				return;
+			}
+			aoiMatches = null;
+			aoiError = false;
+			aoiState = 'choosing';
+			intersectingBoundaryIds(bbox)
+				.then((ids) => {
+					const hit = new Set(ids);
+					aoiMatches = allBoundaries.filter((b) => hit.has(b.id));
+				})
+				.catch(() => {
+					aoiError = true;
+					aoiMatches = [];
+				});
+		});
+	}
+
+	function endAreaSelect() {
+		aoiState = 'idle';
+		aoiMatches = null;
+		aoiError = false;
+		mapFrame?.clearAreaSelect();
+	}
+
+	/** Add to the selection, the same as picking each from the search. */
+	function addAreaBoundaries(boundaries: BoundaryResult[]) {
+		const have = new Set(browseBoundaries.map((b) => b.id));
+		handleSelect([...browseBoundaries, ...boundaries.filter((b) => !have.has(b.id))]);
+		endAreaSelect();
+	}
+
 	/** Move on to Customize; the selection itself is already saved. */
 	function handleFindData() {
 		if (browseBoundaries.length === 0 || findDataDisabled) return;
@@ -545,6 +590,18 @@
 	<!-- Zoom Controls -->
 	<div class="absolute right-4 top-4 z-10 flex flex-col items-center gap-1">
 		<ZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
+		<div class="card-surface">
+			<Button
+				variant={aoiState === 'idle' ? 'ghost' : 'default'}
+				size="icon"
+				aria-pressed={aoiState !== 'idle'}
+				aria-label={aoiState === 'idle' ? 'Select boundaries by area' : 'Cancel area selection'}
+				title={aoiState === 'idle' ? 'Select boundaries by area: drag a box on the map' : 'Cancel area selection'}
+				onclick={toggleAreaSelect}
+			>
+				<SquareDashedMousePointer />
+			</Button>
+		</div>
 		<!-- Zoom level readout: hidden for now -->
 		<div
 			hidden
@@ -556,6 +613,23 @@
 			<span class="sr-only">zoom level</span>
 		</div>
 	</div>
+
+	<!-- Area of interest: a hint while drawing, then the levels to add -->
+	{#if aoiState === 'drawing'}
+		<div class="card-surface absolute right-[4.5rem] top-4 z-10 px-3 py-2 text-xs" role="status">
+			Drag on the map to draw an area. <span class="text-muted-foreground">Esc to cancel.</span>
+		</div>
+	{:else if aoiState === 'choosing'}
+		<div class="absolute right-[4.5rem] top-4 z-10">
+			<AreaSelectPanel
+				matches={aoiMatches}
+				error={aoiError}
+				selectedIds={new Set(browseBoundaries.map((b) => b.id))}
+				onAdd={addAreaBoundaries}
+				onCancel={endAreaSelect}
+			/>
+		</div>
+	{/if}
 
 	<!-- Map -->
 	<MapFrame

@@ -4,6 +4,7 @@
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import { ChevronDown } from '@lucide/svelte';
 	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
+	import { groupByLevel, levelLabel } from '#lib/utils/boundaryLevels.js';
 
 	interface Props {
 		allBoundaries?: BoundaryResult[];
@@ -32,18 +33,8 @@
 		return lines.join('\n');
 	}
 
-	// Boundary sets grouped by administrative level, in level order with
-	// unspecified levels last (the Explore tab's bulk select)
-	let groupedBoundaries = $derived.by(() => {
-		const groups = new Map<string | number, BoundaryResult[]>();
-		for (const b of allBoundaries) {
-			const level = b.group_level !== null ? b.group_level : 'Unspecified';
-			if (!groups.has(level)) groups.set(level, []);
-			groups.get(level)!.push(b);
-		}
-		const order = (k: string | number) => (typeof k === 'number' ? k : Infinity);
-		return new Map([...groups.entries()].sort((a, b) => order(a[0]) - order(b[0])));
-	});
+	// Boundary sets grouped by administrative level (the Explore tab's bulk select)
+	let groupedBoundaries = $derived(groupByLevel(allBoundaries));
 
 	function toggleBoundary(id: number) {
 		const newIds = new Set(selectedIds);
@@ -81,7 +72,7 @@
 						<div class="flex items-center gap-2">
 							<Collapsible.Trigger>
 								{#snippet child({ props })}
-									<Button {...props} variant="ghost" size="icon-sm" class="size-6 text-muted-foreground" aria-label="Show boundaries in {groupName}">
+									<Button {...props} variant="ghost" size="icon-sm" class="size-6 text-muted-foreground" aria-label="Show boundaries in {levelLabel(groupName)}">
 										<ChevronDown class="size-3.5" />
 									</Button>
 								{/snippet}
@@ -94,7 +85,7 @@
 									onCheckedChange={() => toggleGroup(boundaries.map((b) => b.id))}
 								/>
 								<span class="truncate">
-									{typeof groupName === 'number' ? `Level ${groupName}` : groupName}
+									{levelLabel(groupName)}
 									<span class="text-muted-foreground font-normal">({boundaries.length})</span>
 								</span>
 							</label>

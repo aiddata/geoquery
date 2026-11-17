@@ -514,6 +514,67 @@ class FeatureIdsView(APIView):
         return Response({"featureIds": feature_ids})
 
 
+class IntersectingCollectionsView(APIView):
+    """
+    GET /api/features/intersecting/?bbox=west,south,east,north
+
+    Ids of the visible boundary sets with a feature inside the box: the map's
+    area-of-interest tool. Checked against the features rather than each set's
+    extent, which for a set crossing the antimeridian (US counties, Russia,
+    Fiji) spans nearly every longitude and would match any box.
+
+    Sets whose extent lies inside the box match outright; the rest whose extent
+    touches it are checked through features_simplified_z6_9's (fc_id, shape)
+    index, stopping at the first feature found.
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            west, south, east, north = (
+                float(v) for v in request.query_params.get("bbox", "").split(",")
+            )
+        except ValueError:
+            return Response(
+                {"error": "bbox must be west,south,east,north in degrees"}, status=400
+            )
+        # Web Mercator stops short of the poles
+        south, north = max(south, -85.0), min(north, 85.0)
+        west, east = max(west, -180.0), min(east, 180.0)
+        if west >= east or south >= north:
+            return Response({"error": "bbox is empty"}, status=400)
+
+        visible = list(
+            visible_feature_collections(
+                request.user, FeatureCollection.objects.using("replica")
+            )
+            .filter(is_user_upload=False)
+            .values_list("id", flat=True)
+        )
+        sql = """
+            WITH box AS (SELECT ST_MakeEnvelope(%s, %s, %s, %s, 4326) AS g)
+            SELECT fc.id
+            FROM feature_collections fc, box
+            WHERE fc.id = ANY(%s)
+              AND fc.spatial_extent && box.g
+              AND (
+                ST_Within(fc.spatial_extent, box.g)
+                OR EXISTS (
+                    SELECT 1 FROM features_simplified_z6_9 s
+                    WHERE s.fc_id = fc.id
+                      AND s.shape && ST_Transform(box.g, 3857)
+                      AND ST_Intersects(s.shape, ST_Transform(box.g, 3857))
+                )
+              )
+            ORDER BY fc.id
+        """
+        with connections["replica"].cursor() as cursor:
+            cursor.execute(sql, [west, south, east, north, visible])
+            ids = [row[0] for row in cursor.fetchall()]
+        return Response({"ids": ids})
+
+
 def _normalize_preset(preset: dict) -> dict:
     """A preset with every key present: list fields default to [], and
     `members` is a list of boundary set names, or None for a rule preset."""

@@ -94,6 +94,13 @@ export interface BoundaryPreset {
 	sort_order: number;
 }
 
+/** Ids of the boundary sets with a feature inside a [west, south, east, north] box. */
+export async function intersectingBoundaryIds(bbox: [number, number, number, number]): Promise<number[]> {
+	const response = await fetch(`/api/features/intersecting/?bbox=${bbox.map((v) => v.toFixed(5)).join(',')}`);
+	if (!response.ok) throw new Error(`Area lookup failed: ${response.status}`);
+	return (await response.json()).ids;
+}
+
 export async function searchBoundaries(
 	query: string,
 	limit: number = 10

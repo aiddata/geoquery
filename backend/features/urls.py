@@ -16,6 +16,11 @@ urlpatterns = [
         name="feature-ids",
     ),
     path(
+        "intersecting/",
+        views.IntersectingCollectionsView.as_view(),
+        name="intersecting-collections",
+    ),
+    path(
         "presets/",
         views.BoundaryPresetsView.as_view(),
         name="boundary-presets",

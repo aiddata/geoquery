@@ -311,6 +311,60 @@ class MultiCollectionTileTests(ReplicaReadsTestMixin, TestCase):
             self.assertEqual(sorted(r[0] for r in cursor.fetchall()), sorted(tables))
 
 
+class IntersectingCollectionsTests(ReplicaReadsTestMixin, TestCase):
+    @staticmethod
+    def _square(x, y):
+        return Polygon(((x, y), (x + 1, y), (x + 1, y + 1), (x, y + 1), (x, y)), srid=4326)
+
+    def _collection(self, name, squares):
+        from django.contrib.gis.geos import MultiPolygon
+
+        from features.matviews import update_simplified_geometries
+        from features.models import FeatMap
+
+        shapes = [self._square(x, y) for x, y in squares]
+        fc = make_feature_collection(
+            name=name, path=name, spatial_extent=MultiPolygon(shapes, srid=4326).envelope
+        )
+        for i, shape in enumerate(shapes):
+            FeatMap.objects.create(fc=fc, geom=Feature.objects.create(shape=shape), name=f"{name} {i}")
+        update_simplified_geometries(fc.id)
+        return fc
+
+    def setUp(self):
+        self.west = self._collection("west", [(1, 1)])
+        self.east = self._collection("east", [(10, 1)])
+        # Features at both ends of the map: its extent spans every longitude
+        self.wide = self._collection("wide", [(-179, 1), (177, 1)])
+
+    def _ids(self, bbox):
+        response = self.client.get(f"/api/features/intersecting/?bbox={bbox}")
+        self.assertEqual(response.status_code, 200)
+        return response.json()["ids"]
+
+    def test_matches_sets_with_a_feature_in_the_box(self):
+        self.assertEqual(self._ids("0,0,3,3"), [self.west.id])
+        self.assertEqual(self._ids("0,0,12,3"), [self.west.id, self.east.id])
+
+    def test_a_wide_extent_alone_does_not_match(self):
+        self.assertNotIn(self.wide.id, self._ids("5,0,7,3"))
+        self.assertIn(self.wide.id, self._ids("176,0,179,3"))
+
+    def test_a_box_covering_everything_matches_all(self):
+        self.assertEqual(self._ids("-180,-80,180,80"), sorted([self.west.id, self.east.id, self.wide.id]))
+
+    def test_hidden_collections_are_left_out(self):
+        self.east.public = False
+        self.east.save()
+        self.assertEqual(self._ids("0,0,12,3"), [self.west.id])
+
+    def test_bad_bbox_is_rejected(self):
+        for bad in ("", "1,2,3", "a,b,c,d", "5,0,1,3"):
+            self.assertEqual(
+                self.client.get(f"/api/features/intersecting/?bbox={bad}").status_code, 400
+            )
+
+
 class ClusterHierarchyTests(SimpleTestCase):
     """features.clusters.build_hierarchy, on points in EPSG:3857 metres."""
 
