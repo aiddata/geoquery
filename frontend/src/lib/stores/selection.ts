@@ -172,6 +172,11 @@ export const selectionSummary = derived(selection, ($sel) => {
 export const customizeHref = derived([selection, customBoundary], ([$sel, $custom]): string | null => {
 	if ($custom.saved && $custom.active) return '/customize';
 	if (!$sel) return null;
-	if ($sel.mode === 'single') return '/customize?selection';
+	// The URL carries the whole selection, so Customize can rebuild it after
+	// a refresh (the store lives in memory only).
+	if ($sel.mode === 'single') {
+		const features = $sel.featureIds.length ? `&features=${$sel.featureIds.join(',')}` : '';
+		return `/customize?fc=${$sel.fc.id}${features}`;
+	}
 	return `/customize?fc=${$sel.fcs.map((fc) => fc.id).join(',')}`;
 });

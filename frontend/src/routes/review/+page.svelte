@@ -4,7 +4,7 @@
 	import { currentStep } from '#lib/stores/ui.js';
 	import { cart, cartCount, type CartItem } from '#lib/stores/cart.js';
 	import { datasetChoices } from '#lib/stores/datasetChoices.js';
-	import { selection, selectionSummary, selectionFcIds } from '#lib/stores/selection.js';
+	import { selection, selectionSummary, selectionFcIds, customizeHref } from '#lib/stores/selection.js';
 	import DetailBack from '#lib/components/layout/DetailBack.svelte';
 	import { requestForm } from '#lib/stores/requestForm.js';
 	import { openDetail } from '#lib/stepDetail.js';
@@ -181,12 +181,7 @@
 	}
 
 	function customizeUrl(): string {
-		if (isCustomMode) return '/customize';
-		if ($selection?.mode === 'single') return '/customize?selection';
-		if ($selection?.mode === 'multi') {
-			return `/customize?fc=${$selection.fcs.map((fc) => fc.id).join(',')}`;
-		}
-		return '/';
+		return $customizeHref ?? '/';
 	}
 
 	/** Open an item's dataset on Customize with that item's options loaded. */
