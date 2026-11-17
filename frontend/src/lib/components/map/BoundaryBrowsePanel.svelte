@@ -61,7 +61,9 @@
 					if (!groups.has(key)) groups.set(key, []);
 					groups.get(key)!.push(b);
 				} else {
-					for (const tag of b.tags) {
+					// A set can carry the same tag twice; listing it twice in one
+					// group would repeat a list key and break the page.
+					for (const tag of new Set(b.tags)) {
 						if (!groups.has(tag)) groups.set(tag, []);
 						groups.get(tag)!.push(b);
 					}
@@ -116,8 +118,11 @@
 <div class="space-y-3">
 	<!-- Preset buttons -->
 	{#if presets.length > 0}
-		<div class="flex flex-wrap gap-1">
-			{#each presets as preset (preset.sort_order)}
+		<!-- Presets: a few rows, then scroll, however many are configured -->
+		<div>
+			<p class="mb-1 text-xs font-bold text-muted-foreground">Presets</p>
+			<div class="flex max-h-28 flex-wrap gap-1 overflow-y-auto pr-1">
+			{#each presets as preset (preset.name)}
 				<Button
 					size="xs"
 					variant="outline"
@@ -128,6 +133,7 @@
 					{preset.name}
 				</Button>
 			{/each}
+			</div>
 		</div>
 		<Separator />
 	{/if}
@@ -157,8 +163,8 @@
 		</Button>
 	</div>
 
-	<!-- Boundary list -->
-	<div class="space-y-1 mt-2">
+	<!-- Boundary list: scrolls on its own so the count below stays in view -->
+	<div class="mt-2 max-h-96 space-y-1 overflow-y-auto pr-1">
 			{#if loading}
 				<div class="text-xs text-muted-foreground py-2">Loading boundaries...</div>
 			{:else if allBoundaries.length === 0}
@@ -187,7 +193,8 @@
 								</span>
 							</label>
 						</div>
-						<Collapsible.Content class="pl-5 space-y-1.5 mt-1">
+						<!-- A large group (e.g. a common tag) scrolls rather than taking over -->
+						<Collapsible.Content class="mt-1 max-h-60 space-y-1.5 overflow-y-auto pl-5 pr-1">
 							{#each boundaries as boundary (boundary.id)}
 								<label
 									class="flex items-center gap-2 text-xs cursor-pointer hover:text-foreground"
