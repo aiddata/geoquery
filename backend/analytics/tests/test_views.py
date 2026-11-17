@@ -400,3 +400,26 @@ class RequestHistoryCaseSensitivityTests(TestCase):
         )
 
         self.assertEqual(self.client.get(f"/api/analytics/history/{raw}/").json(), [])
+
+
+class RequestDatasetsFallbackTests(TestCase):
+    def test_materialized_datasets_are_used_when_present(self):
+        from analytics.views import request_datasets
+
+        stored = [{"dataset_name": "esa", "kwargs": None}]
+        self.assertEqual(request_datasets({"datasets": stored, "dataset_specs": [{"datasetName": "x"}]}), stored)
+
+    def test_submitted_specs_stand_in_before_materialization(self):
+        from analytics.views import request_datasets
+
+        specs = [
+            {"datasetName": "acled", "datasetType": "feature", "kwargs": {"outcome": "fatalities"}, "name": "my_acled"},
+            {"datasetName": "esa", "extractTypes": ["categorical"], "resources": ["r1"], "resourceLabels": ["2000"]},
+            {"datasetName": "  "},
+        ]
+        out = request_datasets({"datasets": [], "dataset_specs": specs})
+        self.assertEqual([d["dataset_name"] for d in out], ["acled", "esa"])
+        self.assertEqual(out[0]["name"], "my_acled")
+        self.assertEqual(out[0]["kwargs"], {"outcome": "fatalities"})
+        self.assertEqual(out[1]["resource_labels"], ["2000"])
+        self.assertIsNone(out[1]["kwargs"])

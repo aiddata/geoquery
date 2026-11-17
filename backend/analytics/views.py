@@ -183,6 +183,30 @@ class RequestView(APIView):
         return Response(created.as_response_dict(), status=status.HTTP_201_CREATED)
 
 
+def request_datasets(req_data: dict) -> list[dict]:
+    """A request's datasets for its page.
+
+    ``datasets`` is written when the request is materialized into tasks;
+    before that (just after submission, or while materialization is
+    deferred) the submitted ``dataset_specs`` stand in, in the same shape.
+    """
+    if req_data.get("datasets"):
+        return req_data["datasets"]
+    return [
+        {
+            "dataset_name": (spec.get("datasetName") or "").strip(),
+            "dataset_type": (spec.get("datasetType") or "").strip() or None,
+            "extract_types": spec.get("extractTypes") or [],
+            "resources": spec.get("resources") or [],
+            "resource_labels": spec.get("resourceLabels") or [],
+            "kwargs": spec.get("kwargs") or None,
+            "name": spec.get("name") or None,
+        }
+        for spec in req_data.get("dataset_specs") or []
+        if (spec.get("datasetName") or "").strip()
+    ]
+
+
 class RequestDetailView(APIView):
     """
     GET /api/analytics/requests/{id}/ — retrieve a single request by UUID
@@ -243,7 +267,7 @@ class RequestDetailView(APIView):
                 "selection_label": req_data.get("selection_label"),
                 "selection_detail": req_data.get("selection_detail"),
                 "feature_ids": req_data.get("feature_ids", []),
-                "datasets": req_data.get("datasets", []),
+                "datasets": request_datasets(req_data),
                 "is_custom_boundary": is_custom,
                 "boundary_file_name": boundary_file_name,
                 "boundary_feature_count": boundary_feature_count,
