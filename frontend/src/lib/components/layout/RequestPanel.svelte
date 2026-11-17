@@ -101,7 +101,7 @@
 					<h1 id="panel-{s.id}" class="text-h4 text-foreground" aria-current="step">{s.title}</h1>
 					{@render actions?.()}
 				</div>
-				<div class={bare ? 'flex min-h-0 flex-1 flex-col' : 'min-h-0 flex-1 overflow-y-auto px-4 pb-4'}>
+				<div class={bare ? 'flex min-h-0 flex-1 flex-col' : 'min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-1'}>
 					{@render children()}
 				</div>
 			</section>

@@ -1,16 +1,13 @@
 <script lang="ts">
-	import { resolvePreset } from '#lib/utils/presets.js';
-	import { type BoundaryResult, type BoundaryPreset } from '#lib/api.js';
+	import { type BoundaryResult } from '#lib/api.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
-	import { ChevronDown, Plus } from '@lucide/svelte';
+	import { ChevronDown } from '@lucide/svelte';
 	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
-	import { Separator } from '#lib/components/ui/separator/index.js';
 
 	interface Props {
 		allBoundaries?: BoundaryResult[];
 		selectedIds?: Set<number>;
-		presets?: BoundaryPreset[];
 		onSelectionChange?: (ids: Set<number>) => void;
 		loading?: boolean;
 	}
@@ -18,12 +15,9 @@
 	let {
 		allBoundaries = [],
 		selectedIds = new Set(),
-		presets = [],
 		onSelectionChange,
 		loading = false
 	}: Props = $props();
-
-	let groupingDimension = $state<'adm_level' | 'source' | 'tags'>('adm_level');
 
 	// Attribution for a boundary row. The list is a dense set of checkboxes
 	// with no detail view, so the tooltip is where source, licence and
@@ -38,50 +32,17 @@
 		return lines.join('\n');
 	}
 
-	// Group boundaries by selected dimension
+	// Boundary sets grouped by administrative level, in level order with
+	// unspecified levels last (the Explore tab's bulk select)
 	let groupedBoundaries = $derived.by(() => {
 		const groups = new Map<string | number, BoundaryResult[]>();
-
-		if (groupingDimension === 'adm_level') {
-			for (const b of allBoundaries) {
-				const level = b.group_level !== null ? b.group_level : 'Unspecified';
-				if (!groups.has(level)) groups.set(level, []);
-				groups.get(level)!.push(b);
-			}
-		} else if (groupingDimension === 'source') {
-			for (const b of allBoundaries) {
-				const source = b.source_name || 'Uncategorized';
-				if (!groups.has(source)) groups.set(source, []);
-				groups.get(source)!.push(b);
-			}
-		} else if (groupingDimension === 'tags') {
-			for (const b of allBoundaries) {
-				if (!b.tags || b.tags.length === 0) {
-					const key = 'Untagged';
-					if (!groups.has(key)) groups.set(key, []);
-					groups.get(key)!.push(b);
-				} else {
-					// A set can carry the same tag twice; listing it twice in one
-					// group would repeat a list key and break the page.
-					for (const tag of new Set(b.tags)) {
-						if (!groups.has(tag)) groups.set(tag, []);
-						groups.get(tag)!.push(b);
-					}
-				}
-			}
+		for (const b of allBoundaries) {
+			const level = b.group_level !== null ? b.group_level : 'Unspecified';
+			if (!groups.has(level)) groups.set(level, []);
+			groups.get(level)!.push(b);
 		}
-
-		// Sort groups: ADM level uses numeric order (Unspecified last); others alphabetical
-		return new Map(
-			[...groups.entries()].sort((a, b) => {
-				if (groupingDimension === 'adm_level') {
-					const aNum = typeof a[0] === 'number' ? a[0] : Infinity;
-					const bNum = typeof b[0] === 'number' ? b[0] : Infinity;
-					return aNum - bNum;
-				}
-				return String(a[0]).toLowerCase().localeCompare(String(b[0]).toLowerCase());
-			})
-		);
+		const order = (k: string | number) => (typeof k === 'number' ? k : Infinity);
+		return new Map([...groups.entries()].sort((a, b) => order(a[0]) - order(b[0])));
 	});
 
 	function toggleBoundary(id: number) {
@@ -105,66 +66,11 @@
 		}
 		onSelectionChange?.(newIds);
 	}
-
-	function applyPreset(preset: BoundaryPreset) {
-		const matchingIds = resolvePreset(preset, allBoundaries).map((b) => b.id);
-
-		const newIds = new Set(selectedIds);
-		matchingIds.forEach((id) => newIds.add(id));
-		onSelectionChange?.(newIds);
-	}
 </script>
 
 <div class="space-y-3">
-	<!-- Preset buttons -->
-	{#if presets.length > 0}
-		<!-- Presets: a few rows, then scroll, however many are configured -->
-		<div>
-			<p class="mb-1 text-xs font-bold text-muted-foreground">Presets</p>
-			<div class="flex max-h-28 flex-wrap gap-1 overflow-y-auto pr-1">
-			{#each presets as preset (preset.name)}
-				<Button
-					size="xs"
-					variant="outline"
-					onclick={() => applyPreset(preset)}
-					title={preset.description || undefined}
-				>
-					<Plus class="h-3 w-3" />
-					{preset.name}
-				</Button>
-			{/each}
-			</div>
-		</div>
-		<Separator />
-	{/if}
-
-	<!-- Grouping dimension buttons -->
-	<div class="grid grid-cols-3 gap-1">
-		<Button
-			size="xs"
-			variant={groupingDimension === 'adm_level' ? 'default' : 'outline'}
-			onclick={() => (groupingDimension = 'adm_level')}
-		>
-			ADM Level
-		</Button>
-		<Button
-			size="xs"
-			variant={groupingDimension === 'source' ? 'default' : 'outline'}
-			onclick={() => (groupingDimension = 'source')}
-		>
-			Source
-		</Button>
-		<Button
-			size="xs"
-			variant={groupingDimension === 'tags' ? 'default' : 'outline'}
-			onclick={() => (groupingDimension = 'tags')}
-		>
-			Tags
-		</Button>
-	</div>
-
 	<!-- Boundary list: scrolls on its own so the count below stays in view -->
-	<div class="mt-2 max-h-96 space-y-1 overflow-y-auto pr-1">
+	<div class="max-h-96 space-y-1 overflow-y-auto pr-1">
 			{#if loading}
 				<div class="text-xs text-muted-foreground py-2">Loading boundaries...</div>
 			{:else if allBoundaries.length === 0}

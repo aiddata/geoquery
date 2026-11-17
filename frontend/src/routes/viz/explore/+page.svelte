@@ -616,7 +616,6 @@
 				<BoundaryBrowsePanel
 					allBoundaries={allBoundaries}
 					selectedIds={selectedIds}
-					presets={presets}
 					loading={browsePanelLoading}
 					onSelectionChange={handleSelectionChange}
 				/>

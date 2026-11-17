@@ -29,7 +29,7 @@
 	import CustomBoundaryPanel from '#lib/components/map/CustomBoundaryPanel.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
-	import { ArrowRight, Map as MapIcon, TriangleAlert } from '@lucide/svelte';
+	import { ArrowRight, ChevronDown, Map as MapIcon, TriangleAlert, Upload } from '@lucide/svelte';
 	import DetailBack from '#lib/components/layout/DetailBack.svelte';
 	import { openDetail } from '#lib/stepDetail.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
@@ -109,19 +109,19 @@
 	let boundaryLoadError = $state<string | null>(null);
 
 	// Active tab in the selection panel. 'custom' mirrors customBoundary.active.
-	type SelectionTab = 'explore' | 'browse' | 'custom';
+	type SelectionTab = 'explore' | 'custom';
 	let activeTab = $state<SelectionTab>($customBoundary.active ? 'custom' : 'explore');
 
-	// Browse All and Custom are beta features. Without either, the tab bar is
-	// hidden and only the Explore search remains.
-	let canBrowse = $derived($features.has('browse_boundaries'));
+	// The bulk select list
+	let bulkOpen = $state(false);
+	// Custom upload is a beta feature; without it only the search is shown.
 	let canCustom = $derived($features.has('custom_boundaries'));
 
 	// Drop back to Explore once features resolve without access to the current
 	// tab (e.g. a custom boundary left active from before signing out).
 	$effect(() => {
 		if (!$features.ready) return;
-		if ((activeTab === 'browse' && !canBrowse) || (activeTab === 'custom' && !canCustom)) {
+		if (activeTab === 'custom' && !canCustom) {
 			switchTab('explore');
 		}
 	});
@@ -355,6 +355,7 @@
 	}
 
 	function handleSelect(boundaries: BoundaryResult[]) {
+		if (activeTab === 'custom' && boundaries.length > 0) switchTab('explore');
 		// Feature selection only applies to a single boundary; keep it only while
 		// that same boundary remains the sole selection.
 		const keepFeatures =
@@ -415,6 +416,35 @@
 
 <!-- Right under the Explore tab's search box. -->
 {#snippet exploreSearchNote()}
+	<!-- Bulk select: every boundary set grouped by ADM level, to tick whole levels at once.
+	     Open to everyone, signed in or not. Pulled up toward the search box, with a little room below. -->
+	<div class="-mt-2">
+			<Button
+				variant="ghost"
+				size="sm"
+				class="-ml-2 h-6 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+				aria-expanded={bulkOpen}
+				aria-controls="bulk-select"
+				onclick={() => (bulkOpen = !bulkOpen)}
+			>
+				Bulk select
+				<ChevronDown class="transition-transform {bulkOpen ? 'rotate-180' : ''}" />
+			</Button>
+			{#if bulkOpen}
+				<div id="bulk-select" class="mt-2 rounded-md border p-3">
+					{#if boundaryLoadError}
+						<p class="text-sm text-destructive">{boundaryLoadError}</p>
+					{:else}
+						<BoundaryBrowsePanel
+							allBoundaries={allBoundaries}
+							selectedIds={new Set(browseBoundaries.map((b) => b.id))}
+							onSelectionChange={handleBrowsePanelSelection}
+							loading={boundaryLoading}
+						/>
+					{/if}
+				</div>
+			{/if}
+	</div>
 	{#if browseBoundaries.length > 1}
 		{@render multiSetNote()}
 	{/if}
@@ -456,37 +486,7 @@
 				Show map
 			</Button>
 		{/snippet}
-		<!-- Tabs -->
-				{#if canBrowse || canCustom}
-					<div class="grid {canBrowse && canCustom ? 'grid-cols-3' : 'grid-cols-2'} gap-1 rounded-md bg-muted p-1">
-						<button
-							class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'explore' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
-							aria-pressed={activeTab === 'explore'}
-							onclick={() => switchTab('explore')}
-						>
-							Explore
-						</button>
-						{#if canBrowse}
-							<button
-								class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'browse' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
-								aria-pressed={activeTab === 'browse'}
-								onclick={() => switchTab('browse')}
-							>
-								Browse All
-							</button>
-						{/if}
-						{#if canCustom}
-							<button
-								class="min-h-8 rounded-md px-2 py-1.5 font-ui text-xs font-bold transition-colors {activeTab === 'custom' ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'}"
-								aria-pressed={activeTab === 'custom'}
-								onclick={() => switchTab('custom')}
-							>
-								Custom
-							</button>
-						{/if}
-					</div>
-				{/if}
-		<div class="{canBrowse || canCustom ? 'mt-3' : ''}">
+		<div>
 				<!-- Above the boundary search, so it's seen before changing anything else -->
 				{#if activeTab !== 'custom' && selectionChanged && $cartCount > 0}
 					<Alert.Root variant="warning" role="status" class="mb-3">
@@ -497,8 +497,7 @@
 					</Alert.Root>
 				{/if}
 
-				{#if activeTab === 'explore'}
-					<GeographySearch
+				<GeographySearch
 						bind:searchText={boundarySearch}
 						presets={presetOptions}
 						featuredBoundaries={featuredBoundaries}
@@ -513,51 +512,29 @@
 						{legendItems}
 						onZoom={zoomToBoundary}
 						onHighlight={(id) => (highlightedFcId = id)}
+						hideActions={activeTab === 'custom'}
 					/>
-				{:else if activeTab === 'browse'}
-					{#if boundaryLoadError}
-						<p class="text-sm text-destructive py-2">{boundaryLoadError}</p>
-					{:else}
-						<BoundaryBrowsePanel
-							allBoundaries={allBoundaries}
-							selectedIds={new Set(browseBoundaries.map((b) => b.id))}
-							presets={boundaryPresets}
-							onSelectionChange={handleBrowsePanelSelection}
-							loading={boundaryLoading}
-						/>
-					{/if}
-
-					{#if browseBoundaries.length > 1}
-						<div class="mt-4">{@render multiSetNote()}</div>
-					{/if}
-					<!-- Find Data always, disabled until something is selected -->
-					{#if browseBoundaries.length > 0}
-						<div class="mt-4 border-t pt-3">{@render coverageStatus()}</div>
-					{/if}
-					<div class="mt-3 flex items-center justify-between gap-2">
-						{#if browseBoundaries.length > 0}
-							<Button
-								size="sm"
-								variant="outline"
-								onclick={resetAll}
-								class="text-muted-foreground hover:text-destructive"
-							>
-								Clear All
-							</Button>
-						{:else}
-							<span></span>
-						{/if}
+				{#if canCustom}
+					<!-- Custom upload: a beta feature, opened below the search. It
+					     replaces any standard selection while open. -->
+					<div class="mt-3 border-t pt-3">
 						<Button
+							variant="ghost"
 							size="sm"
-							disabled={findDataDisabled || browseBoundaries.length === 0}
-							onclick={handleFindData}
+							class="-ml-2 h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+							aria-expanded={activeTab === 'custom'}
+							aria-controls="custom-upload"
+							onclick={() => switchTab(activeTab === 'custom' ? 'explore' : 'custom')}
 						>
-							Find Data
-							<ArrowRight />
+							<Upload />
+							{activeTab === 'custom' ? 'Cancel custom upload' : 'Custom upload'}
 						</Button>
+						{#if activeTab === 'custom'}
+							<div id="custom-upload" class="mt-2">
+								<CustomBoundaryPanel />
+							</div>
+						{/if}
 					</div>
-				{:else if activeTab === 'custom'}
-					<CustomBoundaryPanel />
 				{/if}
 		</div>
 	</RequestPanel>

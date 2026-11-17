@@ -32,6 +32,8 @@
 		onZoom?: (id: number) => void;
 		/** Highlight a selected set on the map, or clear it with null. */
 		onHighlight?: (id: number | null) => void;
+		/** Hide the Clear All / proceed row, e.g. while a custom upload takes over */
+		hideActions?: boolean;
 	}
 
 	let {
@@ -48,6 +50,7 @@
 		searchText = $bindable(''),
 		presets = [],
 		legendItems,
+		hideActions = false,
 		onZoom,
 		onHighlight
 	}: Props = $props();
@@ -157,6 +160,16 @@
 </script>
 
 <div class="space-y-3">
+	<!-- Above the input and always shown, so typing doesn't move the search box -->
+	<p class="text-sm">
+		<a
+			href="https://docs.geoquery.org/data_documentation/boundaries/"
+			target="_blank"
+			rel="noopener noreferrer"
+			class="inline-block min-h-6 py-0.5 text-link hover:text-link-hover hover:underline">What boundaries are available?</a
+		>
+	</p>
+
 	<!-- Search Input -->
 	<div class="relative">
 		<Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -215,17 +228,6 @@
 
 	{@render belowSearch?.()}
 
-	{#if !searchText.trim()}
-		<p class="text-sm">
-			<a
-				href="https://docs.geoquery.org/data_documentation/boundaries/"
-				target="_blank"
-				rel="noopener noreferrer"
-				class="inline-block min-h-6 py-0.5 text-link hover:text-link-hover hover:underline">What boundaries are available?</a
-			>
-		</p>
-	{/if}
-
 	<!-- Featured boundaries: a way to start, so only until something is selected -->
 	{#if !searchText.trim() && featuredBoundaries.length > 0 && selectedBoundaries.length === 0}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -259,7 +261,7 @@
 			<ChevronRight />
 		</Button>
 	{/snippet}
-	<div class="flex items-center justify-between gap-2 pt-2">
+	<div class="{hideActions ? 'hidden' : 'flex'} items-center justify-between gap-2 pt-2">
 		{#if onClear && selectedBoundaries.length > 0}
 				<Button
 					size="sm"
