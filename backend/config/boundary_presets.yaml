@@ -1,35 +1,354 @@
 # Boundary Presets Configuration
 #
-# Each preset combines filter criteria (group_class, group_level, tags) to create
-# reusable selections. The frontend resolves these client-side against the full
-# boundary list fetched from the autocomplete endpoint.
+# A preset selects several boundary sets at once. It appears in the boundary
+# search (Explore) and on Browse All; choosing it adds each of its boundary
+# sets to the selection. It is purely a selection shortcut: nothing about
+# extraction or processing depends on it.
 #
-# Filter logic: All specified fields are AND-ed together.
-# - group_class: null means any source
-# - group_level: null means any level
-# - tags: empty array means any tags; non-empty means ALL tags must be present
+# Two kinds:
+#
+# 1. Rule presets match boundary sets by their metadata. All given fields
+#    are AND-ed together:
+#    - source_name / group_class: exact match (null or omitted = any)
+#    - group_level: exact match (null or omitted = any)
+#    - tags: the set has ALL of these
+#    - any_tags: the set has AT LEAST ONE of these
+#    - exclude_tags: the set has NONE of these
+#    Pin a release with its tag (e.g. geoboundaries_v6) so sets from different
+#    releases never mix.
+#
+# 2. List presets name their boundary sets exactly, in `members` (boundary set
+#    names, e.g. gB_57dcd43_USA_ADM1). When `members` is given the rule fields
+#    are ignored. Names that don't exist, or aren't available to the user, are
+#    skipped.
+#
+# Either kind can have `aliases`: other names the boundary search matches, e.g.
+# "Central America" or "NA ADM1".
 
 presets:
   - name: "geoBoundaries ADM0"
+    aliases: ["global ADM0"]
     description: "All geoBoundaries administrative level 0 (national)"
     source_name: "geoBoundaries"
     group_class: null
     group_level: 0
-    tags: ['geoboundaries']
+    tags: ['geoboundaries', 'geoboundaries_v6']
     sort_order: 1
 
   - name: "geoBoundaries ADM1"
-    description: "All geoBoundaries administrative level 1 (state)"
+    aliases: ["global ADM1"]
+    description: "All geoBoundaries administrative level 1 (state/region)"
     source_name: "geoBoundaries"
     group_class: null
     group_level: 1
-    tags: ['geoboundaries']
+    tags: ['geoboundaries', 'geoboundaries_v6']
     sort_order: 2
 
   - name: "geoBoundaries ADM2"
+    aliases: ["global ADM2"]
     description: "All geoBoundaries administrative level 2 (district)"
     source_name: "geoBoundaries"
     group_class: null
     group_level: 2
-    tags: ['geoboundaries']
+    tags: ['geoboundaries', 'geoboundaries_v6']
     sort_order: 3
+
+  # Regional presets: geoBoundaries v6 sets for each country in a region.
+  - name: "North America ADM0"
+    description: "geoBoundaries ADM0 (national) for the United States, Canada and Mexico"
+    aliases: ["NA ADM0", "North American ADM0"]
+    members:
+      - gB_57dcd43_USA_ADM0
+      - gB_57dcd43_CAN_ADM0
+      - gB_57dcd43_MEX_ADM0
+    sort_order: 10
+
+  - name: "North America ADM1"
+    description: "geoBoundaries ADM1 (state/region) for the United States, Canada and Mexico"
+    aliases: ["NA ADM1", "North American ADM1", "North American states and provinces"]
+    members:
+      - gB_57dcd43_USA_ADM1
+      - gB_57dcd43_CAN_ADM1
+      - gB_57dcd43_MEX_ADM1
+    sort_order: 11
+
+  - name: "North America ADM2"
+    description: "geoBoundaries ADM2 (district) for the United States, Canada and Mexico"
+    aliases: ["NA ADM2", "North American ADM2"]
+    members:
+      - gB_57dcd43_USA_ADM2
+      - gB_57dcd43_CAN_ADM2
+      - gB_57dcd43_MEX_ADM2
+    sort_order: 12
+
+  - name: "Central America ADM0"
+    description: "geoBoundaries ADM0 (national) for Belize, Costa Rica, El Salvador, Guatemala, Honduras, Nicaragua and Panama"
+    aliases: ["Central American ADM0"]
+    members:
+      - gB_57dcd43_BLZ_ADM0
+      - gB_57dcd43_CRI_ADM0
+      - gB_57dcd43_SLV_ADM0
+      - gB_57dcd43_GTM_ADM0
+      - gB_57dcd43_HND_ADM0
+      - gB_57dcd43_NIC_ADM0
+      - gB_57dcd43_PAN_ADM0
+    sort_order: 13
+
+  - name: "Central America ADM1"
+    description: "geoBoundaries ADM1 (state/region) for Belize, Costa Rica, El Salvador, Guatemala, Honduras, Nicaragua and Panama"
+    aliases: ["Central American ADM1"]
+    members:
+      - gB_57dcd43_BLZ_ADM1
+      - gB_57dcd43_CRI_ADM1
+      - gB_57dcd43_SLV_ADM1
+      - gB_57dcd43_GTM_ADM1
+      - gB_57dcd43_HND_ADM1
+      - gB_57dcd43_NIC_ADM1
+      - gB_57dcd43_PAN_ADM1
+    sort_order: 14
+
+  - name: "Central America ADM2"
+    description: "geoBoundaries ADM2 (district) for Belize, Costa Rica, El Salvador, Guatemala, Honduras, Nicaragua and Panama"
+    aliases: ["Central American ADM2"]
+    members:
+      - gB_57dcd43_BLZ_ADM2
+      - gB_57dcd43_CRI_ADM2
+      - gB_57dcd43_SLV_ADM2
+      - gB_57dcd43_GTM_ADM2
+      - gB_57dcd43_HND_ADM2
+      - gB_57dcd43_NIC_ADM2
+      - gB_57dcd43_PAN_ADM2
+    sort_order: 15
+
+  - name: "South America ADM0"
+    description: "geoBoundaries ADM0 (national) for the 12 countries of South America"
+    aliases: ["South American ADM0"]
+    members:
+      - gB_57dcd43_ARG_ADM0
+      - gB_57dcd43_BOL_ADM0
+      - gB_57dcd43_BRA_ADM0
+      - gB_57dcd43_CHL_ADM0
+      - gB_57dcd43_COL_ADM0
+      - gB_57dcd43_ECU_ADM0
+      - gB_57dcd43_GUY_ADM0
+      - gB_57dcd43_PRY_ADM0
+      - gB_57dcd43_PER_ADM0
+      - gB_57dcd43_SUR_ADM0
+      - gB_57dcd43_URY_ADM0
+      - gB_57dcd43_VEN_ADM0
+    sort_order: 16
+
+  - name: "South America ADM1"
+    description: "geoBoundaries ADM1 (state/region) for the 12 countries of South America"
+    aliases: ["South American ADM1"]
+    members:
+      - gB_57dcd43_ARG_ADM1
+      - gB_57dcd43_BOL_ADM1
+      - gB_57dcd43_BRA_ADM1
+      - gB_57dcd43_CHL_ADM1
+      - gB_57dcd43_COL_ADM1
+      - gB_57dcd43_ECU_ADM1
+      - gB_57dcd43_GUY_ADM1
+      - gB_57dcd43_PRY_ADM1
+      - gB_57dcd43_PER_ADM1
+      - gB_57dcd43_SUR_ADM1
+      - gB_57dcd43_URY_ADM1
+      - gB_57dcd43_VEN_ADM1
+    sort_order: 17
+
+  - name: "South America ADM2"
+    description: "geoBoundaries ADM2 (district) for the 12 countries of South America"
+    aliases: ["South American ADM2"]
+    members:
+      - gB_57dcd43_ARG_ADM2
+      - gB_57dcd43_BOL_ADM2
+      - gB_57dcd43_BRA_ADM2
+      - gB_57dcd43_CHL_ADM2
+      - gB_57dcd43_COL_ADM2
+      - gB_57dcd43_ECU_ADM2
+      - gB_57dcd43_GUY_ADM2
+      - gB_57dcd43_PRY_ADM2
+      - gB_57dcd43_PER_ADM2
+      - gB_57dcd43_SUR_ADM2
+      - gB_57dcd43_URY_ADM2
+      - gB_57dcd43_VEN_ADM2
+    sort_order: 18
+
+  - name: "Africa ADM0"
+    description: "geoBoundaries ADM0 (national) for the 54 countries of Africa"
+    aliases: ["African ADM0"]
+    members:
+      - gB_57dcd43_DZA_ADM0
+      - gB_57dcd43_AGO_ADM0
+      - gB_57dcd43_BEN_ADM0
+      - gB_57dcd43_BWA_ADM0
+      - gB_57dcd43_BFA_ADM0
+      - gB_57dcd43_BDI_ADM0
+      - gB_57dcd43_CPV_ADM0
+      - gB_57dcd43_CMR_ADM0
+      - gB_57dcd43_CAF_ADM0
+      - gB_57dcd43_TCD_ADM0
+      - gB_57dcd43_COM_ADM0
+      - gB_57dcd43_COG_ADM0
+      - gB_57dcd43_COD_ADM0
+      - gB_57dcd43_CIV_ADM0
+      - gB_57dcd43_DJI_ADM0
+      - gB_57dcd43_EGY_ADM0
+      - gB_57dcd43_GNQ_ADM0
+      - gB_57dcd43_ERI_ADM0
+      - gB_57dcd43_SWZ_ADM0
+      - gB_57dcd43_ETH_ADM0
+      - gB_57dcd43_GAB_ADM0
+      - gB_57dcd43_GMB_ADM0
+      - gB_57dcd43_GHA_ADM0
+      - gB_57dcd43_GIN_ADM0
+      - gB_57dcd43_GNB_ADM0
+      - gB_57dcd43_KEN_ADM0
+      - gB_57dcd43_LSO_ADM0
+      - gB_57dcd43_LBR_ADM0
+      - gB_57dcd43_LBY_ADM0
+      - gB_57dcd43_MDG_ADM0
+      - gB_57dcd43_MWI_ADM0
+      - gB_57dcd43_MLI_ADM0
+      - gB_57dcd43_MRT_ADM0
+      - gB_57dcd43_MUS_ADM0
+      - gB_57dcd43_MAR_ADM0
+      - gB_57dcd43_MOZ_ADM0
+      - gB_57dcd43_NAM_ADM0
+      - gB_57dcd43_NER_ADM0
+      - gB_57dcd43_NGA_ADM0
+      - gB_57dcd43_RWA_ADM0
+      - gB_57dcd43_STP_ADM0
+      - gB_57dcd43_SEN_ADM0
+      - gB_57dcd43_SYC_ADM0
+      - gB_57dcd43_SLE_ADM0
+      - gB_57dcd43_SOM_ADM0
+      - gB_57dcd43_ZAF_ADM0
+      - gB_57dcd43_SSD_ADM0
+      - gB_57dcd43_SDN_ADM0
+      - gB_57dcd43_TZA_ADM0
+      - gB_57dcd43_TGO_ADM0
+      - gB_57dcd43_TUN_ADM0
+      - gB_57dcd43_UGA_ADM0
+      - gB_57dcd43_ZMB_ADM0
+      - gB_57dcd43_ZWE_ADM0
+    sort_order: 19
+
+  - name: "Africa ADM1"
+    description: "geoBoundaries ADM1 (state/region) for the 54 countries of Africa"
+    aliases: ["African ADM1"]
+    members:
+      - gB_57dcd43_DZA_ADM1
+      - gB_57dcd43_AGO_ADM1
+      - gB_57dcd43_BEN_ADM1
+      - gB_57dcd43_BWA_ADM1
+      - gB_57dcd43_BFA_ADM1
+      - gB_57dcd43_BDI_ADM1
+      - gB_57dcd43_CPV_ADM1
+      - gB_57dcd43_CMR_ADM1
+      - gB_57dcd43_CAF_ADM1
+      - gB_57dcd43_TCD_ADM1
+      - gB_57dcd43_COM_ADM1
+      - gB_57dcd43_COG_ADM1
+      - gB_57dcd43_COD_ADM1
+      - gB_57dcd43_CIV_ADM1
+      - gB_57dcd43_DJI_ADM1
+      - gB_57dcd43_EGY_ADM1
+      - gB_57dcd43_GNQ_ADM1
+      - gB_57dcd43_ERI_ADM1
+      - gB_57dcd43_SWZ_ADM1
+      - gB_57dcd43_ETH_ADM1
+      - gB_57dcd43_GAB_ADM1
+      - gB_57dcd43_GMB_ADM1
+      - gB_57dcd43_GHA_ADM1
+      - gB_57dcd43_GIN_ADM1
+      - gB_57dcd43_GNB_ADM1
+      - gB_57dcd43_KEN_ADM1
+      - gB_57dcd43_LSO_ADM1
+      - gB_57dcd43_LBR_ADM1
+      - gB_57dcd43_LBY_ADM1
+      - gB_57dcd43_MDG_ADM1
+      - gB_57dcd43_MWI_ADM1
+      - gB_57dcd43_MLI_ADM1
+      - gB_57dcd43_MRT_ADM1
+      - gB_57dcd43_MUS_ADM1
+      - gB_57dcd43_MAR_ADM1
+      - gB_57dcd43_MOZ_ADM1
+      - gB_57dcd43_NAM_ADM1
+      - gB_57dcd43_NER_ADM1
+      - gB_57dcd43_NGA_ADM1
+      - gB_57dcd43_RWA_ADM1
+      - gB_57dcd43_STP_ADM1
+      - gB_57dcd43_SEN_ADM1
+      - gB_57dcd43_SYC_ADM1
+      - gB_57dcd43_SLE_ADM1
+      - gB_57dcd43_SOM_ADM1
+      - gB_57dcd43_ZAF_ADM1
+      - gB_57dcd43_SSD_ADM1
+      - gB_57dcd43_SDN_ADM1
+      - gB_57dcd43_TZA_ADM1
+      - gB_57dcd43_TGO_ADM1
+      - gB_57dcd43_TUN_ADM1
+      - gB_57dcd43_UGA_ADM1
+      - gB_57dcd43_ZMB_ADM1
+      - gB_57dcd43_ZWE_ADM1
+    sort_order: 20
+
+  - name: "Africa ADM2"
+    description: "geoBoundaries ADM2 (district) for the 54 countries of Africa"
+    aliases: ["African ADM2"]
+    # Libya (LBY) and Mauritius (MUS) have no ADM2 in geoBoundaries v6
+    members:
+      - gB_57dcd43_DZA_ADM2
+      - gB_57dcd43_AGO_ADM2
+      - gB_57dcd43_BEN_ADM2
+      - gB_57dcd43_BWA_ADM2
+      - gB_57dcd43_BFA_ADM2
+      - gB_57dcd43_BDI_ADM2
+      - gB_57dcd43_CPV_ADM2
+      - gB_57dcd43_CMR_ADM2
+      - gB_57dcd43_CAF_ADM2
+      - gB_57dcd43_TCD_ADM2
+      - gB_57dcd43_COM_ADM2
+      - gB_57dcd43_COG_ADM2
+      - gB_57dcd43_COD_ADM2
+      - gB_57dcd43_CIV_ADM2
+      - gB_57dcd43_DJI_ADM2
+      - gB_57dcd43_EGY_ADM2
+      - gB_57dcd43_GNQ_ADM2
+      - gB_57dcd43_ERI_ADM2
+      - gB_57dcd43_SWZ_ADM2
+      - gB_57dcd43_ETH_ADM2
+      - gB_57dcd43_GAB_ADM2
+      - gB_57dcd43_GMB_ADM2
+      - gB_57dcd43_GHA_ADM2
+      - gB_57dcd43_GIN_ADM2
+      - gB_57dcd43_GNB_ADM2
+      - gB_57dcd43_KEN_ADM2
+      - gB_57dcd43_LSO_ADM2
+      - gB_57dcd43_LBR_ADM2
+      - gB_57dcd43_MDG_ADM2
+      - gB_57dcd43_MWI_ADM2
+      - gB_57dcd43_MLI_ADM2
+      - gB_57dcd43_MRT_ADM2
+      - gB_57dcd43_MAR_ADM2
+      - gB_57dcd43_MOZ_ADM2
+      - gB_57dcd43_NAM_ADM2
+      - gB_57dcd43_NER_ADM2
+      - gB_57dcd43_NGA_ADM2
+      - gB_57dcd43_RWA_ADM2
+      - gB_57dcd43_STP_ADM2
+      - gB_57dcd43_SEN_ADM2
+      - gB_57dcd43_SYC_ADM2
+      - gB_57dcd43_SLE_ADM2
+      - gB_57dcd43_SOM_ADM2
+      - gB_57dcd43_ZAF_ADM2
+      - gB_57dcd43_SSD_ADM2
+      - gB_57dcd43_SDN_ADM2
+      - gB_57dcd43_TZA_ADM2
+      - gB_57dcd43_TGO_ADM2
+      - gB_57dcd43_TUN_ADM2
+      - gB_57dcd43_UGA_ADM2
+      - gB_57dcd43_ZMB_ADM2
+      - gB_57dcd43_ZWE_ADM2
+    sort_order: 21

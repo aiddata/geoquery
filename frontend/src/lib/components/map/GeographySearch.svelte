@@ -4,7 +4,7 @@
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import { ChevronRight, Search, X } from '@lucide/svelte';
 	import type { Snippet } from 'svelte';
-	import { searchBoundaries, type BoundaryResult } from '#lib/api.js';
+	import { searchBoundaries, type BoundaryPreset, type BoundaryResult } from '#lib/api.js';
 	import { colorForIndex } from '#lib/utils/boundaryStyle.js';
 
 	interface Props {
@@ -23,6 +23,8 @@
 		belowSelection?: Snippet;
 		/** The search box text; bindable so the page's Restart can clear it. */
 		searchText?: string;
+		/** Presets offered in the search results, each with the boundary sets it adds */
+		presets?: { preset: BoundaryPreset; members: BoundaryResult[] }[];
 	}
 
 	let {
@@ -36,8 +38,33 @@
 		onClear,
 		belowSearch,
 		belowSelection,
-		searchText = $bindable('')
+		searchText = $bindable(''),
+		presets = []
 	}: Props = $props();
+
+	// Presets whose name, description or an alias matches the search, with members to add
+	const presetMatches = $derived.by(() => {
+		const q = searchText.trim().toLowerCase();
+		if (!q) return [];
+		return presets.filter(
+			({ preset, members }) =>
+				members.length > 0 &&
+				[preset.name, preset.description ?? '', ...(preset.aliases ?? [])].some((text) =>
+					text.toLowerCase().includes(q)
+				)
+		);
+	});
+
+	/** Add every boundary set of a preset not already selected, each as its own chip. */
+	function addPreset(members: BoundaryResult[]) {
+		const have = new Set(selectedBoundaries.map((b) => b.id));
+		const newSelection = [...selectedBoundaries, ...members.filter((b) => !have.has(b.id))];
+		if (externalSelection === undefined) internalSelection = newSelection;
+		onSelect?.(newSelection);
+		searchText = '';
+		autocompleteResults = [];
+		inputEl?.focus();
+	}
 
 	let internalSelection = $state<BoundaryResult[]>([]);
 	let searchFocused = $state(false);
@@ -122,12 +149,24 @@
 		/>
 
 		<!-- Autocomplete dropdown -->
-		{#if searchText.trim() && autocompleteResults.length > 0}
+		{#if searchText.trim() && (autocompleteResults.length > 0 || presetMatches.length > 0)}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
 				class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover text-popover-foreground shadow-card"
 				onmousedown={(e) => e.preventDefault()}
 			>
+				<!-- Presets first: one click adds each of their boundary sets -->
+				{#each presetMatches as { preset, members } (preset.name)}
+					{@const allIn = members.every((m) => selectedBoundaries.some((b) => b.id === m.id))}
+					<button
+						class="flex w-full items-baseline justify-between gap-2 border-b px-4 py-2 text-left text-sm hover:bg-accent disabled:opacity-50"
+						disabled={allIn}
+						onclick={() => addPreset(members)}
+					>
+						<span class="font-bold">{preset.name}</span>
+						<span class="shrink-0 text-xs text-muted-foreground">Group · {members.length} boundary set{members.length === 1 ? '' : 's'}</span>
+					</button>
+				{/each}
 				{#if isLoading}
 					<div class="px-4 py-2 text-sm text-muted-foreground">Searching...</div>
 				{:else}
@@ -144,7 +183,7 @@
 			</div>
 		{/if}
 
-		{#if searchText.trim() && autocompleteResults.length === 0 && !isLoading}
+		{#if searchText.trim() && autocompleteResults.length === 0 && presetMatches.length === 0 && !isLoading}
 			<div class="absolute z-10 mt-1 w-full rounded-md border bg-popover p-4 text-sm text-muted-foreground shadow-card">
 				No boundaries matching "{searchText}" were found.
 			</div>

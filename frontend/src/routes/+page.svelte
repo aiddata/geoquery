@@ -22,6 +22,7 @@
 	import MapFrame, { type FcStyle } from '#lib/components/map/MapFrame.svelte';
 	import { colorForIndex, lineWidthForLevel } from '#lib/utils/boundaryStyle.js';
 	import { unionBbox, type Bbox } from '#lib/utils/bbox.js';
+	import { resolvePreset } from '#lib/utils/presets.js';
 	import WelcomeModal from '#lib/components/map/WelcomeModal.svelte';
 	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
 	import CustomBoundaryPanel from '#lib/components/map/CustomBoundaryPanel.svelte';
@@ -277,6 +278,11 @@
 
 	// ── Derived map display values ───────────────────────────────────────────────
 
+	// Presets offered in the Explore search, each with the boundary sets it adds
+	let presetOptions = $derived(
+		boundaryPresets.map((preset) => ({ preset, members: resolvePreset(preset, allBoundaries) }))
+	);
+
 	// Full boundary metadata by name. Boundaries restored from the store carry
 	// no group_level, so styles look it up here.
 	let boundariesByName = $derived(new Map(allBoundaries.map((b) => [b.name, b])));
@@ -455,6 +461,7 @@
 				{#if activeTab === 'explore'}
 					<GeographySearch
 						bind:searchText={boundarySearch}
+						presets={presetOptions}
 						featuredBoundaries={featuredBoundaries}
 						selectedBoundaries={browseBoundaries}
 						proceedLabel="Find Data"

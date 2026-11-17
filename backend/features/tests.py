@@ -695,3 +695,33 @@ class GeoBoundariesVersionTagTests(SimpleTestCase):
         self.assertEqual(collection_tags({"title": "Some boundaries", "tags": ["a"]}), ["a"])
         already = {"title": "geoBoundaries v6 - X", "tags": ["geoboundaries_v6"]}
         self.assertEqual(collection_tags(already), ["geoboundaries_v6"])
+
+
+class BoundaryPresetConfigTests(SimpleTestCase):
+    """The shipped config/boundary_presets.yaml loads into well-formed presets."""
+
+    def presets(self):
+        from features.views import BoundaryPresetsView
+
+        BoundaryPresetsView._presets_cache = None
+        return BoundaryPresetsView._load_presets()
+
+    def test_every_preset_is_a_rule_or_a_list(self):
+        for p in self.presets():
+            with self.subTest(preset=p["name"]):
+                self.assertTrue(p["name"])
+                for key in ("tags", "any_tags", "exclude_tags", "aliases"):
+                    self.assertIsInstance(p[key], list)
+                if p["members"] is not None:
+                    self.assertTrue(all(isinstance(m, str) and m for m in p["members"]))
+
+    def test_geoboundaries_rules_are_pinned_to_a_release(self):
+        rules = [p for p in self.presets() if p["members"] is None and p.get("source_name") == "geoBoundaries"]
+        self.assertTrue(rules)
+        for p in rules:
+            self.assertIn("geoboundaries_v6", p["tags"])
+
+    def test_list_preset_carries_its_members(self):
+        na = next(p for p in self.presets() if p["name"] == "North America ADM1")
+        self.assertIn("gB_57dcd43_USA_ADM1", na["members"])
+        self.assertIn("NA ADM1", na["aliases"])

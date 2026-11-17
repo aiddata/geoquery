@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolvePreset } from '#lib/utils/presets.js';
 	import { type BoundaryResult, type BoundaryPreset } from '#lib/api.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
@@ -104,19 +105,7 @@
 	}
 
 	function applyPreset(preset: BoundaryPreset) {
-		const matchingIds = allBoundaries
-			.filter((b) => {
-				if (preset.source_name && b.source_name !== preset.source_name) return false;
-				if (preset.group_class && b.group_class !== preset.group_class) return false;
-				if (preset.group_level !== undefined && preset.group_level !== null && b.group_level !== preset.group_level) {
-					return false;
-				}
-				if (preset.tags && preset.tags.length > 0) {
-					return preset.tags.every((tag) => b.tags?.includes(tag));
-				}
-				return true;
-			})
-			.map((b) => b.id);
+		const matchingIds = resolvePreset(preset, allBoundaries).map((b) => b.id);
 
 		const newIds = new Set(selectedIds);
 		matchingIds.forEach((id) => newIds.add(id));

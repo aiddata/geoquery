@@ -83,6 +83,14 @@ export interface BoundaryPreset {
 	group_class?: string | null;
 	group_level?: number | null;
 	tags: string[];
+	/** At least one of these tags */
+	any_tags?: string[];
+	/** None of these tags */
+	exclude_tags?: string[];
+	/** Other names the boundary search matches */
+	aliases?: string[];
+	/** List presets: exact boundary set names (rule fields are then ignored) */
+	members?: string[] | null;
 	sort_order: number;
 }
 

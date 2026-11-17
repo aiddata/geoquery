@@ -121,4 +121,10 @@ class PublicBoundaryPresetSerializer(serializers.Serializer):
     group_class = serializers.CharField(allow_null=True, required=False)
     group_level = serializers.IntegerField(allow_null=True, required=False)
     tags = serializers.ListField(child=serializers.CharField(), required=False)
+    any_tags = serializers.ListField(child=serializers.CharField(), required=False)
+    exclude_tags = serializers.ListField(child=serializers.CharField(), required=False)
+    # Other names the boundary search matches
+    aliases = serializers.ListField(child=serializers.CharField(), required=False)
+    # List presets: exact boundary set names; null for rule presets
+    members = serializers.ListField(child=serializers.CharField(), allow_null=True, required=False)
     sort_order = serializers.IntegerField(required=False)

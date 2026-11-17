@@ -514,6 +514,17 @@ class FeatureIdsView(APIView):
         return Response({"featureIds": feature_ids})
 
 
+def _normalize_preset(preset: dict) -> dict:
+    """A preset with every key present: list fields default to [], and
+    `members` is a list of boundary set names, or None for a rule preset."""
+    out = dict(preset)
+    for key in ("tags", "any_tags", "exclude_tags", "aliases"):
+        out[key] = list(out.get(key) or [])
+    members = out.get("members")
+    out["members"] = [str(m) for m in members] if members else None
+    return out
+
+
 class BoundaryPresetsView(APIView):
     """
     GET /api/features/presets/
@@ -554,7 +565,8 @@ class BoundaryPresetsView(APIView):
         with open(config_path, "r") as f:
             data = yaml.safe_load(f) or {}
             cls._presets_cache = sorted(
-                data.get("presets", []), key=lambda p: p.get("sort_order", 999)
+                (_normalize_preset(p) for p in data.get("presets", [])),
+                key=lambda p: p.get("sort_order", 999),
             )
             cls._cache_mtime = current_mtime
             return cls._presets_cache
