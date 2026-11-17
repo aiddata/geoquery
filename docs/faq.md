@@ -5,6 +5,9 @@
 ### Do I need an account?
 No. You can submit a request with just an email address. Signing in with GitHub keeps all your requests in one place. See [Accounts and request history](https://docs.geoquery.org/using-geoquery/accounts/).
 
+### What is a feature?
+A feature is one area in a boundary set, such as a single district in Ghana ADM2 or a single province in Kenya ADM1. Your results have one row for each feature you select.
+
 ### Can I use my own boundary files?
 Coming soon. You'll be able to upload your own boundaries as a GeoJSON file (`.geojson` or `.json`, up to 50 MB) from the "Custom" tab on the GeoQuery boundary selection page.
 
@@ -29,12 +32,12 @@ Each completed request is a zip file that includes:
 
 - A **CSV** file containing your results for use in Excel, Stata, SPSS, R, and similar tools.
 - An **HTML** file with metadata for your request including dataset descriptions, citation information, and sources.
-- A **GeoPackage** file of your areas' boundaries for use with GIS software.
+- A **GeoPackage** file of your features' boundaries for use with GIS software.
 - A **PDF** file of the publication describing GeoQuery's underlying methods, which must be cited when using data from GeoQuery. See also [Citing GeoQuery](https://docs.geoquery.org/citing/).
 - A **JSON** file with the raw contents of your request selection (not typically needed but may help with programmatic management of data).
 
 ### How do I read the results file?
-Each row is one area, and each column is one value you asked for, such as a dataset's mean for a given year. An empty cell means the dataset has no data for that area. See [Using your results](https://docs.geoquery.org/using-geoquery/results/) for the details, and for how to join the results to the boundaries in GIS software.
+Each row is one feature, and each column is one value you asked for, such as a dataset's mean for a given year. An empty cell means the dataset has no data for that area. See [Using your results](https://docs.geoquery.org/using-geoquery/results/) for the details, and for how to join the results to the boundaries in GIS software.
 
 ### How long will it take to receive my data?
 Many requests complete almost instantly due to preprocessing and caching. Requests requiring new processing may take up to several hours.

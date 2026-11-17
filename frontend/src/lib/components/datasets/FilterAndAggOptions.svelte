@@ -165,8 +165,8 @@
 		id="split"
 		title="Split results by"
 		summary="Each value you select gets its own column in your results."
-		help="Instead of a single total, each area gets a separate column for every selected value, for example one column per year. With more than one split field, there is a column for every combination. Unselected values are left out."
-		note="{splitColumns} column{splitColumns === 1 ? '' : 's'} per area"
+		help="Instead of a single total, each feature gets a separate column for every selected value, for example one column per year. With more than one split field, there is a column for every combination. Unselected values are left out."
+		note="{splitColumns} column{splitColumns === 1 ? '' : 's'} per feature"
 	>
 		<div class="flex flex-wrap gap-4">
 			{#each splitFields as [key, filter] (key)}
@@ -181,7 +181,7 @@
 		id="filter"
 		title="Filter records"
 		summary="Only matching records are counted, and they are added together into one value."
-		help="These narrow which records are included. Records outside a range, or with a value you've unselected, are left out. Everything that matches is combined into one total per area (or per column, when results are split)."
+		help="These narrow which records are included. Records outside a range, or with a value you've unselected, are left out. Everything that matches is combined into one total per feature (or per column, when results are split)."
 	>
 		<div class="flex flex-wrap gap-4">
 			{#each filterFields as [key, filter] (key)}

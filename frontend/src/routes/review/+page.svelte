@@ -62,7 +62,7 @@
 			? selectedFcs.reduce((n, fc) => n + fcCounts[fc.id], 0)
 			: null
 	);
-	const areas = (n: number) => `${n.toLocaleString()} area${n === 1 ? '' : 's'}`;
+	const featureCount = (n: number) => `${n.toLocaleString()} feature${n === 1 ? '' : 's'}`;
 
 	// Redirect only if the cart was already empty on arrival (e.g. direct URL access).
 	// If the user empties it themselves, let them stay.
@@ -407,7 +407,7 @@
 				<div class="flex items-center justify-between">
 					<div>
 						<h3 class="text-base font-semibold">Boundary Sets</h3>
-						{#if boundarySummary}<p class="text-xs text-muted-foreground">{boundarySummary}</p>{/if}
+						{#if boundarySummary}<p class="text-xs text-muted-foreground" title="A feature is one area in a boundary set, such as a single district in Ghana ADM2.">{boundarySummary}</p>{/if}
 					</div>
 					<Button variant="outline" size="sm" onclick={() => goto('/')}>
 						<Pencil />
@@ -451,7 +451,7 @@
 										<ul id="review-boundary-list" class="mt-1 space-y-0.5 font-bold">
 											{#each visibleFcs as fc (fc.id)}
 												<li class="break-words">
-													{fc.title ?? fc.name}{#if fc.id in fcCounts}<span class="ml-1 font-normal text-muted-foreground">· {areas(fcCounts[fc.id])}</span>{/if}
+													{fc.title ?? fc.name}{#if fc.id in fcCounts}<span class="ml-1 font-normal text-muted-foreground">· {featureCount(fcCounts[fc.id])}</span>{/if}
 												</li>
 											{/each}
 										</ul>
@@ -475,7 +475,7 @@
 									{#if rowTotal !== null}
 										<p class="mt-0.5 text-xs text-muted-foreground">
 											{rowTotal.toLocaleString()} row{rowTotal === 1 ? '' : 's'} in your results: one for each
-											area in each set. Overlapping sets are kept separate, not combined.
+											feature in each set. Overlapping sets are kept separate, not combined.
 										</p>
 									{:else if resolvedFeatureIds.length > 0}
 										<p class="mt-0.5 text-xs text-muted-foreground">

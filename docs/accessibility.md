@@ -25,7 +25,7 @@ What works well:
 
 ## Known limitations
 
-- **Selecting individual areas on the map** requires a mouse. You can still select whole boundary sets with a keyboard, using the search box.
+- **Selecting individual features on the map** requires a mouse. You can still select whole boundary sets with a keyboard, using the search box.
 - **Boundary search suggestions** aren't announced to screen readers. You can reach them with the Tab key.
 - **Option checkboxes on the Customize page** aren't announced with their names by screen readers.
 - **Some details appear only on mouse hover**, such as the source and license of boundary sets in the Browse All list.

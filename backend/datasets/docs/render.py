@@ -181,7 +181,7 @@ def boundary_page(page, covering, feature_counts, app_url) -> str:
         lead = f"{page.place} administrative boundaries ({levels})."
         intro = (
             f"Administrative boundaries for {page.place} from [geoBoundaries]({GEOBOUNDARIES_URL}), "
-            f"ready to use in [GeoQuery]({app_url}) to extract data for each area.\n\n"
+            f"ready to use in [GeoQuery]({app_url}) to extract data for each feature.\n\n"
         )
     else:
         n = len(page.collections)

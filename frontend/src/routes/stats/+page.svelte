@@ -129,7 +129,7 @@
 				? `plus ${fmt(stats.legacy_request_count)} from GeoQuery 1.0`
 				: null
 		},
-		{ label: 'Results extracted', value: stats?.extract_counts?.completed, note: 'one per area, dataset and period' },
+		{ label: 'Results extracted', value: stats?.extract_counts?.completed, note: 'one per feature, dataset and period' },
 		{ label: 'Users', value: stats?.users, note: 'by email address, GeoQuery 1.0 and 2.0' },
 		{ label: 'Organizations', value: stats?.organizations, note: 'by email domain, GeoQuery 1.0 and 2.0' },
 		{ label: 'Datasets available', value: stats?.datasets_available, note: null },
@@ -399,7 +399,7 @@
 			<CardHeader>
 				<CardTitle>Extract tasks</CardTitle>
 				<p class="text-sm text-muted-foreground">
-					Each task extracts one dataset period for one area. Tasks are shared between requests,
+					Each task extracts one dataset period for one feature. Tasks are shared between requests,
 					so a result is computed once and reused.
 				</p>
 			</CardHeader>

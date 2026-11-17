@@ -358,11 +358,11 @@
 {/snippet}
 
 <!-- Shown whenever more than one boundary set is selected, overlapping or not:
-     results stack the sets, one row per area, rather than intersecting them. -->
+     results stack the sets, one row per feature, rather than intersecting them. -->
 {#snippet multiSetNote()}
 	<div class="rounded-md border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-		<strong>Each boundary set is kept separate.</strong> Every area gets its own row in your
-		results, labelled with its boundary set. Areas that overlap are included once in each set,
+		<strong>Each boundary set is kept separate.</strong> Every feature gets its own row in your
+		results, labelled with its boundary set. Features that overlap are included once in each set,
 		not combined or intersected.
 		<a
 			href="https://docs.geoquery.org/using-geoquery/multiple-boundaries/"

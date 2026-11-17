@@ -13,7 +13,7 @@ Select boundaries, choose from a curated library of datasets, and download resul
 1. **Select your boundaries**: choose from administrative boundaries for countries around the world, as well as other boundary sets. Uploading your own boundaries is coming soon.
 2. **Choose datasets**: browse datasets spanning population, economic activity, climate, the environment, health, conflict and more, and pick the statistics and time periods you need.
 3. **Submit your request**: enter your email and submit. We'll email you a link to download your results when they're ready.
-4. **Analyze your data**: download a CSV with one row per area, the boundaries as a GeoPackage for GIS software, and a metadata file with each dataset's source and citation.
+4. **Analyze your data**: download a CSV with one row per feature, the boundaries as a GeoPackage for GIS software, and a metadata file with each dataset's source and citation.
 
 ---
 

@@ -23,6 +23,9 @@
 
 	let { active, children, actions, bare = false }: Props = $props();
 
+	// Shown wherever feature counts first appear, for readers new to GIS terms
+	const FEATURE_DEFINITION = 'A feature is one area in a boundary set, such as a single district in Ghana ADM2.';
+
 	const plural = (n: number, word: string) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
 
 	// "X features across Y boundary sets selected"; the boundary name until the
@@ -111,7 +114,10 @@
 				<span class="min-w-0">
 					<span class="block font-heading text-h4 font-bold text-foreground">{s.title}</span>
 					{#if s.summary}
-						<span class="block truncate text-xs text-muted-foreground">{s.summary}</span>
+						<span
+							class="block truncate text-xs text-muted-foreground"
+							title={s.id === 'map' ? FEATURE_DEFINITION : undefined}>{s.summary}</span
+						>
 					{/if}
 				</span>
 				{#if s.id === 'review'}

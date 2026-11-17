@@ -2,7 +2,7 @@
 
 ## Submitting a request
 
-1. **Select boundaries.** Open the GeoQuery application and search for a country or boundary set, or pick one from the featured list. To narrow a single boundary set to a few areas, click them on the map. Your selection is saved as you go. Click **Find Data**, or **2. Customize Datasets** at the top, to move on.
+1. **Select boundaries.** Open the GeoQuery application and search for a country or boundary set, or pick one from the featured list. To narrow a single boundary set to a few features, click them on the map. (A **feature** is one area in a boundary set, such as a single district in Ghana ADM2; your results have one row per feature.) Your selection is saved as you go. Click **Find Data**, or **2. Customize Datasets** at the top, to move on.
 2. **Choose datasets.** Browse the datasets available for your boundaries. For each one, choose the statistics and time periods you want: most datasets are added to your request as soon as you choose, and a check mark shows they're in. Datasets of events or locations, which you filter instead (such as conflict events), need you to click **Add to Request**, and can be added more than once with different filters. Your choices are kept as you move around GeoQuery.
 3. **Review.** Click **Review Request** to check your boundaries and datasets. Use **Edit options** on any dataset to go back and change it.
 4. **Submit.** In the Review & Submit panel, give your request a name and enter your email address (if you're signed in, your account's email is used), then click **Submit Request**.
@@ -18,7 +18,7 @@ GeoQuery offers administrative boundaries for countries around the world, as wel
 
 ## Multiple boundaries
 
-You can select as many boundary sets as you like in a single request, across countries and levels (for example, Ghana ADM1, Ghana ADM2 and Tanzania ADM1). Selecting individual features, such as a few districts, is only available within one boundary set at a time. Each boundary set is kept separate: every area gets its own row in your results, labelled with its boundary set, so if your sets overlap, for example a country's ADM1 and ADM2 levels, each area is still summarized on its own rather than combined or intersected. See [Selecting multiple boundary sets](multiple-boundaries.md) for how this shapes your results. Previously processed data is cached, so repeat selections are returned much faster.
+You can select as many boundary sets as you like in a single request, across countries and levels (for example, Ghana ADM1, Ghana ADM2 and Tanzania ADM1). Selecting individual features, such as a few districts, is only available within one boundary set at a time. Each boundary set is kept separate: every feature gets its own row in your results, labelled with its boundary set, so if your sets overlap, for example a country's ADM1 and ADM2 levels, each feature is still summarized on its own rather than combined or intersected. See [Selecting multiple boundary sets](multiple-boundaries.md) for how this shapes your results. Previously processed data is cached, so repeat selections are returned much faster.
 
 ## What you'll receive
 
@@ -26,8 +26,8 @@ Each completed request is a zip file containing:
 
 | File | Description |
 |------|-------------|
-| `<request id>_results.csv` | Your extracted values, one row per area, for Excel, Stata, SPSS, R, or similar tools |
-| `request_features.gpkg` | Your areas' boundaries as a GeoPackage, for GIS software |
+| `<request id>_results.csv` | Your extracted values, one row per feature, for Excel, Stata, SPSS, R, or similar tools |
+| `request_features.gpkg` | Your features' boundaries as a GeoPackage, for GIS software |
 | `<request id>_documentation.html` | Metadata: each dataset's description, source, license and citation |
 | `request_details.json` | The full details of your request, for programmatic use |
 | `GeoQuery_Goodman2019.pdf` | The paper describing GeoQuery's methods, which should be cited when you use GeoQuery data |

@@ -16,8 +16,8 @@
 	<OptionsSection
 		id="measure"
 		title="Measure"
-		summary="What each area's result measures."
-		help="Each area's result is this measure, worked out from the records that pass the filters. For example, a deaths estimate adds up deaths, an event count adds one for each event, and a coverage share is the part of the area the matching records cover."
+		summary="What each feature's result measures."
+		help="Each feature's result is this measure, worked out from the records that pass the filters. For example, a deaths estimate adds up deaths, an event count adds one for each event, and a coverage share is the part of the feature the matching records cover."
 	>
 		<!-- Radios even for a single measure, so every dataset reads the same -->
 		<div role="radiogroup" aria-labelledby="measure-heading" class="flex flex-wrap gap-x-4 gap-y-2">
