@@ -14,4 +14,7 @@ export function groupByLevel(boundaries: BoundaryResult[]): Map<LevelKey, Bounda
 	return new Map([...groups.entries()].sort((a, b) => order(a[0]) - order(b[0])));
 }
 
-export const levelLabel = (k: LevelKey) => (typeof k === 'number' ? `Level ${k}` : k);
+const LEVEL_NAMES = ['Country', 'Region/State', 'District/County', 'Municipality/City', 'Village/Ward'];
+
+export const levelLabel = (k: LevelKey) =>
+	typeof k !== 'number' ? 'Other' : LEVEL_NAMES[k] ? `ADM${k} (${LEVEL_NAMES[k]})` : `ADM${k}`;
