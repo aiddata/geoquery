@@ -102,6 +102,15 @@
 			.finally(() => (restoring = false));
 	});
 
+	// The selected boundary sets, named as in the selection legend, for the
+	// dataset list's coverage chips
+	let boundarySets = $derived.by(() => {
+		const sel = $selection;
+		if (!sel || isCustomMode) return [];
+		const fcs = sel.mode === 'single' ? [sel.fc] : sel.fcs;
+		return fcs.map((fc) => ({ id: fc.id, title: fc.title ?? fc.short_name ?? fc.name }));
+	});
+
 	// Resolved feature IDs from the store (set by map page before navigation)
 	let resolvedIds = $derived($selection?.resolvedFeatureIds ?? []);
 
@@ -333,7 +342,9 @@
 
 		loadError = null;
 
-		const datasetPromise = custom ? fetchAllDatasets() : fetchDatasetsForFeatures(ids);
+		// With the boundary sets, each dataset also says which of them it covers (GEO-127)
+		const fcIds = untrack(() => $selectionFcIds);
+		const datasetPromise = custom ? fetchAllDatasets() : fetchDatasetsForFeatures(ids, fcIds);
 
 		Promise.all([datasetPromise, fetchDatasetCategories()])
 			.then(([ds, cats]) => {
@@ -536,6 +547,7 @@
 					{outOfRangeNames}
 					{unsavedNames}
 					columnCounts={columnsByDataset($cart)}
+					{boundarySets}
 				/>
 			</div>
 		{/if}

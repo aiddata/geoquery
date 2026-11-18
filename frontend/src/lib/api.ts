@@ -172,6 +172,9 @@ export interface DatasetSummary {
 	temporal_end: string | null;
 	date_updated: string;
 	bbox: [number, number, number, number] | null;
+	/** From the coverage endpoint when boundary sets were given: the selected
+	 *  boundary set ids this dataset covers (GEO-127). */
+	covered_boundary_sets?: number[];
 }
 
 export interface DatasetResource {
@@ -241,14 +244,18 @@ export async function fetchFeatureIds(fcIds: number[]): Promise<number[]> {
 
 // ── Dataset API ────────────────────────────────────────────────
 
-export async function fetchDatasetsForFeatures(featureIds: number[]): Promise<DatasetSummary[]> {
+/**
+ * Datasets covering the selected features. With fcIds (the selected boundary
+ * sets), each dataset also says which of those sets it covers.
+ */
+export async function fetchDatasetsForFeatures(featureIds: number[], fcIds?: number[]): Promise<DatasetSummary[]> {
 	// Must go through apiFetch: this endpoint authenticates the session so that
 	// catalog-granted datasets are included, and DRF then enforces CSRF on it
 	// for logged-in users. A bare fetch 403s once you sign in.
 	const response = await apiFetch('/api/datasets/coverage/', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ featureIds }),
+		body: JSON.stringify(fcIds ? { featureIds, fcIds } : { featureIds }),
 	});
 	if (!response.ok) {
 		throw new Error(`Failed to fetch datasets: ${response.status}`);

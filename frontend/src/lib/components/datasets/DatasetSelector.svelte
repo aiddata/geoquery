@@ -6,8 +6,11 @@
 	import { ScrollArea } from '#lib/components/ui/scroll-area/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
-	import { Search, ArrowUpDown, ChevronDown, ChevronUp, CircleAlert } from '@lucide/svelte';
+	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+	import { Search, ArrowDownWideNarrow, ArrowUpNarrowWide, CircleAlert } from '@lucide/svelte';
 	import type { DatasetSummary, DatasetCategory } from '#lib/api.js';
+	import CoverageChip from './CoverageChip.svelte';
+	import CoveragePie from './CoveragePie.svelte';
 
 	interface Props {
 		datasets: DatasetSummary[];
@@ -19,6 +22,11 @@
 		unsavedNames?: Set<string>;
 		/** Columns each dataset adds to the output, across its entries in the request */
 		columnCounts?: Map<string, number>;
+		/**
+		 * The selected boundary sets, when there are several: datasets covering
+		 * only some of them get a coverage chip, and the list can sort by it.
+		 */
+		boundarySets?: { id: number; title: string }[];
 	}
 
 	let {
@@ -28,14 +36,42 @@
 		onSelect,
 		outOfRangeNames = new Set(),
 		unsavedNames = new Set(),
-		columnCounts = new Map()
+		columnCounts = new Map(),
+		boundarySets = []
 	}: Props = $props();
 
 	let searchText = $state('');
 	let searchInput = $state<HTMLInputElement | null>(null);
 	let selectedCategory = $state('all');
-	let sortField = $state<'date_updated' | 'title'>('date_updated');
-	let sortAsc = $state(false);
+	type SortField = 'title' | 'coverage' | 'date_updated';
+	const SORT_LABELS: Record<SortField, string> = { title: 'Name', coverage: 'Coverage', date_updated: 'Date updated' };
+	// Each field's natural order: A to Z, most coverage first, newest first
+	const NATURAL_ASC: Record<SortField, boolean> = { title: true, coverage: false, date_updated: false };
+	const DIRECTION: Record<SortField, [asc: string, desc: string]> = {
+		title: ['A to Z', 'Z to A'],
+		coverage: ['least coverage first', 'most coverage first'],
+		date_updated: ['oldest first', 'newest first']
+	};
+	let sortField = $state<SortField>('title');
+	let sortAsc = $state(true);
+
+	/** How many of the selected boundary sets a dataset covers (all, when not reported). */
+	function coveredCount(d: DatasetSummary): number {
+		return d.covered_boundary_sets?.length ?? boundarySets.length;
+	}
+	const isPartial = (d: DatasetSummary) =>
+		boundarySets.length > 1 && !!d.covered_boundary_sets && d.covered_boundary_sets.length < boundarySets.length;
+	// Coverage sorting only does something when some dataset is partial
+	const anyPartial = $derived(datasets.some(isPartial));
+	const sortFields = $derived<SortField[]>(anyPartial ? ['title', 'coverage', 'date_updated'] : ['title', 'date_updated']);
+	const activeSort = $derived<SortField>(sortFields.includes(sortField) ? sortField : 'title');
+	const activeAsc = $derived(activeSort === sortField ? sortAsc : NATURAL_ASC.title);
+	const directionLabel = $derived(DIRECTION[activeSort][activeAsc ? 0 : 1]);
+
+	function setSort(field: SortField) {
+		sortField = field;
+		sortAsc = NATURAL_ASC[field];
+	}
 
 	let filteredDatasets = $derived.by(() => {
 		let result = datasets;
@@ -56,15 +92,18 @@
 			);
 		}
 
-		// Sort
+		// Sort; ties in coverage or date fall back to name, A to Z
+		const byName = (a: DatasetSummary, b: DatasetSummary) => (a.title ?? a.name).localeCompare(b.title ?? b.name);
 		result = [...result].sort((a, b) => {
 			let cmp: number;
-			if (sortField === 'date_updated') {
+			if (activeSort === 'date_updated') {
 				cmp = (a.date_updated ?? '').localeCompare(b.date_updated ?? '');
+			} else if (activeSort === 'coverage') {
+				cmp = coveredCount(a) - coveredCount(b);
 			} else {
-				cmp = (a.title ?? a.name).localeCompare(b.title ?? b.name);
+				return activeAsc ? byName(a, b) : byName(b, a);
 			}
-			return sortAsc ? cmp : -cmp;
+			return (activeAsc ? cmp : -cmp) || byName(a, b);
 		});
 
 		return result;
@@ -108,53 +147,49 @@
 			/>
 		</div>
 
-		<!-- Sort controls -->
+		<!-- Sort: a field, and a button that reverses its order -->
 		<div class="flex items-center gap-1 text-xs">
-			<span class="mr-1 text-muted-foreground">Sort by:</span>
-			<Button
-				variant={sortField === 'date_updated' ? 'secondary' : 'ghost'}
-				size="sm"
-				class="h-7 px-2 text-xs"
-				onclick={() => {
-					if (sortField === 'date_updated') {
-						sortAsc = !sortAsc;
-					} else {
-						sortField = 'date_updated';
-						sortAsc = false;
-					}
-				}}
-			>
-				Date
-				{#if sortField === 'date_updated'}
-					{#if sortAsc}<ChevronUp class="ml-1 h-3 w-3" />{:else}<ChevronDown
-							class="ml-1 h-3 w-3"
-						/>{/if}
-				{/if}
-			</Button>
-			<Button
-				variant={sortField === 'title' ? 'secondary' : 'ghost'}
-				size="sm"
-				class="h-7 px-2 text-xs"
-				onclick={() => {
-					if (sortField === 'title') {
-						sortAsc = !sortAsc;
-					} else {
-						sortField = 'title';
-						sortAsc = true;
-					}
-				}}
-			>
-				Name
-				{#if sortField === 'title'}
-					{#if sortAsc}<ChevronUp class="ml-1 h-3 w-3" />{:else}<ChevronDown
-							class="ml-1 h-3 w-3"
-						/>{/if}
-				{/if}
-			</Button>
+			<span class="mr-1 text-muted-foreground">Sort by</span>
+			<Select.Root type="single" value={activeSort} onValueChange={(v) => setSort(v as SortField)}>
+				<Select.Trigger size="sm" class="h-7 gap-1 px-2 text-xs" aria-label="Sort datasets by">
+					{SORT_LABELS[activeSort]}
+				</Select.Trigger>
+				<Select.Content>
+					{#each sortFields as field (field)}
+						<Select.Item value={field} label={SORT_LABELS[field]} class="text-xs" />
+					{/each}
+				</Select.Content>
+			</Select.Root>
+			<Tooltip.Root>
+				<Tooltip.Trigger>
+					{#snippet child({ props })}
+						<Button
+							{...props}
+							variant="ghost"
+							size="icon-sm"
+							class="size-7 text-muted-foreground"
+							aria-label="Sorted {directionLabel}. Reverse the order"
+							onclick={() => {
+								sortField = activeSort;
+								sortAsc = !activeAsc;
+							}}
+						>
+							{#if activeAsc}<ArrowUpNarrowWide class="size-3.5" />{:else}<ArrowDownWideNarrow class="size-3.5" />{/if}
+						</Button>
+					{/snippet}
+				</Tooltip.Trigger>
+				<Tooltip.Content>Sorted {directionLabel}</Tooltip.Content>
+			</Tooltip.Root>
 			<span class="ml-auto tabular-nums text-muted-foreground" aria-live="polite">
 				{filteredDatasets.length} of {datasets.length} datasets
 			</span>
 		</div>
+		{#if anyPartial}
+			<p class="flex items-center gap-1.5 text-xs text-muted-foreground">
+				<CoveragePie fraction={0.5} class="size-3 shrink-0" />
+				Covers only some of your selected boundary sets
+			</p>
+		{/if}
 	</div>
 
 	<!-- Dataset list -->
@@ -164,8 +199,11 @@
 				<p class="px-4 py-8 text-center text-sm text-muted-foreground">No datasets found.</p>
 			{:else}
 				{#each filteredDatasets as dataset}
+					{@const partial = isPartial(dataset)}
 					<!-- The whole row selects; the selected dataset's metadata is in
-					     the centre panel. -->
+					     the centre panel. The coverage chip sits over the row's top
+					     right, outside the button, so it can have its own tooltip. -->
+					<div class="relative">
 					<button
 						type="button"
 						class="block w-full cursor-pointer rounded-md px-3 py-2.5 text-left transition-colors
@@ -175,7 +213,7 @@
 						aria-pressed={selectedDataset?.name === dataset.name}
 						onclick={() => onSelect(dataset)}
 					>
-						<p class="flex items-start gap-2 text-sm font-bold leading-snug">
+						<p class="flex items-start gap-2 text-sm font-bold leading-snug {partial ? 'pr-6' : ''}">
 							<span class="min-w-0 flex-1">{dataset.title ?? dataset.name}</span>
 							{#if unsavedNames.has(dataset.name)}
 								<CircleAlert
@@ -183,6 +221,9 @@
 									aria-hidden="true"
 								/>
 								<span class="sr-only">(filters not added to your request yet)</span>
+							{/if}
+							{#if partial}
+								<span class="sr-only">(covers {coveredCount(dataset)} of {boundarySets.length} selected boundary sets)</span>
 							{/if}
 						</p>
 						<!-- Raster / Feature is in the dataset's metadata (More metadata); this line only
@@ -202,6 +243,12 @@
 						</div>
 						{/if}
 					</button>
+					{#if partial}
+						<div class="absolute right-2 top-2">
+							<CoverageChip sets={boundarySets} covered={dataset.covered_boundary_sets ?? []} />
+						</div>
+					{/if}
+					</div>
 				{/each}
 			{/if}
 		</div>
