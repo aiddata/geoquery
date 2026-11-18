@@ -23,6 +23,8 @@
 		belowSearch?: Snippet;
 		/** Rendered directly under the selection list, above the proceed button, e.g. coverage status. */
 		belowSelection?: Snippet;
+		/** At the right of the "What boundaries are available?" row, e.g. Custom upload */
+		linkRowEnd?: Snippet;
 		/** About the selection, behind an info button beside the selection count */
 		selectionInfo?: Snippet;
 		/** Show the selection list as its header only; its header calls onSelectionExpand */
@@ -38,8 +40,6 @@
 		onZoom?: (id: number) => void;
 		/** Highlight a selected set on the map, or clear it with null. */
 		onHighlight?: (id: number | null) => void;
-		/** Hide the Clear All / proceed row, e.g. while a custom upload takes over */
-		hideActions?: boolean;
 	}
 
 	let {
@@ -54,12 +54,12 @@
 		belowSearch,
 		belowSelection,
 		selectionInfo,
+		linkRowEnd,
 		selectionCollapsed = false,
 		onSelectionExpand,
 		searchText = $bindable(''),
 		presets = [],
 		legendItems,
-		hideActions = false,
 		onZoom,
 		onHighlight
 	}: Props = $props();
@@ -172,14 +172,17 @@
      fill), so the selection list can shrink and scroll while the rest stays put -->
 <div class="contents">
 	<!-- Above the input and always shown, so typing doesn't move the search box -->
-	<p class="text-sm">
-		<a
-			href="https://docs.geoquery.org/data_documentation/boundaries/"
-			target="_blank"
-			rel="noopener noreferrer"
-			class="inline-block min-h-6 py-0.5 text-link hover:text-link-hover hover:underline">What boundaries are available?</a
-		>
-	</p>
+	<div class="flex items-center justify-between gap-2">
+		<p class="text-sm">
+			<a
+				href="https://docs.geoquery.org/data_documentation/boundaries/"
+				target="_blank"
+				rel="noopener noreferrer"
+				class="inline-block min-h-6 py-0.5 text-link hover:text-link-hover hover:underline">What boundaries are available?</a
+			>
+		</p>
+		{@render linkRowEnd?.()}
+	</div>
 
 	<!-- Search Input -->
 	<div class="relative">
@@ -287,7 +290,7 @@
 			<ChevronRight />
 		</Button>
 	{/snippet}
-	<div class="{hideActions ? 'hidden' : 'flex'} items-center justify-between gap-2 pt-2">
+	<div class="flex items-center justify-between gap-2 pt-2">
 		{#if onClear && selectedBoundaries.length > 0}
 				<Button
 					size="sm"

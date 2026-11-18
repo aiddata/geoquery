@@ -458,6 +458,22 @@
 
 <!-- Shown whenever more than one boundary set is selected, overlapping or not:
      results stack the sets, one row per feature, rather than intersecting them. -->
+<!-- Custom upload: a beta feature, at the right above the search box. While
+     it's open it takes the search's place and replaces any standard selection. -->
+{#snippet customToggle()}
+	<Button
+		variant="ghost"
+		size="sm"
+		class="-mr-2 h-6 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+		aria-expanded={activeTab === 'custom'}
+		aria-controls="custom-upload"
+		onclick={() => switchTab(activeTab === 'custom' ? 'explore' : 'custom')}
+	>
+		<Upload />
+		{activeTab === 'custom' ? 'Cancel custom upload' : 'Custom upload'}
+	</Button>
+{/snippet}
+
 <!-- Behind the info button beside "N boundary sets", once there's more than one -->
 {#snippet multiSetNote()}
 	<p>
@@ -545,52 +561,38 @@
 				Show map
 			</Button>
 		{/snippet}
-		<!-- Its parts are items of the panel's column, spaced by it: a long
-		     selection or bulk list scrolls on its own rather than the panel -->
-		<div class="contents">
+		{#if activeTab === 'custom'}
+			<!-- The toggle stays where it was, at the right, so cancelling is in the same place -->
+			<div class="flex justify-end">{@render customToggle()}</div>
+			<div id="custom-upload">
+				<CustomBoundaryPanel />
+			</div>
+		{:else}
+			<!-- Its parts are items of the panel's column, spaced by it: a long
+			     selection or bulk list scrolls on its own rather than the panel -->
+			<div class="contents">
 				<GeographySearch
-						bind:searchText={boundarySearch}
-						presets={presetOptions}
-						featuredBoundaries={featuredBoundaries}
-						selectedBoundaries={browseBoundaries}
-						proceedLabel="Find Data"
-						proceedDisabled={findDataDisabled}
-						onSelect={handleSelect}
-						onProceed={handleFindData}
-						onClear={resetAll}
-						belowSearch={exploreSearchNote}
-						belowSelection={exploreSelectionNotes}
-						selectionInfo={browseBoundaries.length > 1 ? multiSetNote : undefined}
-						selectionCollapsed={bulkOpen}
-						onSelectionExpand={() => (bulkOpen = false)}
-						{legendItems}
-						onZoom={zoomToBoundary}
-						onHighlight={(id) => (highlightedFcId = id)}
-						hideActions={activeTab === 'custom'}
-					/>
-				{#if canCustom}
-					<!-- Custom upload: a beta feature, opened below the search. It
-					     replaces any standard selection while open. -->
-					<div class="border-t pt-3">
-						<Button
-							variant="ghost"
-							size="sm"
-							class="-ml-2 h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-							aria-expanded={activeTab === 'custom'}
-							aria-controls="custom-upload"
-							onclick={() => switchTab(activeTab === 'custom' ? 'explore' : 'custom')}
-						>
-							<Upload />
-							{activeTab === 'custom' ? 'Cancel custom upload' : 'Custom upload'}
-						</Button>
-						{#if activeTab === 'custom'}
-							<div id="custom-upload" class="mt-2">
-								<CustomBoundaryPanel />
-							</div>
-						{/if}
-					</div>
-				{/if}
-		</div>
+					bind:searchText={boundarySearch}
+					presets={presetOptions}
+					featuredBoundaries={featuredBoundaries}
+					selectedBoundaries={browseBoundaries}
+					proceedLabel="Find Data"
+					proceedDisabled={findDataDisabled}
+					onSelect={handleSelect}
+					onProceed={handleFindData}
+					onClear={resetAll}
+					belowSearch={exploreSearchNote}
+					belowSelection={exploreSelectionNotes}
+					selectionInfo={browseBoundaries.length > 1 ? multiSetNote : undefined}
+					linkRowEnd={canCustom ? customToggle : undefined}
+					selectionCollapsed={bulkOpen}
+					onSelectionExpand={() => (bulkOpen = false)}
+					{legendItems}
+					onZoom={zoomToBoundary}
+					onHighlight={(id) => (highlightedFcId = id)}
+				/>
+			</div>
+		{/if}
 	</RequestPanel>
 
 	<!-- Map, beside the panel -->
