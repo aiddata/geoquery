@@ -36,6 +36,7 @@
 	import RasterOptions from '#lib/components/datasets/RasterOptions.svelte';
 	import FilterAndAggOptions from '#lib/components/datasets/FilterAndAggOptions.svelte';
 	import OutcomeSelector from '#lib/components/datasets/OutcomeSelector.svelte';
+	import MoreOptionsHint from '#lib/components/datasets/MoreOptionsHint.svelte';
 	import DatasetActions from '#lib/components/datasets/DatasetActions.svelte';
 	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
 	import { rememberCoverage } from '#lib/stores/coverageCounts.js';
@@ -148,6 +149,8 @@
 	// Full detail for the selected dataset
 	let selectedDatasetDetail = $state<DatasetDetail | null>(null);
 	let detailLoading = $state(false);
+	// The options pane, which scrolls; MoreOptionsHint watches it
+	let optionsPane = $state<HTMLElement | undefined>();
 	// Metadata panels stay as the user left them while switching datasets.
 	let metadataCiteOpen = $state(false);
 	let metadataMoreOpen = $state(false);
@@ -567,7 +570,7 @@
 		{/if}
 
 		<!-- Center Panel: Dataset Configuration. Scrolls vertically only. -->
-		<div class="min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-background">
+		<div bind:this={optionsPane} class="min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-background">
 			{#if !selectedDatasetDetail && !detailLoading}
 				<div class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
 					<p class="text-muted-foreground">
@@ -675,6 +678,7 @@
 						onOptionsChange={handleRasterChange}
 					/>
 				{/if}
+				<MoreOptionsHint scroller={optionsPane} />
 			{/if}
 		</div>
 	</div>
