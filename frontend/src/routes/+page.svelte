@@ -20,6 +20,7 @@
 	import BoundaryBrowsePanel from '#lib/components/map/BoundaryBrowsePanel.svelte';
 	import CoverageStatus from '#lib/components/map/CoverageStatus.svelte';
 	import ZoomControls from '#lib/components/map/ZoomControls.svelte';
+	import MapToolButton from '#lib/components/map/MapToolButton.svelte';
 	import MapFrame, { type FcStyle } from '#lib/components/map/MapFrame.svelte';
 	import type { LegendItem } from '#lib/components/map/SelectionLegend.svelte';
 	import { assignColorSlots, colorForIndex, lineWidthForLevel } from '#lib/utils/boundaryStyle.js';
@@ -436,6 +437,13 @@
 	function handleZoomOut() {
 		mapFrame?.zoomOut();
 	}
+
+	// The extent of what's selected: an uploaded boundary, or every selected set
+	let selectionBbox = $derived(userBbox ?? unionBbox(mapFcStyles.map((s) => s.bbox)));
+
+	function handleZoomToSelection() {
+		if (selectionBbox) mapFrame?.fitBbox(selectionBbox);
+	}
 </script>
 
 {#snippet coverageStatus()}
@@ -589,18 +597,21 @@
 	<DetailBack label="Boundaries" class="absolute left-4 top-4 z-10 shadow-card" />
 	<!-- Zoom Controls -->
 	<div class="absolute right-4 top-4 z-10 flex flex-col items-center gap-1">
-		<ZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
+		<ZoomControls
+			onZoomIn={handleZoomIn}
+			onZoomOut={handleZoomOut}
+			onZoomToSelection={handleZoomToSelection}
+			selectionEmpty={!selectionBbox}
+		/>
 		<div class="card-surface">
-			<Button
-				variant={aoiState === 'idle' ? 'ghost' : 'default'}
-				size="icon"
-				aria-pressed={aoiState !== 'idle'}
-				aria-label={aoiState === 'idle' ? 'Select boundaries by area' : 'Cancel area selection'}
-				title={aoiState === 'idle' ? 'Select boundaries by area: drag a box on the map' : 'Cancel area selection'}
+			<MapToolButton
+				pressed={aoiState !== 'idle'}
+				label={aoiState === 'idle' ? 'Select boundaries by area' : 'Cancel area selection'}
+				tooltip={aoiState === 'idle' ? 'Select boundaries by area: drag a box on the map' : undefined}
 				onclick={toggleAreaSelect}
 			>
 				<SquareDashedMousePointer />
-			</Button>
+			</MapToolButton>
 		</div>
 		<!-- Zoom level readout: hidden for now -->
 		<div
