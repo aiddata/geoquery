@@ -595,7 +595,7 @@
 		<Alert.Root variant="warning" role="status" class="shrink-0 rounded-none border-x-0 border-t-0 px-4 py-2">
 			<TriangleAlert />
 			<Alert.Description>
-				Your selection has changed. Actual dataset coverage may vary across selected features.
+				Your selection has changed. Actual dataset coverage may vary across selected boundary sets.
 			</Alert.Description>
 		</Alert.Root>
 	{/if}
