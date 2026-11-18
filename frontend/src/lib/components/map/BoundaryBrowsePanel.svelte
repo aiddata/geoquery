@@ -63,7 +63,7 @@
      list (6rem), which grows into any room to spare -->
 <div class="flex min-h-24 grow flex-col">
 	<!-- Boundary list: scrolls on its own -->
-	<div class="max-h-96 min-h-24 grow space-y-1 overflow-y-auto pr-1">
+	<div class="relative max-h-96 min-h-24 grow space-y-1 overflow-y-auto pr-1">
 			{#if loading}
 				<div class="text-xs text-muted-foreground py-2">Loading boundaries...</div>
 			{:else if allBoundaries.length === 0}

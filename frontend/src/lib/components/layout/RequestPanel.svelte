@@ -92,7 +92,7 @@
 <!-- Full width on narrow screens, where it takes turns with the main area (layout.css) -->
 <nav
 	aria-label="Request steps"
-	class="request-panel flex h-full w-full shrink-0 flex-col overflow-hidden bg-card md:w-[28rem] md:max-w-[45vw] md:border-r"
+	class="request-panel relative flex h-full w-full shrink-0 flex-col overflow-hidden bg-card md:w-[28rem] md:max-w-[45vw] md:border-r"
 >
 	{#each sections as s (s.id)}
 		{#if s.id === active}
@@ -109,7 +109,7 @@
 				<div
 					class={bare
 						? 'flex min-h-0 flex-1 flex-col'
-						: `min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-1 ${fill ? 'flex flex-col gap-3' : ''}`}
+						: `relative min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-1 ${fill ? 'flex flex-col gap-3' : ''}`}
 				>
 					{@render children()}
 				</div>

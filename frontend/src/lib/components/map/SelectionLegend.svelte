@@ -49,7 +49,8 @@
 	// A long list scrolls on its own, in a parent column that lets it shrink,
 	// but keeps a few rows in view: the section's minimum is the heading, the
 	// gap and the list's 7rem, with a little over that the list grows into.
-	// One or two rows never shrink.
+	// One or two rows never shrink. The scroller is positioned (relative) so the
+	// rows' absolutely positioned sr-only text is clipped by it, not by the page.
 	const scrolls = $derived(items.length > 2);
 
 	const levelLabel = (item: LegendItem) => (item.level === null ? null : `ADM${item.level}`);
@@ -165,7 +166,7 @@
 		</span>
 	</div>
 	{#if variant === 'grouped'}
-		<div class="space-y-2 {scrolls ? 'min-h-28 grow overflow-y-auto' : ''}">
+		<div class="space-y-2 {scrolls ? 'relative min-h-28 grow overflow-y-auto' : ''}">
 			{#each groups as [group, members] (group)}
 				<div>
 					<h3 class="border-b px-2 pb-1 pt-1.5 text-xs font-bold text-muted-foreground">{group}</h3>
@@ -176,7 +177,7 @@
 			{/each}
 		</div>
 	{:else}
-		<ul class="divide-y border-y {scrolls ? 'min-h-28 grow overflow-y-auto' : ''}">
+		<ul class="divide-y border-y {scrolls ? 'relative min-h-28 grow overflow-y-auto' : ''}">
 			{#each items as item (item.id)}{@render row(item)}{/each}
 		</ul>
 	{/if}
