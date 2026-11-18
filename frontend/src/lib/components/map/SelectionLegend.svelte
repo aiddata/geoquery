@@ -16,6 +16,8 @@
 		source: string | null;
 		/** The set's group (its country, for geoBoundaries), for the grouped layout. */
 		group: string | null;
+		/** Hidden on the map from the map's level legend (GEO-141); still selected. */
+		hidden?: boolean;
 	}
 
 	/**
@@ -116,7 +118,7 @@
 
 {#snippet row(item: LegendItem)}
 	{@const compact = variant === 'compact'}
-	<li class="flex items-center gap-1 {compact ? 'py-0.5' : 'py-1'}">
+	<li class="flex items-center gap-1 {compact ? 'py-0.5' : 'py-1'} {item.hidden ? 'opacity-55' : ''}">
 		<button
 			type="button"
 			class="flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring
@@ -130,6 +132,7 @@
 		>
 			{@render glyph(item)}
 			<span class="sr-only">Zoom to</span>
+			{#if item.hidden}<span class="sr-only">(hidden on the map)</span>{/if}
 			{#if compact}
 				<span class="min-w-0 flex-1 truncate text-sm font-bold">{item.title}</span>
 				{#if levelLabel(item)}
