@@ -1,5 +1,8 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { fetchDatasetsForFeatures } from '#lib/api.js';
+	import { knownCoverage, rememberCoverage } from '#lib/stores/coverageCounts.js';
+	import CoverageStatus from '#lib/components/map/CoverageStatus.svelte';
 	import { goto } from '$app/navigation';
 	import { ArrowRight, Pencil } from '@lucide/svelte';
 	import { selection, selectionFcIds, selectionSummary, customizeHref } from '#lib/stores/selection.js';
@@ -24,11 +27,65 @@
 		 * height can shrink and scroll on its own before the whole body does
 		 */
 		fill?: boolean;
-		/** Added after a collapsed step's summary, e.g. how many datasets cover the selection */
+		/**
+		 * Added after a collapsed step's summary. Customize Datasets gets the
+		 * stored selection's dataset count unless the page gives its own (the
+		 * map page counts its working selection as it changes).
+		 */
 		notes?: Partial<Record<Step, Snippet>>;
 	}
 
 	let { active, children, actions, bare = false, fill = false, notes = {} }: Props = $props();
+
+	// How many datasets cover the stored selection, for the Customize Datasets
+	// summary on pages that don't count it themselves: the count the map or
+	// Customize page found, or asked for here if neither has (a reload on
+	// Review). Not for a custom upload, whose coverage isn't recorded.
+	let coverageCount = $state<number | null>(null);
+	let coverageLoading = $state(false);
+	let coverageError = $state(false);
+	const countsOwnCoverage = $derived(active === 'search' || !!notes.search);
+
+	$effect(() => {
+		const ids = $selection && !$customBoundary.active ? $selection.resolvedFeatureIds : [];
+		coverageError = false;
+		if (countsOwnCoverage || ids.length === 0) {
+			coverageCount = null;
+			coverageLoading = false;
+			return;
+		}
+		const known = knownCoverage(ids);
+		if (known !== undefined) {
+			coverageCount = known;
+			coverageLoading = false;
+			return;
+		}
+		let cancelled = false;
+		coverageLoading = true;
+		fetchDatasetsForFeatures(ids)
+			.then((datasets) => {
+				rememberCoverage(ids, datasets.length);
+				if (!cancelled) coverageCount = datasets.length;
+			})
+			.catch(() => {
+				if (!cancelled) {
+					coverageCount = null;
+					coverageError = true;
+				}
+			})
+			.finally(() => {
+				if (!cancelled) coverageLoading = false;
+			});
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	const stepNotes = $derived<Partial<Record<Step, Snippet>>>(
+		!countsOwnCoverage && (coverageLoading || coverageError || coverageCount !== null)
+			? { ...notes, search: storedCoverage }
+			: notes
+	);
 
 	// Shown wherever feature counts first appear, for readers new to GIS terms
 	const FEATURE_DEFINITION = 'A feature is one area in a boundary set, such as a single district in Ghana ADM2.';
@@ -96,6 +153,10 @@
 	]);
 </script>
 
+{#snippet storedCoverage()}
+	<CoverageStatus loading={coverageLoading} count={coverageCount} error={coverageError} inline />
+{/snippet}
+
 <!-- Full width on narrow screens, where it takes turns with the main area (layout.css) -->
 <nav
 	aria-label="Request steps"
@@ -130,8 +191,8 @@
 			>
 				<span class="min-w-0">
 					<span class="block font-heading text-h4 font-bold text-foreground">{s.title}</span>
-					{#if s.summary.length > 0 || notes[s.id]}
-						{@const note = notes[s.id]}
+					{#if s.summary.length > 0 || stepNotes[s.id]}
+						{@const note = stepNotes[s.id]}
 						<span
 							class="block truncate text-xs text-muted-foreground"
 							title={s.id === 'map' ? FEATURE_DEFINITION : undefined}

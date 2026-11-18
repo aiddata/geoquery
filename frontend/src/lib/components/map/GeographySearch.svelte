@@ -25,6 +25,9 @@
 		belowSelection?: Snippet;
 		/** About the selection, behind an info button beside the selection count */
 		selectionInfo?: Snippet;
+		/** Show the selection list as its header only; its header calls onSelectionExpand */
+		selectionCollapsed?: boolean;
+		onSelectionExpand?: () => void;
 		/** The search box text; bindable so the page's Restart can clear it. */
 		searchText?: string;
 		/** Presets offered in the search results, each with the boundary sets it adds */
@@ -51,6 +54,8 @@
 		belowSearch,
 		belowSelection,
 		selectionInfo,
+		selectionCollapsed = false,
+		onSelectionExpand,
 		searchText = $bindable(''),
 		presets = [],
 		legendItems,
@@ -268,6 +273,8 @@
 			onRemove={removeBoundary}
 			onHighlight={onHighlight}
 			info={selectionInfo}
+			collapsed={selectionCollapsed}
+			onExpand={onSelectionExpand}
 		/>
 		{@render belowSelection?.()}
 	{/if}

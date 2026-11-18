@@ -26,10 +26,10 @@
 </script>
 
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { tick, type Snippet } from 'svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Popover from '#lib/components/ui/popover/index.js';
-	import { Info, X } from '@lucide/svelte';
+	import { ChevronRight, Info, X } from '@lucide/svelte';
 
 	interface Props {
 		items: LegendItem[];
@@ -40,9 +40,15 @@
 		onHighlight?: (id: number | null) => void;
 		/** About the selection, behind an info button beside the count */
 		info?: Snippet;
+		/**
+		 * Just the header, e.g. while Bulk select is open (it shows the selection
+		 * too). The header then opens the list again, through onExpand.
+		 */
+		collapsed?: boolean;
+		onExpand?: () => void;
 	}
 
-	let { items, variant = 'rows', onZoom, onRemove, onHighlight, info }: Props = $props();
+	let { items, variant = 'rows', onZoom, onRemove, onHighlight, info, collapsed = false, onExpand }: Props = $props();
 
 	const uid = $props.id();
 
@@ -51,7 +57,16 @@
 	// gap and the list's 7rem, with a little over that the list grows into.
 	// One or two rows never shrink. The scroller is positioned (relative) so the
 	// rows' absolutely positioned sr-only text is clipped by it, not by the page.
-	const scrolls = $derived(items.length > 2);
+	const scrolls = $derived(items.length > 2 && !collapsed);
+
+	// The header's button goes once the list opens, so focus moves to the heading
+	async function expand() {
+		onExpand?.();
+		await tick();
+		document.getElementById(`${uid}-heading`)?.focus();
+	}
+
+	const count = $derived(`${items.length} boundary set${items.length === 1 ? '' : 's'}`);
 
 	const levelLabel = (item: LegendItem) => (item.level === null ? null : `ADM${item.level}`);
 	const meta = (item: LegendItem) => [levelLabel(item), item.source].filter(Boolean).join(' · ');
@@ -146,9 +161,28 @@
 	class="flex flex-col gap-1 {scrolls ? 'min-h-[8.75rem]' : 'shrink-0'}"
 >
 	<div class="flex shrink-0 items-center justify-between gap-2">
-		<h2 id="{uid}-heading" class="text-sm font-bold text-foreground">Your Selections</h2>
-		<span class="flex items-center gap-1 text-xs tabular-nums text-muted-foreground">
-			{items.length} boundary set{items.length === 1 ? '' : 's'}
+		{#if collapsed}
+			<!-- Collapsed: the whole header opens the list; the info button stays its own control -->
+			<h2 id="{uid}-heading" class="min-w-0 flex-1 text-sm font-bold text-foreground">
+				<button
+					type="button"
+					class="-ml-1 flex w-full items-center justify-between gap-2 rounded-sm py-0.5 pl-1 text-left hover:text-link focus-visible:outline-2 focus-visible:outline-ring"
+					aria-expanded="false"
+					aria-controls="{uid}-list"
+					onclick={expand}
+				>
+					<span class="flex items-center gap-1">
+						<ChevronRight class="size-3.5 text-muted-foreground" aria-hidden="true" />
+						Your Selections
+					</span>
+					<span class="text-xs font-normal tabular-nums text-muted-foreground">{count}</span>
+				</button>
+			</h2>
+		{:else}
+			<h2 id="{uid}-heading" tabindex="-1" class="text-sm font-bold text-foreground outline-none">Your Selections</h2>
+		{/if}
+		<span class="flex shrink-0 items-center gap-1 text-xs tabular-nums text-muted-foreground">
+			{#if !collapsed}{count}{/if}
 			{#if info}
 				<!-- A popover, not a tooltip: what it says can hold a link -->
 				<Popover.Root>
@@ -165,8 +199,10 @@
 			{/if}
 		</span>
 	</div>
-	{#if variant === 'grouped'}
-		<div class="space-y-2 {scrolls ? 'relative min-h-28 grow overflow-y-auto' : ''}">
+	{#if collapsed}
+		<!-- Nothing: the list is opened from the header -->
+	{:else if variant === 'grouped'}
+		<div id="{uid}-list" class="space-y-2 {scrolls ? 'relative min-h-28 grow overflow-y-auto' : ''}">
 			{#each groups as [group, members] (group)}
 				<div>
 					<h3 class="border-b px-2 pb-1 pt-1.5 text-xs font-bold text-muted-foreground">{group}</h3>
@@ -177,7 +213,7 @@
 			{/each}
 		</div>
 	{:else}
-		<ul class="divide-y border-y {scrolls ? 'relative min-h-28 grow overflow-y-auto' : ''}">
+		<ul id="{uid}-list" class="divide-y border-y {scrolls ? 'relative min-h-28 grow overflow-y-auto' : ''}">
 			{#each items as item (item.id)}{@render row(item)}{/each}
 		</ul>
 	{/if}

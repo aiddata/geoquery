@@ -28,6 +28,7 @@
 	import { resolvePreset } from '#lib/utils/presets.js';
 	import WelcomeModal from '#lib/components/map/WelcomeModal.svelte';
 	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
+	import { rememberCoverage } from '#lib/stores/coverageCounts.js';
 	import CustomBoundaryPanel from '#lib/components/map/CustomBoundaryPanel.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
@@ -269,6 +270,8 @@
 				// The request needs the flat list; save it while it still matches.
 				if (key === storeKey()) selection.setResolvedFeatureIds(ids);
 				const datasets = await fetchDatasetsForFeatures(ids);
+				// Kept for the panel on the other steps, if it's the stored selection's
+				if (key === storeKey()) rememberCoverage(ids, datasets.length);
 				if (!cancelled) { datasetCount = datasets.length; datasetCountLoading = false; }
 			} catch {
 				if (!cancelled) { datasetCount = null; datasetCountError = true; datasetCountLoading = false; }
@@ -558,6 +561,8 @@
 						belowSearch={exploreSearchNote}
 						belowSelection={exploreSelectionNotes}
 						selectionInfo={browseBoundaries.length > 1 ? multiSetNote : undefined}
+						selectionCollapsed={bulkOpen}
+						onSelectionExpand={() => (bulkOpen = false)}
 						{legendItems}
 						onZoom={zoomToBoundary}
 						onHighlight={(id) => (highlightedFcId = id)}

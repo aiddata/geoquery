@@ -38,6 +38,7 @@
 	import OutcomeSelector from '#lib/components/datasets/OutcomeSelector.svelte';
 	import DatasetActions from '#lib/components/datasets/DatasetActions.svelte';
 	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
+	import { rememberCoverage } from '#lib/stores/coverageCounts.js';
 	import OutputSummary from '#lib/components/datasets/OutputSummary.svelte';
 	import VersionCards from '#lib/components/datasets/VersionCards.svelte';
 	import { columnsByDataset, cleanVersionName, invalidVersionNames, uniqueVersionName } from '#lib/utils/outputColumns.js';
@@ -336,6 +337,8 @@
 				datasets = ds;
 				categories = cats;
 				if (!custom) {
+					// Kept for the panel's Customize Datasets summary on Review
+					rememberCoverage(ids, ds.length);
 					const covered = new Set(ds.map((d) => d.name));
 					const current = get(cart);
 					if (current.length > 0) {
