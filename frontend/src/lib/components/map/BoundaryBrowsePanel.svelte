@@ -36,13 +36,32 @@
 	// Boundary sets grouped by administrative level (the Explore tab's bulk select)
 	let groupedBoundaries = $derived(groupByLevel(allBoundaries));
 
-	function toggleBoundary(id: number) {
+	// Shift-click (or shift-space) selects or clears every set between the
+	// last one clicked and this one, within the same level, as the dataset
+	// filter cards do (GEO-138). The checkbox's change event carries no
+	// modifier keys, so the shift state is taken from the pointer or key event
+	// that started it.
+	let lastClicked = $state<{ group: string; index: number } | null>(null);
+	let shiftHeld = false;
+
+	function noteShift(e: PointerEvent | KeyboardEvent) {
+		shiftHeld = e.shiftKey;
+	}
+
+	function toggleBoundary(group: string, boundaries: BoundaryResult[], index: number) {
+		const id = boundaries[index].id;
+		const adding = !selectedIds.has(id);
 		const newIds = new Set(selectedIds);
-		if (newIds.has(id)) {
-			newIds.delete(id);
-		} else {
-			newIds.add(id);
+		const range =
+			shiftHeld && lastClicked?.group === group
+				? boundaries.slice(Math.min(lastClicked.index, index), Math.max(lastClicked.index, index) + 1)
+				: [boundaries[index]];
+		for (const b of range) {
+			if (adding) newIds.add(b.id);
+			else newIds.delete(b.id);
 		}
+		shiftHeld = false;
+		lastClicked = { group, index };
 		onSelectionChange?.(newIds);
 	}
 
@@ -95,14 +114,17 @@
 						</div>
 						<!-- A large group (e.g. a common tag) scrolls rather than taking over -->
 						<Collapsible.Content class="mt-1 max-h-60 space-y-1.5 overflow-y-auto pl-5 pr-1">
-							{#each boundaries as boundary (boundary.id)}
+							{#each boundaries as boundary, i (boundary.id)}
+								<!-- select-none: shift-click would otherwise select the text between rows -->
 								<label
-									class="flex items-center gap-2 text-xs cursor-pointer hover:text-foreground"
+									class="flex items-center gap-2 text-xs cursor-pointer select-none hover:text-foreground"
 									title={attributionTitle(boundary)}
+									onpointerdowncapture={noteShift}
+									onkeydowncapture={noteShift}
 								>
 									<Checkbox
 										checked={selectedIds.has(boundary.id)}
-										onCheckedChange={() => toggleBoundary(boundary.id)}
+										onCheckedChange={() => toggleBoundary(String(groupName), boundaries, i)}
 									/>
 									<span class="truncate flex-1">{boundary.title || boundary.name}</span>
 								</label>
