@@ -3,7 +3,7 @@
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import UserMenu from '#lib/components/layout/UserMenu.svelte';
 	import ThemeMenu from '#lib/components/layout/ThemeMenu.svelte';
-	import { openSidebar, currentStep, type Step } from '#lib/stores/ui.js';
+	import { currentStep, type Step } from '#lib/stores/ui.js';
 	import { features } from '#lib/stores/features.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import { ChevronRight, ChevronUp, Map, Menu as MenuIcon } from '@lucide/svelte';
@@ -24,7 +24,6 @@
 		{ label: 'Documentation', href: 'https://docs.geoquery.org/', external: true },
 		// The news page: markdown posts in docs/updates/posts/, published with the docs.
 		{ label: 'Updates', href: 'https://docs.geoquery.org/updates/', external: true },
-		{ label: 'Help', onclick: () => openSidebar('help') },
 		{ label: 'Past Requests', href: '/requests' }
 	];
 

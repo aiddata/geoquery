@@ -5,6 +5,8 @@
 	import CartPanel from './CartPanel.svelte';
 	import HelpPanel from './HelpPanel.svelte';
 
+	// A right-hand sheet for panels. Nothing opens it at the moment: Help's FAQ
+	// moved to the docs, leaving HelpPanel empty.
 	const titles = {
 		cart: 'Current Request',
 		help: 'Help'

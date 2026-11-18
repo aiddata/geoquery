@@ -1,45 +1,9 @@
-<script lang="ts">
-	import { Separator } from '#lib/components/ui/separator/index.js';
-	import { parseFaq } from '#lib/utils/parseFaq.js';
-	import rawFaq from '../../../../docs/faq.md?raw';
-
-	const sections = parseFaq(rawFaq);
-</script>
-
-<div class="space-y-6 p-4">
-	<section>
-		<h3 class="text-h4">Frequently Asked Questions</h3>
-		<p class="mt-1 text-sm text-muted-foreground">
-			See the full <a
-				href="https://docs.geoquery.org/faq/"
-				target="_blank"
-				rel="noopener noreferrer"
-				class="text-link underline hover:text-link-hover">FAQ page in the docs</a
-			> for more detail.
-		</p>
-	</section>
-
-	{#each sections as section, si}
-		{#if si > 0}
-			<Separator />
-		{/if}
-		<section>
-			<h4 class="mb-3 text-sm text-muted-foreground">
-				{section.title}
-			</h4>
-			<div class="space-y-4">
-				{#each section.entries as entry, ei}
-					{#if ei > 0}
-						<Separator />
-					{/if}
-					<div>
-						<p class="mb-1 text-sm font-bold">{entry.question}</p>
-						<div class="text-sm text-muted-foreground [&_a]:text-link [&_a]:underline [&_a:hover]:text-link-hover [&_ul]:mt-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1">
-							{@html entry.answerHtml}
-						</div>
-					</div>
-				{/each}
-			</div>
-		</section>
-	{/each}
-</div>
+<!--
+	The Help sidebar's content. Empty for now: its FAQ moved to the docs
+	(docs/faq.md), and nothing opens this panel; the header's Help link is gone.
+	Kept to be filled again later. To show the FAQ here again, import
+	docs/faq.md?raw, parse it with parseFaq (lib/utils/parseFaq.ts) and render
+	its sections, as before (see this file's git history); then open it with
+	openSidebar('help').
+-->
+<div class="space-y-6 p-4"></div>
