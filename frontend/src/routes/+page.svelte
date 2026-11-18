@@ -414,6 +414,19 @@
 		mapFrame?.clearAreaSelect();
 	}
 
+	// Escape leaves the tool at any stage: drawing, waiting for matches or
+	// choosing levels. If focus was in the panel, it goes back to the tool's
+	// button, which would otherwise leave it on nothing.
+	let aoiPanel = $state<HTMLElement | undefined>();
+	function aoiEscape(e: KeyboardEvent) {
+		if (e.key !== 'Escape' || aoiState === 'idle' || e.defaultPrevented) return;
+		const focusInPanel = !!aoiPanel?.contains(document.activeElement);
+		endAreaSelect();
+		if (focusInPanel) {
+			tick().then(() => document.querySelector<HTMLElement>('button[aria-label="Select boundaries by area"]')?.focus());
+		}
+	}
+
 	/** Add to the selection, the same as picking each from the search. */
 	function addAreaBoundaries(boundaries: BoundaryResult[]) {
 		const have = new Set(browseBoundaries.map((b) => b.id));
@@ -450,6 +463,8 @@
 		if (selectionBbox) mapFrame?.fitBbox(selectionBbox);
 	}
 </script>
+
+<svelte:window onkeydown={aoiEscape} />
 
 <!-- After the Customize Datasets step's summary in the panel: how many datasets cover the selection -->
 {#snippet coverageStatus()}
@@ -646,7 +661,7 @@
 			Drag on the map to draw an area. <span class="text-muted-foreground">Esc to cancel.</span>
 		</div>
 	{:else if aoiState === 'choosing'}
-		<div class="absolute right-[4.5rem] top-4 z-10">
+		<div bind:this={aoiPanel} class="absolute right-[4.5rem] top-4 z-10">
 			<AreaSelectPanel
 				matches={aoiMatches}
 				error={aoiError}
