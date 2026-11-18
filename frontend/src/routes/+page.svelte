@@ -249,6 +249,8 @@
 	let datasetCount = $state<number | null>(null);
 	let datasetCountLoading = $state(false);
 	let datasetCountError = $state(false);
+	// Shown after the Customize Datasets step's summary once there's something to say
+	let coverageShown = $derived(datasetCountLoading || datasetCountError || datasetCount !== null);
 
 	$effect(() => {
 		const key = selectionKey;
@@ -446,8 +448,9 @@
 	}
 </script>
 
+<!-- After the Customize Datasets step's summary in the panel: how many datasets cover the selection -->
 {#snippet coverageStatus()}
-	<CoverageStatus loading={datasetCountLoading} count={datasetCount} error={datasetCountError} />
+	<CoverageStatus loading={datasetCountLoading} count={datasetCount} error={datasetCountError} inline />
 {/snippet}
 
 <!-- Shown whenever more than one boundary set is selected, overlapping or not:
@@ -504,10 +507,9 @@
 	</div>
 {/snippet}
 
-<!-- Under the Explore tab's selection list, above Find Data: coverage, then
-     how to narrow a single boundary set. -->
+<!-- Under the Explore tab's selection list, above Find Data: how to narrow a
+     single boundary set. -->
 {#snippet exploreSelectionNotes()}
-	{@render coverageStatus()}
 	{#if browseBoundaries.length === 1}
 		<!-- Feature-selection hint once a single boundary is selected -->
 		<div class="rounded-md border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
@@ -532,7 +534,7 @@
 <WelcomeModal bind:open={() => showWelcome, (open) => { if (!open) closeWelcome(); }} />
 
 <div class="flex h-[calc(100dvh-var(--header-height,8rem))]">
-	<RequestPanel active="map" fill>
+	<RequestPanel active="map" fill notes={coverageShown ? { search: coverageStatus } : {}}>
 		{#snippet actions()}
 			<!-- Narrow screens: the map is a view of its own (lib/stepDetail.ts) -->
 			<Button size="sm" variant="outline" class="-my-1 md:hidden" onclick={openDetail}>
@@ -543,16 +545,6 @@
 		<!-- Its parts are items of the panel's column, spaced by it: a long
 		     selection or bulk list scrolls on its own rather than the panel -->
 		<div class="contents">
-				<!-- Above the boundary search, so it's seen before changing anything else -->
-				{#if activeTab !== 'custom' && selectionChanged && $cartCount > 0}
-					<Alert.Root variant="warning" role="status">
-						<TriangleAlert />
-						<Alert.Description>
-							Your selection has changed. Actual dataset coverage may vary across selected features.
-						</Alert.Description>
-					</Alert.Root>
-				{/if}
-
 				<GeographySearch
 						bind:searchText={boundarySearch}
 						presets={presetOptions}
@@ -598,6 +590,18 @@
 
 	<!-- Map, beside the panel -->
 	<div class="step-main relative flex min-w-0 flex-1 flex-col">
+	<!-- A strip across the top of the map, not over it, so the map's controls stay clear -->
+	{#if activeTab !== 'custom' && selectionChanged && $cartCount > 0}
+		<Alert.Root variant="warning" role="status" class="shrink-0 rounded-none border-x-0 border-t-0 px-4 py-2">
+			<TriangleAlert />
+			<Alert.Description>
+				Your selection has changed. Actual dataset coverage may vary across selected features.
+			</Alert.Description>
+		</Alert.Root>
+	{/if}
+
+	<!-- The map and the controls placed over it -->
+	<div class="relative flex min-h-0 flex-1 flex-col">
 	<DetailBack label="Boundaries" class="absolute left-4 top-4 z-10 shadow-card" />
 	<!-- Zoom Controls -->
 	<div class="absolute right-4 top-4 z-10 flex flex-col items-center gap-1">
@@ -659,5 +663,6 @@
 		onFeatureClick={handleFeatureClick}
 		userGeoJSON={$customBoundary.active ? $customBoundary.finalFeatures : null}
 	/>
+	</div>
 	</div>
 </div>

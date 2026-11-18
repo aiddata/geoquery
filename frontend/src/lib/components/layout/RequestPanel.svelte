@@ -24,28 +24,35 @@
 		 * height can shrink and scroll on its own before the whole body does
 		 */
 		fill?: boolean;
+		/** Added after a collapsed step's summary, e.g. how many datasets cover the selection */
+		notes?: Partial<Record<Step, Snippet>>;
 	}
 
-	let { active, children, actions, bare = false, fill = false }: Props = $props();
+	let { active, children, actions, bare = false, fill = false, notes = {} }: Props = $props();
 
 	// Shown wherever feature counts first appear, for readers new to GIS terms
 	const FEATURE_DEFINITION = 'A feature is one area in a boundary set, such as a single district in Ghana ADM2.';
 
-	const plural = (n: number, word: string) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+	// A summary is text and counts, so the counts can be set in bold (and digits
+	// in a name, like a boundary's "ADM2", aren't)
+	type Part = string | { count: number };
+
+	const plural = (n: number, word: string): Part[] => [{ count: n }, ` ${word}${n === 1 ? '' : 's'}`];
 
 	// "X features across Y boundary sets selected"; the boundary name until the
 	// feature count has resolved.
-	const boundaryLabel = $derived.by(() => {
+	const boundaryLabel = $derived.by((): Part[] | null => {
 		if ($customBoundary.saved && $customBoundary.active) {
 			const n = $customBoundary.featureCount;
-			return n ? `${plural(n, 'feature')} in a custom boundary` : $customBoundary.fileName || 'Custom boundary';
+			return n
+				? [...plural(n, 'feature'), ' in a custom boundary']
+				: [$customBoundary.fileName || 'Custom boundary'];
 		}
 		if (!$selection) return null;
 		const features = $selection.resolvedFeatureIds.length;
 		const sets = $selectionFcIds.length;
-		return features > 0
-			? `${plural(features, 'feature')} across ${sets === 1 ? '1 boundary set' : `${sets} boundary sets`} selected`
-			: ($selectionSummary?.label ?? null);
+		if (features > 0) return [...plural(features, 'feature'), ' across ', ...plural(sets, 'boundary set'), ' selected'];
+		return $selectionSummary?.label ? [$selectionSummary.label] : null;
 	});
 
 	const totalColumns = $derived($cart.reduce((n, item) => n + entryColumns(item), 0));
@@ -55,7 +62,7 @@
 		title: string;
 		href: string | null;
 		/** Second line of the collapsed header */
-		summary: string;
+		summary: Part[];
 		/** Why a collapsed header can't be clicked yet */
 		blocked: string;
 	};
@@ -65,7 +72,7 @@
 			id: 'map',
 			title: '1. Select Boundaries',
 			href: '/',
-			summary: boundaryLabel ?? 'No boundary sets selected',
+			summary: boundaryLabel ?? ['No boundary sets selected'],
 			blocked: ''
 		},
 		{
@@ -75,15 +82,15 @@
 			// Every entry counts, so two versions of one dataset are two selections
 			summary:
 				$cart.length > 0
-					? `${plural(totalColumns, 'column')} across ${plural($cart.length, 'dataset selection')}`
-					: 'No datasets added yet',
+					? [...plural(totalColumns, 'column'), ' across ', ...plural($cart.length, 'dataset selection')]
+					: ['No datasets added yet'],
 			blocked: 'Select boundaries first'
 		},
 		{
 			id: 'review',
 			title: '3. Review & Submit',
 			href: $cartCount > 0 ? '/review' : null,
-			summary: '',
+			summary: [],
 			blocked: 'Add a dataset first'
 		}
 	]);
@@ -123,10 +130,12 @@
 			>
 				<span class="min-w-0">
 					<span class="block font-heading text-h4 font-bold text-foreground">{s.title}</span>
-					{#if s.summary}
+					{#if s.summary.length > 0 || notes[s.id]}
+						{@const note = notes[s.id]}
 						<span
 							class="block truncate text-xs text-muted-foreground"
-							title={s.id === 'map' ? FEATURE_DEFINITION : undefined}>{s.summary}</span
+							title={s.id === 'map' ? FEATURE_DEFINITION : undefined}
+							>{#each s.summary as part, i (i)}{#if typeof part === 'string'}{part}{:else}<strong>{part.count.toLocaleString()}</strong>{/if}{/each}{#if note}{#if s.summary.length > 0}<span class="mx-1.5" aria-hidden="true">·</span>{/if}{@render note()}{/if}</span
 						>
 					{/if}
 				</span>
