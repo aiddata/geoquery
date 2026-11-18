@@ -30,11 +30,12 @@
 	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
 	import { rememberCoverage } from '#lib/stores/coverageCounts.js';
 	import CustomBoundaryPanel from '#lib/components/map/CustomBoundaryPanel.svelte';
+	import PageFileDrop from '#lib/components/map/PageFileDrop.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
 	import { ArrowRight, ChevronDown, Map as MapIcon, TriangleAlert, Upload, SquareDashedMousePointer } from '@lucide/svelte';
 	import DetailBack from '#lib/components/layout/DetailBack.svelte';
-	import { openDetail } from '#lib/stepDetail.js';
+	import { openDetail, closeDetail } from '#lib/stepDetail.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
 	import { auth } from '#lib/stores/auth.js';
 	import { welcomeEligible, dismissWelcome } from '#lib/welcome.js';
@@ -141,6 +142,18 @@
 			customBoundary.deactivate();
 		}
 		activeTab = tab;
+	}
+
+	// A file dropped anywhere on the page goes to the custom upload panel,
+	// opening it first if needed (GEO-137). Opening it clears the standard
+	// selection, as the Custom upload button does.
+	let customPanel = $state<ReturnType<typeof CustomBoundaryPanel>>();
+	async function handlePageDrop(file: File) {
+		if (activeTab !== 'custom') switchTab('custom');
+		// Narrow screens: back from the map to the panel
+		closeDetail();
+		await tick();
+		customPanel?.acceptFile(file);
 	}
 
 	// The Explore tab's search box text, so Restart can clear it too.
@@ -464,6 +477,14 @@
 	}
 </script>
 
+{#if canCustom}
+	<PageFileDrop
+		onFile={handlePageDrop}
+		label="Drop to upload a custom boundary"
+		hint="A GeoJSON file (.geojson or .json), up to 50 MB"
+	/>
+{/if}
+
 <svelte:window onkeydown={aoiEscape} />
 
 <!-- After the Customize Datasets step's summary in the panel: how many datasets cover the selection -->
@@ -580,7 +601,7 @@
 			<!-- The toggle stays where it was, at the right, so cancelling is in the same place -->
 			<div class="flex justify-end">{@render customToggle()}</div>
 			<div id="custom-upload">
-				<CustomBoundaryPanel />
+				<CustomBoundaryPanel bind:this={customPanel} />
 			</div>
 		{:else}
 			<!-- Its parts are items of the panel's column, spaced by it: a long
