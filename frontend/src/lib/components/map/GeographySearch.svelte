@@ -23,6 +23,8 @@
 		belowSearch?: Snippet;
 		/** Rendered directly under the selection list, above the proceed button, e.g. coverage status. */
 		belowSelection?: Snippet;
+		/** About the selection, behind an info button beside the selection count */
+		selectionInfo?: Snippet;
 		/** The search box text; bindable so the page's Restart can clear it. */
 		searchText?: string;
 		/** Presets offered in the search results, each with the boundary sets it adds */
@@ -48,6 +50,7 @@
 		onClear,
 		belowSearch,
 		belowSelection,
+		selectionInfo,
 		searchText = $bindable(''),
 		presets = [],
 		legendItems,
@@ -160,7 +163,9 @@
 	}
 </script>
 
-<div class="space-y-3">
+<!-- No box of its own: its parts are items of the panel's column (RequestPanel
+     fill), so the selection list can shrink and scroll while the rest stays put -->
+<div class="contents">
 	<!-- Above the input and always shown, so typing doesn't move the search box -->
 	<p class="text-sm">
 		<a
@@ -257,7 +262,13 @@
 
 	<!-- The selection as a key to the map, then whatever the page shows about it -->
 	{#if selectedBoundaries.length > 0}
-		<SelectionLegend items={legend} onZoom={onZoom} onRemove={removeBoundary} onHighlight={onHighlight} />
+		<SelectionLegend
+			items={legend}
+			onZoom={onZoom}
+			onRemove={removeBoundary}
+			onHighlight={onHighlight}
+			info={selectionInfo}
+		/>
 		{@render belowSelection?.()}
 	{/if}
 

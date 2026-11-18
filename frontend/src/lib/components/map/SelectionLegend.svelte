@@ -26,8 +26,10 @@
 </script>
 
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
-	import { X } from '@lucide/svelte';
+	import * as Popover from '#lib/components/ui/popover/index.js';
+	import { Info, X } from '@lucide/svelte';
 
 	interface Props {
 		items: LegendItem[];
@@ -36,11 +38,19 @@
 		onRemove?: (id: number) => void;
 		/** The set to highlight on the map, or null to clear it. */
 		onHighlight?: (id: number | null) => void;
+		/** About the selection, behind an info button beside the count */
+		info?: Snippet;
 	}
 
-	let { items, variant = 'rows', onZoom, onRemove, onHighlight }: Props = $props();
+	let { items, variant = 'rows', onZoom, onRemove, onHighlight, info }: Props = $props();
 
 	const uid = $props.id();
+
+	// A long list scrolls on its own, in a parent column that lets it shrink,
+	// but keeps a few rows in view: the section's minimum is the heading, the
+	// gap and the list's 7rem, with a little over that the list grows into.
+	// One or two rows never shrink.
+	const scrolls = $derived(items.length > 2);
 
 	const levelLabel = (item: LegendItem) => (item.level === null ? null : `ADM${item.level}`);
 	const meta = (item: LegendItem) => [levelLabel(item), item.source].filter(Boolean).join(' · ');
@@ -130,15 +140,32 @@
 	</li>
 {/snippet}
 
-<section aria-labelledby="{uid}-heading" class="space-y-1">
-	<div class="flex items-baseline justify-between gap-2">
+<section
+	aria-labelledby="{uid}-heading"
+	class="flex flex-col gap-1 {scrolls ? 'min-h-[8.75rem]' : 'shrink-0'}"
+>
+	<div class="flex shrink-0 items-center justify-between gap-2">
 		<h2 id="{uid}-heading" class="text-sm font-bold text-foreground">Your Selections</h2>
-		<span class="text-xs tabular-nums text-muted-foreground">
+		<span class="flex items-center gap-1 text-xs tabular-nums text-muted-foreground">
 			{items.length} boundary set{items.length === 1 ? '' : 's'}
+			{#if info}
+				<!-- A popover, not a tooltip: what it says can hold a link -->
+				<Popover.Root>
+					<Popover.Trigger
+						class="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+						aria-label="About selecting more than one boundary set"
+					>
+						<Info class="size-3.5" aria-hidden="true" />
+					</Popover.Trigger>
+					<Popover.Content side="bottom" align="end" class="w-72 p-3 text-xs text-muted-foreground">
+						{@render info()}
+					</Popover.Content>
+				</Popover.Root>
+			{/if}
 		</span>
 	</div>
 	{#if variant === 'grouped'}
-		<div class="space-y-2">
+		<div class="space-y-2 {scrolls ? 'min-h-28 grow overflow-y-auto' : ''}">
 			{#each groups as [group, members] (group)}
 				<div>
 					<h3 class="border-b px-2 pb-1 pt-1.5 text-xs font-bold text-muted-foreground">{group}</h3>
@@ -149,7 +176,7 @@
 			{/each}
 		</div>
 	{:else}
-		<ul class="divide-y border-y">
+		<ul class="divide-y border-y {scrolls ? 'min-h-28 grow overflow-y-auto' : ''}">
 			{#each items as item (item.id)}{@render row(item)}{/each}
 		</ul>
 	{/if}

@@ -19,9 +19,14 @@
 		actions?: Snippet;
 		/** The body brings its own padding and scrolling (e.g. the dataset list) */
 		bare?: boolean;
+		/**
+		 * The body is a flex column (gap-3), so a part of it given a minimum
+		 * height can shrink and scroll on its own before the whole body does
+		 */
+		fill?: boolean;
 	}
 
-	let { active, children, actions, bare = false }: Props = $props();
+	let { active, children, actions, bare = false, fill = false }: Props = $props();
 
 	// Shown wherever feature counts first appear, for readers new to GIS terms
 	const FEATURE_DEFINITION = 'A feature is one area in a boundary set, such as a single district in Ghana ADM2.';
@@ -101,7 +106,11 @@
 					<h1 id="panel-{s.id}" class="text-h4 text-foreground" aria-current="step">{s.title}</h1>
 					{@render actions?.()}
 				</div>
-				<div class={bare ? 'flex min-h-0 flex-1 flex-col' : 'min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-1'}>
+				<div
+					class={bare
+						? 'flex min-h-0 flex-1 flex-col'
+						: `min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-1 ${fill ? 'flex flex-col gap-3' : ''}`}
+				>
 					{@render children()}
 				</div>
 			</section>

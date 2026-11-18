@@ -2,7 +2,7 @@
 	import { type BoundaryResult } from '#lib/api.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
-	import { ChevronDown } from '@lucide/svelte';
+	import { ChevronRight } from '@lucide/svelte';
 	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
 	import { groupByLevel, levelLabel } from '#lib/utils/boundaryLevels.js';
 
@@ -59,9 +59,11 @@
 	}
 </script>
 
-<div class="space-y-3">
-	<!-- Boundary list: scrolls on its own so the count below stays in view -->
-	<div class="max-h-96 space-y-1 overflow-y-auto pr-1">
+<!-- Can shrink in a parent column that allows it, down to a few rows of the
+     list (6rem), which grows into any room to spare -->
+<div class="flex min-h-24 grow flex-col">
+	<!-- Boundary list: scrolls on its own -->
+	<div class="max-h-96 min-h-24 grow space-y-1 overflow-y-auto pr-1">
 			{#if loading}
 				<div class="text-xs text-muted-foreground py-2">Loading boundaries...</div>
 			{:else if allBoundaries.length === 0}
@@ -72,8 +74,9 @@
 						<div class="flex items-center gap-2">
 							<Collapsible.Trigger>
 								{#snippet child({ props })}
-									<Button {...props} variant="ghost" size="icon-sm" class="size-6 text-muted-foreground" aria-label="Show boundaries in {levelLabel(groupName)}">
-										<ChevronDown class="size-3.5" />
+									<!-- Points right when closed, down when open (the trigger carries data-state) -->
+									<Button {...props} variant="ghost" size="icon-sm" class="group size-6 text-muted-foreground" aria-label="Show boundaries in {levelLabel(groupName)}">
+										<ChevronRight class="size-3.5 transition-transform group-data-[state=open]:rotate-90 motion-reduce:transition-none" />
 									</Button>
 								{/snippet}
 							</Collapsible.Trigger>
@@ -109,8 +112,4 @@
 				{/each}
 			{/if}
 	</div>
-
-	<p class="text-xs text-muted-foreground">
-		{selectedIds.size} selected
-	</p>
 </div>

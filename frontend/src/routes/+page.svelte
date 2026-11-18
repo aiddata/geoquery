@@ -452,9 +452,10 @@
 
 <!-- Shown whenever more than one boundary set is selected, overlapping or not:
      results stack the sets, one row per feature, rather than intersecting them. -->
+<!-- Behind the info button beside "N boundary sets", once there's more than one -->
 {#snippet multiSetNote()}
-	<div class="rounded-md border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-		<strong>Each boundary set is kept separate.</strong> Every feature gets its own row in your
+	<p>
+		<strong class="text-foreground">Each boundary set is kept separate.</strong> Every feature gets its own row in your
 		results, labelled with its boundary set. Features that overlap are included once in each set,
 		not combined or intersected.
 		<a
@@ -464,18 +465,21 @@
 			class="text-link hover:text-link-hover hover:underline"
 			>Learn more<span class="sr-only"> about multiple boundary sets (opens in a new tab)</span></a
 		>
-	</div>
+	</p>
 {/snippet}
 
 <!-- Right under the Explore tab's search box. -->
 {#snippet exploreSearchNote()}
 	<!-- Bulk select: every boundary set grouped by ADM level, to tick whole levels at once.
-	     Open to everyone, signed in or not. Pulled up toward the search box, with a little room below. -->
-	<div class="-mt-2">
+	     Open to everyone, signed in or not. Pulled up toward the search box, with a little room below.
+	     Its list shares the panel's height with the selection list, so both scroll rather than the panel.
+	     The minimums are a little over what's inside (button, box padding, BoundaryBrowsePanel's), and
+	     each level grows into the rest, so it never shrinks below its contents. -->
+	<div class="-mt-2 flex flex-col {bulkOpen ? 'min-h-[calc(10rem+2px)]' : 'shrink-0'}">
 			<Button
 				variant="ghost"
 				size="sm"
-				class="-ml-2 h-6 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+				class="-ml-2 h-6 gap-1 self-start px-2 text-xs text-muted-foreground hover:text-foreground"
 				aria-expanded={bulkOpen}
 				aria-controls="bulk-select"
 				onclick={() => (bulkOpen = !bulkOpen)}
@@ -484,7 +488,7 @@
 				<ChevronDown class="transition-transform {bulkOpen ? 'rotate-180' : ''}" />
 			</Button>
 			{#if bulkOpen}
-				<div id="bulk-select" class="mt-2 rounded-md border p-3">
+				<div id="bulk-select" class="mt-2 flex min-h-[calc(7.5rem+2px)] grow flex-col rounded-md border p-3">
 					{#if boundaryLoadError}
 						<p class="text-sm text-destructive">{boundaryLoadError}</p>
 					{:else}
@@ -498,9 +502,6 @@
 				</div>
 			{/if}
 	</div>
-	{#if browseBoundaries.length > 1}
-		{@render multiSetNote()}
-	{/if}
 {/snippet}
 
 <!-- Under the Explore tab's selection list, above Find Data: coverage, then
@@ -531,7 +532,7 @@
 <WelcomeModal bind:open={() => showWelcome, (open) => { if (!open) closeWelcome(); }} />
 
 <div class="flex h-[calc(100dvh-var(--header-height,8rem))]">
-	<RequestPanel active="map">
+	<RequestPanel active="map" fill>
 		{#snippet actions()}
 			<!-- Narrow screens: the map is a view of its own (lib/stepDetail.ts) -->
 			<Button size="sm" variant="outline" class="-my-1 md:hidden" onclick={openDetail}>
@@ -539,10 +540,12 @@
 				Show map
 			</Button>
 		{/snippet}
-		<div>
+		<!-- Its parts are items of the panel's column, spaced by it: a long
+		     selection or bulk list scrolls on its own rather than the panel -->
+		<div class="contents">
 				<!-- Above the boundary search, so it's seen before changing anything else -->
 				{#if activeTab !== 'custom' && selectionChanged && $cartCount > 0}
-					<Alert.Root variant="warning" role="status" class="mb-3">
+					<Alert.Root variant="warning" role="status">
 						<TriangleAlert />
 						<Alert.Description>
 							Your selection has changed. Actual dataset coverage may vary across selected features.
@@ -562,6 +565,7 @@
 						onClear={resetAll}
 						belowSearch={exploreSearchNote}
 						belowSelection={exploreSelectionNotes}
+						selectionInfo={browseBoundaries.length > 1 ? multiSetNote : undefined}
 						{legendItems}
 						onZoom={zoomToBoundary}
 						onHighlight={(id) => (highlightedFcId = id)}
@@ -570,7 +574,7 @@
 				{#if canCustom}
 					<!-- Custom upload: a beta feature, opened below the search. It
 					     replaces any standard selection while open. -->
-					<div class="mt-3 border-t pt-3">
+					<div class="border-t pt-3">
 						<Button
 							variant="ghost"
 							size="sm"
