@@ -40,7 +40,7 @@ Each completed request is a zip file that includes:
 Each row is one feature, and each column is one value you asked for, such as a dataset's mean for a given year. An empty cell means the dataset has no data for that area. See [Using your results](https://docs.geoquery.org/using-geoquery/results/) for the details, and for how to join the results to the boundaries in GIS software.
 
 ### How long will it take to receive my data?
-Many requests complete almost instantly due to preprocessing and caching. Requests requiring new processing may take up to several hours.
+Many requests complete almost instantly due to preprocessing and caching. Requests requiring new processing may take up to several hours. The [System Status page](https://geoquery.aiddata.wm.edu/stats) shows how busy GeoQuery is right now; see [System status](using-geoquery/accounts.md#system-status) for what it shows.
 
 ### How long are my results kept?
 Your results stay available to download from your request's page, and from your request history.

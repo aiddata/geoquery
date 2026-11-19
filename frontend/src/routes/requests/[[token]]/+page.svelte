@@ -98,10 +98,14 @@
 <Seo title="Past Requests" noindex />
 
 <div class="container mx-auto max-w-2xl px-4 py-8">
-    <div class="mb-6">
+    <div class="mb-6 flex items-center justify-between gap-4">
         <Button variant="ghost" onclick={() => goto("/")}>
             <ArrowLeft />
             Back
+        </Button>
+        <Button variant="ghost" size="sm" href="/stats" class="font-body text-muted-foreground">
+            <BarChart2 />
+            System status
         </Button>
     </div>
 
@@ -296,15 +300,4 @@
 
     </div>
 
-    <a
-        href="/stats"
-        class="card-surface mt-4 flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted"
-    >
-        <BarChart2 class="h-5 w-5 shrink-0 text-muted-foreground" />
-        <div class="flex-1">
-            <p class="text-sm font-bold">System Status</p>
-            <p class="text-sm text-muted-foreground">View processing queue and system stats</p>
-        </div>
-        <ArrowLeft class="h-4 w-4 rotate-180 text-muted-foreground" />
-    </a>
 </div>

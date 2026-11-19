@@ -5,7 +5,7 @@
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import { auth, signOut } from '#lib/stores/auth.js';
 	import { loginWithGitHub } from '#lib/allauth.js';
-	import { History, LogIn, LogOut, UserRound } from '@lucide/svelte';
+	import { BarChart2, History, LogIn, LogOut, UserRound } from '@lucide/svelte';
 
 	let signingIn = $state(false);
 
@@ -23,6 +23,14 @@
 		goto('/');
 	}
 </script>
+
+<!-- In the menu whether or not you're signed in -->
+{#snippet siteLinks()}
+	<DropdownMenu.Item onclick={() => goto('/stats')}>
+		<BarChart2 />
+		System Status
+	</DropdownMenu.Item>
+{/snippet}
 
 {#if $auth.status === 'authenticated' || $auth.status === 'anonymous'}
 	<DropdownMenu.Root>
@@ -51,6 +59,8 @@
 					My Requests
 				</DropdownMenu.Item>
 				<DropdownMenu.Separator />
+				{@render siteLinks()}
+				<DropdownMenu.Separator />
 				<DropdownMenu.Item onclick={handleSignOut}>
 					<LogOut />
 					Sign out
@@ -66,6 +76,8 @@
 					<History />
 					Past Requests
 				</DropdownMenu.Item>
+				<DropdownMenu.Separator />
+				{@render siteLinks()}
 			{/if}
 		</DropdownMenu.Content>
 	</DropdownMenu.Root>
