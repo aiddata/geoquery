@@ -30,6 +30,7 @@
 	import { resolvePreset } from '#lib/utils/presets.js';
 	import WelcomeModal from '#lib/components/map/WelcomeModal.svelte';
 	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
+	import RecipeNotice from '#lib/components/layout/RecipeNotice.svelte';
 	import { rememberCoverage } from '#lib/stores/coverageCounts.js';
 	import CustomBoundaryPanel from '#lib/components/map/CustomBoundaryPanel.svelte';
 	import PageFileDrop from '#lib/components/map/PageFileDrop.svelte';
@@ -651,6 +652,7 @@
 				Show map
 			</Button>
 		{/snippet}
+		<RecipeNotice />
 		{#if activeTab === 'custom'}
 			<!-- The toggle stays where it was, at the right, so cancelling is in the same place -->
 			<div class="flex justify-end">{@render customToggle()}</div>

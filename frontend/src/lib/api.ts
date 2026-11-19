@@ -378,6 +378,8 @@ export async function submitRequest(payload: {
 	selectionLabel?: string;
 	selectionDetail?: string;
 	featureIds: number[];
+	/** The boundary sets picked, so the request can be used as a template later */
+	fcIds?: number[];
 	datasets: RequestDataset[];
 	customBoundary?: CustomBoundaryPayload;
 }): Promise<SubmittedRequest> {
@@ -600,6 +602,32 @@ export async function fetchStats(): Promise<Stats> {
 	const response = await fetch('/api/stats/');
 	if (!response.ok) {
 		throw new Error(`Failed to fetch stats: ${response.status}`);
+	}
+	return response.json();
+}
+
+/** What a past request asked for that no longer applies (GEO-126). */
+export interface RecipeDropped {
+	/** Features that weren't part of a whole boundary set */
+	features: number;
+	datasets: { name: string; title: string; reason: 'unavailable' | 'not_covered' | 'options_removed' }[];
+	/** Rasters kept with some of their measures or periods removed */
+	options: { name: string; title: string; measures: string[]; periods: string[] }[];
+}
+
+export interface RequestRecipeResult {
+	/** A request recipe (lib/recipe.ts); checked with parseRecipe before use */
+	recipe: unknown;
+	boundary_sets: { id: number; name: string; title: string | null; short_name: string | null; bbox: [number, number, number, number] | null }[];
+	dropped: RecipeDropped;
+}
+
+/** A past request as a recipe, for "Use as template". */
+export async function fetchRequestRecipe(id: string): Promise<RequestRecipeResult> {
+	const response = await fetch(`/api/analytics/requests/${id}/recipe/`);
+	if (!response.ok) {
+		const body = await response.json().catch(() => null);
+		throw new Error(body?.error ?? `Failed to load the request: ${response.status}`);
 	}
 	return response.json();
 }

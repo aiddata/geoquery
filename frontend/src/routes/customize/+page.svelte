@@ -39,6 +39,7 @@
 	import MoreOptionsHint from '#lib/components/datasets/MoreOptionsHint.svelte';
 	import DatasetActions from '#lib/components/datasets/DatasetActions.svelte';
 	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
+	import RecipeNotice from '#lib/components/layout/RecipeNotice.svelte';
 	import { rememberCoverage } from '#lib/stores/coverageCounts.js';
 	import OutputSummary from '#lib/components/datasets/OutputSummary.svelte';
 	import VersionCards from '#lib/components/datasets/VersionCards.svelte';
@@ -530,6 +531,7 @@
 
 <div class="flex h-[calc(100dvh-var(--header-height,8rem))]">
 	<RequestPanel active="search" bare>
+		<RecipeNotice />
 		{#if !resolvedIds.length && !isCustomMode}
 			<p class="px-4 py-6 text-sm text-muted-foreground">Loading available datasets…</p>
 		{:else if loadError}

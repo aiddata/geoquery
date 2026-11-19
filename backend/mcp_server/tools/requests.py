@@ -435,6 +435,7 @@ def register(mcp, user_dep):
                 contact=user.email,
                 name=name,
                 feature_ids=ids,
+                fc_ids=[fc.id],
                 datasets=specs,
                 selection_label=fc.title or fc.name,
                 selection_detail=f"{len(ids)} features",

@@ -16,6 +16,7 @@ from analytics.tasks.ingest import ingest_custom_boundary_task
 from analytics.tasks.email import GeoEmail
 from analytics.throttles import RequestSubmitThrottle, RequestTokenThrottle
 from .models import LegacyRequest, Request, RequestToken
+from .recipe import request_recipe
 from .services import (
     STATUS_LABELS as _STATUS_LABELS,
     NoExtractTasksError,
@@ -49,6 +50,7 @@ class RequestView(APIView):
         email = (request.data.get("email") or "").strip()
         user = request.user if request.user.is_authenticated else None
         feature_ids = request.data.get("featureIds") or []
+        fc_ids = request.data.get("fcIds")
         datasets = request.data.get("datasets") or []
         custom_boundary = request.data.get("customBoundary")
 
@@ -68,6 +70,13 @@ class RequestView(APIView):
         ):
             return Response(
                 {"error": "featureIds must be a list of integers"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if fc_ids is not None and (
+            not isinstance(fc_ids, list) or not all(type(i) is int for i in fc_ids)
+        ):
+            return Response(
+                {"error": "fcIds must be a list of integers"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if not datasets:
@@ -164,6 +173,7 @@ class RequestView(APIView):
                 contact=email,
                 name=name,
                 feature_ids=feature_ids,
+                fc_ids=fc_ids,
                 datasets=datasets,
                 selection_label=(request.data.get("selectionLabel") or "").strip()
                 or None,
@@ -278,6 +288,29 @@ class RequestDetailView(APIView):
         data.update(request_links(req, request.user))
 
         return Response(data)
+
+
+class RequestRecipeView(APIView):
+    """
+    GET /api/analytics/requests/{id}/recipe/ — a past request as a recipe for
+    "Use as template" (GEO-126), checked against the catalog as the viewer
+    sees it, with what no longer applies listed. Access is by UUID alone, as
+    for the request itself. Requests with a custom upload have no recipe.
+    """
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk):
+        req = Request.objects.filter(id=pk).first()
+        if req is None:
+            return Response({"error": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+        if (req.data or {}).get("is_custom_boundary"):
+            return Response(
+                {"error": "Requests with a custom upload can't be used as a template."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(request_recipe(request.user, req))
 
 
 class RequestTokenView(APIView):

@@ -2,7 +2,10 @@
 	import Seo from '#lib/components/layout/Seo.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { fetchDatasetDetail, fetchRequestDetail, type DatasetDetail, type RequestDetail } from '#lib/api.js';
+	import { fetchDatasetDetail, fetchRequestDetail, fetchRequestRecipe, type DatasetDetail, type RequestDetail } from '#lib/api.js';
+	import { loadRequestTemplate, requestInProgress } from '#lib/loadRecipe.js';
+	import * as Dialog from '#lib/components/ui/dialog/index.js';
+	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import DatasetEntryDetails from '#lib/components/datasets/DatasetEntryDetails.svelte';
 	import { entryColumns } from '#lib/utils/outputColumns.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -10,7 +13,7 @@
 	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
 	import StatusBadge, { requestStatusMeaning } from '#lib/components/StatusBadge.svelte';
-	import { ArrowLeft, Download, RefreshCw, ChevronRight, CircleAlert, Map } from '@lucide/svelte';
+	import { ArrowLeft, Download, RefreshCw, ChevronRight, CircleAlert, CopyPlus, Map } from '@lucide/svelte';
 	import { features } from '#lib/stores/features.js';
 
 	const TERMINAL_STATUSES = new Set([1, -2]);
@@ -81,6 +84,32 @@
 		}
 	});
 
+	// "Use as template" (GEO-126): start a new request with this one's
+	// boundaries and datasets, replacing the one being built after a confirm.
+	let confirmReplace = $state(false);
+	let templateLoading = $state(false);
+	let templateError = $state<string | null>(null);
+
+	function startTemplate() {
+		templateError = null;
+		if (requestInProgress()) confirmReplace = true;
+		else useTemplate();
+	}
+
+	async function useTemplate() {
+		if (!request) return;
+		confirmReplace = false;
+		templateLoading = true;
+		try {
+			const result = await fetchRequestRecipe(request.id);
+			await goto(loadRequestTemplate(result, request.name || 'Unnamed Request'));
+		} catch (e) {
+			templateError = e instanceof Error ? e.message : "This request couldn't be loaded as a template.";
+		} finally {
+			templateLoading = false;
+		}
+	}
+
 	function formatOperation(op: { type: string; params: Record<string, unknown> }): string {
 		if (op.type === 'buffer') return `Buffer — ${op.params.distance ?? ''} ${op.params.units ?? 'km'}`;
 		if (op.type === 'simplify') return `Simplify — tolerance ${op.params.tolerance ?? ''}°`;
@@ -136,6 +165,33 @@
 						<p>{fmt(request.complete_time)}</p>
 					</div>
 				</div>
+
+				<div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+					{#if request.data?.is_custom_boundary}
+						<!-- Unavailable, but still focusable (aria-disabled) so its tooltip
+						     says why -->
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								{#snippet child({ props })}
+									<Button {...props} variant="outline" size="sm" aria-disabled="true" class="cursor-not-allowed opacity-50">
+										<CopyPlus />
+										Use as template
+									</Button>
+								{/snippet}
+							</Tooltip.Trigger>
+							<Tooltip.Content>Requests with a custom upload can't be used as a template.</Tooltip.Content>
+						</Tooltip.Root>
+					{:else}
+						<Button variant="outline" size="sm" onclick={startTemplate} disabled={templateLoading}>
+							<CopyPlus />
+							{templateLoading ? 'Loading…' : 'Use as template'}
+						</Button>
+						<p class="text-xs text-muted-foreground">Start a new request with these boundaries and datasets.</p>
+					{/if}
+				</div>
+				{#if templateError}
+					<p class="mt-2 text-sm text-danger-text" role="alert">{templateError}</p>
+				{/if}
 
 				{#if request.download_url}
 					<Alert.Root variant="success" role="status" class="mt-4 p-4">
@@ -263,3 +319,18 @@
 		</div>
 	{/if}
 </div>
+
+<Dialog.Root bind:open={confirmReplace}>
+	<Dialog.Content class="sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title>Replace your current request?</Dialog.Title>
+			<Dialog.Description>
+				The boundaries and datasets you've chosen so far will be replaced with this request's.
+			</Dialog.Description>
+		</Dialog.Header>
+		<Dialog.Footer>
+			<Button variant="outline" onclick={() => (confirmReplace = false)}>Keep current request</Button>
+			<Button onclick={useTemplate}>Replace</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>

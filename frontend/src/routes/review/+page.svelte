@@ -7,6 +7,7 @@
 	import { selection, selectionSummary, selectionFcIds, customizeHref } from '#lib/stores/selection.js';
 	import DetailBack from '#lib/components/layout/DetailBack.svelte';
 	import { requestForm } from '#lib/stores/requestForm.js';
+	import { recipeNotice } from '#lib/loadRecipe.js';
 	import { openDetail } from '#lib/stepDetail.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
 	import { fetchDatasetDetail, fetchFeatureIds, submitRequest, type DatasetDetail, type SubmittedRequest, type CustomBoundaryPayload } from '#lib/api.js';
@@ -234,6 +235,7 @@
 					? `Custom upload · ${$customBoundary.featureCount} features`
 					: $selectionSummary?.detail,
 				featureIds: resolvedFeatureIds,
+				fcIds: isCustomMode ? undefined : $selectionFcIds,
 				customBoundary: customBoundaryPayload,
 				datasets: $cart.map((item) => ({
 					datasetName: item.datasetName,
@@ -256,6 +258,7 @@
 			selection.clear();
 			customBoundary.reset();
 			requestForm.resetAfterSubmit();
+			recipeNotice.set(null);
 		} catch (err) {
 			submitError = err instanceof Error ? err.message : 'Submission failed. Please try again.';
 		} finally {
