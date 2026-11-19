@@ -171,12 +171,8 @@ export const selectionSummary = derived(selection, ($sel) => {
  */
 export const customizeHref = derived([selection, customBoundary], ([$sel, $custom]): string | null => {
 	if ($custom.saved && $custom.active) return '/customize';
-	if (!$sel) return null;
-	// The URL carries the whole selection, so Customize can rebuild it after
-	// a refresh (the store lives in memory only).
-	if ($sel.mode === 'single') {
-		const features = $sel.featureIds.length ? `&features=${$sel.featureIds.join(',')}` : '';
-		return `/customize?fc=${$sel.fc.id}${features}`;
-	}
-	return `/customize?fc=${$sel.fcs.map((fc) => fc.id).join(',')}`;
+	// The selection survives a refresh in the tab's saved state (stores/
+	// tabState.ts), so the URL no longer needs to carry it. Customize still
+	// accepts the older ?fc=…&features=… links.
+	return $sel ? '/customize' : null;
 });

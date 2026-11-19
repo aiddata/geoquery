@@ -46,7 +46,7 @@ describe('loadRequestTemplate', () => {
 			{ recipe: { v: 1, boundaries: { fcIds: [11, 12], featureIds: [] }, datasets: [ntl] }, boundary_sets: [adm1, adm2], dropped: none },
 			'Ghana lights'
 		);
-		expect(href).toBe('/customize?fc=11,12');
+		expect(href).toBe('/customize');
 		expect(get(selection)).toMatchObject({ mode: 'multi', fcs: [adm1, adm2] });
 		expect(get(cart)).toEqual([ntl]);
 		expect(get(datasetChoices)).toEqual({});
@@ -71,7 +71,8 @@ describe('loadRequestTemplate', () => {
 			boundary_sets: [adm2],
 			dropped: none
 		});
-		expect(href).toBe('/customize?fc=12&features=3,4');
+		expect(href).toBe('/customize');
+		expect(get(selection)).toMatchObject({ mode: 'single', featureIds: [3, 4] });
 		expect(get(cart)).toEqual([renamed]);
 		expect(get(recipeNotice)?.title).toBe('Opened a shared request');
 	});

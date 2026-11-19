@@ -175,7 +175,10 @@ def _check_datasets(user, specs: list[dict], kept_features: list[int]):
         }
         kept_types = [t for t in extract_types if t in known_types]
         kept_resources = [r for r in resources if r in known_resources]
-        if not kept_types or not kept_resources:
+        # No periods chosen means the whole dataset: rasters with no time
+        # periods ("Temporally Invariant") are requested that way. Only a
+        # choice whose periods have all gone drops the dataset.
+        if not kept_types or (resources and not kept_resources):
             dropped_datasets.append({"name": name, "title": title, "reason": "options_removed"})
             continue
         gone_types = [t for t in extract_types if t not in known_types]

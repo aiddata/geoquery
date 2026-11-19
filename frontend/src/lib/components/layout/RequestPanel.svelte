@@ -10,6 +10,8 @@
 	import { cart, cartCount } from '#lib/stores/cart.js';
 	import { entryColumns } from '#lib/utils/outputColumns.js';
 	import type { Step } from '#lib/stores/ui.js';
+	import ShareLinkButton from '#lib/components/ShareLinkButton.svelte';
+	import { currentRecipe } from '#lib/recipe.js';
 
 	// The request's three steps as one docked column, the same on every step
 	// page: the current step's section is expanded (its page passes the body),
@@ -111,6 +113,11 @@
 		if (features > 0) return [...plural(features, 'feature'), ' across ', ...plural(sets, 'boundary set'), ' selected'];
 		return $selectionSummary?.label ? [$selectionSummary.label] : null;
 	});
+
+	// "Copy share link" (GEO-126), on every step once boundaries are chosen.
+	// A custom upload can't be shared, so the button says why instead.
+	const customInUse = $derived($customBoundary.active && !!$customBoundary.finalFeatures);
+	const showShare = $derived(customInUse || (!!$selection && !$customBoundary.active));
 
 	const totalColumns = $derived($cart.reduce((n, item) => n + entryColumns(item), 0));
 
@@ -219,4 +226,15 @@
 			</div>
 		{/if}
 	{/each}
+	{#if showShare}
+		<div class="flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-2.5">
+			<ShareLinkButton
+				getRecipe={currentRecipe}
+				unavailable={customInUse ? "Requests with a custom upload can't be shared." : null}
+			/>
+			{#if !customInUse}
+				<p class="text-xs text-muted-foreground">Anyone with the link can open a copy of this request.</p>
+			{/if}
+		</div>
+	{/if}
 </nav>

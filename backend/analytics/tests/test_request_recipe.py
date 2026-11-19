@@ -86,6 +86,16 @@ class RequestRecipeTests(ReplicaReadsTestMixin, TestCase):
             "extractTypes": ["mean"], "resources": ["ntl_2020", "ntl_2021"], "resourceLabels": ["2020", "2021"],
         })
 
+    def test_a_raster_with_no_time_periods_is_kept(self):
+        # Temporally invariant rasters are requested with no periods at all
+        raster("elevation", resources=("static",))
+        req = self.make_request(self.adm1_features, [
+            {"datasetName": "elevation", "datasetType": "raster", "extractTypes": ["mean"], "resources": []}])
+        body = self.get(req)
+        [item] = body["recipe"]["datasets"]
+        self.assertEqual((item["datasetName"], item["extractTypes"], item["resources"]), ("elevation", ["mean"], []))
+        self.assertEqual(body["dropped"]["datasets"], [])
+
     def test_removed_periods_and_measures_are_left_out_and_listed(self):
         req = self.make_request(self.adm1_features, [spec("ntl", ["mean", "median"], ["2020", "1999"])])
         body = self.get(req)

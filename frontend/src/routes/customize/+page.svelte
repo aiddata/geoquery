@@ -20,7 +20,6 @@
 		fetchAllDatasets,
 		fetchDatasetDetail,
 		fetchDatasetCategories,
-		searchBoundaries,
 		fetchFeatureIds,
 		type DatasetSummary,
 		type DatasetDetail,
@@ -51,56 +50,12 @@
 		currentStep.set('search');
 	});
 
-	// The selection the URL describes: ?fc=<ids>, plus &features=<ids> for a
-	// single boundary set narrowed to some features. (?selection is the older
-	// form, which only works while the selection is still in memory.)
-	const idList = (v: string | null) =>
-		(v ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0);
-	let urlFcIds = $derived(idList(page.url.searchParams.get('fc')));
-	let urlFeatureIds = $derived(idList(page.url.searchParams.get('features')));
-	let isLegacySingle = $derived(page.url.searchParams.has('selection'));
 	let isCustomMode = $derived($customBoundary.saved && $customBoundary.active);
 
-	/** Whether the selection in memory is the one in the URL. */
-	function storeMatchesUrl(): boolean {
-		const sel = $selection;
-		if (!sel) return false;
-		const ids = sel.mode === 'single' ? [sel.fc.id] : sel.fcs.map((fc) => fc.id);
-		const same = (a: number[], b: number[]) =>
-			a.length === b.length && [...a].sort().every((v, i) => v === [...b].sort()[i]);
-		return same(ids, urlFcIds) && (sel.mode !== 'single' || same(sel.featureIds, urlFeatureIds));
-	}
-
-	// Keep the selection in step with the URL. After a refresh (the store lives
-	// in memory only) it is rebuilt from the boundary sets the URL names;
-	// without any, or with none that can be found, back to the map.
-	let restoring = false;
+	// The selection comes from the store, which survives a refresh in the
+	// tab's saved state (stores/tabState.ts); with none, back to the map.
 	$effect(() => {
-		if (isCustomMode) return;
-		if (isLegacySingle) {
-			if ($selection?.mode !== 'single') goto('/');
-			return;
-		}
-		if (urlFcIds.length === 0) {
-			goto('/');
-			return;
-		}
-		if (storeMatchesUrl() || restoring) return;
-		restoring = true;
-		const fcIds = urlFcIds;
-		const featureIds = urlFeatureIds;
-		searchBoundaries('', 0)
-			.then((all) => {
-				const byId = new Map(all.map((b) => [b.id, b]));
-				const fcs = fcIds
-					.map((id) => byId.get(id))
-					.filter((b) => !!b)
-					.map((b) => ({ id: b!.id, name: b!.name, title: b!.title, short_name: b!.short_name, bbox: b!.bbox ?? null }));
-				if (fcs.length === 0) goto('/');
-				else selection.replace(fcs, fcs.length === 1 ? featureIds : []);
-			})
-			.catch(() => goto('/'))
-			.finally(() => (restoring = false));
+		if (!isCustomMode && !$selection) goto('/');
 	});
 
 	// The selected boundary sets, named as in the selection legend, for the
