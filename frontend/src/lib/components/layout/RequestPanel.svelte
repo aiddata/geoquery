@@ -227,14 +227,11 @@
 		{/if}
 	{/each}
 	{#if showShare}
-		<div class="flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-2.5">
+		<div class="border-t px-4 py-2">
 			<ShareLinkButton
 				getRecipe={currentRecipe}
 				unavailable={customInUse ? "Requests with a custom upload can't be shared." : null}
 			/>
-			{#if !customInUse}
-				<p class="text-xs text-muted-foreground">Anyone with the link can open a copy of this request.</p>
-			{/if}
 		</div>
 	{/if}
 </nav>
