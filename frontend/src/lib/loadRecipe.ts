@@ -9,7 +9,7 @@ import type { RecipeDropped, RequestRecipeResult } from './api.js';
 
 /**
  * Loading a recipe from somewhere else: a past request ("Use as template",
- * GEO-126), and share links next. It replaces the request being built, so
+ * GEO-126) or a share link (/s/<id>). It replaces the request being built, so
  * callers confirm first when requestInProgress() says there's one, and it
  * says what was left out because it no longer applies.
  */
@@ -67,8 +67,17 @@ export function describeDropped(dropped: RecipeDropped, missingSets: number): st
  * could be loaded.
  */
 export function loadRequestTemplate(result: RequestRecipeResult, requestName: string): string {
+	return loadRecipeResult(result, `Started from “${requestName}”`, "This request can't be used as a template.");
+}
+
+/** The same, for a share link. */
+export function loadSharedRecipe(result: RequestRecipeResult): string {
+	return loadRecipeResult(result, 'Opened a shared request', "This link can't be opened.");
+}
+
+function loadRecipeResult(result: RequestRecipeResult, title: string, invalid: string): string {
 	const recipe = parseRecipe(result.recipe);
-	if (!recipe) throw new Error("This request can't be used as a template.");
+	if (!recipe) throw new Error(invalid);
 
 	customBoundary.reset();
 	datasetChoices.clearAll();
@@ -76,7 +85,7 @@ export function loadRequestTemplate(result: RequestRecipeResult, requestName: st
 	const missing = applyRecipe(recipe, result.boundary_sets as FCRef[]);
 
 	recipeNotice.set({
-		title: `Started from “${requestName}”`,
+		title,
 		dropped: describeDropped(result.dropped, missing.fcIds.length)
 	});
 	return get(customizeHref) ?? '/';

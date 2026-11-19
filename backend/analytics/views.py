@@ -14,9 +14,9 @@ from rest_framework.views import APIView
 from accounts.features import CUSTOM_BOUNDARIES, has_feature
 from analytics.tasks.ingest import ingest_custom_boundary_task
 from analytics.tasks.email import GeoEmail
-from analytics.throttles import RequestSubmitThrottle, RequestTokenThrottle
-from .models import LegacyRequest, Request, RequestToken
-from .recipe import request_recipe
+from analytics.throttles import RequestSubmitThrottle, RequestTokenThrottle, ShareCreateThrottle
+from .models import LegacyRequest, Request, RequestToken, SharedRecipe
+from .recipe import InvalidRecipe, check_recipe, normalize_recipe, request_recipe, share_id
 from .services import (
     STATUS_LABELS as _STATUS_LABELS,
     NoExtractTasksError,
@@ -311,6 +311,52 @@ class RequestRecipeView(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
         return Response(request_recipe(request.user, req))
+
+
+class SharedRecipeCreateView(APIView):
+    """
+    POST /api/analytics/shares/ {"recipe": {...}} — save a request recipe as a
+    share link (GEO-126). The id comes from the recipe, so sharing the same
+    request again returns the same link. One write per share, not per change.
+    """
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+    throttle_classes = [ShareCreateThrottle]
+
+    def post(self, request):
+        try:
+            recipe = normalize_recipe(request.data.get("recipe"))
+        except InvalidRecipe as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        # 10 characters; on the (vanishingly unlikely) clash with a different
+        # recipe, the longer id
+        for length in (10, 16):
+            sid = share_id(recipe, length)
+            shared, created = SharedRecipe.objects.get_or_create(id=sid, defaults={"recipe": recipe})
+            if shared.recipe == recipe:
+                return Response(
+                    {"id": sid, "path": f"/s/{sid}"},
+                    status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+                )
+        return Response({"error": "Could not save the link."}, status=status.HTTP_409_CONFLICT)
+
+
+class SharedRecipeDetailView(APIView):
+    """
+    GET /api/analytics/shares/{id}/ — a share link's recipe, checked against
+    the catalog as the viewer sees it now, with what no longer applies listed
+    (the same shape as a request's recipe).
+    """
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+
+    def get(self, request, sid):
+        shared = SharedRecipe.objects.filter(id=sid).first()
+        if shared is None:
+            return Response({"error": "This link doesn't exist."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({**check_recipe(request.user, shared.recipe), "created_at": shared.created_at})
 
 
 class RequestTokenView(APIView):

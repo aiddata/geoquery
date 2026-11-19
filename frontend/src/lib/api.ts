@@ -631,3 +631,28 @@ export async function fetchRequestRecipe(id: string): Promise<RequestRecipeResul
 	}
 	return response.json();
 }
+
+/** Save a recipe as a share link (GEO-126); the same recipe gives the same link. */
+export async function createShareLink(recipe: unknown): Promise<{ id: string; path: string }> {
+	const response = await apiFetch('/api/analytics/shares/', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ recipe })
+	});
+	if (!response.ok) {
+		const body = await response.json().catch(() => null);
+		if (response.status === 429) throw new Error('Too many links created. Try again later.');
+		throw new Error(body?.error ? `The link couldn't be created: ${body.error}.` : "The link couldn't be created.");
+	}
+	return response.json();
+}
+
+/** A share link's recipe, checked against the catalog as you see it. */
+export async function fetchSharedRecipe(id: string): Promise<RequestRecipeResult & { created_at: string }> {
+	const response = await fetch(`/api/analytics/shares/${encodeURIComponent(id)}/`);
+	if (!response.ok) {
+		const body = await response.json().catch(() => null);
+		throw new Error(body?.error ?? `Failed to load the link: ${response.status}`);
+	}
+	return response.json();
+}

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { get } from 'svelte/store';
-import { describeDropped, loadRequestTemplate, recipeNotice, requestInProgress } from './loadRecipe';
+import { describeDropped, loadRequestTemplate, loadSharedRecipe, recipeNotice, requestInProgress } from './loadRecipe';
 import { selection, type FCRef } from './stores/selection';
 import { cart, type CartItem } from './stores/cart';
 import { datasetChoices } from './stores/datasetChoices';
@@ -62,6 +62,18 @@ describe('loadRequestTemplate', () => {
 		);
 		expect(href).toBe('/');
 		expect(get(recipeNotice)?.dropped).toEqual(["1 boundary set isn't available any more."]);
+	});
+
+	test('a share link loads the same way, keeping names given on Review', () => {
+		const renamed = { ...ntl, customName: 'Lights at night' };
+		const href = loadSharedRecipe({
+			recipe: { v: 1, boundaries: { fcIds: [12], featureIds: [3, 4] }, datasets: [renamed] },
+			boundary_sets: [adm2],
+			dropped: none
+		});
+		expect(href).toBe('/customize?fc=12&features=3,4');
+		expect(get(cart)).toEqual([renamed]);
+		expect(get(recipeNotice)?.title).toBe('Opened a shared request');
 	});
 
 	test('rejects a recipe it does not recognise', () => {
