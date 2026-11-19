@@ -7,6 +7,11 @@ urlpatterns = [
     path(
         "requests/<uuid:pk>/", views.RequestDetailView.as_view(), name="request-detail"
     ),
+    path(
+        "requests/<uuid:pk>/recipe/",
+        views.RequestRecipeView.as_view(),
+        name="request-recipe",
+    ),
     path("request-token/", views.RequestTokenView.as_view(), name="request-token"),
     path("my-requests/", views.MyRequestsView.as_view(), name="my-requests"),
     path(

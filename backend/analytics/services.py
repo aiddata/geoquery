@@ -579,6 +579,7 @@ def create_request(
     name: str | None,
     feature_ids: list[int],
     datasets: list[dict],
+    fc_ids: list[int] | None = None,
     selection_label: str | None = None,
     selection_detail: str | None = None,
     source: str = "web",
@@ -618,6 +619,9 @@ def create_request(
             "selection_label": selection_label,
             "selection_detail": selection_detail,
             "feature_ids": feature_ids,
+            # The boundary sets picked, so the request can be used as a
+            # template (GEO-126); older requests have only feature_ids.
+            "fc_ids": fc_ids or None,
             "datasets": [],
             "dataset_specs": datasets,
         },
