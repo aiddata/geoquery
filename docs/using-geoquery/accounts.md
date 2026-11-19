@@ -1,5 +1,5 @@
 ---
-description: "Signing in to GeoQuery with GitHub, linking the email addresses you've used, finding your past requests with or without an account, and checking system status."
+description: "Signing in to GeoQuery with GitHub, linking the email addresses you've used, and finding your past requests with or without an account."
 ---
 
 # Accounts and request history
@@ -25,11 +25,7 @@ Open **Past Requests**, enter the email address you submitted requests with, and
 
 ## Checking on a request
 
-Each request has its own page showing its progress, which datasets and boundaries it includes, and a download link once it's ready. The email we send when you submit a request links to it, and so does your request history.
-
-## System status
-
-The [System Status page](https://geoquery.aiddata.wm.edu/stats) shows how GeoQuery is doing right now: whether requests are being processed normally or there's a backlog, how many are waiting, and how long they're taking. It also shows GeoQuery's processing history and usage over time, and the most requested datasets and boundaries. Open it from the **Account** menu or from **Past Requests**. It's a good place to look when a request is taking longer than you expected.
+Each request has its own page showing its progress, which datasets and boundaries it includes, and a download link once it's ready. The email we send when you submit a request links to it, and so does your request history. If a request is taking longer than you expected, [System status](system-status.md) shows how busy GeoQuery is right now.
 
 ## Requests from earlier versions of GeoQuery
 
