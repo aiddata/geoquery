@@ -24,7 +24,7 @@
 	}
 </script>
 
-{#if $auth.status === 'authenticated'}
+{#if $auth.status === 'authenticated' || $auth.status === 'anonymous'}
 	<DropdownMenu.Root>
 		<DropdownMenu.Trigger>
 			{#snippet child({ props })}
@@ -37,28 +37,36 @@
 			{/snippet}
 		</DropdownMenu.Trigger>
 		<DropdownMenu.Content align="end" class="w-56">
-			<DropdownMenu.Label class="truncate font-normal">
-				{$auth.user.email}
-			</DropdownMenu.Label>
-			<DropdownMenu.Separator />
-			<DropdownMenu.Item onclick={() => goto('/account')}>
-				<UserRound />
-				Account
-			</DropdownMenu.Item>
-			<DropdownMenu.Item onclick={() => goto('/requests')}>
-				<History />
-				My Requests
-			</DropdownMenu.Item>
-			<DropdownMenu.Separator />
-			<DropdownMenu.Item onclick={handleSignOut}>
-				<LogOut />
-				Sign out
-			</DropdownMenu.Item>
+			{#if $auth.status === 'authenticated'}
+				<DropdownMenu.Label class="truncate font-normal">
+					{$auth.user.email}
+				</DropdownMenu.Label>
+				<DropdownMenu.Separator />
+				<DropdownMenu.Item onclick={() => goto('/account')}>
+					<UserRound />
+					Account
+				</DropdownMenu.Item>
+				<DropdownMenu.Item onclick={() => goto('/requests')}>
+					<History />
+					My Requests
+				</DropdownMenu.Item>
+				<DropdownMenu.Separator />
+				<DropdownMenu.Item onclick={handleSignOut}>
+					<LogOut />
+					Sign out
+				</DropdownMenu.Item>
+			{:else}
+				<!-- Signed out: sign in, or get an emailed link to past requests,
+				     which needs no account -->
+				<DropdownMenu.Item onclick={handleSignIn} disabled={signingIn}>
+					<LogIn />
+					Sign in
+				</DropdownMenu.Item>
+				<DropdownMenu.Item onclick={() => goto('/requests')}>
+					<History />
+					Past Requests
+				</DropdownMenu.Item>
+			{/if}
 		</DropdownMenu.Content>
 	</DropdownMenu.Root>
-{:else if $auth.status === 'anonymous'}
-	<Button variant="ghost" onclick={handleSignIn} disabled={signingIn}>
-		<LogIn />
-		<span class="sr-only sm:not-sr-only">Sign in</span>
-	</Button>
 {/if}

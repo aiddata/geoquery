@@ -23,8 +23,8 @@
 		{ label: 'About', href: 'https://www.aiddata.org/geoquery', external: true },
 		{ label: 'Documentation', href: 'https://docs.geoquery.org/', external: true },
 		// The news page: markdown posts in docs/updates/posts/, published with the docs.
-		{ label: 'Updates', href: 'https://docs.geoquery.org/updates/', external: true },
-		{ label: 'Past Requests', href: '/requests' }
+		{ label: 'Updates', href: 'https://docs.geoquery.org/updates/', external: true }
+		// Past Requests is in the Account menu, signed in or not.
 	];
 
 	// Where you are in the request: plain breadcrumbs, not links. The
