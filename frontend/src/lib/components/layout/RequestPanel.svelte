@@ -117,6 +117,13 @@
 	// "Copy share link" (GEO-126), on every step once boundaries are chosen.
 	// A custom upload can't be shared, so the button says why instead.
 	const customInUse = $derived($customBoundary.active && !!$customBoundary.finalFeatures);
+	// Changes whenever the shareable request does, so the share button can tell
+	// a copied link has gone out of date.
+	const recipeKey = $derived.by(() => {
+		void $selection;
+		void $cart;
+		return JSON.stringify(currentRecipe());
+	});
 	const showShare = $derived(customInUse || (!!$selection && !$customBoundary.active));
 
 	const totalColumns = $derived($cart.reduce((n, item) => n + entryColumns(item), 0));
@@ -230,6 +237,7 @@
 		<div class="border-t px-4 py-2">
 			<ShareLinkButton
 				getRecipe={currentRecipe}
+				current={recipeKey}
 				unavailable={customInUse ? "Requests with a custom upload can't be shared." : null}
 			/>
 		</div>

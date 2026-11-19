@@ -17,6 +17,12 @@
 		unavailable?: string | null;
 		/** The tooltip when it can be shared */
 		hint?: string;
+		/**
+		 * The request as it is now (any string that changes when it does), for a
+		 * request that can still be edited. A link is a snapshot, so once the
+		 * request changes after copying, the button offers an updated link.
+		 */
+		current?: string | null;
 		size?: 'sm' | 'default';
 		class?: string;
 	}
@@ -24,7 +30,8 @@
 	let {
 		getRecipe,
 		unavailable = null,
-		hint = 'Anyone with the link can open a copy of this request',
+		hint = 'Anyone with the link can open a copy of this request as it is now',
+		current = null,
 		size = 'sm',
 		class: className = ''
 	}: Props = $props();
@@ -35,6 +42,10 @@
 	/** The clipboard wasn't available, so the link is shown to copy by hand */
 	let manual = $state(false);
 	let error = $state<string | null>(null);
+	/** `current` when the link was made */
+	let sharedFor = $state<string | null>(null);
+	/** The request changed after its link was made: that link opens the earlier version */
+	const stale = $derived(!!link && current !== null && sharedFor !== current);
 	let timer: ReturnType<typeof setTimeout> | undefined;
 
 	async function share() {
@@ -42,9 +53,11 @@
 		busy = true;
 		error = null;
 		manual = false;
+		const snapshot = current;
 		try {
 			const { path } = await createShareLink(await getRecipe());
 			link = new URL(path, window.location.origin).toString();
+			sharedFor = snapshot;
 			try {
 				await navigator.clipboard.writeText(link);
 				copied = true;
@@ -73,16 +86,21 @@
 					</Button>
 				{:else}
 					<Button {...props} variant="outline" {size} onclick={share} disabled={busy}>
-						{#if copied}<Check />{:else}<Link />{/if}
-						{busy ? 'Creating link…' : copied ? 'Link copied' : 'Copy share link'}
+						{#if copied && !stale}<Check />{:else}<Link />{/if}
+						{busy ? 'Creating link…' : copied && !stale ? 'Link copied' : stale ? 'Copy updated link' : 'Copy share link'}
 					</Button>
 				{/if}
 			{/snippet}
 		</Tooltip.Trigger>
-		<Tooltip.Content>{unavailable ?? hint}</Tooltip.Content>
+		<Tooltip.Content>
+			{unavailable ??
+				(stale
+					? "You've changed this request since copying its link. The earlier link still opens it as it was."
+					: hint)}
+		</Tooltip.Content>
 	</Tooltip.Root>
 	<span class="sr-only" role="status">{copied ? 'Share link copied to the clipboard' : ''}</span>
-	{#if link && manual}
+	{#if link && manual && !stale}
 		<!-- Beside the button, one line: the clipboard wasn't available -->
 		<a href={link} title="Copy this link" class="min-w-0 truncate text-xs text-link underline select-all hover:text-link-hover">{link}</a>
 	{/if}
