@@ -110,6 +110,7 @@
 
 	function processFile(file: File) {
 		error = '';
+		step = 'upload';
 
 		if (file.size > MAX_FILE_BYTES) {
 			error = `File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum size is 50 MB.`;
@@ -133,6 +134,14 @@
 			error = 'Failed to read file.';
 		};
 		reader.readAsText(file);
+	}
+
+	/**
+	 * Take a file dropped elsewhere on the page (GEO-137): the same checks
+	 * and upload as dropping it on this panel's drop zone.
+	 */
+	export function acceptFile(file: File) {
+		processFile(file);
 	}
 
 	function onFileInput(e: Event) {
@@ -185,13 +194,6 @@
 				onchange={onFileInput}
 			/>
 
-			{#if error}
-				<Alert.Root variant="destructive">
-					<AlertCircle />
-					<Alert.Description>{error}</Alert.Description>
-				</Alert.Root>
-			{/if}
-
 		{:else}
 			<!-- Upload success state -->
 			<div class="flex items-start gap-3 rounded-lg bg-alert-bg px-3 py-2.5" role="status">
@@ -216,6 +218,15 @@
 			<Button class="w-full" onclick={() => { step = 'operations'; }}>
 				Continue to Operations →
 			</Button>
+		{/if}
+
+		<!-- Shown in both states: a file dropped on the page (GEO-137) can be
+		     rejected while an earlier upload is still loaded -->
+		{#if error}
+			<Alert.Root variant="destructive">
+				<AlertCircle />
+				<Alert.Description>{error}</Alert.Description>
+			</Alert.Root>
 		{/if}
 </div>
 {/if}
