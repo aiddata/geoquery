@@ -48,6 +48,10 @@ function createDatasetChoicesStore() {
 		},
 		clearAll() {
 			set({});
+		},
+		/** Replace every dataset's choices, as when restoring a refreshed tab. */
+		replaceAll(all: Record<string, DatasetChoices>) {
+			set(structuredClone(all));
 		}
 	};
 }
