@@ -1,5 +1,5 @@
 import { writable, derived } from 'svelte/store';
-import { mergeFeatureVersions } from '#lib/utils/featureMerge.js';
+import { mergeFeatureVersions } from '../utils/featureMerge.js';
 
 export interface RangeSelection {
 	type: 'range';
