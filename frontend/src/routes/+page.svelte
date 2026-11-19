@@ -20,6 +20,8 @@
 	import BoundaryBrowsePanel from '#lib/components/map/BoundaryBrowsePanel.svelte';
 	import CoverageStatus from '#lib/components/map/CoverageStatus.svelte';
 	import ZoomControls from '#lib/components/map/ZoomControls.svelte';
+	import LevelVisibilityLegend from '#lib/components/map/LevelVisibilityLegend.svelte';
+	import { levelLabel, type LevelKey } from '#lib/utils/boundaryLevels.js';
 	import MapToolButton from '#lib/components/map/MapToolButton.svelte';
 	import MapFrame, { type FcStyle } from '#lib/components/map/MapFrame.svelte';
 	import type { LegendItem } from '#lib/components/map/SelectionLegend.svelte';
@@ -322,6 +324,57 @@
 		});
 	});
 
+	// Showing and hiding selected sets on the map by administrative level, as
+	// Bulk select groups them (GEO-141). Only the map changes: hidden sets stay
+	// selected. The map is given just the visible sets, so its tiles and
+	// cluster counts cover exactly what is shown.
+	const levelOf = (b: BoundaryResult): LevelKey =>
+		boundariesByName.get(b.name)?.group_level ?? b.group_level ?? 'Unspecified';
+	let hiddenLevels = $state<Set<LevelKey>>(new Set());
+
+	// The selection's levels, in Bulk select's order (Other last), with counts
+	let selectionLevels = $derived.by(() => {
+		const counts = new Map<LevelKey, number>();
+		for (const b of browseBoundaries) counts.set(levelOf(b), (counts.get(levelOf(b)) ?? 0) + 1);
+		const order = (k: LevelKey) => (typeof k === 'number' ? k : Infinity);
+		return [...counts.entries()].sort((a, b) => order(a[0]) - order(b[0]));
+	});
+	// Only worth showing when the selection spans more than one level
+	let showLevelLegend = $derived(!$customBoundary.active && selectionLevels.length > 1);
+
+	function toggleLevel(key: string) {
+		const level: LevelKey = key === 'Unspecified' ? 'Unspecified' : Number(key);
+		const next = new Set(hiddenLevels);
+		if (next.has(level)) next.delete(level);
+		else next.add(level);
+		hiddenLevels = next;
+	}
+
+	// A set added at a hidden level shows that level again, so a new choice is
+	// never invisible. Without the legend (one level left) nothing stays
+	// hidden, since there'd be no control to show it again.
+	let seenIds = new Set<number>();
+	$effect(() => {
+		const added = browseBoundaries.filter((b) => !seenIds.has(b.id));
+		seenIds = new Set(browseBoundaries.map((b) => b.id));
+		const legend = showLevelLegend;
+		untrack(() => {
+			if (hiddenLevels.size === 0) return;
+			if (!legend) {
+				hiddenLevels = new Set();
+				return;
+			}
+			const unhide = new Set(added.map(levelOf).filter((k) => hiddenLevels.has(k)));
+			if (unhide.size) hiddenLevels = new Set([...hiddenLevels].filter((k) => !unhide.has(k)));
+		});
+	});
+
+	let visibleFcStyles = $derived(
+		hiddenLevels.size === 0
+			? mapFcStyles
+			: mapFcStyles.filter((_, i) => !hiddenLevels.has(levelOf(browseBoundaries[i])))
+	);
+
 	// The selection list, drawn as a key to the map
 	let legendItems = $derived<LegendItem[]>(
 		browseBoundaries.map((b, idx) => {
@@ -334,7 +387,8 @@
 				lineWidth: style.lineWidth,
 				level: meta?.group_level ?? null,
 				source: meta?.source_name ?? null,
-				group: meta?.group_title ?? null
+				group: meta?.group_title ?? null,
+				hidden: hiddenLevels.has(levelOf(b))
 			};
 		})
 	);
@@ -672,12 +726,27 @@
 		</div>
 	{/if}
 
+	<!-- Show or hide the selection's levels on the map (GEO-141) -->
+	{#if showLevelLegend}
+		<div class="absolute bottom-4 left-4 z-10">
+			<LevelVisibilityLegend
+				groups={selectionLevels.map(([key, count]) => ({
+					key: String(key),
+					label: levelLabel(key),
+					count,
+					hidden: hiddenLevels.has(key)
+				}))}
+				onToggle={toggleLevel}
+			/>
+		</div>
+	{/if}
+
 	<!-- Map -->
 	<MapFrame
 		bind:this={mapFrame}
 		class="flex-1"
 		onZoomChange={(z) => (mapZoom = z)}
-		fcStyles={$customBoundary.active ? [] : mapFcStyles}
+		fcStyles={$customBoundary.active ? [] : visibleFcStyles}
 		activeFcName={$customBoundary.active ? null : activeFcName}
 		selectedFeatureIds={$customBoundary.active ? [] : displaySelectedFeatureIds}
 		highlightFcId={$customBoundary.active ? null : highlightedFcId}
