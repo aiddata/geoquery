@@ -830,6 +830,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "request_token": os.environ.get("THROTTLE_RATE_REQUEST_TOKEN", "10/hour"),
         "request_submit": os.environ.get("THROTTLE_RATE_REQUEST_SUBMIT", "60/hour"),
+        "share_create": os.environ.get("THROTTLE_RATE_SHARE_CREATE", "120/hour"),
         "public_api_anon": os.environ.get("THROTTLE_RATE_PUBLIC_API_ANON", "100/hour"),
         "stac_api_anon": os.environ.get("THROTTLE_RATE_STAC_API_ANON", "100/hour"),
     },

@@ -12,6 +12,12 @@ urlpatterns = [
         views.RequestRecipeView.as_view(),
         name="request-recipe",
     ),
+    path("shares/", views.SharedRecipeCreateView.as_view(), name="share-create"),
+    path(
+        "shares/<str:sid>/",
+        views.SharedRecipeDetailView.as_view(),
+        name="share-detail",
+    ),
     path("request-token/", views.RequestTokenView.as_view(), name="request-token"),
     path("my-requests/", views.MyRequestsView.as_view(), name="my-requests"),
     path(

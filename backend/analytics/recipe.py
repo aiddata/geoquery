@@ -10,6 +10,8 @@ set) is left out and listed, so the page can say what was dropped.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections import defaultdict
 
 from django.db.models import Count
@@ -103,22 +105,16 @@ def _filter_selections(kwargs: dict) -> dict:
     return selections
 
 
-def request_recipe(user, req) -> dict:
-    """The recipe for a past (standard-boundary) request, plus the boundary
-    sets it names and what was dropped from it."""
-    req_data = req.data or {}
-    fcs, feature_ids, dropped_features = _boundaries(user, req_data)
-    # Coverage is checked on the features the recipe keeps
-    kept_features = (
-        feature_ids
-        if feature_ids
-        else list(
-            FeatMap.objects.filter(fc_id__in=[fc.id for fc in fcs]).values_list(
-                "geom_id", flat=True
-            )
-        )
+def _features_of(fcs) -> list[int]:
+    return list(
+        FeatMap.objects.filter(fc_id__in=[fc.id for fc in fcs]).values_list("geom_id", flat=True)
     )
 
+
+def _check_datasets(user, specs: list[dict], kept_features: list[int]):
+    """Dataset specs (as submitted, or a recipe's cart items mapped to that
+    shape) as cart items, keeping what still applies: (datasets, dropped
+    datasets, dropped options)."""
     datasets: list[dict] = []
     dropped_datasets: list[dict] = []
     dropped_options: list[dict] = []
@@ -133,13 +129,14 @@ def request_recipe(user, req) -> dict:
             .distinct()
         )
 
-    for spec in req_data.get("dataset_specs") or []:
+    for spec in specs:
         name = (spec.get("datasetName") or "").strip()
         if not name:
             continue
         dataset = visible.filter(name=name).first()
         if dataset is None:
-            dropped_datasets.append({"name": name, "title": spec.get("name") or name, "reason": "unavailable"})
+            title = spec.get("datasetTitle") or spec.get("name") or name
+            dropped_datasets.append({"name": name, "title": title, "reason": "unavailable"})
             continue
         title = dataset.title or dataset.name
         if not dataset.is_global and dataset.id not in covered_ids:
@@ -148,7 +145,9 @@ def request_recipe(user, req) -> dict:
 
         kwargs = spec.get("kwargs") or None
         item = {
-            "customName": (spec.get("name") or title) if kwargs else title,
+            # Feature datasets: the version's name (its column prefix). Rasters:
+            # a name given on Review, kept in a shared recipe.
+            "customName": spec.get("name") or spec.get("customName") or title,
             "datasetName": dataset.name,
             "datasetTitle": title,
             "datasetType": dataset.type,
@@ -192,10 +191,14 @@ def request_recipe(user, req) -> dict:
         ]
         datasets.append(item)
 
+    return datasets, dropped_datasets, dropped_options
+
+
+def _result(fc_ids, fcs, feature_ids, datasets, dropped_features, dropped_datasets, dropped_options):
     return {
         "recipe": {
             "v": RECIPE_VERSION,
-            "boundaries": {"fcIds": [fc.id for fc in fcs], "featureIds": feature_ids},
+            "boundaries": {"fcIds": fc_ids, "featureIds": feature_ids},
             "datasets": datasets,
         },
         "boundary_sets": [_fc_ref(fc) for fc in fcs],
@@ -205,3 +208,117 @@ def request_recipe(user, req) -> dict:
             "options": dropped_options,
         },
     }
+
+
+def request_recipe(user, req) -> dict:
+    """The recipe for a past (standard-boundary) request, plus the boundary
+    sets it names and what was dropped from it."""
+    req_data = req.data or {}
+    fcs, feature_ids, dropped_features = _boundaries(user, req_data)
+    # Coverage is checked on the features the recipe keeps
+    kept_features = feature_ids or _features_of(fcs)
+    datasets, dropped_datasets, dropped_options = _check_datasets(
+        user, req_data.get("dataset_specs") or [], kept_features
+    )
+    return _result(
+        [fc.id for fc in fcs], fcs, feature_ids, datasets,
+        dropped_features, dropped_datasets, dropped_options,
+    )
+
+
+def check_recipe(user, recipe: dict) -> dict:
+    """A stored recipe (a share link's) checked against the catalog as the
+    viewer sees it now, in the same shape as request_recipe. Boundary sets
+    that are gone are left out of boundary_sets, and the frontend's loader
+    reports them; features outside a single set are dropped."""
+    boundaries = recipe.get("boundaries") or {}
+    fc_ids = [i for i in boundaries.get("fcIds") or [] if type(i) is int]
+    found = {fc.id: fc for fc in visible_feature_collections(user).filter(id__in=fc_ids)}
+    fcs = [found[i] for i in fc_ids if i in found]
+
+    feature_ids: list[int] = []
+    dropped_features = 0
+    wanted = [i for i in boundaries.get("featureIds") or [] if type(i) is int]
+    if wanted and len(fc_ids) == 1:
+        if fcs:
+            in_set = set(
+                FeatMap.objects.filter(fc=fcs[0], geom_id__in=wanted).values_list("geom_id", flat=True)
+            )
+            feature_ids = [i for i in wanted if i in in_set]
+        dropped_features = len(wanted) - len(feature_ids)
+
+    kept_features = feature_ids or _features_of(fcs)
+    specs = [
+        {**item, "name": item.get("customName") if item.get("kwargs") else None}
+        for item in recipe.get("datasets") or []
+        if isinstance(item, dict)
+    ]
+    datasets, dropped_datasets, dropped_options = _check_datasets(user, specs, kept_features)
+    return _result(
+        fc_ids, fcs, feature_ids, datasets,
+        dropped_features, dropped_datasets, dropped_options,
+    )
+
+
+# ── Share links ──────────────────────────────────────────────────────────────
+
+MAX_RECIPE_BYTES = 200_000
+_ITEM_KEYS = (
+    "customName", "datasetName", "datasetTitle", "datasetType", "processingClass",
+    "extractTypes", "resources", "resourceLabels", "filterSelections", "kwargs",
+)
+_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+
+class InvalidRecipe(ValueError):
+    pass
+
+
+def _ids(value, what) -> list[int]:
+    if not isinstance(value, list) or not all(type(i) is int and i > 0 for i in value):
+        raise InvalidRecipe(f"{what} must be a list of ids")
+    return value
+
+
+def normalize_recipe(value) -> dict:
+    """A recipe from a client, reduced to the fields a recipe has: what a
+    share link stores. Raises InvalidRecipe for anything that isn't one."""
+    if not isinstance(value, dict) or value.get("v") != RECIPE_VERSION:
+        raise InvalidRecipe("not a recipe this version understands")
+    boundaries = value.get("boundaries")
+    if not isinstance(boundaries, dict):
+        raise InvalidRecipe("boundaries are missing")
+    fc_ids = _ids(boundaries.get("fcIds"), "boundaries.fcIds")
+    if not fc_ids:
+        raise InvalidRecipe("a recipe needs at least one boundary set")
+    feature_ids = _ids(boundaries.get("featureIds", []), "boundaries.featureIds")
+    datasets = value.get("datasets")
+    if not isinstance(datasets, list):
+        raise InvalidRecipe("datasets must be a list")
+    items = []
+    for item in datasets:
+        if not isinstance(item, dict) or not isinstance(item.get("datasetName"), str):
+            raise InvalidRecipe("each dataset needs a datasetName")
+        items.append({k: item[k] for k in _ITEM_KEYS if k in item})
+    recipe = {
+        "v": RECIPE_VERSION,
+        "boundaries": {"fcIds": fc_ids, "featureIds": feature_ids if len(fc_ids) == 1 else []},
+        "datasets": items,
+    }
+    if len(canonical_json(recipe)) > MAX_RECIPE_BYTES:
+        raise InvalidRecipe("this request is too large to share")
+    return recipe
+
+
+def canonical_json(recipe: dict) -> bytes:
+    return json.dumps(recipe, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+
+
+def share_id(recipe: dict, length: int = 10) -> str:
+    """A short id derived from the recipe: the same recipe, the same link."""
+    n = int.from_bytes(hashlib.sha256(canonical_json(recipe)).digest(), "big")
+    chars = []
+    for _ in range(length):
+        n, r = divmod(n, len(_ALPHABET))
+        chars.append(_ALPHABET[r])
+    return "".join(chars)

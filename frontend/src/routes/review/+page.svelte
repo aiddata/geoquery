@@ -8,6 +8,8 @@
 	import DetailBack from '#lib/components/layout/DetailBack.svelte';
 	import { requestForm } from '#lib/stores/requestForm.js';
 	import { recipeNotice } from '#lib/loadRecipe.js';
+	import { currentRecipe } from '#lib/recipe.js';
+	import ShareLinkButton from '#lib/components/ShareLinkButton.svelte';
 	import { openDetail } from '#lib/stepDetail.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
 	import { fetchDatasetDetail, fetchFeatureIds, submitRequest, type DatasetDetail, type SubmittedRequest, type CustomBoundaryPayload } from '#lib/api.js';
@@ -398,6 +400,17 @@
 								<Send />
 								{submitting ? 'Submitting…' : 'Submit Request'}
 							</Button>
+
+							<!-- A link to this request as it stands (GEO-126) -->
+							<div class="border-t pt-3">
+								<ShareLinkButton
+									getRecipe={currentRecipe}
+									unavailable={isCustomMode ? "Requests with a custom upload can't be shared." : null}
+								/>
+								<p class="mt-1.5 text-xs text-muted-foreground">
+									Anyone with the link can open this request and change it before submitting their own.
+								</p>
+							</div>
 						</div>
 		</RequestPanel>
 

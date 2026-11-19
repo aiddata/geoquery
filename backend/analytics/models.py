@@ -700,3 +700,23 @@ class RequestToken(models.Model):
 
     def __str__(self):
         return f"RequestToken({self.email}, expires={self.expires_at.date()})"
+
+
+class SharedRecipe(models.Model):
+    """A share link's request recipe (GEO-126): ``/s/<id>`` opens it.
+
+    The id is derived from the recipe itself (a hash of its canonical JSON),
+    so sharing the same request twice gives the same link, and a link never
+    changes: whoever opens it gets exactly what was shared. Links don't expire.
+    Custom uploads are never part of a recipe.
+    """
+
+    id = models.CharField(primary_key=True, max_length=16)
+    recipe = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "shared_recipes"
+
+    def __str__(self):
+        return self.id

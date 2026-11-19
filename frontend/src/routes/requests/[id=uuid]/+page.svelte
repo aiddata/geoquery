@@ -4,6 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { fetchDatasetDetail, fetchRequestDetail, fetchRequestRecipe, type DatasetDetail, type RequestDetail } from '#lib/api.js';
 	import { loadRequestTemplate, requestInProgress } from '#lib/loadRecipe.js';
+	import ShareLinkButton from '#lib/components/ShareLinkButton.svelte';
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import DatasetEntryDetails from '#lib/components/datasets/DatasetEntryDetails.svelte';
@@ -189,6 +190,11 @@
 						<p class="text-xs text-muted-foreground">Start a new request with these boundaries and datasets.</p>
 					{/if}
 				</div>
+				<ShareLinkButton
+					class="mt-3"
+					getRecipe={async () => (await fetchRequestRecipe(request!.id)).recipe}
+					unavailable={request.data?.is_custom_boundary ? "Requests with a custom upload can't be shared." : null}
+				/>
 				{#if templateError}
 					<p class="mt-2 text-sm text-danger-text" role="alert">{templateError}</p>
 				{/if}
