@@ -618,7 +618,7 @@ export interface RecipeDropped {
 export interface RequestRecipeResult {
 	/** A request recipe (lib/recipe.ts); checked with parseRecipe before use */
 	recipe: unknown;
-	boundary_sets: { id: number; name: string; title: string | null; short_name: string | null; bbox: [number, number, number, number] | null }[];
+	boundary_sets: { id: number; name: string; title: string | null; short_name: string | null; bbox?: [number, number, number, number] | null }[];
 	dropped: RecipeDropped;
 }
 
