@@ -1,3 +1,7 @@
+---
+description: "Documentation for every dataset and boundary set GeoQuery offers: sources, licenses, citations, coverage and boundary presets."
+---
+
 # Data Documentation
 
 GeoQuery provides access to two types of data: **datasets** containing the values extracted for your area of interest, and **boundaries** defining the geographic units available for selection.

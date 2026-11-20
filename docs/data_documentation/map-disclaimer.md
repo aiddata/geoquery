@@ -8,6 +8,6 @@ GeoQuery shows boundaries, names and labels as published by their providers, suc
 
 The boundaries and names shown, and the designations used, do not imply any opinion or endorsement by AidData or William & Mary concerning the legal status of any country, territory, city or area, or of its authorities, or concerning the delimitation of its frontiers or boundaries. Disputed areas and borders may be shown differently by different providers, and a boundary's inclusion in GeoQuery does not mean it is recognized by AidData.
 
-Boundaries you upload yourself are used as provided and are your responsibility.
+Boundaries you upload yourself (once uploads are available) are used as provided and are your responsibility.
 
 To ask about a specific boundary, see its page in the [boundaries documentation](boundaries/index.md) for its source, or contact the provider directly.
