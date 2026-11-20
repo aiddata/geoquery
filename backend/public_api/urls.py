@@ -1,7 +1,7 @@
 from django.urls import path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
-from . import views
+from . import stats, views
 
 app_name = "public_api"
 
@@ -37,6 +37,9 @@ api_urlpatterns = [
         name="boundary-presets",
     ),
     path("boundaries/<str:name>/", views.PublicBoundaryDetailView.as_view(), name="boundary-detail"),
+    path("stats/", stats.PublicStatsView.as_view(), name="stats"),
+    path("stats/timeseries/", stats.PublicStatsTimeseriesView.as_view(), name="stats-timeseries"),
+    path("stats/status/", stats.PublicStatsStatusView.as_view(), name="stats-status"),
 ]
 
 urlpatterns = api_urlpatterns + [
