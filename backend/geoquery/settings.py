@@ -334,8 +334,9 @@ CORS_ALLOW_CREDENTIALS = True
 # and worse, its middleware intercepts preflight OPTIONS requests before
 # they reach the view, bypassing StacApiBaseMixin.finalize_response()
 # entirely. Scoping corsheaders off this path lets stac_api handle its
-# own CORS end-to-end instead.
-CORS_URLS_REGEX = r"^(?!/api/stac/).*$"
+# own CORS end-to-end instead. The public stats endpoints do the same, so
+# other sites can show GeoQuery's figures (public_api.stats).
+CORS_URLS_REGEX = r"^(?!/api/stac/|/api/public/v1/stats/).*$"
 
 # Results
 REQUESTS_DIR = Path(os.environ.get("REQUESTS_DIR", str(BASE_DIR.parent / "requests")))

@@ -9,6 +9,9 @@ EXPECTED_PATHS = {
     "/boundaries/autocomplete/",
     "/boundaries/presets/",
     "/boundaries/{name}/",
+    "/stats/",
+    "/stats/timeseries/",
+    "/stats/status/",
 }
 
 # These views override .list() to return a bare flat array (matching the
