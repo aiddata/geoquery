@@ -81,26 +81,33 @@ nav = [
       { "Overview" = "get-involved/contributing/index.md" },
       { "Developer Docs" = [
         { "Overview" = "get-involved/contributing/dev/index.md" },
-        { "Development" = "get-involved/contributing/dev/development.md" },
-        { "Database" = "get-involved/contributing/dev/database.md" },
-        { "Request Lifecycle" = "get-involved/contributing/dev/request-lifecycle.md" },
-        { "Extraction Workflow" = "get-involved/contributing/dev/extraction-workflow.md" },
-        { "GitHub Deploy Setup" = "get-involved/contributing/dev/gh_deploy_setup.md" },
-        { "Deploying" = [
-          { "Kubernetes" = [
-            { "Overview" = "get-involved/contributing/dev/deploying/kubernetes/index.md" },
-            { "Container" = "get-involved/contributing/dev/deploying/kubernetes/container.md" },
-            { "Helm Chart" = "get-involved/contributing/dev/deploying/kubernetes/helm-chart.md" },
-            { "Flux" = "get-involved/contributing/dev/deploying/kubernetes/flux.md" },
-            { "Development" = "get-involved/contributing/dev/deploying/kubernetes/development.md" },
-            { "Ingest Data" = "get-involved/contributing/dev/deploying/kubernetes/ingest-data.md" },
-          ]},
+        { "Getting Started" = [
+          { "Local Development" = "get-involved/contributing/dev/development.md" },
+          { "Testing" = "get-involved/contributing/dev/testing.md" },
         ]},
-        { "Services" = [
-          { "Grafana" = [
-            { "Overview" = "get-involved/contributing/dev/services/grafana/index.md" },
-            { "Installation" = "get-involved/contributing/dev/services/grafana/installation.md" },
-          ]},
+        { "How It Works" = [
+          { "Architecture" = "get-involved/contributing/dev/architecture.md" },
+          { "Request Lifecycle" = "get-involved/contributing/dev/request-lifecycle.md" },
+          { "Extraction Workflow" = "get-involved/contributing/dev/extraction-workflow.md" },
+          { "Database" = "get-involved/contributing/dev/database.md" },
+          { "Background Jobs" = "get-involved/contributing/dev/background-jobs.md" },
+          { "APIs" = "get-involved/contributing/dev/apis.md" },
+          { "Frontend" = "get-involved/contributing/dev/frontend.md" },
+        ]},
+        { "Reference" = [
+          { "Configuration" = "get-involved/contributing/dev/configuration.md" },
+          { "Management Commands" = "get-involved/contributing/dev/management-commands.md" },
+        ]},
+        { "Production" = [
+          { "Overview" = "get-involved/contributing/dev/deploying/kubernetes/index.md" },
+          { "Deploying with Flux" = "get-involved/contributing/dev/deploying/kubernetes/flux.md" },
+          { "Container Images" = "get-involved/contributing/dev/deploying/kubernetes/container.md" },
+          { "Helm Chart" = "get-involved/contributing/dev/deploying/kubernetes/helm-chart.md" },
+          { "Cluster Operations" = "get-involved/contributing/dev/deploying/kubernetes/development.md" },
+          { "Ingest Data" = "get-involved/contributing/dev/deploying/kubernetes/ingest-data.md" },
+          { "Monitoring" = "get-involved/contributing/dev/services/grafana/index.md" },
+          { "Viewing the Dashboard" = "get-involved/contributing/dev/services/grafana/installation.md" },
+          { "GitHub Deploy Token" = "get-involved/contributing/dev/gh_deploy_setup.md" },
         ]},
       ]},
     ]},
