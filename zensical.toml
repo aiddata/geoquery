@@ -62,8 +62,12 @@ nav = [
     { "Using Your Results" = "using-geoquery/results.md" },
     { "Accounts and History" = "using-geoquery/accounts.md" },
     { "System Status" = "using-geoquery/system-status.md" },
+    { "API Access" = "using-geoquery/api.md" },
     { "Research and Use Cases" = "using-geoquery/research-and-use-cases.md" },
-    { "Tutorials" = "using-geoquery/tutorials/index.md" },
+    { "Tutorials" = [
+      { "Overview" = "using-geoquery/tutorials/index.md" },
+      { "Nighttime Lights for Ghana" = "using-geoquery/tutorials/ghana-nighttime-lights.md" },
+    ]},
   ]},
   { "FAQ" = "faq.md" },
   { "Citing GeoQuery" = "citing.md" },

@@ -9,3 +9,5 @@ The [System Status page](https://geoquery.aiddata.wm.edu/stats) shows how GeoQue
 It also shows GeoQuery's processing history and usage over time, and the most requested datasets and boundaries. These figures are aggregate counts and never identify anyone.
 
 Open it from the **Account** menu in the header, or from **Past Requests**. It's a good place to look when a request is taking longer than you expected.
+
+The same figures are available as JSON from the [stats API](api.md#stats), for showing on your own site.
