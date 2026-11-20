@@ -1,27 +1,33 @@
+---
+description: "Creating and installing the DEPLOY_TOKEN secret the release workflow uses to push to aiddata/helm-charts and aiddata/nova-fluxcd."
+---
 
-# Creating a Personal Access Token for GitHub Actions Deployment
+# GitHub deploy token
 
-You need one secret — DEPLOY_TOKEN — added to the aiddata/geoquery repo. The GITHUB_TOKEN that Actions gets automatically only has write access to the repo the workflow runs in, so you need a token that can also push to aiddata/helm-charts and aiddata/nova-fluxcd.
+The `Deploy GeoQuery` workflow pushes to two other repositories: the chart version and image tags to `aiddata/helm-charts`, and the pinned chart version to `aiddata/nova-fluxcd` ([Deploying with Flux](deploying/kubernetes/flux.md)). The `GITHUB_TOKEN` Actions provides can only write to the repository the workflow runs in, so the workflow uses a fine-grained personal access token stored as the `DEPLOY_TOKEN` secret.
 
-1. Create a Fine-Grained PAT
+When it expires, releases fail at the "Checkout helm-charts" step. Replace it as below.
 
-Go to: github.com → your profile → Settings → Developer Settings → Personal access tokens → Fine-grained tokens → Generate new token
+## 1. Create the token
 
-Fill it in:
+On GitHub, go to your profile → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**, and fill it in:
 
-Token name: geoquery-deploy-bot (or whatever)
-Expiration: set something reasonable (90 days, 1 year)
-Resource owner: aiddata (the org, not your personal account)
-Repository access: select Only select repositories → pick aiddata/helm-charts and aiddata/nova-fluxcd
-Permissions: under Repository permissions, set Contents → Read and write — everything else can stay None
-Generate and copy the token (you only see it once).
+| Field | Value |
+|---|---|
+| Token name | `geoquery-deploy-bot`, or similar |
+| Expiration | 90 days to a year; note the date |
+| Resource owner | `aiddata` (the organization, not your account) |
+| Repository access | **Only select repositories**: `aiddata/helm-charts` and `aiddata/nova-fluxcd` |
+| Repository permissions | **Contents: Read and write**. Leave everything else at No access |
 
-If aiddata is an org, the token request will need to be approved by an org owner before it activates. Check Settings → Personal access tokens in the org settings to approve it.
+Generate it and copy it; GitHub shows it only once.
 
-2. Add the secret to the geoquery repo
+An organization owner has to approve a token for `aiddata` before it works: the organization's **Settings** → **Personal access tokens** → **Pending requests**.
 
-Go to: github.com/aiddata/geoquery → Settings → Secrets and variables → Actions → New repository secret
+## 2. Install it
 
-Name: DEPLOY_TOKEN
-Value: paste the token
-Save it
+In `aiddata/geoquery`, go to **Settings** → **Secrets and variables** → **Actions**, and create (or update) the repository secret `DEPLOY_TOKEN` with the token as its value.
+
+## 3. Check it
+
+The next release shows whether it works: its `Deploy GeoQuery` run should get past "Checkout helm-charts" and push to both repositories. (Re-running an already published release doesn't test it, because the workflow stops early when the chart version already exists with the same images.)

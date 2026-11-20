@@ -1,3 +1,7 @@
+---
+description: "The decisions governing GeoQuery's PostgreSQL database: partitioning, task claiming, indexes, pooling, the write path, reapers, bigint ids, leases and cluster settings, with the measurements behind them."
+---
+
 # Database
 
 PostgreSQL 17 + PostGIS, run by CloudNativePG, reached through pgBouncer in
@@ -8,8 +12,9 @@ this database, and why each was made. Most exist because of a production
 incident or a measurement; those are cited inline so a future change can be
 argued against evidence rather than taste.
 
-The scale that motivates all of it: `extract_tasks` is heading for ~1.2 billion
-rows across 56 partitions, processed at ~43,000 rows/minute.
+The scale that motivates all of it: `extract_tasks` holds ~2.9 billion completed
+rows (November 2026), in one partition per dataset, and the measurements below
+were taken processing ~43,000 rows/minute.
 
 ---
 
@@ -37,13 +42,14 @@ The short version. Each rule links to the section that justifies it.
 
 **Adding a background task**
 
+- Celery tasks run on the background workers only. Extraction is not a Celery
+  task: it belongs in the extract worker's loop (`analytics/extract_worker.py`,
+  §12 and [Extraction Workflow](extraction-workflow.md)).
 - New task modules must be star-imported in `analytics/tasks/__init__.py`, or
   autodiscovery misses them and every worker drops the message with a `KeyError`.
   Verify with `celery -A geoquery inspect registered` (§8).
-- If it writes results, confirm nothing depends on them; if it is a chord member,
-  it must keep them (§9).
-- One message in, one message out for self-chaining tasks — anything else grows
-  the queue without bound (§2).
+- Nothing should read a task's result. Frequent tasks set `ignore_result=True`
+  so they don't fill the result table (§9).
 
 **Adding state that means "something is working on this"**
 
@@ -146,15 +152,22 @@ Tunable via `EXTRACT_TASK_CLAIM_BATCH`. Raising it costs blast radius: a worker
 dying mid-batch strands that many tasks until `free_stale_processing_tasks`
 reaps them.
 
-**`_MAX_CLAIM_ROWS = 1024`** caps a single claim regardless of the limit asked
-for. The beat's cold-start top-up requests `idle_slots × batch_size` — at 384
-slots and batch 64 that is 24,576 tasks, which builds **49,152 bind parameters
-against PostgreSQL's 65,535 ceiling**, and holds the fleet-wide lock while
-merge-appending tens of thousands of rows in priority order.
+**Each slot claims for itself, one chunk at a time.** The extract worker
+(`analytics/extract_worker.py`) claims a chunk of `EXTRACT_TASK_CLAIM_BATCH`
+rows straight to running when a slot is free, runs them, and persists them
+together. Nothing is claimed ahead of the slot that will run it, so a new
+high-priority request is next in line for whichever slot finishes first.
 
-**One message in, one message out.** `run_extract_task` self-chains, so
-dispatching more than one successor per message consumed makes the queue grow
-without bound. The batching happens *inside* the message.
+This replaced Celery messages carrying already-claimed task ids. That design
+needed a self-chaining task, a beat top-up that claimed `idle_slots × batch`
+rows at once (capped at 1,024 rows to stay under PostgreSQL's 65,535 bind
+parameters), and a claimed-but-undelivered status, while broker prefetch held
+hundreds of thousands of claimed tasks out of reach of new work.
+
+**Only task rows go through this claim.** Requests, retries and tasks that sync
+reset have pre-created rows. Background work uses pair cursor leases (§12),
+which create task rows only when the work is done and never take
+`CLAIM_LOCK_ID`.
 
 ---
 
@@ -280,6 +293,15 @@ worse as the delay grew. *Fewer waiters and less throughput* is the signature of
 **bandwidth** limit rather than a lock limit: batching commits shortens the queue
 without adding write capacity. Left at 0.
 
+**History: the task builder.** The rest of this section measured the task
+builder, which pre-created background task rows. Pair cursor leases replaced it
+on 2026-10-19 (§12), so `_run_batch` and `N_EXTRACT_TASK_BUILDERS` no longer
+exist. The findings stand as measurements of this volume's write path. The
+asynchronous commit they discuss lives on in the task-row path, as
+`EXTRACT_TASK_SYNCHRONOUS_COMMIT` (default off, so commits are asynchronous;
+see its comment in `settings.py` for why that's safe). Lease completions commit
+synchronously.
+
 **Build batches commit asynchronously — mechanism confirmed, benefit unproven,
 retained under observation.** `_run_batch` issues
 `SET LOCAL synchronous_commit = off`, taking the largest single write contributor
@@ -338,20 +360,20 @@ We have found this four times; the recovery table is now:
 
 | State | Meaning | Recovery |
 |---|---|---|
-| `extract_tasks.status` 2 / 3 | claimed / queued | `free_stale_processing_tasks` |
+| `extract_tasks.status = 2` | running (claimed by a worker slot) | `free_stale_processing_tasks` |
 | `requests.status = 2` | sweep working | `reset_stale_requests` |
 | `requests.status = 4` | awaiting materialization | `_redispatch_unmaterialized_requests` |
 | `.building.*` dirs | crashed build | collected by `reset_stale_requests` |
 | `.replaced.*` dirs | displaced output | **restored** if `request_dir` missing, else deleted |
-| `extract_task_build_progress.claimed_at` | pair being built | self-expires (`CLAIM_STALE_MINUTES`) |
-| `extract_task_build_run.in_progress` | wave running | self-expires (`RUN_STALE_MINUTES`) |
+| `extract_task_leases.leased_until` | lease page being computed | expires; another worker takes it over once due (§12) |
 
 Two lessons worth keeping:
 
-- **Self-expiring state still needs a trigger.** The builder's markers expire
-  correctly, but nothing re-dispatched workers to act on them, so a wave killed
-  by a deploy cost up to a full day. The beat is now hourly, guarded by
-  `try_acquire_build_run` so it tops up rather than stampedes.
+- **Self-expiring state still needs a trigger.** The old task builder's markers
+  expired correctly, but nothing re-dispatched workers to act on them, so a wave
+  killed by a deploy cost up to a full day. Leases avoid this by construction:
+  every worker slot looks for due leases on each pass of its loop, so an expired
+  lease is picked up by the next free slot.
 - **`status = 4` was invisible.** It is a normal transient state and `-2` is the
   only status monitoring reads as an error, so a request stranded there looks
   identical to one submitted a second ago. One sat for four days with all its work
@@ -364,15 +386,14 @@ Two lessons worth keeping:
 
 `CELERY_RESULT_BACKEND = "django-db"`.
 
-**Do not set `CELERY_TASK_IGNORE_RESULT` globally.** `sweep_coverage_records`
-uses a `chord`, and a chord is the one canvas primitive that genuinely needs the
-result backend — it counts header completions to decide when to fire its body.
-Turning results off globally leaves coverage sweeps hanging silently, never
-dispatching `build_extract_tasks`. A test pins this so the global setting fails
-loudly rather than in production.
+Nothing reads task results. The rule used to be stricter: coverage sweeps were
+a Celery `chord`, which counts its members' results to decide when to fire, so
+turning results off globally would have hung them. Coverage is now computed in
+the extract worker's loop (§12), and no chords remain.
 
-`run_extract_task` opts out individually (`ignore_result=True`). It was ~100% of
-the table — result rows tracked task messages 1:1 — and nothing reads them.
+Frequent tasks still opt out individually with `ignore_result=True`, so they
+don't fill the table. The old Celery extract task did, and it was ~100% of the
+table: result rows tracked its messages 1:1.
 
 `celery.backend_cleanup` **must be scheduled explicitly**; it is not automatic.
 Without it and `CELERY_RESULT_EXPIRES`, the table grew to 2.8M rows / 4.4 GB in
@@ -427,6 +448,81 @@ of the three instances retains its own `pg_wal` on its own PVC, so a WAL delta
 costs three times that in pool space, and prod shares `ceph-blockpool` with
 staging. That three-times multiplier is why the chart default stays at 8GB rather
 than matching prod.
+
+---
+
+## 11. Task ids: int4 to bigint
+
+`extract_tasks.id` was an int4 identity. In October 2026 `extract_tasks_id_seq`
+reached 2,147,483,647 with ~483M grouped tasks still to build, and every insert
+failed with `SequenceGeneratorLimitExceeded`. `extract_tasks.id`,
+`extract_data.extract_task_id` and `request_map.task_id` are now bigint
+(migration `analytics/0031_pair_cursor_leases`).
+
+**How production was converted: by emptying the tables first.** At ~1 TB, an
+in-place `ALTER … TYPE bigint` rewrites every partition in one transaction under
+`ACCESS EXCLUSIVE` and frees the old files only at commit, so it needed more free
+space than the volume had. A partition-by-partition conversion (detach, rewrite,
+reattach to a bigint twin) was built and tested against a clone of the schema,
+but production was truncated and rebuilt instead. That made the in-place
+`ALTER` instant. The sequence was not restarted, so new ids begin at
+2,147,483,648.
+
+**0031 refuses rather than rewriting a large table.** It converts in place below
+1 GB across `extract_tasks` + `extract_data` and raises otherwise. A deploy's
+migration Job must never start a multi-hour rewrite. It also waits at most 30 s
+for its locks, so a long read fails the deploy instead of stalling everything
+queued behind it.
+
+Two traps worth knowing if this ever has to be done again on a full table:
+
+- **Widening an identity column doesn't raise its sequence's `MAXVALUE`.**
+  Without `ALTER COLUMN id SET MAXVALUE 9223372036854775807` the column is bigint
+  but ids still stop at 2,147,483,647.
+- **SQL that carries ids must not narrow them.** The claim, release, persist and
+  `extract_data`-delete statements unnest id arrays. They cast to `bigint[]`,
+  never `int[]`.
+
+---
+
+## 12. Background extraction: pair cursor leases
+
+Background extraction (keeping every dataset extracted for every boundary set,
+ahead of requests) creates task rows **only when the work is finished**. It
+replaced a builder that pre-created rows, which is what filled the int4 id
+space (§11) and kept `extract_tasks` heading for billions of pending rows.
+[Extraction Workflow](extraction-workflow.md) describes it end to end; these are
+the contracts that matter for anything touching the database.
+
+- **A pair is fixed.** A pair is one ordered set of resources plus one
+  processing option (`extract_task_build_progress`). Its resource array never
+  changes; when the set changes, sync retires the old pair and creates a new one.
+- **A cursor means accounted for, not finished.** Every eligible feature below a
+  pair's `cursor_fm_id` has a task row, is in an outstanding lease, or is covered
+  by a pending rewind. Deleting a lease must leave one of those true.
+- **A lease is a page of work with an owner.** `extract_task_leases` holds the
+  pages being computed: hundreds of rows, not billions. A worker can only
+  complete a lease whose `token` still matches; anything that changes ownership
+  (a takeover, an invalidation) changes the token.
+- **Work is fenced on epochs.** Each input scope (`extract_input_state`, one per
+  dataset and per collection) has a `generation`, bumped on every change, and an
+  `epoch`, bumped only on changes that make results wrong. Work records the
+  epochs it started under and checks them, under a share lock, before writing.
+- **Input changes are recorded by triggers, in the writer's transaction**, and
+  reconciled by sync on the background workers (`analytics/sync.py`), never by
+  the processing fleet.
+- **Leases take no fleet-wide lock.** They use `SKIP LOCKED` throughout, with
+  short lock and statement timeouts, so a long ingest holding a scope never makes
+  the fleet queue up.
+- **Lease completion commits synchronously.** The task-row path's asynchronous
+  commit (§6) does not apply to it.
+- **Non-global datasets wait for coverage.** A per-dataset watermark
+  (`extract_coverage_progress`) bounds how far lease scans may go, and the extract
+  worker advances it in coverage chunks.
+
+The tunables are the `EXTRACT_TASK_LEASE_*` and `EXTRACT_COVERAGE_*` settings
+(see [Configuration](configuration.md)). `extract_work_demand()` is the
+autoscaler's view of how much work is outstanding.
 
 ---
 
