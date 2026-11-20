@@ -32,6 +32,10 @@ description: "How GeoQuery's SvelteKit frontend is organised: routes, the stores
 
 `RequestPanel` (`lib/components/layout/`) is the left-hand panel shared by the three steps, with the step headings, summaries and the **Copy share link** footer.
 
+### Narrow screens
+
+There's no minimum width. Below Tailwind's `md` breakpoint (48rem) a step page shows either its panel or its detail view (the map, a dataset, the review), not both. `lib/stepDetail.ts` opens the detail as a shallow history entry, so the phone's back gesture closes it, and `layout.css` ("Narrow step pages") does the showing and hiding from `data-detail` on the layout's wrapper. Each detail view has a back button (`DetailBack`).
+
 ## The request being built
 
 A request lives in Svelte stores in `src/lib/stores/` until it's submitted:
