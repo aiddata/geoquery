@@ -14,6 +14,16 @@ class User(AbstractUser):
 
     email = models.EmailField("email address", unique=True)
 
+    class Theme(models.TextChoices):
+        SYSTEM = "system", "System"
+        LIGHT = "light", "Light"
+        DARK = "dark", "Dark"
+
+    # The site theme the user picked, so it follows them between devices. Null
+    # means they never picked one while signed in: the frontend then saves the
+    # device's current choice here rather than overriding it with a default.
+    theme = models.CharField(max_length=8, choices=Theme.choices, null=True, blank=True)
+
     class Meta(AbstractUser.Meta):
         # The beta allowlist: grant to individual users or to a group in the
         # Django admin. Superusers hold it implicitly. See accounts.features.

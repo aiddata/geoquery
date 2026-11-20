@@ -2,7 +2,6 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import UserMenu from '#lib/components/layout/UserMenu.svelte';
-	import ThemeMenu from '#lib/components/layout/ThemeMenu.svelte';
 	import { currentStep, type Step } from '#lib/stores/ui.js';
 	import { features } from '#lib/stores/features.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
@@ -99,7 +98,6 @@
 				{/each}
 			</nav>
 
-			<ThemeMenu />
 			<UserMenu />
 
 			<!-- Narrower screens: the same links in a menu -->

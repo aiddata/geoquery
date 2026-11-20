@@ -398,3 +398,54 @@ class LegacyClaimTests(TestCase):
         make_legacy_request("d" * 24, "alice@example.com")
 
         self.assertEqual(claim_requests_for_email(self.user, "alice@example.com"), 2)
+
+
+class ThemePreferenceTests(TestCase):
+    session_url = "/api/_allauth/browser/v1/auth/session"
+    url = "/api/auth/preferences/"
+
+    def setUp(self):
+        self.user = make_user("dana", "dana@example.com")
+
+    def session_theme(self):
+        response = self.client.get(self.session_url)
+        self.assertEqual(response.status_code, 200)
+        # allauth leaves None fields out, so "never chosen" is a missing key
+        return response.json()["data"]["user"].get("theme")
+
+    def test_null_until_chosen(self):
+        self.client.force_login(self.user)
+        self.assertIsNone(self.session_theme())
+
+    def test_saved_and_returned_in_the_session(self):
+        self.client.force_login(self.user)
+        response = self.client.patch(self.url, {"theme": "dark"}, content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"theme": "dark"})
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.theme, "dark")
+        self.assertEqual(self.session_theme(), "dark")
+
+    def test_system_is_a_choice(self):
+        self.client.force_login(self.user)
+        self.client.patch(self.url, {"theme": "system"}, content_type="application/json")
+        self.assertEqual(self.session_theme(), "system")
+
+    def test_rejects_an_unknown_theme(self):
+        self.client.force_login(self.user)
+        response = self.client.patch(self.url, {"theme": "sepia"}, content_type="application/json")
+        self.assertEqual(response.status_code, 400)
+        self.user.refresh_from_db()
+        self.assertIsNone(self.user.theme)
+
+    def test_signed_out_is_refused(self):
+        response = self.client.patch(self.url, {"theme": "dark"}, content_type="application/json")
+        self.assertIn(response.status_code, (401, 403))
+
+    def test_needs_the_csrf_token(self):
+        from django.test import Client
+
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.user)
+        response = client.patch(self.url, {"theme": "dark"}, content_type="application/json")
+        self.assertEqual(response.status_code, 403)

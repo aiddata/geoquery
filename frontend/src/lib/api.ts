@@ -31,6 +31,16 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
 	return fetch(path, { ...init, headers, credentials: 'same-origin' });
 }
 
+/** Save the signed-in user's site theme to their account (stores/themeSync). */
+export async function saveThemePreference(theme: 'system' | 'light' | 'dark'): Promise<void> {
+	const response = await apiFetch('/api/auth/preferences/', {
+		method: 'PATCH',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ theme })
+	});
+	if (!response.ok) throw new Error(`Failed to save the theme: ${response.status}`);
+}
+
 // ── Config ──────────────────────────────────────────────────────
 
 export interface AppConfig {

@@ -4,6 +4,7 @@
 	import { afterNavigate, onNavigate } from '$app/navigation';
 	import { gtagEvent } from '#lib/analytics.js';
 	import { initAuth } from '#lib/stores/auth.js';
+	import { syncThemeWithAccount } from '#lib/stores/themeSync.js';
 	import { browser } from '$app/env';
 	import { persistTabState, restoreTabState } from '#lib/stores/tabState.js';
 	import '@fontsource/barlow/400.css';
@@ -14,6 +15,8 @@
 	import favicon from '#lib/assets/favicon.svg';
 
 	onMount(initAuth);
+	// A signed-in user's theme is saved to their account
+	onMount(syncThemeWithAccount);
 
 	// The request being built survives a refresh of this tab (GEO-126). Put
 	// back before any page reads the stores, then saved on every change.
