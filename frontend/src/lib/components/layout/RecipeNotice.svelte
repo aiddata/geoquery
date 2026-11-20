@@ -6,11 +6,13 @@
 
 	// After a request is loaded from a template (GEO-126): where it came from,
 	// and anything left out because it no longer applies. Stays until dismissed.
+	// `class`: its spacing, for panels that pad their content themselves
+	let { class: className = 'px-4 pt-3' }: { class?: string } = $props();
 </script>
 
 {#if $recipeNotice}
 	{@const notice = $recipeNotice}
-	<div class="px-4 pt-3">
+	<div class={className}>
 		<Alert.Root variant={notice.dropped.length ? 'warning' : 'default'} role="status" class="relative pr-10">
 			{#if notice.dropped.length}<TriangleAlert />{:else}<History />{/if}
 			<Alert.Title>{notice.title}</Alert.Title>

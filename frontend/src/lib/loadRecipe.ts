@@ -88,5 +88,10 @@ function loadRecipeResult(result: RequestRecipeResult, title: string, invalid: s
 		title,
 		dropped: describeDropped(result.dropped, missing.fcIds.length)
 	});
-	return get(customizeHref) ?? '/';
+	// Nothing selected (every boundary set gone): start again on the map
+	if (!get(customizeHref)) return '/';
+	// Boundaries only: back on the map with them selected, to pick datasets from
+	// there. With datasets: Review, an overview of the whole request with a way
+	// to change each part, whether it's to submit as is or to modify.
+	return get(cart).length === 0 ? '/' : '/review';
 }

@@ -21,6 +21,7 @@
 	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+	import RecipeNotice from '#lib/components/layout/RecipeNotice.svelte';
 	import RequestPanel from '#lib/components/layout/RequestPanel.svelte';
 	import { ChevronRight, ChevronDown, Pencil, Trash2, Send, CheckCircle, CircleAlert, TriangleAlert } from '@lucide/svelte';
 	import { cleanVersionName, entryColumns, invalidVersionNames } from '#lib/utils/outputColumns.js';
@@ -306,6 +307,7 @@
 	<div class="flex min-h-0 flex-1">
 		<RequestPanel active="review">
 						<div class="space-y-4">
+							<RecipeNotice class="" />
 							<!-- Narrow screens: the review is optional, a view of its own (lib/stepDetail.ts) -->
 							<button
 								type="button"

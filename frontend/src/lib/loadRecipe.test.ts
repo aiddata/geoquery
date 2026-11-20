@@ -46,7 +46,7 @@ describe('loadRequestTemplate', () => {
 			{ recipe: { v: 1, boundaries: { fcIds: [11, 12], featureIds: [] }, datasets: [ntl] }, boundary_sets: [adm1, adm2], dropped: none },
 			'Ghana lights'
 		);
-		expect(href).toBe('/customize');
+		expect(href).toBe('/review');
 		expect(get(selection)).toMatchObject({ mode: 'multi', fcs: [adm1, adm2] });
 		expect(get(cart)).toEqual([ntl]);
 		expect(get(datasetChoices)).toEqual({});
@@ -71,10 +71,22 @@ describe('loadRequestTemplate', () => {
 			boundary_sets: [adm2],
 			dropped: none
 		});
-		expect(href).toBe('/customize');
+		expect(href).toBe('/review');
 		expect(get(selection)).toMatchObject({ mode: 'single', featureIds: [3, 4] });
 		expect(get(cart)).toEqual([renamed]);
 		expect(get(recipeNotice)?.title).toBe('Opened a shared request');
+	});
+
+	test('boundaries only: back to the map with them selected, and no datasets', () => {
+		cart.setItems([ntl]);
+		const href = loadSharedRecipe({
+			recipe: { v: 1, boundaries: { fcIds: [12], featureIds: [] }, datasets: [] },
+			boundary_sets: [adm2],
+			dropped: none
+		});
+		expect(href).toBe('/');
+		expect(get(selection)).toMatchObject({ mode: 'single', fc: { id: 12 } });
+		expect(get(cart)).toEqual([]);
 	});
 
 	test('rejects a recipe it does not recognise', () => {
