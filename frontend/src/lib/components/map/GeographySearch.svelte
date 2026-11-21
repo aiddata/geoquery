@@ -17,6 +17,8 @@
 		selectedBoundaries?: BoundaryResult[]; // External selection state (optional)
 		onSelect?: (boundaries: BoundaryResult[]) => void;
 		onProceed?: (boundaries: BoundaryResult[]) => void;
+		/** Put the cursor in the search box when it first appears (GEO-148) */
+		autofocus?: boolean;
 		/** Clears the whole selection; shown at the left of the proceed row. */
 		onClear?: () => void;
 		/** Rendered directly under the search box, e.g. a note about the selection. */
@@ -51,6 +53,7 @@
 		onSelect,
 		onProceed,
 		onClear,
+		autofocus = false,
 		belowSearch,
 		belowSelection,
 		selectionInfo,
@@ -95,6 +98,15 @@
 	let selectedBoundaries = $derived(externalSelection ?? internalSelection);
 
 	let inputEl = $state<HTMLInputElement | null>(null);
+
+	// Landing on the page, the search box is where to start. Not on narrow
+	// screens, where focusing it would open the keyboard over the page.
+	let focusedOnce = false;
+	$effect(() => {
+		if (!autofocus || focusedOnce || !inputEl) return;
+		focusedOnce = true;
+		if (window.matchMedia('(min-width: 48rem)').matches) inputEl.focus({ preventScroll: true });
+	});
 
 	let legend = $derived<LegendItem[]>(
 		legendItems ??

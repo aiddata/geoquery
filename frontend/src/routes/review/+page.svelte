@@ -198,7 +198,7 @@
 				filterSelections: item.filterSelections,
 				selectedOutcome: typeof outcome === 'string' ? outcome : undefined,
 				kwargs: item.kwargs,
-				// Update Request on Customize replaces this entry.
+				// Customize edits this entry, saving changes to it as they happen.
 				editingKey: JSON.stringify(item.kwargs)
 			});
 		}

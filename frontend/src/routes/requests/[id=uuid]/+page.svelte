@@ -2,10 +2,9 @@
 	import Seo from '#lib/components/layout/Seo.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { fetchDatasetDetail, fetchRequestDetail, fetchRequestRecipe, type DatasetDetail, type RequestDetail } from '#lib/api.js';
-	import { loadRequestTemplate, requestInProgress } from '#lib/loadRecipe.js';
+	import { createShareLink, fetchDatasetDetail, fetchRequestDetail, fetchRequestRecipe, type DatasetDetail, type RequestDetail } from '#lib/api.js';
 	import ShareLinkButton from '#lib/components/ShareLinkButton.svelte';
-	import * as Dialog from '#lib/components/ui/dialog/index.js';
+	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import DatasetEntryDetails from '#lib/components/datasets/DatasetEntryDetails.svelte';
 	import { entryColumns } from '#lib/utils/outputColumns.js';
@@ -14,7 +13,7 @@
 	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
 	import StatusBadge, { requestStatusMeaning } from '#lib/components/StatusBadge.svelte';
-	import { ArrowLeft, Download, RefreshCw, ChevronRight, CircleAlert, CopyPlus, Map } from '@lucide/svelte';
+	import { ArrowLeft, Download, RefreshCw, ChevronDown, ChevronRight, CircleAlert, CopyPlus, ExternalLink, Link, Map } from '@lucide/svelte';
 	import { features } from '#lib/stores/features.js';
 
 	const TERMINAL_STATUSES = new Set([1, -2]);
@@ -85,29 +84,33 @@
 		}
 	});
 
-	// "Use as template" (GEO-126): start a new request with this one's
-	// boundaries and datasets, replacing the one being built after a confirm.
-	let confirmReplace = $state(false);
-	let templateLoading = $state(false);
-	let templateError = $state<string | null>(null);
+	// "Duplicate request" (GEO-126, GEO-146): start a new request with this
+	// one's boundaries and datasets. Opening it uses a new tab
+	// (/requests/<id>/duplicate), so the request being built in this one is
+	// never replaced. Copying the link saves this request's recipe as a share
+	// link (/s/<id>), for someone else to start their own from.
+	let dupCopied = $state(false);
+	let dupLink = $state<string | null>(null); // shown when the clipboard wasn't available
+	let dupError = $state<string | null>(null);
+	let dupTimer: ReturnType<typeof setTimeout> | undefined;
 
-	function startTemplate() {
-		templateError = null;
-		if (requestInProgress()) confirmReplace = true;
-		else useTemplate();
-	}
-
-	async function useTemplate() {
+	async function copyDuplicateLink() {
 		if (!request) return;
-		confirmReplace = false;
-		templateLoading = true;
+		dupError = null;
+		dupLink = null;
 		try {
-			const result = await fetchRequestRecipe(request.id);
-			await goto(loadRequestTemplate(result, request.name || 'Unnamed Request'));
+			const { path } = await createShareLink((await fetchRequestRecipe(request.id)).recipe);
+			const link = new URL(path, window.location.origin).toString();
+			try {
+				await navigator.clipboard.writeText(link);
+				dupCopied = true;
+				clearTimeout(dupTimer);
+				dupTimer = setTimeout(() => (dupCopied = false), 3000);
+			} catch {
+				dupLink = link;
+			}
 		} catch (e) {
-			templateError = e instanceof Error ? e.message : "This request couldn't be loaded as a template.";
-		} finally {
-			templateLoading = false;
+			dupError = e instanceof Error ? e.message : "The link couldn't be created.";
 		}
 	}
 
@@ -167,37 +170,14 @@
 					</div>
 				</div>
 
-				<div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-					{#if request.data?.is_custom_boundary}
-						<!-- Unavailable, but still focusable (aria-disabled) so its tooltip
-						     says why -->
-						<Tooltip.Root>
-							<Tooltip.Trigger>
-								{#snippet child({ props })}
-									<Button {...props} variant="outline" size="sm" aria-disabled="true" class="cursor-not-allowed opacity-50">
-										<CopyPlus />
-										Use as template
-									</Button>
-								{/snippet}
-							</Tooltip.Trigger>
-							<Tooltip.Content>Requests with a custom upload can't be used as a template.</Tooltip.Content>
-						</Tooltip.Root>
-					{:else}
-						<Button variant="outline" size="sm" onclick={startTemplate} disabled={templateLoading}>
-							<CopyPlus />
-							{templateLoading ? 'Loading…' : 'Use as template'}
-						</Button>
-						<p class="text-xs text-muted-foreground">Start a new request with these boundaries and datasets.</p>
-					{/if}
-				</div>
+				<!-- A link to this page: access is by its id, so anyone with it can see
+				     the request and download its results -->
 				<ShareLinkButton
-					class="mt-3"
-					getRecipe={async () => (await fetchRequestRecipe(request!.id)).recipe}
-					unavailable={request.data?.is_custom_boundary ? "Requests with a custom upload can't be shared." : null}
+					class="mt-4"
+					url={`/requests/${request.id}`}
+					label="Copy results link"
+					hint="Copies a link to this page, where anyone with it can see this request's status and download its results"
 				/>
-				{#if templateError}
-					<p class="mt-2 text-sm text-danger-text" role="alert">{templateError}</p>
-				{/if}
 
 				{#if request.download_url}
 					<Alert.Root variant="success" role="status" class="mt-4 p-4">
@@ -209,7 +189,7 @@
 									Download Results
 								</Button>
 								{#if request.visualization_url}
-									<Button variant="outline" href={request.visualization_url}>
+									<Button variant="outline" href={request.visualization_url} target="_blank" rel="noopener noreferrer">
 										<Map />
 										Visualize Data
 									</Button>
@@ -246,6 +226,63 @@
 						</Alert.Description>
 					</Alert.Root>
 				{/if}
+
+				<div class="mt-4 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+					{#if request.data?.is_custom_boundary}
+						<!-- Unavailable, but still focusable (aria-disabled) so its tooltip
+						     says why -->
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								{#snippet child({ props })}
+									<Button {...props} variant="outline" size="sm" aria-disabled="true" class="cursor-not-allowed opacity-50">
+										<CopyPlus />
+										Duplicate request
+									</Button>
+								{/snippet}
+							</Tooltip.Trigger>
+							<Tooltip.Content>Requests with a custom upload can't be duplicated.</Tooltip.Content>
+						</Tooltip.Root>
+					{:else}
+						<DropdownMenu.Root>
+							<DropdownMenu.Trigger>
+								{#snippet child({ props })}
+									<Button {...props} variant="outline" size="sm">
+										<CopyPlus />
+										Duplicate request
+										<ChevronDown />
+									</Button>
+								{/snippet}
+							</DropdownMenu.Trigger>
+							<DropdownMenu.Content align="start" class="w-72">
+								<DropdownMenu.Item>
+									{#snippet child({ props })}
+										<a {...props} href={`/requests/${request!.id}/duplicate`} target="_blank" rel="noopener">
+											<ExternalLink />
+											<span class="flex flex-col">
+												<span>Open in a new tab</span>
+												<span class="text-xs text-muted-foreground">Change it and submit it as a new request</span>
+											</span>
+										</a>
+									{/snippet}
+								</DropdownMenu.Item>
+								<DropdownMenu.Item onSelect={copyDuplicateLink}>
+									<Link />
+									<span class="flex flex-col">
+										<span>Copy link</span>
+										<span class="text-xs text-muted-foreground">Anyone with it can start their own copy</span>
+									</span>
+								</DropdownMenu.Item>
+							</DropdownMenu.Content>
+						</DropdownMenu.Root>
+						<span class="text-xs text-muted-foreground" role="status">{dupCopied ? 'Link copied' : ''}</span>
+						{#if dupLink}
+							<a href={dupLink} title="Copy this link" class="min-w-0 truncate text-xs text-link underline select-all hover:text-link-hover">{dupLink}</a>
+						{/if}
+						{#if dupError}
+							<p class="min-w-0 truncate text-xs text-danger-text" role="alert" title={dupError}>{dupError}</p>
+						{/if}
+					{/if}
+				</div>
 			</div>
 
 			<!-- Geographic selection -->
@@ -325,18 +362,3 @@
 		</div>
 	{/if}
 </div>
-
-<Dialog.Root bind:open={confirmReplace}>
-	<Dialog.Content class="sm:max-w-md">
-		<Dialog.Header>
-			<Dialog.Title>Replace your current request?</Dialog.Title>
-			<Dialog.Description>
-				The boundaries and datasets you've chosen so far will be replaced with this request's.
-			</Dialog.Description>
-		</Dialog.Header>
-		<Dialog.Footer>
-			<Button variant="outline" onclick={() => (confirmReplace = false)}>Keep current request</Button>
-			<Button onclick={useTemplate}>Replace</Button>
-		</Dialog.Footer>
-	</Dialog.Content>
-</Dialog.Root>

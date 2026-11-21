@@ -5,7 +5,16 @@
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import { auth, signOut } from '#lib/stores/auth.js';
 	import { loginWithGitHub } from '#lib/allauth.js';
-	import { BarChart2, History, LogIn, LogOut, UserRound } from '@lucide/svelte';
+	import { themePreference, type ThemePreference } from '#lib/stores/theme.js';
+	import { BarChart2, History, LogIn, LogOut, Monitor, Moon, Sun, UserRound } from '@lucide/svelte';
+
+	// System first: it's the default, and follows the device's own setting
+	const themes: { value: ThemePreference; label: string; icon: typeof Sun }[] = [
+		{ value: 'system', label: 'System', icon: Monitor },
+		{ value: 'light', label: 'Light', icon: Sun },
+		{ value: 'dark', label: 'Dark', icon: Moon }
+	];
+	const currentTheme = $derived(themes.find((t) => t.value === $themePreference) ?? themes[0]);
 
 	let signingIn = $state(false);
 
@@ -24,8 +33,26 @@
 	}
 </script>
 
-<!-- In the menu whether or not you're signed in -->
+<!-- In the menu whether or not you're signed in. Signed in, the theme is
+     saved to the account (stores/themeSync); signed out, to this browser. -->
 {#snippet siteLinks()}
+	<DropdownMenu.Sub>
+		<DropdownMenu.SubTrigger>
+			<currentTheme.icon />
+			Theme
+			<span class="ml-auto text-xs text-muted-foreground">{currentTheme.label}</span>
+		</DropdownMenu.SubTrigger>
+		<DropdownMenu.SubContent class="w-40">
+			<DropdownMenu.RadioGroup bind:value={$themePreference}>
+				{#each themes as theme (theme.value)}
+					<DropdownMenu.RadioItem value={theme.value}>
+						<theme.icon />
+						{theme.label}
+					</DropdownMenu.RadioItem>
+				{/each}
+			</DropdownMenu.RadioGroup>
+		</DropdownMenu.SubContent>
+	</DropdownMenu.Sub>
 	<DropdownMenu.Item onclick={() => goto('/stats')}>
 		<BarChart2 />
 		System Status

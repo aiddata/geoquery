@@ -112,13 +112,17 @@ class AccountAdapter(DefaultAccountAdapter):
 
 
 class HeadlessAdapter(DefaultHeadlessAdapter):
-    """Headless adapter that adds the beta-tester flag to the user payload.
+    """Headless adapter that adds the beta-tester flag and theme to the user payload.
 
     The SPA reads the user from allauth's session responses, so the flag
     reaches the frontend without a separate request. Which features are in
     beta comes from ``/api/config/``. Both are UI hints only -- every gated
     action is enforced again by the view that performs it (see
     ``accounts.features``).
+
+    ``theme`` is the user's saved site theme. It's left out of the payload
+    (allauth drops None fields) if they never chose one while signed in.
+    ``accounts.views.PreferencesView`` saves it.
     """
 
     def get_user_dataclass(self):
@@ -136,7 +140,18 @@ class HeadlessAdapter(DefaultHeadlessAdapter):
                             "example": False,
                         },
                     ),
-                )
+                ),
+                (
+                    "theme",
+                    str | None,
+                    dataclasses.field(
+                        default=None,
+                        metadata={
+                            "description": "The user's site theme: system, light or dark; absent if never chosen.",
+                            "example": "system",
+                        },
+                    ),
+                ),
             ],
             bases=(base,),
         )
@@ -144,4 +159,5 @@ class HeadlessAdapter(DefaultHeadlessAdapter):
     def user_as_dataclass(self, user):
         dc = super().user_as_dataclass(user)
         dc.is_beta_tester = bool(user.pk and is_beta_tester(user))
+        dc.theme = getattr(user, "theme", None)
         return dc

@@ -18,7 +18,7 @@
 		selectedDataset: DatasetSummary | null;
 		onSelect: (dataset: DatasetSummary) => void;
 		outOfRangeNames?: Set<string>;
-		/** Feature datasets whose current filters aren't in the request; marked with an exclamation. */
+		/** Feature datasets with a selection started but not complete (not in the request); marked with an exclamation. */
 		unsavedNames?: Set<string>;
 		/** Columns each dataset adds to the output, across its entries in the request */
 		columnCounts?: Map<string, number>;
@@ -82,13 +82,17 @@
 			result = result.filter((d) => d.tags?.some((t) => wanted.has(t.toLowerCase())));
 		}
 
-		// Filter by search text
+		// Filter by search text: a dataset's title or tags, or the name of a
+		// category it's in (GEO-154), so "climate" finds the Climate datasets
 		if (searchText.trim()) {
-			const q = searchText.toLowerCase();
+			const q = searchText.trim().toLowerCase();
+			const categoryTags = new Set(
+				categories.filter((c) => c.display.toLowerCase().includes(q)).flatMap((c) => c.tags)
+			);
 			result = result.filter(
 				(d) =>
 					(d.title ?? d.name).toLowerCase().includes(q) ||
-					d.tags?.some((t) => t.toLowerCase().includes(q))
+					d.tags?.some((t) => t.toLowerCase().includes(q) || categoryTags.has(t.toLowerCase()))
 			);
 		}
 
@@ -112,30 +116,17 @@
 </script>
 
 <div class="flex h-full flex-col">
-	<!-- Category, search and sort, kept compact to leave room for the list -->
+	<!-- Search (which also matches category names), category and sort, kept
+	     compact to leave room for the list -->
 	<div class="space-y-2 border-b px-4 pb-3 pt-1">
-		<Select.Root type="single" bind:value={selectedCategory}>
-			<Select.Trigger class="h-8 w-full text-sm" aria-label="Dataset category">
-				{selectedCategory === 'all'
-					? 'All Categories'
-					: categories.find((c) => c.tag === selectedCategory)?.display ?? selectedCategory}
-			</Select.Trigger>
-			<Select.Content>
-				<Select.Item value="all" label="All Categories" />
-				{#each categories as cat}
-					<Select.Item value={cat.tag} label={cat.display} />
-				{/each}
-			</Select.Content>
-		</Select.Root>
-
-		<!-- Search -->
-		<div class="relative">
+		<div class="flex gap-2">
+		<div class="relative min-w-0 flex-1">
 			<Search class="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
 			<Input
 				bind:ref={searchInput}
 				bind:value={searchText}
-				placeholder="Search datasets..."
-				aria-label="Search datasets"
+				placeholder="Search datasets or categories…"
+				aria-label="Search datasets or categories"
 				class="h-8 pl-8 pr-8 text-sm"
 			/>
 			<ClearSearchButton
@@ -145,6 +136,25 @@
 					searchInput?.focus();
 				}}
 			/>
+		</div>
+		<Select.Root type="single" bind:value={selectedCategory}>
+			<Select.Trigger
+				class="h-8 max-w-36 shrink-0 gap-1 px-2.5 text-xs {selectedCategory === 'all' ? 'text-muted-foreground' : ''}"
+				aria-label="Dataset category"
+			>
+				<span class="truncate">
+					{selectedCategory === 'all'
+						? 'All categories'
+						: categories.find((c) => c.tag === selectedCategory)?.display ?? selectedCategory}
+				</span>
+			</Select.Trigger>
+			<Select.Content align="end">
+				<Select.Item value="all" label="All categories" />
+				{#each categories as cat}
+					<Select.Item value={cat.tag} label={cat.display} />
+				{/each}
+			</Select.Content>
+		</Select.Root>
 		</div>
 
 		<!-- Sort: a field, and a button that reverses its order -->
@@ -220,7 +230,7 @@
 									class="mt-0.5 size-4 shrink-0 text-warning-text"
 									aria-hidden="true"
 								/>
-								<span class="sr-only">(filters not added to your request yet)</span>
+								<span class="sr-only">(a selection not complete yet)</span>
 							{/if}
 							{#if partial}
 								<span class="sr-only">(covers {coveredCount(dataset)} of {boundarySets.length} selected boundary sets)</span>

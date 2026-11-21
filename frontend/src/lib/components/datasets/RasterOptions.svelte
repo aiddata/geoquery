@@ -7,8 +7,10 @@
 	import type { DatasetDetail, ExtractType } from '#lib/api.js';
 	import { Info } from '@lucide/svelte';
 	import OptionsSection from './OptionsSection.svelte';
-	import { SPLIT_HELP, SPLIT_SUMMARY } from './optionsHelp.js';
+	import { MISSING_CARD, SPLIT_HELP, SPLIT_SUMMARY } from './optionsHelp.js';
+	import MissingNote from './MissingNote.svelte';
 	import { parseMeasure } from '#lib/utils/measures.js';
+	import { formatPeriod, periodRange } from '#lib/utils/periods.js';
 
 	interface RasterSelection {
 		extractTypes: string[];
@@ -19,9 +21,11 @@
 		dataset: DatasetDetail;
 		options: RasterSelection;
 		onOptionsChange: (options: RasterSelection) => void;
+		/** Required cards with nothing chosen, to mark (GEO-163) */
+		missing?: { measure: boolean; periods: boolean };
 	}
 
-	let { dataset, options, onOptionsChange }: Props = $props();
+	let { dataset, options, onOptionsChange, missing = { measure: false, periods: false } }: Props = $props();
 
 	let lastClickedResourceIndex = $state<number | null>(null);
 
@@ -91,6 +95,12 @@
 		dataset.extract_types.map((type) => ({ type, ...parseMeasure(type.short_name, type.description) }))
 	);
 
+	/** A period as people read it: "1995 January" rather than "199501" (GEO-161) */
+	const periodLabel = (resource: DatasetDetail['resources'][number]) =>
+		resource.label ? formatPeriod(resource.label) : formatTemporal(resource.temporal);
+	// The span "All time periods" covers, e.g. 1992–2013
+	const allRange = $derived(periodRange(dataset.resources.map((r) => r.label ?? formatTemporal(r.temporal))));
+
 	function formatTemporal(dateStr: string | null): string {
 		if (!dateStr) return 'Unknown';
 		try {
@@ -113,7 +123,7 @@
 		summary="What each feature's result measures. Choose one or more."
 		help="Each measure summarises the dataset's values within each feature, for example their average or highest value. Every measure you choose adds a column for each time period."
 	>
-		<Card.Root class="w-72 max-w-full gap-2">
+		<Card.Root class="w-72 max-w-full gap-2 {missing.measure ? MISSING_CARD : ''}">
 			<Card.Header class="pb-0">
 				<Card.Title class="text-sm">
 					Measures
@@ -121,6 +131,7 @@
 						({options.extractTypes.length}/{dataset.extract_types.length})
 					</span>
 				</Card.Title>
+				{#if missing.measure}<MissingNote />{/if}
 			</Card.Header>
 			<Card.Content class="space-y-2 pt-0">
 			<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -175,7 +186,7 @@
 			help={SPLIT_HELP}
 			note="{periodColumns} column{periodColumns === 1 ? '' : 's'} per feature"
 		>
-			<Card.Root class="w-72 max-w-full gap-2">
+			<Card.Root class="w-72 max-w-full gap-2 {missing.periods ? MISSING_CARD : ''}">
 				<Card.Header class="pb-0">
 					<Card.Title class="text-sm">
 						Time Periods
@@ -183,6 +194,7 @@
 							({options.resources.length}/{dataset.resources.length})
 						</span>
 					</Card.Title>
+					{#if missing.periods}<MissingNote />{/if}
 				</Card.Header>
 				<Card.Content class="pt-0">
 				<ScrollArea class="h-64">
@@ -193,7 +205,10 @@
 							<span onclick={(e) => e.stopPropagation()}>
 								<Checkbox checked={allResourcesSelected} onCheckedChange={toggleAllResources} aria-label="All time periods" />
 							</span>
-							<Label class="cursor-pointer text-xs font-bold">All time periods</Label>
+							<Label class="cursor-pointer text-xs font-bold">
+								All time periods
+								{#if allRange}<span class="font-normal text-muted-foreground">({allRange})</span>{/if}
+							</Label>
 						</div>
 
 						{#each dataset.resources as resource, i}
@@ -204,11 +219,11 @@
 									<Checkbox
 										checked={options.resources.includes(resource.name)}
 										onCheckedChange={() => {}}
-										aria-label={resource.label ?? formatTemporal(resource.temporal)}
+										aria-label={periodLabel(resource)}
 									/>
 								</span>
 								<Label class="cursor-pointer select-none text-xs font-normal">
-									{resource.label ?? formatTemporal(resource.temporal)}
+									{periodLabel(resource)}
 								</Label>
 							</div>
 						{/each}
