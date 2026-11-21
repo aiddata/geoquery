@@ -43,7 +43,7 @@ If a request is taking longer than you expected, [System status](system-status.m
 
 A request's page can be opened by anyone with its link, so you can send it to collaborators to see what you asked for and download the results.
 
-To build a new request from one you or someone else made, click **Use as template** on its page. See [Starting from a past request](getting-started.md#starting-from-a-past-request), and [Sharing a request](getting-started.md#sharing-a-request) for sharing one you haven't submitted yet.
+To build a new request from one you or someone else made, choose **Duplicate request** › **Open in a new tab** on its page. See [Starting from a past request](getting-started.md#starting-from-a-past-request), and [Sharing a request](getting-started.md#sharing-a-request) for sharing one you haven't submitted yet.
 
 ## Requests from earlier versions of GeoQuery
 

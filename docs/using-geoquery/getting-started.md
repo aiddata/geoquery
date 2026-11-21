@@ -15,7 +15,9 @@ GeoQuery takes you through three steps, shown in the panel on the left of the [G
 
     Click **Find Data**, or **2. Customize Datasets** in the panel, to move on.
 
-2. **Choose datasets.** Browse the datasets available for your boundaries. For each one, choose the measures you want (such as mean or maximum) and the time periods. Most datasets are added to your request as soon as you choose, and a check mark shows they're in. Datasets of events or locations, which you filter instead (such as conflict events), need you to click **Add to Request**, and can be added more than once with different filters. See [Dataset coverage](#dataset-coverage) if a dataset you expected isn't listed.
+2. **Choose datasets.** Browse the datasets available for your boundaries; the search box also matches categories, such as "climate" or "economic". For each dataset, choose a **Measure** (such as mean or maximum) and what to **Split results by**, such as time periods. A dataset joins your request as soon as these are chosen, and the line under **Select Dataset Options** says so: "Dataset added", or which options are still missing. A required option with nothing chosen is outlined in red. There's nothing to click to add it, and **Reset** takes it out again. See [Dataset coverage](#dataset-coverage) if a dataset you expected isn't listed.
+
+    Datasets of events or locations, such as conflict events, can be in your request more than once, each **selection** with its own options and its own columns. Each selection has a card above the options, with a check mark when it's in your request. **New selection** keeps the current one and starts another. These datasets can also narrow which records count, under **Custom filters**.
 
 3. **Review.** Click **Continue to Review**, or **3. Review & Submit** in the panel. The Review page shows your boundaries, each dataset and its options, and how many rows your results will have. Use **Modify Boundary Sets**, **Add Another Dataset**, or **Edit options** on any dataset to make changes.
 
@@ -33,13 +35,18 @@ With several boundary sets selected, a dataset that covers some of them but not 
 
 ## Sharing a request
 
-**Copy share link**, at the bottom of the panel on every step, copies a short link to the request you're building, before or after you submit it. Anyone who opens the link gets their own copy of your boundaries, datasets and options, opened on the Review page, and can change it before submitting.
+**Copy share link**, at the bottom of the panel on every step, copies a short link to the request you're building. Anyone who opens the link gets their own copy of your boundaries, datasets and options, opened on the Review page, and can change it before submitting.
 
 A share link is a snapshot. If you change your request after copying its link, the button changes to **Copy updated link**; the earlier link still opens the request as it was. Requests that use an uploaded boundary file can't be shared this way.
 
+Once you've submitted a request, its page has two more ways to share it:
+
+- **Copy results link** copies the address of the request's page, where anyone with the link can see its progress and download its results.
+- **Duplicate request** › **Copy link** copies a share link to the request's boundaries, datasets and options, for someone to start their own request from.
+
 ## Starting from a past request
 
-To build on an earlier request, open its page and click **Use as template**. Its boundaries, datasets and options are loaded into a new request, opened on the Review page, for you to change and submit. If anything in it is no longer available, GeoQuery tells you what was left out.
+To build on an earlier request, open its page and choose **Duplicate request** › **Open in a new tab**. Its boundaries, datasets and options are loaded into a new request in a new tab, opened on the Review page, for you to change and submit. A request you were building in the first tab isn't touched. If anything in the earlier request is no longer available, GeoQuery tells you what was left out.
 
 ## Boundary files
 

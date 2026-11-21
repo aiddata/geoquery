@@ -20,7 +20,7 @@ It takes about five minutes, plus the time your request takes to process.
 2. Under **Measure**, tick **Average light intensity**. This is the mean of the satellite's readings across each district. The ⓘ icon beside each measure says what it is.
 3. Under **Split results by**, tick **2022** and **2023** in **Time Periods**. Each period you tick becomes its own column.
 
-The dataset is added to your request as soon as you've chosen, and a check mark appears beside it in the list.
+The dataset is added to your request as soon as you've chosen: the line under **Select Dataset Options** says "Dataset added. 2 columns based on Average light intensity across 2 years."
 
 ## 3. Review and submit
 
@@ -48,6 +48,6 @@ To see which districts got brighter, add a column that subtracts the 2022 value 
 
 ## Going further
 
-- **Add more years or measures** with **Use as template** on your request's page: it loads this request for you to change and submit again.
-- **Share your setup** with **Copy share link**, so a colleague can open the same request.
+- **Add more years or measures** with **Duplicate request** › **Open in a new tab** on your request's page: it loads this request for you to change and submit again.
+- **Share your results** with **Copy results link** on your request's page, or **share your setup** with **Duplicate request** › **Copy link**, so a colleague can start the same request.
 - **Compare levels**: add **Ghana ADM1** to see regions alongside districts. See [Selecting multiple boundary sets](../multiple-boundaries.md) for how the results are laid out.

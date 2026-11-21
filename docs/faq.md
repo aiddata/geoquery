@@ -25,10 +25,10 @@ GeoQuery only lists datasets that have data for the boundaries you've selected, 
 No. Boundaries, names and labels are shown as published by their providers, such as geoBoundaries, and do not imply any opinion by AidData or William & Mary on the legal status of any area or its borders. See the [map disclaimer](data_documentation/map-disclaimer.md).
 
 ### Can I edit or resubmit a previous request?
-A submitted request can't be changed, but you can build a new one from it. Open the request's page and click **Use as template**: its boundaries, datasets and options are loaded for you to change and submit. Data that has already been processed is returned quickly. See [Starting from a past request](using-geoquery/getting-started.md#starting-from-a-past-request).
+A submitted request can't be changed, but you can build a new one from it. Open the request's page and choose **Duplicate request** › **Open in a new tab**: its boundaries, datasets and options are loaded for you to change and submit. Data that has already been processed is returned quickly. See [Starting from a past request](using-geoquery/getting-started.md#starting-from-a-past-request).
 
 ### Can I share a request with someone?
-Yes. **Copy share link**, at the bottom of the panel, copies a link to the request you're building; anyone who opens it gets their own copy to change and submit. Once a request is submitted, its page and download can be opened by anyone with its link. See [Sharing a request](using-geoquery/getting-started.md#sharing-a-request).
+Yes. **Copy share link**, at the bottom of the panel, copies a link to the request you're building; anyone who opens it gets their own copy to change and submit. Once a request is submitted, **Copy results link** on its page copies a link anyone can use to open the page and download the results. See [Sharing a request](using-geoquery/getting-started.md#sharing-a-request).
 
 ### How do I find a request I made earlier?
 Signed in, open **My Requests** in the **Account** menu. Without an account, open **Past Requests** in the same menu, enter the email address you used, and we'll email you a link to your request history. Requests made on earlier versions of GeoQuery are included.
