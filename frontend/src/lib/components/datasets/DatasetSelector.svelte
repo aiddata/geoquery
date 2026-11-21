@@ -18,7 +18,7 @@
 		selectedDataset: DatasetSummary | null;
 		onSelect: (dataset: DatasetSummary) => void;
 		outOfRangeNames?: Set<string>;
-		/** Feature datasets whose current filters aren't in the request; marked with an exclamation. */
+		/** Feature datasets with a selection started but not complete (not in the request); marked with an exclamation. */
 		unsavedNames?: Set<string>;
 		/** Columns each dataset adds to the output, across its entries in the request */
 		columnCounts?: Map<string, number>;
@@ -230,7 +230,7 @@
 									class="mt-0.5 size-4 shrink-0 text-warning-text"
 									aria-hidden="true"
 								/>
-								<span class="sr-only">(filters not added to your request yet)</span>
+								<span class="sr-only">(a selection not complete yet)</span>
 							{/if}
 							{#if partial}
 								<span class="sr-only">(covers {coveredCount(dataset)} of {boundarySets.length} selected boundary sets)</span>

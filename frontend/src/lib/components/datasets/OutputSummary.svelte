@@ -18,12 +18,14 @@
 		/** Feature-dataset options */
 		filterSelections?: Record<string, FilterSelection>;
 		outcome?: string;
-		/** Where the options stand (see DatasetActions / Customize) */
-		saveState?: 'saved' | 'unsaved' | 'editing' | 'incomplete' | null;
+		/** Where the options stand (see Customize) */
+		saveState?: 'saved' | 'incomplete' | 'duplicate' | null;
 		/** Nothing from this dataset is in the request yet */
 		empty?: boolean;
 		/** A feature dataset's required options still to choose, e.g. "a measure" (GEO-163) */
 		featureMissingText?: string | null;
+		/** The selection that already has exactly these options */
+		duplicateOf?: string | null;
 	}
 
 	let {
@@ -37,12 +39,12 @@
 		outcome = '',
 		saveState = null,
 		empty = false,
-		featureMissingText = null
+		featureMissingText = null,
+		duplicateOf = null
 	}: Props = $props();
 
-	// Rasters join the request on their own, so their status lives here (feature
-	// datasets keep theirs beside Add to Request): what's still missing, or that
-	// the options are in the request.
+	// Options join the request on their own (GEO-153), so their status lives
+	// here: what's still missing, or that they're in the request.
 	const missing = $derived.by(() => {
 		const hasPeriods = dataset.temporal_name !== 'Temporally Invariant' && dataset.resources.length > 0;
 		const needsExtract = extractTypes.length === 0;
@@ -148,23 +150,19 @@
 		{:else if isFeature && saveState === 'incomplete' && featureMissingText}
 			<CircleAlert class="size-4 shrink-0 text-warning-text" aria-hidden="true" />
 			<span>Choose {featureMissingText} to add these options to your request.</span>
+		{:else if saveState === 'duplicate'}
+			<CircleAlert class="size-4 shrink-0 text-warning-text" aria-hidden="true" />
+			<span>
+				<strong class="text-foreground">Same options as “{duplicateOf}”.</strong> Change them to make this a
+				different selection.
+			</span>
 		{:else if saveState === 'saved'}
 			<CircleCheck class="size-4 shrink-0 text-success-text" aria-hidden="true" />
 			<span>
 				<strong class="text-foreground">In your request.</strong>
-				{isFeature ? 'Change the filters to add another version.' : 'Changes are saved automatically; Reset this dataset removes it.'}
-			</span>
-		{:else if saveState === 'unsaved'}
-			<CircleAlert class="size-4 shrink-0 text-warning-text" aria-hidden="true" />
-			<span>
-				<strong class="text-foreground">Not added yet.</strong> These filters are saved, but they're only in
-				your request once you add them.
-			</span>
-		{:else if saveState === 'editing'}
-			<CircleAlert class="size-4 shrink-0 text-warning-text" aria-hidden="true" />
-			<span>
-				<strong class="text-foreground">Editing a version in your request.</strong> Update it, or add these
-				filters as a new version.
+				{isFeature
+					? 'Changes are saved automatically. New selection adds another with different options.'
+					: 'Changes are saved automatically; Reset this dataset removes it.'}
 			</span>
 		{/if}
 	</p>

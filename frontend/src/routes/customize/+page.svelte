@@ -43,7 +43,6 @@
 	import OutputSummary from '#lib/components/datasets/OutputSummary.svelte';
 	import VersionCards from '#lib/components/datasets/VersionCards.svelte';
 	import { columnsByDataset, cleanVersionName, invalidVersionNames, uniqueVersionName } from '#lib/utils/outputColumns.js';
-	import { mergeFeatureVersions, versionCovers } from '#lib/utils/featureMerge.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 
 	$effect(() => {
@@ -156,9 +155,26 @@
 		return s;
 	}
 
-	function defaultOutcome(detail: DatasetDetail): string {
-		return detail.outcomes ? (Object.keys(detail.outcomes)[0] ?? '') : '';
+	// A new feature selection (GEO-153): nothing chosen in what's required (a
+	// measure when there are several, the values to split by), and no filter
+	// narrowing the records. Like a raster, so opening one doesn't add it.
+	function newSelections(detail: DatasetDetail): Record<string, FilterSelection> {
+		const s = initFilterSelections(detail.filters!);
+		for (const [key, f] of Object.entries(detail.filters ?? {})) {
+			if (f.aggregate === false && f.type === 'categorical') s[key] = { type: 'categorical', selected: [] };
+		}
+		return s;
 	}
+	function newOutcome(detail: DatasetDetail): string {
+		const keys = Object.keys(detail.outcomes ?? {});
+		return keys.length === 1 ? keys[0] : '';
+	}
+
+	/** Some split value chosen, from a selection's kwargs: worth a mark in the list while incomplete */
+	const kwargsStarted = (kwargs: Record<string, unknown> | undefined) =>
+		Object.values(kwargs ?? {}).some(
+			(v) => !!v && typeof v === 'object' && (v as { aggregate?: boolean }).aggregate === false && ((v as { selected?: unknown[] }).selected?.length ?? 0) > 0
+		);
 
 	function isFeature(detail: DatasetDetail | null): boolean {
 		return detail?.processing_class === 'filter_and_agg' && !!detail.filters;
@@ -166,14 +182,13 @@
 
 	const kwargsKey = (kwargs: Record<string, unknown> | null | undefined) => JSON.stringify(kwargs ?? null);
 
-	// How options are saved (GEO-104):
-	// - Rasters go straight into the cart as they change: one entry per
-	//   dataset, replaced on every change. At least one extract option makes a
-	//   valid entry; none (or Reset) removes it. Choices that aren't valid yet
+	// How options are saved (GEO-104, GEO-153): as they change, for both kinds.
+	// - Rasters: one cart entry per dataset, replaced on every change, once
+	//   there's a measure (and a period, when it has them); incomplete choices
 	//   wait in datasetChoices.
-	// - Feature datasets keep their current filters in datasetChoices, and
-	//   still need Add to Request. Each distinct set of filters is its own
-	//   cart entry, so a dataset can be added more than once.
+	// - Feature datasets: any number of selections, each its own cart entry.
+	//   The one being edited is kept in datasetChoices, and in the cart (as
+	//   editingKey) whenever it's complete. "New selection" starts another.
 	// datasetChoices is a store, so all of this survives leaving the page.
 
 	/** A raster dataset's cart entry (rasters have at most one). */
@@ -205,40 +220,24 @@
 			? buildFilterKwargs(filterSelections, selectedDatasetDetail.filters, selectedOutcome)
 			: null
 	);
-	// In the request already: an identical version, or one that covers these
-	// options (adding them would merge in nothing). The version being edited
-	// counts only when identical, so narrowing it can still be saved.
-	const featureSaved = $derived(
-		!!currentKwargs &&
-			$cart.some(
-				(i) =>
-					i.datasetName === selectedDatasetDetail?.name &&
-					(kwargsKey(i.kwargs) === kwargsKey(currentKwargs) ||
-						(kwargsKey(i.kwargs) !== editingKey && versionCovers(i, currentKwargs!)))
-			)
-	);
-
-	// The version Add would merge these options into (same filters and measure,
-	// other years), so the button can say so.
-	const mergeTarget = $derived.by(() => {
-		const detail = selectedDatasetDetail;
-		if (!detail || !currentKwargs || featureSaved) return null;
-		const hit = $cart.find(
-			(i) =>
-				i.datasetName === detail.name &&
-				kwargsKey(i.kwargs) !== editingKey &&
-				mergeFeatureVersions(i, { ...i, kwargs: currentKwargs! })
-		);
-		return hit ? hit.customName || detail.title || detail.name : null;
-	});
-
-	// Opened from the Review page's "Edit options": the cart entry being
-	// edited, while it's still in the cart. Update Request replaces it.
+	// The cart entry the options shown are (the selection being edited), while
+	// it's in the cart; null while the selection is incomplete.
 	const editingKey = $derived.by(() => {
 		const detail = selectedDatasetDetail;
 		if (!detail) return null;
 		const key = $datasetChoices[detail.name]?.editingKey;
 		return key && $cart.some((i) => i.datasetName === detail.name && kwargsKey(i.kwargs) === key) ? key : null;
+	});
+
+	// Another selection of this dataset with exactly the options shown: these
+	// aren't saved over it, or as a second copy of it.
+	const duplicateOf = $derived.by(() => {
+		const detail = selectedDatasetDetail;
+		if (!detail || !currentKwargs) return null;
+		const key = kwargsKey(currentKwargs);
+		if (key === editingKey) return null;
+		const hit = $cart.find((i) => i.datasetName === detail.name && kwargsKey(i.kwargs) === key);
+		return hit ? hit.customName || detail.title || detail.name : null;
 	});
 
 	/**
@@ -258,7 +257,7 @@
 		const detail = selectedDatasetDetail;
 		if (!detail) return false;
 		if (!isFeature(detail)) return rasterOptions.extractTypes.length > 0 || rasterOptions.resources.length > 0;
-		const defaults = buildFilterKwargs(initFilterSelections(detail.filters!), detail.filters, defaultOutcome(detail));
+		const defaults = buildFilterKwargs(newSelections(detail), detail.filters, newOutcome(detail));
 		return kwargsKey(currentKwargs) !== kwargsKey(defaults);
 	});
 
@@ -317,13 +316,12 @@
 	});
 
 	/** What the summary panel shows about the open dataset. */
-	const saveState = $derived.by((): 'saved' | 'unsaved' | 'editing' | 'incomplete' | null => {
+	const saveState = $derived.by((): 'saved' | 'incomplete' | 'duplicate' | null => {
 		const detail = selectedDatasetDetail;
 		if (!detail) return null;
 		if (isFeature(detail)) {
-			if (featureSaved) return 'saved';
 			if (missing.any) return 'incomplete';
-			return editingKey ? 'editing' : 'unsaved';
+			return duplicateOf ? 'duplicate' : 'saved';
 		}
 		return rasterComplete(detail, rasterOptions) ? 'saved' : 'incomplete';
 	});
@@ -332,31 +330,35 @@
 	// that differ from everything in the request (exclamation).
 	const inRequestNames = $derived(new Set($cart.map((i) => i.datasetName)));
 	const unsavedNames = $derived.by(() => {
+		// A feature selection started but not complete (not in the request)
 		const names = new Set<string>();
 		for (const [name, choices] of Object.entries($datasetChoices)) {
-			if (!choices.kwargs) continue;
-			const key = kwargsKey(choices.kwargs);
-			const covered = $cart.some(
-				(i) =>
-					i.datasetName === name &&
-					(kwargsKey(i.kwargs) === key ||
-						(kwargsKey(i.kwargs) !== choices.editingKey && versionCovers(i, choices.kwargs!)))
-			);
-			if (!covered) names.add(name);
+			const inCart = !!choices.editingKey && $cart.some((i) => i.datasetName === name && kwargsKey(i.kwargs) === choices.editingKey);
+			if (choices.kwargs && !inCart && kwargsStarted(choices.kwargs)) names.add(name);
 		}
 		return names;
 	});
 
-	// Load a feature dataset's saved filters (or its defaults) when it opens.
+	// Opening a feature dataset: the selection being edited (from Review's
+	// "Edit options", or before leaving the page), else its first selection in
+	// the request, else a new one (GEO-153).
 	$effect(() => {
 		const detail = selectedDatasetDetail;
-		const saved = detail ? untrack(() => datasetChoices.get(detail.name)) : undefined;
-		if (detail && isFeature(detail)) {
-			filterSelections = saved?.filterSelections
-				? structuredClone(saved.filterSelections)
-				: initFilterSelections(detail.filters!);
-		}
-		selectedOutcome = detail ? (saved?.selectedOutcome ?? defaultOutcome(detail)) : '';
+		if (!detail || !isFeature(detail)) return;
+		untrack(() => {
+			const saved = datasetChoices.get(detail.name);
+			if (saved?.filterSelections) {
+				filterSelections = structuredClone(saved.filterSelections);
+				selectedOutcome = saved.selectedOutcome ?? '';
+				return;
+			}
+			const first = $cart.find((i) => i.datasetName === detail.name && i.kwargs != null);
+			if (first) editVersion(first);
+			else {
+				filterSelections = newSelections(detail);
+				selectedOutcome = newOutcome(detail);
+			}
+		});
 	});
 
 	// Fetch datasets when resolved feature IDs become available (standard) or in custom mode
@@ -461,25 +463,52 @@
 		}
 	}
 
+	/**
+	 * Save the feature selection being edited, as it changes (GEO-153).
+	 * Complete, it's in the cart: replacing its entry in place, or added as a
+	 * new one. Incomplete, or the same as another selection, it's out of the
+	 * cart (keeping its name for when it's back), and its card says why.
+	 */
 	function saveFeatureChoices() {
 		const detail = selectedDatasetDetail;
 		if (!detail || !isFeature(detail)) return;
 		// Plain copies: the store clones what it's given, and reactive proxies
 		// can't be cloned.
 		const selections = $state.snapshot(filterSelections);
-		datasetChoices.save(detail.name, {
-			filterSelections: selections,
-			selectedOutcome,
-			kwargs: buildFilterKwargs(selections, detail.filters, selectedOutcome),
-			editingKey: datasetChoices.get(detail.name)?.editingKey
-		});
+		const kwargs = buildFilterKwargs(selections, detail.filters, selectedOutcome);
+		const key = kwargsKey(kwargs);
+		const prev = datasetChoices.get(detail.name);
+		const items = get(cart);
+		const editIdx = prev?.editingKey
+			? items.findIndex((i) => i.datasetName === detail.name && kwargsKey(i.kwargs) === prev.editingKey)
+			: -1;
+		const m = featureMissing(detail, selectedOutcome, selections);
+		const complete = !m.measure && m.splits.size === 0;
+		const duplicate = items.some((i, idx) => idx !== editIdx && i.datasetName === detail.name && kwargsKey(i.kwargs) === key);
+
+		let editingKey = editIdx >= 0 ? prev!.editingKey : undefined;
+		let customName = prev?.customName;
+		if (complete && !duplicate) {
+			const item = buildFeatureItem(detail, selections, customName);
+			if (editIdx >= 0) cart.replaceAt(editIdx, item);
+			else cart.addItem(item);
+			editingKey = key;
+			customName = undefined;
+		} else if (editIdx >= 0) {
+			// Incomplete, or now the same as another selection: out of the request
+			customName = items[editIdx].customName;
+			cart.removeItem(editIdx);
+			editingKey = undefined;
+		}
+		datasetChoices.save(detail.name, { filterSelections: selections, selectedOutcome, kwargs, editingKey, customName });
 	}
 
-	function buildFeatureItem(detail: DatasetDetail): CartItem {
-		const selections = $state.snapshot(filterSelections);
+	function buildFeatureItem(detail: DatasetDetail, selections: Record<string, FilterSelection>, name?: string): CartItem {
+		const items = get(cart);
 		return {
-			// Unique per version: it prefixes this version's output columns
-			customName: uniqueVersionName(cleanVersionName(detail.name), $cart),
+			// Unique per selection: it prefixes this selection's output columns
+			customName:
+				name && !items.some((i) => i.customName === name) ? name : uniqueVersionName(cleanVersionName(detail.name), items),
 			datasetName: detail.name,
 			datasetTitle: detail.title ?? detail.name,
 			datasetType: detail.type,
@@ -489,7 +518,6 @@
 		};
 	}
 
-	/** Leave edit mode: the filters stay, but no longer replace an entry. */
 	// The open feature dataset's versions in the request, shown as cards
 	const featureEntries = $derived(
 		selectedDatasetDetail && isFeature(selectedDatasetDetail)
@@ -500,13 +528,13 @@
 	);
 	const invalidNames = $derived(invalidVersionNames($cart));
 
-	/** Load a version from the request into the options, to edit and replace it. */
+	/** Load a selection from the request into the options, to edit it. */
 	function editVersion(item: CartItem) {
 		const detail = selectedDatasetDetail;
 		if (!detail || !item.kwargs) return;
 		filterSelections = structuredClone(item.filterSelections ?? initFilterSelections(detail.filters!));
 		const outcome = item.kwargs.outcome;
-		selectedOutcome = typeof outcome === 'string' ? outcome : defaultOutcome(detail);
+		selectedOutcome = typeof outcome === 'string' ? outcome : newOutcome(detail);
 		datasetChoices.save(detail.name, {
 			filterSelections: $state.snapshot(filterSelections),
 			selectedOutcome,
@@ -515,36 +543,42 @@
 		});
 	}
 
-	function stopEditing(name: string) {
-		const choices = datasetChoices.get(name);
-		if (choices?.editingKey) datasetChoices.save(name, { ...choices, editingKey: undefined });
+	/** "New selection": the one being edited stays in the request; start another. */
+	function newSelection() {
+		const detail = selectedDatasetDetail;
+		if (!detail || !isFeature(detail)) return;
+		filterSelections = newSelections(detail);
+		selectedOutcome = newOutcome(detail);
+		datasetChoices.save(detail.name, {
+			filterSelections: $state.snapshot(filterSelections),
+			selectedOutcome,
+			kwargs: buildFilterKwargs($state.snapshot(filterSelections), detail.filters, selectedOutcome)
+		});
 	}
 
-	/** Replace the entry opened with "Edit options" with the current filters. */
-	function handleUpdateRequest() {
+	/** Remove a selection; removing the one being edited moves to another, or a new one. */
+	function removeVersion(index: number) {
 		const detail = selectedDatasetDetail;
-		if (!detail || !isFeature(detail) || !editingKey || missing.any) return;
-		cart.replaceFeatureItem(detail.name, editingKey, buildFeatureItem(detail));
-		stopEditing(detail.name);
-	}
-
-	/** Feature datasets only: rasters are already in the cart. Adds a new version. */
-	function handleAddToRequest() {
-		const detail = selectedDatasetDetail;
-		if (!detail || !isFeature(detail) || missing.any) return;
-		cart.upsertItem(buildFeatureItem(detail));
-		stopEditing(detail.name);
+		const removedKey = kwargsKey($cart[index]?.kwargs);
+		cart.removeItem(index);
+		if (!detail || removedKey !== editingKey) return;
+		datasetChoices.clear(detail.name);
+		const next = get(cart).find((i) => i.datasetName === detail.name && i.kwargs != null);
+		if (next) editVersion(next);
+		else newSelection();
 	}
 
 	function handleReset() {
 		const detail = selectedDatasetDetail;
 		if (!detail) return;
-		datasetChoices.clear(detail.name);
 		if (isFeature(detail)) {
-			// Entries already added stay in the request; Reset only clears the form.
-			filterSelections = initFilterSelections(detail.filters!);
-			selectedOutcome = defaultOutcome(detail);
+			// Only the selection being edited: back to a new selection's options,
+			// which takes it out of the request. Other selections stay.
+			filterSelections = newSelections(detail);
+			selectedOutcome = newOutcome(detail);
+			saveFeatureChoices();
 		} else {
+			datasetChoices.clear(detail.name);
 			rasterOptions = { extractTypes: [], resources: [] };
 			cart.removeRasterItem(detail.name);
 		}
@@ -559,8 +593,8 @@
 		const detail = selectedDatasetDetail;
 		rasterOptions = { extractTypes: [], resources: [] };
 		if (detail && isFeature(detail)) {
-			filterSelections = initFilterSelections(detail.filters!);
-			selectedOutcome = defaultOutcome(detail);
+			filterSelections = newSelections(detail);
+			selectedOutcome = newOutcome(detail);
 		}
 	}
 </script>
@@ -641,9 +675,8 @@
 					</p>
 					{#if !selectedDatasetSummary}
 						<p class="max-w-md text-xs text-muted-foreground">
-							Raster datasets join your request as soon as you choose their options. Feature
-							datasets need <strong>Add to Request</strong>, and can be added more than once with
-							different filters.
+							A dataset joins your request as soon as its options are complete. Feature datasets
+							can have more than one selection, each with its own options.
 						</p>
 					{/if}
 				</div>
@@ -670,16 +703,27 @@
 					/>
 				</div>
 
-				{#if featureEntries.length > 0}
+				{#if isFeature(selectedDatasetDetail)}
+					<!-- The dataset's selections, one card each: the one being edited
+					     (incomplete ones only exist here), and New selection -->
 					<VersionCards
 						dataset={selectedDatasetDetail}
 						entries={featureEntries}
 						invalid={invalidNames}
 						onRename={(index, name) => cart.updateItemName(index, name)}
-						onRemove={(index) => cart.removeItem(index)}
+						onRemove={removeVersion}
 						{editingKey}
-						currentKey={kwargsKey(buildFilterKwargs($state.snapshot(filterSelections), selectedDatasetDetail.filters, selectedOutcome))}
 						onEdit={editVersion}
+						draft={editingKey
+							? null
+							: {
+									name: $datasetChoices[selectedDatasetDetail.name]?.customName ?? 'New selection',
+									problem: duplicateOf
+										? `Same options as “${duplicateOf}”, which is already in your request.`
+										: 'Not in your request until its options are complete.'
+								}}
+						onNew={newSelection}
+						canNew={saveState === 'saved'}
 					/>
 				{/if}
 
@@ -696,7 +740,8 @@
 						outcome={selectedOutcome}
 						{saveState}
 						{featureMissingText}
-						empty={!isFeature(selectedDatasetDetail) && !inRequestNames.has(selectedDatasetDetail.name)}
+						{duplicateOf}
+						empty={isFeature(selectedDatasetDetail) ? missing.any : !inRequestNames.has(selectedDatasetDetail.name)}
 					/>
 
 				<!-- Configuration area: heading, then Reset, Add / Update and status -->
@@ -704,10 +749,6 @@
 					<h3 class="text-base font-semibold">Select Dataset Options</h3>
 					<DatasetActions
 						isFeature={isFeature(selectedDatasetDetail)}
-						{saveState}
-						onAddToRequest={handleAddToRequest}
-						mergeInto={mergeTarget}
-						onUpdateRequest={handleUpdateRequest}
 						onReset={handleReset}
 						{canReset}
 					/>
