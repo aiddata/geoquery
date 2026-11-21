@@ -21,8 +21,7 @@ description: "How GeoQuery's SvelteKit frontend is organised: routes, the stores
 | `/` | Step 1, Select Boundaries: the map, boundary search, Bulk select, presets, custom upload (beta) |
 | `/customize` | Step 2, Customize Datasets. `?dataset=<name>` opens one dataset (Review's **Edit options**) |
 | `/review` | Step 3, Review & Submit |
-| `/requests/[id]` | One request: status, contents, download, **Copy results link** (the page's own address), and **Duplicate request** (open a copy in a new tab, or copy a share link to it) |
-| `/duplicate/[id]` | Loads a request into a new request and goes on to Review, with no "replace?" prompt: Duplicate request › Open in a new tab opens it in a tab of its own |
+| `/requests/[id]` | One request: status, contents, download, **Copy results link** (the page's own address), and **Duplicate request**, which opens the request's share link in a new tab or copies it |
 | `/requests/[[token]]` | Past Requests (signed out, with an emailed token) or My Requests (signed in) |
 | `/legacy/[id]` | A request from the previous GeoQuery |
 | `/s/[id]` | Opens a share link, after a confirmation if a request is in progress |
@@ -31,7 +30,7 @@ description: "How GeoQuery's SvelteKit frontend is organised: routes, the stores
 | `/viz/…` | The map and visualize views (beta) |
 | `/health`, `/maintenance` | Health check, and the maintenance page |
 
-Keep new routes off `/requests/<id>/…`: the production proxy sends every path two or more segments under `/requests/` to the backend, which serves request downloads from there, so a page there works from an in-app link but 404s on a full page load ([Helm chart](deploying/kubernetes/helm-chart.md)).
+Keep new routes off `/requests/<id>/…`: the production proxy sends every path two or more segments under `/requests/` to the backend, which serves request downloads from there, so a page there works from an in-app link but 404s on a full page load, including one opened in a new tab ([Helm chart](deploying/kubernetes/helm-chart.md)).
 
 `RequestPanel` (`lib/components/layout/`) is the left-hand panel shared by the three steps, with the step headings, the request summary and the **Copy share link** footer. On the first two steps the summary (features and boundary sets, columns and dataset selections) sits under **3. Review & Submit**; on Review it's under each step's own header.
 
@@ -74,7 +73,7 @@ Review's **Edit options** saves a feature entry to `datasetChoices` with its `ed
 
 `lib/recipe.ts` defines the **recipe**: a versioned `{v: 1, boundaries, datasets}` description of a request, without its name or email. `currentRecipe()` builds one from the stores, `parseRecipe()` checks one from storage or the network, and `applyRecipe()` loads one into the stores. Tab state is stored as a recipe too.
 
-`lib/loadRecipe.ts` loads a recipe from elsewhere (a request's **Duplicate request**, through `/duplicate/[id]`, or a share link at `/s/[id]`). It replaces the current request, sets `recipeNotice` (shown by `RecipeNotice` on each step, listing anything that couldn't be loaded), and returns where to go: Review if there are datasets, otherwise the map.
+`lib/loadRecipe.ts` loads a recipe from elsewhere (a share link at `/s/[id]`, which is also how a request's **Duplicate request** opens it). It replaces the current request, sets `recipeNotice` (shown by `RecipeNotice` on each step, listing anything that couldn't be loaded), and returns where to go: Review if there are datasets, otherwise the map.
 
 `ShareLinkButton` posts the current recipe to `/api/analytics/shares/` and copies the link. Given a `current` key that changes with the request, it offers **Copy updated link** once the request changes after copying. Given a `url` (and a `label`) instead, it copies that address as it is: the request page's **Copy results link**. The backend side is in [APIs › Share links](apis.md#share-links-and-recipes).
 
