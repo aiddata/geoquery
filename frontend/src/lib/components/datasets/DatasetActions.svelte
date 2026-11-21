@@ -21,6 +21,8 @@
 		mergeInto?: string | null;
 		onUpdateRequest: () => void;
 		onReset: () => void;
+		/** Something differs from the dataset's starting options, so Reset has work to do */
+		canReset?: boolean;
 	}
 
 	let {
@@ -29,7 +31,8 @@
 		onAddToRequest,
 		mergeInto = null,
 		onUpdateRequest,
-		onReset
+		onReset,
+		canReset = true
 	}: Props = $props();
 
 </script>
@@ -37,7 +40,8 @@
 <div class="flex flex-wrap items-center gap-2">
 	<!-- Only ever this dataset: a raster's options (and its entry in the request),
 	     or a feature dataset's measure, split and filter options on screen (its
-	     versions stay) -->
+	     versions stay). Hidden while there's nothing to reset. -->
+	{#if canReset}
 	<Button
 		variant="outline"
 		size="sm"
@@ -49,6 +53,7 @@
 		<RotateCcw />
 		{isFeature ? 'Reset options' : 'Reset this dataset'}
 	</Button>
+	{/if}
 
 	{#if isFeature && saveState === 'editing'}
 		<Button size="sm" onclick={onUpdateRequest}>

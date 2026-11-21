@@ -251,6 +251,17 @@
 		return options.extractTypes.length > 0 && (!hasPeriods || options.resources.length > 0);
 	}
 
+	// Whether the open dataset's options differ from where it starts, so Reset
+	// has something to do (GEO-162): any raster option chosen, or feature
+	// options changed from their defaults.
+	const canReset = $derived.by(() => {
+		const detail = selectedDatasetDetail;
+		if (!detail) return false;
+		if (!isFeature(detail)) return rasterOptions.extractTypes.length > 0 || rasterOptions.resources.length > 0;
+		const defaults = buildFilterKwargs(initFilterSelections(detail.filters!), detail.filters, defaultOutcome(detail));
+		return kwargsKey(currentKwargs) !== kwargsKey(defaults);
+	});
+
 	/** What the summary panel shows about the open dataset. */
 	const saveState = $derived.by((): 'saved' | 'unsaved' | 'editing' | 'incomplete' | null => {
 		const detail = selectedDatasetDetail;
@@ -639,6 +650,7 @@
 						mergeInto={mergeTarget}
 						onUpdateRequest={handleUpdateRequest}
 						onReset={handleReset}
+						{canReset}
 					/>
 				</div>
 				{#if selectedDatasetDetail.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters}
