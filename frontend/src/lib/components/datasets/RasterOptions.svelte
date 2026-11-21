@@ -9,6 +9,7 @@
 	import OptionsSection from './OptionsSection.svelte';
 	import { SPLIT_HELP, SPLIT_SUMMARY } from './optionsHelp.js';
 	import { parseMeasure } from '#lib/utils/measures.js';
+	import { formatPeriod, periodRange } from '#lib/utils/periods.js';
 
 	interface RasterSelection {
 		extractTypes: string[];
@@ -90,6 +91,12 @@
 	const measures = $derived(
 		dataset.extract_types.map((type) => ({ type, ...parseMeasure(type.short_name, type.description) }))
 	);
+
+	/** A period as people read it: "1995 January" rather than "199501" (GEO-161) */
+	const periodLabel = (resource: DatasetDetail['resources'][number]) =>
+		resource.label ? formatPeriod(resource.label) : formatTemporal(resource.temporal);
+	// The span "All time periods" covers, e.g. 1992–2013
+	const allRange = $derived(periodRange(dataset.resources.map((r) => r.label ?? formatTemporal(r.temporal))));
 
 	function formatTemporal(dateStr: string | null): string {
 		if (!dateStr) return 'Unknown';
@@ -193,7 +200,10 @@
 							<span onclick={(e) => e.stopPropagation()}>
 								<Checkbox checked={allResourcesSelected} onCheckedChange={toggleAllResources} aria-label="All time periods" />
 							</span>
-							<Label class="cursor-pointer text-xs font-bold">All time periods</Label>
+							<Label class="cursor-pointer text-xs font-bold">
+								All time periods
+								{#if allRange}<span class="font-normal text-muted-foreground">({allRange})</span>{/if}
+							</Label>
 						</div>
 
 						{#each dataset.resources as resource, i}
@@ -204,11 +214,11 @@
 									<Checkbox
 										checked={options.resources.includes(resource.name)}
 										onCheckedChange={() => {}}
-										aria-label={resource.label ?? formatTemporal(resource.temporal)}
+										aria-label={periodLabel(resource)}
 									/>
 								</span>
 								<Label class="cursor-pointer select-none text-xs font-normal">
-									{resource.label ?? formatTemporal(resource.temporal)}
+									{periodLabel(resource)}
 								</Label>
 							</div>
 						{/each}

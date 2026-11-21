@@ -3,6 +3,7 @@
 	import type { FilterSelection } from '#lib/stores/cart.js';
 	import { CircleAlert, CircleCheck } from '@lucide/svelte';
 	import { parseMeasure } from '#lib/utils/measures.js';
+	import { periodUnit } from '#lib/utils/periods.js';
 
 	// One or two sentences tying the boundary selection to the open dataset's
 	// options: how many features, and what the output will hold for each.
@@ -68,7 +69,7 @@
 		const hasPeriods = dataset.temporal_name !== 'Temporally Invariant' && dataset.resources.length > 0;
 		const periods = hasPeriods ? resources.length : 1;
 		const labels = dataset.resources.filter((r) => resources.includes(r.name)).map((r) => r.label ?? r.name);
-		const unit = labels.length > 0 && labels.every((l) => /^\d{4}$/.test(l)) ? ['year', 'years'] : ['time period', 'time periods'];
+		const unit = periodUnit(labels);
 		const categorical = extractTypes.some((t) => /categor/i.test(t));
 		return {
 			columns: extractTypes.length * periods,
