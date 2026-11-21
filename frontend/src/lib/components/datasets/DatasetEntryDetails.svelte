@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { compactPeriods } from '#lib/utils/periods.js';
 	import type { DatasetDetail } from '#lib/api.js';
 	import { entryColumns } from '#lib/utils/outputColumns.js';
 	import { parseMeasure } from '#lib/utils/measures.js';
@@ -62,7 +63,8 @@
 		};
 	});
 
-	const periods = $derived(compact(resourceLabels.length === resources.length ? resourceLabels : resources));
+	// Runs of years or months as one range, and months as dates (GEO-161)
+	const periods = $derived(compactPeriods(resourceLabels.length === resources.length ? resourceLabels : resources));
 </script>
 
 {#snippet chips(list: string[], more = 0)}

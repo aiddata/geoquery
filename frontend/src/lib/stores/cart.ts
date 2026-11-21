@@ -126,6 +126,14 @@ function createCartStore() {
 				return items.map((it, i) => (i === idx ? next : it)).filter((_, i) => !absorbed.has(i));
 			});
 		},
+		/**
+		 * Replace the entry at `index` as it is, keeping its name: a feature
+		 * selection being edited on Customize (GEO-153), which saves as it
+		 * changes, so it never merges with or absorbs another entry on the way.
+		 */
+		replaceAt(index: number, item: CartItem) {
+			update((items) => items.map((it, i) => (i === index ? { ...item, customName: it.customName } : it)));
+		},
 		removeItem(index: number) {
 			update((items) => items.filter((_, i) => i !== index));
 		},

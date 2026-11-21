@@ -9,9 +9,9 @@ import type { FilterSelection } from './cart.js';
  * - Raster datasets: the cart is the source of truth once options are valid
  *   (customize writes them straight into it); this only holds choices that
  *   aren't valid yet, such as time periods with no statistic.
- * - Feature (filter-and-aggregate) datasets: the current filters and outcome,
- *   with the kwargs they produce, so Customize can tell whether they match a
- *   cart entry (saved) or not (unsaved).
+ * - Feature (filter-and-aggregate) datasets: the selection being edited
+ *   (GEO-153): its filters and outcome, the kwargs they produce, and which
+ *   cart entry it is once complete (editingKey). Incomplete, it's only here.
  */
 export interface DatasetChoices {
 	rasterOptions?: { extractTypes: string[]; resources: string[] };
@@ -20,11 +20,13 @@ export interface DatasetChoices {
 	/** The kwargs the filters produce; compared against cart items' kwargs. */
 	kwargs?: Record<string, unknown>;
 	/**
-	 * Set when the dataset was opened with the Review page's "Edit options":
-	 * the kwargs key (JSON) of the cart entry being edited, which Update
-	 * Request replaces.
+	 * The kwargs key (JSON) of the cart entry these options are, kept in step
+	 * as they change; unset while the selection is incomplete (not in the
+	 * cart). Review's "Edit options" sets it to open that entry.
 	 */
 	editingKey?: string;
+	/** An incomplete selection's name, kept from when it was in the cart */
+	customName?: string;
 }
 
 function createDatasetChoicesStore() {

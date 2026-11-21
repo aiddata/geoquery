@@ -14,6 +14,8 @@ export interface AllauthUser {
 	has_usable_password?: boolean;
 	/** Whether the user may use features in beta (see #lib/stores/features). */
 	is_beta_tester?: boolean;
+	/** The saved site theme; absent if never chosen while signed in (see stores/themeSync). */
+	theme?: 'system' | 'light' | 'dark' | null;
 }
 
 export interface EmailAddress {
