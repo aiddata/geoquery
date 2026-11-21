@@ -21,7 +21,8 @@ description: "How GeoQuery's SvelteKit frontend is organised: routes, the stores
 | `/` | Step 1, Select Boundaries: the map, boundary search, Bulk select, presets, custom upload (beta) |
 | `/customize` | Step 2, Customize Datasets. `?dataset=<name>` opens one dataset (Review's **Edit options**) |
 | `/review` | Step 3, Review & Submit |
-| `/requests/[id]` | One request: status, contents, download, **Use as template**, share |
+| `/requests/[id]` | One request: status, contents, download, **Copy results link** (the page's own address), and **Duplicate request** (open a copy in a new tab, or copy a share link to it) |
+| `/requests/[id]/duplicate` | Loads a request into a new request and goes on to Review, with no "replace?" prompt: Duplicate request › Open in a new tab opens it in a tab of its own |
 | `/requests/[[token]]` | Past Requests (signed out, with an emailed token) or My Requests (signed in) |
 | `/legacy/[id]` | A request from the previous GeoQuery |
 | `/s/[id]` | Opens a share link, after a confirmation if a request is in progress |
@@ -30,7 +31,7 @@ description: "How GeoQuery's SvelteKit frontend is organised: routes, the stores
 | `/viz/…` | The map and visualize views (beta) |
 | `/health`, `/maintenance` | Health check, and the maintenance page |
 
-`RequestPanel` (`lib/components/layout/`) is the left-hand panel shared by the three steps, with the step headings, summaries and the **Copy share link** footer.
+`RequestPanel` (`lib/components/layout/`) is the left-hand panel shared by the three steps, with the step headings, the request summary and the **Copy share link** footer. On the first two steps the summary (features and boundary sets, columns and dataset selections) sits under **3. Review & Submit**; on Review it's under each step's own header.
 
 ### Narrow screens
 
@@ -45,10 +46,21 @@ A request lives in Svelte stores in `src/lib/stores/` until it's submitted:
 | `selection` | The boundary selection: one set with optional feature ids, or several whole sets. `customizeHref` derives where step 2 is |
 | `customBoundary` | An uploaded boundary file (beta) |
 | `cart` | The datasets in the request and their options |
-| `datasetChoices` | Options chosen for a dataset that isn't complete enough to be in the cart yet |
+| `datasetChoices` | Per dataset: a raster's options while they're incomplete, or the feature selection being edited ([Saving dataset options](#saving-dataset-options)) |
 | `requestForm` | The request's name and email |
 | `features` | The caller's beta features, from `/api/config/` |
 | `ui` | The current step and panel state |
+
+### Saving dataset options
+
+There's no "Add to Request": options save to the cart as they change (`routes/customize/+page.svelte`).
+
+- **Rasters** have one cart entry per dataset, replaced on every change once it's complete: at least one measure, and a time period when the dataset has them. Incomplete options wait in `datasetChoices`.
+- **Feature datasets** (`processing_class` `filter_and_agg`) can have several **selections**, each its own cart entry with its own name, which prefixes its columns. The one being edited is in `datasetChoices`, with `editingKey` set to its cart entry's kwargs (as JSON) while it's complete. A selection is complete with a measure chosen and at least one value in each field it splits by (`aggregate: false`); many feature datasets split by nothing. `saveFeatureChoices()` replaces the entry in place with `cart.replaceAt()`, which never merges it with another entry, adds it once it's complete, and takes it out (keeping its name in `datasetChoices.customName`) when it becomes incomplete or identical to another selection. `VersionCards` shows the selections, and **New selection** starts another.
+
+A new selection, like a fresh raster, has nothing required chosen (the measure isn't preselected even when there's only one), so opening a dataset never adds it. The required cards with nothing chosen are outlined once anything in the dataset has been chosen (`MissingNote`, `MISSING_CARD`), and `OutputSummary` is the one-line status under "Select Dataset Options", with Reset at its end. A feature dataset's filters (`aggregate` true or unset) are behind **Custom filters**, open by default only when the selection narrows one.
+
+Review's **Edit options** saves a feature entry to `datasetChoices` with its `editingKey` before opening Customize, so that entry is the one being edited. Raster period labels are formatted for display by `lib/utils/periods.ts` ("199501" as "1995 January"); the stored labels are left as they are, since recipes and the request documentation use them.
 
 ### Tab state
 
@@ -60,9 +72,9 @@ A request lives in Svelte stores in `src/lib/stores/` until it's submitted:
 
 `lib/recipe.ts` defines the **recipe**: a versioned `{v: 1, boundaries, datasets}` description of a request, without its name or email. `currentRecipe()` builds one from the stores, `parseRecipe()` checks one from storage or the network, and `applyRecipe()` loads one into the stores. Tab state is stored as a recipe too.
 
-`lib/loadRecipe.ts` loads a recipe from elsewhere ("Use as template" on a request page, or a share link at `/s/[id]`). It replaces the current request, sets `recipeNotice` (shown by `RecipeNotice` on each step, listing anything that couldn't be loaded), and returns where to go: Review if there are datasets, otherwise the map.
+`lib/loadRecipe.ts` loads a recipe from elsewhere (a request's **Duplicate request**, through `/requests/[id]/duplicate`, or a share link at `/s/[id]`). It replaces the current request, sets `recipeNotice` (shown by `RecipeNotice` on each step, listing anything that couldn't be loaded), and returns where to go: Review if there are datasets, otherwise the map.
 
-`ShareLinkButton` posts the current recipe to `/api/analytics/shares/` and copies the link. Given a `current` key that changes with the request, it offers **Copy updated link** once the request changes after copying. The backend side is in [APIs › Share links](apis.md#share-links-and-recipes).
+`ShareLinkButton` posts the current recipe to `/api/analytics/shares/` and copies the link. Given a `current` key that changes with the request, it offers **Copy updated link** once the request changes after copying. Given a `url` (and a `label`) instead, it copies that address as it is: the request page's **Copy results link**. The backend side is in [APIs › Share links](apis.md#share-links-and-recipes).
 
 ## Talking to the backend
 

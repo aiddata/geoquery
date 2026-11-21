@@ -25,7 +25,7 @@ Everything is Django REST Framework, wired in `backend/geoquery/urls.py`. Add an
 | `features/tiles/<fc>/<z>/<x>/<y>.mvt`, `multitiles/…` | Vector tiles for one or several boundary sets, from PostGIS `ST_AsMVT` |
 | `datasets/`, `datasets/<name>/`, `datasets/categories/`, `datasets/coverage/` | The catalog, one dataset, categories, and which datasets cover a selection (`POST`, since selections are large) |
 | `analytics/requests/` | Submit a request (`POST`; throttled `request_submit`) |
-| `analytics/requests/<uuid>/`, `…/recipe/` | A request's page data, and its recipe for "Use as template" |
+| `analytics/requests/<uuid>/`, `…/recipe/` | A request's page data, and its recipe for **Duplicate request** |
 | `analytics/shares/`, `shares/<id>/` | Create a share link, and open one ([below](#share-links-and-recipes)) |
 | `analytics/request-token/`, `history/<token>/`, `my-requests/` | Emailed request-history links, and a signed-in user's requests |
 | `analytics/legacy-requests/…`, `legacy-history/<token>/` | Requests from the previous GeoQuery |

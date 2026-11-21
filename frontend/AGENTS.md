@@ -93,7 +93,7 @@ import * as Dialog from '#lib/components/ui/dialog/index.js';
 
 ## The Request Being Built
 
-The selection, cart, in-progress dataset choices and form live in stores, saved to `sessionStorage` by `stores/tabState.ts` and restored in `+layout.svelte`, so a refresh keeps them. Recipes (`lib/recipe.ts`) are the portable form of a request, used by tab state, "Use as template" and share links.
+The selection, cart, in-progress dataset choices and form live in stores, saved to `sessionStorage` by `stores/tabState.ts` and restored in `+layout.svelte`, so a refresh keeps them. Recipes (`lib/recipe.ts`) are the portable form of a request, used by tab state, Duplicate request and share links. Dataset options save to the cart as they change; there is no "Add to Request" (see the developer docs' Frontend page, "Saving dataset options").
 
 ## API Integration
 
