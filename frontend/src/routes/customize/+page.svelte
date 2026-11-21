@@ -158,9 +158,11 @@
 		return s;
 	}
 
-	// A new feature selection (GEO-153): nothing chosen in what's required (a
-	// measure when there are several, the values to split by), and no filter
-	// narrowing the records. Like a raster, so opening one doesn't add it.
+	// A new feature selection (GEO-153): nothing chosen in what's required (the
+	// measure, and values for any fields it splits by), and no filter narrowing
+	// the records. Like a raster, so opening one doesn't add it. The measure
+	// isn't preselected even when there's only one: choosing it is what adds a
+	// dataset with nothing to split by.
 	function newSelections(detail: DatasetDetail): Record<string, FilterSelection> {
 		const s = initFilterSelections(detail.filters!);
 		for (const [key, f] of Object.entries(detail.filters ?? {})) {
@@ -168,9 +170,8 @@
 		}
 		return s;
 	}
-	function newOutcome(detail: DatasetDetail): string {
-		const keys = Object.keys(detail.outcomes ?? {});
-		return keys.length === 1 ? keys[0] : '';
+	function newOutcome(_detail: DatasetDetail): string {
+		return '';
 	}
 
 	/** Some split value chosen, from a selection's kwargs: worth a mark in the list while incomplete */
@@ -266,8 +267,8 @@
 
 	/**
 	 * A feature dataset's required options that aren't chosen (GEO-163): a
-	 * measure, when it has several, and at least one value in each field the
-	 * results are split by.
+	 * measure, and at least one value in each field the results are split by,
+	 * when it has any. Many feature datasets split by nothing.
 	 */
 	function featureMissing(
 		detail: DatasetDetail,
