@@ -84,33 +84,48 @@
 		}
 	});
 
-	// "Duplicate request" (GEO-126, GEO-146): start a new request with this
-	// one's boundaries and datasets. Opening it uses a new tab
-	// (/requests/<id>/duplicate), so the request being built in this one is
-	// never replaced. Copying the link saves this request's recipe as a share
-	// link (/s/<id>), for someone else to start their own from.
+	// "Duplicate request" (GEO-126, GEO-146): this request's share link
+	// (/s/<id>), the link to its boundaries, datasets and options that the
+	// request builder's Copy share link makes. Open in a new tab opens it, so
+	// the request being built in this tab is left alone; Copy link copies it
+	// for someone else to start their own from. The same recipe always gives
+	// the same link, so it's made when the menu opens, and opening it is a
+	// plain link (a tab opened after waiting on a request would be blocked).
+	let shareUrl = $state<string | null>(null);
+	let sharePromise: Promise<string> | null = null;
 	let dupCopied = $state(false);
-	let dupLink = $state<string | null>(null); // shown when the clipboard wasn't available
+	let dupManual = $state<string | null>(null); // shown when the clipboard wasn't available
 	let dupError = $state<string | null>(null);
 	let dupTimer: ReturnType<typeof setTimeout> | undefined;
 
-	async function copyDuplicateLink() {
-		if (!request) return;
+	function ensureShareLink(): Promise<string> {
+		if (!request) return Promise.reject(new Error('No request'));
 		dupError = null;
-		dupLink = null;
-		try {
-			const { path } = await createShareLink((await fetchRequestRecipe(request.id)).recipe);
-			const link = new URL(path, window.location.origin).toString();
-			try {
-				await navigator.clipboard.writeText(link);
-				dupCopied = true;
-				clearTimeout(dupTimer);
-				dupTimer = setTimeout(() => (dupCopied = false), 3000);
-			} catch {
-				dupLink = link;
-			}
-		} catch (e) {
+		sharePromise ??= fetchRequestRecipe(request.id)
+			.then(({ recipe }) => createShareLink(recipe))
+			.then(({ path }) => (shareUrl = new URL(path, window.location.origin).toString()));
+		sharePromise.catch((e) => {
+			sharePromise = null; // try again next time
 			dupError = e instanceof Error ? e.message : "The link couldn't be created.";
+		});
+		return sharePromise;
+	}
+
+	async function copyDuplicateLink() {
+		dupManual = null;
+		let link: string;
+		try {
+			link = await ensureShareLink();
+		} catch {
+			return; // dupError says why
+		}
+		try {
+			await navigator.clipboard.writeText(link);
+			dupCopied = true;
+			clearTimeout(dupTimer);
+			dupTimer = setTimeout(() => (dupCopied = false), 3000);
+		} catch {
+			dupManual = link;
 		}
 	}
 
@@ -243,7 +258,7 @@
 							<Tooltip.Content>Requests with a custom upload can't be duplicated.</Tooltip.Content>
 						</Tooltip.Root>
 					{:else}
-						<DropdownMenu.Root>
+						<DropdownMenu.Root onOpenChange={(open) => open && ensureShareLink().catch(() => {})}>
 							<DropdownMenu.Trigger>
 								{#snippet child({ props })}
 									<Button {...props} variant="outline" size="sm">
@@ -254,17 +269,27 @@
 								{/snippet}
 							</DropdownMenu.Trigger>
 							<DropdownMenu.Content align="start" class="w-72">
-								<DropdownMenu.Item>
-									{#snippet child({ props })}
-										<a {...props} href={`/requests/${request!.id}/duplicate`} target="_blank" rel="noopener">
-											<ExternalLink />
-											<span class="flex flex-col">
-												<span>Open in a new tab</span>
-												<span class="text-xs text-muted-foreground">Change it and submit it as a new request</span>
-											</span>
-										</a>
-									{/snippet}
-								</DropdownMenu.Item>
+								{#if shareUrl}
+									<DropdownMenu.Item>
+										{#snippet child({ props })}
+											<a {...props} href={shareUrl} target="_blank" rel="noopener">
+												<ExternalLink />
+												<span class="flex flex-col">
+													<span>Open in a new tab</span>
+													<span class="text-xs text-muted-foreground">Change it and submit it as a new request</span>
+												</span>
+											</a>
+										{/snippet}
+									</DropdownMenu.Item>
+								{:else}
+									<DropdownMenu.Item disabled>
+										<ExternalLink />
+										<span class="flex flex-col">
+											<span>Open in a new tab</span>
+											<span class="text-xs text-muted-foreground">{dupError ? "The link couldn't be created" : 'Preparing the link…'}</span>
+										</span>
+									</DropdownMenu.Item>
+								{/if}
 								<DropdownMenu.Item onSelect={copyDuplicateLink}>
 									<Link />
 									<span class="flex flex-col">
@@ -275,8 +300,8 @@
 							</DropdownMenu.Content>
 						</DropdownMenu.Root>
 						<span class="text-xs text-muted-foreground" role="status">{dupCopied ? 'Link copied' : ''}</span>
-						{#if dupLink}
-							<a href={dupLink} title="Copy this link" class="min-w-0 truncate text-xs text-link underline select-all hover:text-link-hover">{dupLink}</a>
+						{#if dupManual}
+							<a href={dupManual} title="Copy this link" class="min-w-0 truncate text-xs text-link underline select-all hover:text-link-hover">{dupManual}</a>
 						{/if}
 						{#if dupError}
 							<p class="min-w-0 truncate text-xs text-danger-text" role="alert" title={dupError}>{dupError}</p>
