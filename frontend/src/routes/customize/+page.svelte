@@ -29,7 +29,7 @@
 	import { type FilterSelection } from '#lib/stores/cart.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
 	import { bbox as turfBbox } from '@turf/bbox';
-	import { ArrowRight, TriangleAlert } from '@lucide/svelte';
+	import { ChevronRight, TriangleAlert } from '@lucide/svelte';
 	import DatasetMetadata from '#lib/components/datasets/DatasetMetadata.svelte';
 	import DatasetSelector from '#lib/components/datasets/DatasetSelector.svelte';
 	import RasterOptions from '#lib/components/datasets/RasterOptions.svelte';
@@ -480,6 +480,20 @@
 			cart.removeRasterItem(detail.name);
 		}
 	}
+
+	// Clear All (GEO-152), as on the boundary step: takes every dataset out of
+	// the request, drops the choices waiting on incomplete ones, and resets the
+	// open dataset's form. The boundaries stay.
+	function clearAllDatasets() {
+		cart.clear();
+		datasetChoices.clearAll();
+		const detail = selectedDatasetDetail;
+		rasterOptions = { extractTypes: [], resources: [] };
+		if (detail && isFeature(detail)) {
+			filterSelections = initFilterSelections(detail.filters!);
+			selectedOutcome = defaultOutcome(detail);
+		}
+	}
 </script>
 
 <Seo title="Customize Datasets" description="Browse GeoQuery's datasets, including population, nighttime lights, climate, land cover, conflict and health, and choose the years and statistics to extract for your boundaries." />
@@ -508,12 +522,21 @@
 				/>
 			</div>
 		{/if}
-		<!-- On to the next step, as Find Data is on the boundary step: always
-		     here, disabled until the request has a dataset in it -->
-		<div class="border-t px-4 py-2.5">
-			<Button size="sm" class="w-full" disabled={$cartCount === 0} onclick={() => goto('/review')}>
+		<!-- Laid out as the boundary step's: Clear All at the left once there's
+		     something to clear, and on to the next step at the right, always
+		     here but disabled until the request has a dataset in it. (Submit
+		     Request on Review stays full width, as the last step.) -->
+		<div class="flex items-center justify-between gap-2 border-t px-4 py-2.5">
+			{#if $cartCount > 0 || Object.keys($datasetChoices).length > 0}
+				<Button size="sm" variant="outline" onclick={clearAllDatasets} class="text-muted-foreground hover:text-destructive">
+					Clear All
+				</Button>
+			{:else}
+				<span></span>
+			{/if}
+			<Button size="sm" disabled={$cartCount === 0} onclick={() => goto('/review')}>
 				Continue to Review
-				<ArrowRight />
+				<ChevronRight />
 			</Button>
 		</div>
 	</RequestPanel>
