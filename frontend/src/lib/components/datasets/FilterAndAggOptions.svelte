@@ -5,7 +5,8 @@
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { ScrollArea } from '#lib/components/ui/scroll-area/index.js';
 	import OptionsSection from './OptionsSection.svelte';
-	import { SPLIT_HELP, SPLIT_SUMMARY } from './optionsHelp.js';
+	import { MISSING_CARD, SPLIT_HELP, SPLIT_SUMMARY } from './optionsHelp.js';
+	import MissingNote from './MissingNote.svelte';
 	import type { DatasetFilter } from '#lib/api.js';
 	import type { FilterSelection, RangeSelection, CategoricalSelection } from '#lib/stores/cart.js';
 
@@ -13,9 +14,11 @@
 		filters: Record<string, DatasetFilter>;
 		selections: Record<string, FilterSelection>;
 		onSelectionsChange: (s: Record<string, FilterSelection>) => void;
+		/** Split fields with no value chosen, to mark (GEO-163): a split needs at least one */
+		missingSplits?: Set<string>;
 	}
 
-	let { filters, selections, onSelectionsChange }: Props = $props();
+	let { filters, selections, onSelectionsChange, missingSplits = new Set() }: Props = $props();
 
 	function setSelection(key: string, val: FilterSelection) {
 		onSelectionsChange({ ...selections, [key]: val });
@@ -126,7 +129,7 @@
 		{:else if filter.type === 'categorical'}
 			{@const sel = getCategoricalSelection(key, filter)}
 			{@const allSelected = sel.selected.length === filter.categories.length}
-			<Card.Root class="w-64 shrink-0">
+			<Card.Root class="w-64 shrink-0 {missingSplits.has(key) ? MISSING_CARD : ''}">
 				<Card.Header class="pb-2">
 					<Card.Title class="text-sm">
 						{filter.display ?? key}
@@ -134,6 +137,7 @@
 							({sel.selected.length}/{filter.categories.length})
 						</span>
 					</Card.Title>
+					{#if missingSplits.has(key)}<MissingNote />{/if}
 				</Card.Header>
 				<Card.Content class="pt-0">
 					<ScrollArea class="h-52">

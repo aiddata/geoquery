@@ -22,6 +22,8 @@
 		saveState?: 'saved' | 'unsaved' | 'editing' | 'incomplete' | null;
 		/** Nothing from this dataset is in the request yet */
 		empty?: boolean;
+		/** A feature dataset's required options still to choose, e.g. "a measure" (GEO-163) */
+		featureMissingText?: string | null;
 	}
 
 	let {
@@ -34,7 +36,8 @@
 		filterSelections = {},
 		outcome = '',
 		saveState = null,
-		empty = false
+		empty = false,
+		featureMissingText = null
 	}: Props = $props();
 
 	// Rasters join the request on their own, so their status lives here (feature
@@ -142,6 +145,9 @@
 		{#if !isFeature && missing}
 			<CircleAlert class="size-4 shrink-0 text-warning-text" aria-hidden="true" />
 			<span>Choose at least one {missing} to add this dataset to your request.</span>
+		{:else if isFeature && saveState === 'incomplete' && featureMissingText}
+			<CircleAlert class="size-4 shrink-0 text-warning-text" aria-hidden="true" />
+			<span>Choose {featureMissingText} to add these options to your request.</span>
 		{:else if saveState === 'saved'}
 			<CircleCheck class="size-4 shrink-0 text-success-text" aria-hidden="true" />
 			<span>

@@ -7,7 +7,8 @@
 	import type { DatasetDetail, ExtractType } from '#lib/api.js';
 	import { Info } from '@lucide/svelte';
 	import OptionsSection from './OptionsSection.svelte';
-	import { SPLIT_HELP, SPLIT_SUMMARY } from './optionsHelp.js';
+	import { MISSING_CARD, SPLIT_HELP, SPLIT_SUMMARY } from './optionsHelp.js';
+	import MissingNote from './MissingNote.svelte';
 	import { parseMeasure } from '#lib/utils/measures.js';
 	import { formatPeriod, periodRange } from '#lib/utils/periods.js';
 
@@ -20,9 +21,11 @@
 		dataset: DatasetDetail;
 		options: RasterSelection;
 		onOptionsChange: (options: RasterSelection) => void;
+		/** Required cards with nothing chosen, to mark (GEO-163) */
+		missing?: { measure: boolean; periods: boolean };
 	}
 
-	let { dataset, options, onOptionsChange }: Props = $props();
+	let { dataset, options, onOptionsChange, missing = { measure: false, periods: false } }: Props = $props();
 
 	let lastClickedResourceIndex = $state<number | null>(null);
 
@@ -120,7 +123,7 @@
 		summary="What each feature's result measures. Choose one or more."
 		help="Each measure summarises the dataset's values within each feature, for example their average or highest value. Every measure you choose adds a column for each time period."
 	>
-		<Card.Root class="w-72 max-w-full gap-2">
+		<Card.Root class="w-72 max-w-full gap-2 {missing.measure ? MISSING_CARD : ''}">
 			<Card.Header class="pb-0">
 				<Card.Title class="text-sm">
 					Measures
@@ -128,6 +131,7 @@
 						({options.extractTypes.length}/{dataset.extract_types.length})
 					</span>
 				</Card.Title>
+				{#if missing.measure}<MissingNote />{/if}
 			</Card.Header>
 			<Card.Content class="space-y-2 pt-0">
 			<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -182,7 +186,7 @@
 			help={SPLIT_HELP}
 			note="{periodColumns} column{periodColumns === 1 ? '' : 's'} per feature"
 		>
-			<Card.Root class="w-72 max-w-full gap-2">
+			<Card.Root class="w-72 max-w-full gap-2 {missing.periods ? MISSING_CARD : ''}">
 				<Card.Header class="pb-0">
 					<Card.Title class="text-sm">
 						Time Periods
@@ -190,6 +194,7 @@
 							({options.resources.length}/{dataset.resources.length})
 						</span>
 					</Card.Title>
+					{#if missing.periods}<MissingNote />{/if}
 				</Card.Header>
 				<Card.Content class="pt-0">
 				<ScrollArea class="h-64">

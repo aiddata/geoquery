@@ -262,11 +262,69 @@
 		return kwargsKey(currentKwargs) !== kwargsKey(defaults);
 	});
 
+	/**
+	 * A feature dataset's required options that aren't chosen (GEO-163): a
+	 * measure, when it has several, and at least one value in each field the
+	 * results are split by.
+	 */
+	function featureMissing(
+		detail: DatasetDetail,
+		outcome: string,
+		selections: Record<string, FilterSelection>
+	): { measure: boolean; splits: Set<string> } {
+		const splits = new Set<string>();
+		for (const [key, f] of Object.entries(detail.filters ?? {})) {
+			const sel = selections[key];
+			if (f.aggregate === false && f.type === 'categorical' && sel?.type === 'categorical' && sel.selected.length === 0) {
+				splits.add(key);
+			}
+		}
+		return { measure: Object.keys(detail.outcomes ?? {}).length > 0 && !outcome, splits };
+	}
+
+	// What's missing from the open dataset, and whether to mark it: only once
+	// something has been chosen, so a dataset just opened isn't all red.
+	const missing = $derived.by(() => {
+		const detail = selectedDatasetDetail;
+		const none = { measure: false, periods: false, splits: new Set<string>(), any: false, show: false };
+		if (!detail) return none;
+		if (isFeature(detail)) {
+			const m = featureMissing(detail, selectedOutcome, filterSelections);
+			const chosen =
+				!!selectedOutcome ||
+				Object.entries(detail.filters ?? {}).some(
+					([key, f]) => f.aggregate === false && (filterSelections[key] as { selected?: unknown[] })?.selected?.length
+				);
+			const any = m.measure || m.splits.size > 0;
+			return { ...none, measure: m.measure, splits: m.splits, any, show: any && chosen };
+		}
+		const hasPeriods = detail.temporal_name !== 'Temporally Invariant' && detail.resources.length > 0;
+		const measure = rasterOptions.extractTypes.length === 0;
+		const periods = hasPeriods && rasterOptions.resources.length === 0;
+		const chosen = rasterOptions.extractTypes.length > 0 || rasterOptions.resources.length > 0;
+		return { ...none, measure, periods, any: measure || periods, show: (measure || periods) && chosen };
+	});
+
+	// "a measure and a value for Year", for the status line
+	const featureMissingText = $derived.by(() => {
+		const detail = selectedDatasetDetail;
+		if (!detail || !isFeature(detail) || !missing.any) return null;
+		const parts = [
+			missing.measure ? 'a measure' : null,
+			...[...missing.splits].map((key) => `a ${detail.filters?.[key]?.display ?? key} value`)
+		].filter(Boolean) as string[];
+		return parts.length <= 2 ? parts.join(' and ') : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`;
+	});
+
 	/** What the summary panel shows about the open dataset. */
 	const saveState = $derived.by((): 'saved' | 'unsaved' | 'editing' | 'incomplete' | null => {
 		const detail = selectedDatasetDetail;
 		if (!detail) return null;
-		if (isFeature(detail)) return featureSaved ? 'saved' : editingKey ? 'editing' : 'unsaved';
+		if (isFeature(detail)) {
+			if (featureSaved) return 'saved';
+			if (missing.any) return 'incomplete';
+			return editingKey ? 'editing' : 'unsaved';
+		}
 		return rasterComplete(detail, rasterOptions) ? 'saved' : 'incomplete';
 	});
 
@@ -465,7 +523,7 @@
 	/** Replace the entry opened with "Edit options" with the current filters. */
 	function handleUpdateRequest() {
 		const detail = selectedDatasetDetail;
-		if (!detail || !isFeature(detail) || !editingKey) return;
+		if (!detail || !isFeature(detail) || !editingKey || missing.any) return;
 		cart.replaceFeatureItem(detail.name, editingKey, buildFeatureItem(detail));
 		stopEditing(detail.name);
 	}
@@ -473,7 +531,7 @@
 	/** Feature datasets only: rasters are already in the cart. Adds a new version. */
 	function handleAddToRequest() {
 		const detail = selectedDatasetDetail;
-		if (!detail || !isFeature(detail)) return;
+		if (!detail || !isFeature(detail) || missing.any) return;
 		cart.upsertItem(buildFeatureItem(detail));
 		stopEditing(detail.name);
 	}
@@ -637,6 +695,7 @@
 						{filterSelections}
 						outcome={selectedOutcome}
 						{saveState}
+						{featureMissingText}
 						empty={!isFeature(selectedDatasetDetail) && !inRequestNames.has(selectedDatasetDetail.name)}
 					/>
 
@@ -660,6 +719,7 @@
 						<OutcomeSelector
 							outcomes={selectedDatasetDetail.outcomes}
 							selected={selectedOutcome}
+							missing={missing.show && missing.measure}
 							onSelect={(key) => {
 								selectedOutcome = key;
 								saveFeatureChoices();
@@ -669,6 +729,7 @@
 					<FilterAndAggOptions
 						filters={selectedDatasetDetail.filters}
 						selections={filterSelections}
+						missingSplits={missing.show ? missing.splits : undefined}
 						onSelectionsChange={(s) => {
 							filterSelections = s;
 							saveFeatureChoices();
@@ -680,6 +741,7 @@
 						dataset={selectedDatasetDetail}
 						options={rasterOptions}
 						onOptionsChange={handleRasterChange}
+						missing={{ measure: missing.show && missing.measure, periods: missing.show && missing.periods }}
 					/>
 				{/if}
 				<MoreOptionsHint scroller={optionsPane} />
