@@ -134,27 +134,37 @@
 		href: string | null;
 		/** Second line of the collapsed header */
 		summary: Part[];
+		/** Lines under the header instead, one each: Review & Submit's request summary */
+		lines?: Part[][];
 		/** Why a collapsed header can't be clicked yet */
 		blocked: string;
 	};
+
+	const boundarySummary = $derived<Part[]>(boundaryLabel ?? ['No boundary sets selected']);
+	// Every entry counts, so two versions of one dataset are two selections
+	const datasetSummary = $derived<Part[]>(
+		$cart.length > 0
+			? [...plural(totalColumns, 'column'), ' across ', ...plural($cart.length, 'dataset selection')]
+			: ['No datasets added yet']
+	);
+	// Where the request summary goes (GEO-151): on the boundary and dataset
+	// steps, together under Review & Submit, as what will be submitted; on
+	// Review, each under its own step, beside the review itself.
+	const summaryUnderReview = $derived(active !== 'review');
 
 	const sections = $derived<Section[]>([
 		{
 			id: 'map',
 			title: '1. Select Boundaries',
 			href: '/',
-			summary: boundaryLabel ?? ['No boundary sets selected'],
+			summary: summaryUnderReview ? [] : boundarySummary,
 			blocked: ''
 		},
 		{
 			id: 'search',
 			title: '2. Customize Datasets',
 			href: $customizeHref,
-			// Every entry counts, so two versions of one dataset are two selections
-			summary:
-				$cart.length > 0
-					? [...plural(totalColumns, 'column'), ' across ', ...plural($cart.length, 'dataset selection')]
-					: ['No datasets added yet'],
+			summary: summaryUnderReview ? [] : datasetSummary,
 			blocked: 'Select boundaries first'
 		},
 		{
@@ -162,10 +172,21 @@
 			title: '3. Review & Submit',
 			href: $cartCount > 0 ? '/review' : null,
 			summary: [],
+			lines: summaryUnderReview ? [boundarySummary, datasetSummary] : undefined,
 			blocked: 'Add a dataset first'
 		}
 	]);
 </script>
+
+{#snippet partsText(parts: Part[])}{#each parts as part, i (i)}{#if typeof part === 'string'}{part}{:else}<strong>{part.count.toLocaleString()}</strong>{/if}{/each}{/snippet}
+
+{#snippet summaryLines(s: Section)}
+	{#each s.lines ?? [] as line, i (i)}
+		<span class="block truncate text-xs text-muted-foreground" title={i === 0 ? FEATURE_DEFINITION : undefined}
+			>{@render partsText(line)}</span
+		>
+	{/each}
+{/snippet}
 
 {#snippet storedCoverage()}
 	<CoverageStatus loading={coverageLoading} count={coverageCount} error={coverageError} inline />
@@ -210,9 +231,10 @@
 						<span
 							class="block truncate text-xs text-muted-foreground"
 							title={s.id === 'map' ? FEATURE_DEFINITION : undefined}
-							>{#each s.summary as part, i (i)}{#if typeof part === 'string'}{part}{:else}<strong>{part.count.toLocaleString()}</strong>{/if}{/each}{#if note}{#if s.summary.length > 0}<span class="mx-1.5" aria-hidden="true">·</span>{/if}{@render note()}{/if}</span
+							>{@render partsText(s.summary)}{#if note}{#if s.summary.length > 0}<span class="mx-1.5" aria-hidden="true">·</span>{/if}{@render note()}{/if}</span
 						>
 					{/if}
+					{@render summaryLines(s)}
 				</span>
 				{#if s.id === 'review'}
 					<!-- Moving on is the step page's own button (Continue to Review);
@@ -229,7 +251,10 @@
 				title={s.blocked}
 				style:view-transition-name="panel-{s.id}"
 			>
-				<span class="min-w-0 font-heading text-h4 font-bold text-muted-foreground/60">{s.title}</span>
+				<span class="min-w-0">
+					<span class="block font-heading text-h4 font-bold text-muted-foreground/60">{s.title}</span>
+					{@render summaryLines(s)}
+				</span>
 			</div>
 		{/if}
 	{/each}
