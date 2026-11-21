@@ -8,15 +8,20 @@
 	// link to it. Anyone who opens the link gets exactly what was shared, and can
 	// change it before submitting their own. Requests with a custom upload can't
 	// be shared: the button stays focusable (aria-disabled) so its tooltip says why.
+	// Given a `url` instead (a submitted request's page, GEO-146), it copies that.
 	// Only as tall as the button: the explanation is its tooltip, and the link
 	// itself is shown (small, beside the button) only when it couldn't be copied.
 	interface Props {
 		/** The recipe to share (lib/recipe.ts), or a promise of one */
-		getRecipe: () => unknown | Promise<unknown>;
+		getRecipe?: () => unknown | Promise<unknown>;
+		/** A link to copy as it is, instead of saving a recipe */
+		url?: string;
 		/** Set when the request can't be shared, as the tooltip's text */
 		unavailable?: string | null;
 		/** The tooltip when it can be shared */
 		hint?: string;
+		/** The button's text, saying what the link is for */
+		label?: string;
 		/**
 		 * The request as it is now (any string that changes when it does), for a
 		 * request that can still be edited. A link is a snapshot, so once the
@@ -29,8 +34,10 @@
 
 	let {
 		getRecipe,
+		url,
 		unavailable = null,
 		hint = 'Anyone with the link can open a copy of this request as it is now',
+		label = 'Copy share link',
 		current = null,
 		size = 'sm',
 		class: className = ''
@@ -55,7 +62,7 @@
 		manual = false;
 		const snapshot = current;
 		try {
-			const { path } = await createShareLink(await getRecipe());
+			const path = url ?? (await createShareLink(await getRecipe?.())).path;
 			link = new URL(path, window.location.origin).toString();
 			sharedFor = snapshot;
 			try {
@@ -82,12 +89,12 @@
 				{#if unavailable}
 					<Button {...props} variant="outline" {size} aria-disabled="true" class="cursor-not-allowed opacity-50">
 						<Link />
-						Copy share link
+						{label}
 					</Button>
 				{:else}
 					<Button {...props} variant="outline" {size} onclick={share} disabled={busy}>
 						{#if copied && !stale}<Check />{:else}<Link />{/if}
-						{busy ? 'Creating link…' : copied && !stale ? 'Link copied' : stale ? 'Copy updated link' : 'Copy share link'}
+						{busy ? 'Creating link…' : copied && !stale ? 'Link copied' : stale ? 'Copy updated link' : label}
 					</Button>
 				{/if}
 			{/snippet}
@@ -99,7 +106,7 @@
 					: hint)}
 		</Tooltip.Content>
 	</Tooltip.Root>
-	<span class="sr-only" role="status">{copied ? 'Share link copied to the clipboard' : ''}</span>
+	<span class="sr-only" role="status">{copied ? 'Link copied to the clipboard' : ''}</span>
 	{#if link && manual && !stale}
 		<!-- Beside the button, one line: the clipboard wasn't available -->
 		<a href={link} title="Copy this link" class="min-w-0 truncate text-xs text-link underline select-all hover:text-link-hover">{link}</a>
