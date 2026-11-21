@@ -5,7 +5,8 @@
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { ScrollArea } from '#lib/components/ui/scroll-area/index.js';
 	import OptionsSection from './OptionsSection.svelte';
-	import { SPLIT_HELP, SPLIT_SUMMARY } from './optionsHelp.js';
+	import { MISSING_CARD, SPLIT_HELP, SPLIT_SUMMARY } from './optionsHelp.js';
+	import MissingNote from './MissingNote.svelte';
 	import type { DatasetFilter } from '#lib/api.js';
 	import type { FilterSelection, RangeSelection, CategoricalSelection } from '#lib/stores/cart.js';
 
@@ -13,9 +14,13 @@
 		filters: Record<string, DatasetFilter>;
 		selections: Record<string, FilterSelection>;
 		onSelectionsChange: (s: Record<string, FilterSelection>) => void;
+		/** Split fields with no value chosen, to mark (GEO-163): a split needs at least one */
+		missingSplits?: Set<string>;
+		/** Which sections: Customize shows the filters apart, behind Custom filters (GEO-164) */
+		part?: 'split' | 'filter' | 'all';
 	}
 
-	let { filters, selections, onSelectionsChange }: Props = $props();
+	let { filters, selections, onSelectionsChange, missingSplits = new Set(), part = 'all' }: Props = $props();
 
 	function setSelection(key: string, val: FilterSelection) {
 		onSelectionsChange({ ...selections, [key]: val });
@@ -126,7 +131,7 @@
 		{:else if filter.type === 'categorical'}
 			{@const sel = getCategoricalSelection(key, filter)}
 			{@const allSelected = sel.selected.length === filter.categories.length}
-			<Card.Root class="w-64 shrink-0">
+			<Card.Root class="w-64 shrink-0 {missingSplits.has(key) ? MISSING_CARD : ''}">
 				<Card.Header class="pb-2">
 					<Card.Title class="text-sm">
 						{filter.display ?? key}
@@ -134,6 +139,7 @@
 							({sel.selected.length}/{filter.categories.length})
 						</span>
 					</Card.Title>
+					{#if missingSplits.has(key)}<MissingNote />{/if}
 				</Card.Header>
 				<Card.Content class="pt-0">
 					<ScrollArea class="h-52">
@@ -177,7 +183,7 @@
 {/snippet}
 
 <!-- Rendered inside the Customize page's options column, after Measure. -->
-{#if splitFields.length > 0}
+{#if part !== 'filter' && splitFields.length > 0}
 	<OptionsSection
 		id="split"
 		title="Split results by"
@@ -193,7 +199,7 @@
 	</OptionsSection>
 {/if}
 
-{#if filterFields.length > 0}
+{#if part !== 'split' && filterFields.length > 0}
 	<OptionsSection
 		id="filter"
 		title="Filter records"

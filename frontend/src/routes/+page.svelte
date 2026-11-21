@@ -673,6 +673,7 @@
 					onSelect={handleSelect}
 					onProceed={handleFindData}
 					onClear={resetAll}
+					autofocus
 					belowSearch={exploreSearchNote}
 					belowSelection={exploreSelectionNotes}
 					selectionInfo={browseBoundaries.length > 1 ? multiSetNote : undefined}
