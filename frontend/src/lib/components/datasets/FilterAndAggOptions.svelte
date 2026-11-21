@@ -16,9 +16,11 @@
 		onSelectionsChange: (s: Record<string, FilterSelection>) => void;
 		/** Split fields with no value chosen, to mark (GEO-163): a split needs at least one */
 		missingSplits?: Set<string>;
+		/** Which sections: Customize shows the filters apart, behind Custom filters (GEO-164) */
+		part?: 'split' | 'filter' | 'all';
 	}
 
-	let { filters, selections, onSelectionsChange, missingSplits = new Set() }: Props = $props();
+	let { filters, selections, onSelectionsChange, missingSplits = new Set(), part = 'all' }: Props = $props();
 
 	function setSelection(key: string, val: FilterSelection) {
 		onSelectionsChange({ ...selections, [key]: val });
@@ -181,7 +183,7 @@
 {/snippet}
 
 <!-- Rendered inside the Customize page's options column, after Measure. -->
-{#if splitFields.length > 0}
+{#if part !== 'filter' && splitFields.length > 0}
 	<OptionsSection
 		id="split"
 		title="Split results by"
@@ -197,7 +199,7 @@
 	</OptionsSection>
 {/if}
 
-{#if filterFields.length > 0}
+{#if part !== 'split' && filterFields.length > 0}
 	<OptionsSection
 		id="filter"
 		title="Filter records"

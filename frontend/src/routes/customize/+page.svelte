@@ -42,7 +42,7 @@
 	import { rememberCoverage } from '#lib/stores/coverageCounts.js';
 	import OutputSummary from '#lib/components/datasets/OutputSummary.svelte';
 	import VersionCards from '#lib/components/datasets/VersionCards.svelte';
-	import { columnsByDataset, cleanVersionName, invalidVersionNames, uniqueVersionName } from '#lib/utils/outputColumns.js';
+	import { columnsByDataset, cleanVersionName, invalidVersionNames, narrowedFilters, uniqueVersionName } from '#lib/utils/outputColumns.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 
 	$effect(() => {
@@ -115,6 +115,9 @@
 	let detailLoading = $state(false);
 	// The options pane, which scrolls; MoreOptionsHint watches it
 	let optionsPane = $state<HTMLElement | undefined>();
+	// Custom filters shown, by dataset, once toggled (GEO-164); until then,
+	// shown only when the selection already narrows a filter.
+	let filtersOpen = $state<Record<string, boolean>>({});
 	// Metadata panels stay as the user left them while switching datasets.
 	let metadataCiteOpen = $state(false);
 	let metadataMoreOpen = $state(false);
@@ -727,38 +730,58 @@
 					/>
 				{/if}
 
-				<!-- What the output will hold: from the current filters for feature datasets,
-				     and a placeholder for rasters until they're in the request -->
+				<h3 class="px-4 pt-4 text-base font-semibold">Select Dataset Options</h3>
+				<!-- Where the options stand, in one line, with Reset at its end (GEO-164) -->
 				<OutputSummary
-						dataset={selectedDatasetDetail}
-						isFeature={isFeature(selectedDatasetDetail)}
-						features={isCustomMode ? ($customBoundary.featureCount ?? 0) : resolvedIds.length}
-						boundaries={isCustomMode ? 1 : $selectionFcIds.length}
-						extractTypes={rasterOptions.extractTypes}
-						resources={rasterOptions.resources}
-						{filterSelections}
-						outcome={selectedOutcome}
-						{saveState}
-						{featureMissingText}
-						{duplicateOf}
-						empty={isFeature(selectedDatasetDetail) ? missing.any : !inRequestNames.has(selectedDatasetDetail.name)}
-					/>
-
-				<!-- Configuration area: heading, then Reset, Add / Update and status -->
-				<div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-4">
-					<h3 class="text-base font-semibold">Select Dataset Options</h3>
-					<DatasetActions
-						isFeature={isFeature(selectedDatasetDetail)}
-						onReset={handleReset}
-						{canReset}
-					/>
-				</div>
+					dataset={selectedDatasetDetail}
+					isFeature={isFeature(selectedDatasetDetail)}
+					extractTypes={rasterOptions.extractTypes}
+					resources={rasterOptions.resources}
+					{filterSelections}
+					outcome={selectedOutcome}
+					{saveState}
+					{featureMissingText}
+					{duplicateOf}
+				>
+					{#snippet actions()}
+						<DatasetActions isFeature={isFeature(selectedDatasetDetail)} onReset={handleReset} {canReset} />
+					{/snippet}
+				</OutputSummary>
 				{#if selectedDatasetDetail.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters}
-					<!-- Measure, Split results by, Filter records: one section each -->
+					{@const detail = selectedDatasetDetail}
+					{@const filterCount = Object.values(detail.filters!).filter((f) => f.aggregate !== false).length}
+					{@const narrowed = narrowedFilters(detail.filters, filterSelections).length}
+					{@const showFilters = filtersOpen[detail.name] ?? narrowed > 0}
+					{@const onSelectionsChange = (s: Record<string, FilterSelection>) => {
+						filterSelections = s;
+						saveFeatureChoices();
+					}}
+					<!-- Custom filters (hidden until asked for, or already narrowing this
+					     selection), then Measure and Split results by -->
 					<div class="mt-4 space-y-4 pb-4">
-					{#if selectedDatasetDetail.outcomes}
+					{#if filterCount > 0}
+						<div class="px-4">
+							<Button
+								variant="outline"
+								size="sm"
+								aria-expanded={showFilters}
+								aria-controls="custom-filters"
+								onclick={() => (filtersOpen = { ...filtersOpen, [detail.name]: !showFilters })}
+							>
+								<ChevronRight class="transition-transform {showFilters ? 'rotate-90' : ''}" />
+								Custom filters
+								{#if narrowed > 0}<span class="font-normal text-muted-foreground">({narrowed} applied)</span>{/if}
+							</Button>
+						</div>
+						{#if showFilters}
+							<div id="custom-filters">
+								<FilterAndAggOptions part="filter" filters={detail.filters!} selections={filterSelections} {onSelectionsChange} />
+							</div>
+						{/if}
+					{/if}
+					{#if detail.outcomes}
 						<OutcomeSelector
-							outcomes={selectedDatasetDetail.outcomes}
+							outcomes={detail.outcomes}
 							selected={selectedOutcome}
 							missing={missing.show && missing.measure}
 							onSelect={(key) => {
@@ -768,13 +791,11 @@
 						/>
 					{/if}
 					<FilterAndAggOptions
-						filters={selectedDatasetDetail.filters}
+						part="split"
+						filters={detail.filters!}
 						selections={filterSelections}
 						missingSplits={missing.show ? missing.splits : undefined}
-						onSelectionsChange={(s) => {
-							filterSelections = s;
-							saveFeatureChoices();
-						}}
+						{onSelectionsChange}
 					/>
 					</div>
 				{:else}
