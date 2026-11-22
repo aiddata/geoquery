@@ -28,7 +28,7 @@ description: "How GeoQuery's SvelteKit frontend is organised: routes, the stores
 | `/stats` | System Status |
 | `/account`, `/account/…` | Account, email addresses, GitHub sign-in callbacks |
 | `/viz/…` | The map and visualize views (beta) |
-| `/health`, `/maintenance` | Health check, and the maintenance page |
+| `/health/ready`, `/maintenance` | The readiness probe, and the maintenance page ([Site notices and maintenance](#site-notices-and-maintenance)) |
 
 Keep new routes off `/requests/<id>/…`: the production proxy sends every path two or more segments under `/requests/` to the backend, which serves request downloads from there, so a page there works from an in-app link but 404s on a full page load, including one opened in a new tab ([Helm chart](deploying/kubernetes/helm-chart.md)).
 
@@ -82,6 +82,15 @@ Review's **Edit options** saves a feature entry to `datasetChoices` with its `ed
 All API calls are in `src/lib/api.ts`, with their response types. `apiFetch` adds the CSRF header for writes. In development Vite proxies `/api` to the backend; in the cluster nginx does.
 
 Authentication goes through django-allauth's headless API (`lib/allauth.ts`, `stores/auth.ts`).
+
+## Site notices and maintenance
+
+Both are switched on in `lib/config/status.ts`, which is built into the frontend image, so turning either on, off or changing its text means a commit and a frontend deploy.
+
+- **`banner`** shows `StatusBanner` (`lib/components/layout/`), a slim bar above the header on every page, rendered by the root layout. Set `enabled`, a `type` (`info`, `warning` or `error`, coloured as in `design-system.md` §11) and the `message`. Visitors can dismiss it until they next load the page.
+- **`maintenance`** takes the web app offline: `hooks.server.ts` redirects every page to `/maintenance` (307), which shows the `heading`, the `message` and, if set, `estimatedReturn`. It only covers the SvelteKit app. `/api/…` and request downloads go to the backend directly, so the API, the MCP server and the workers keep running unless they're scaled down separately.
+
+Nothing switches these on by itself. If the backend can't be reached, the app still loads: `initAuth()` treats the visitor as signed out, and only the pages that fetch something show an error. `/stats` is the one place that says so, showing **Offline** when `/api/stats/status/` fails.
 
 ## Maps and charts
 
