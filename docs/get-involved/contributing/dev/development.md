@@ -116,7 +116,7 @@ The docs server and the `mcp` service both use port 8001: stop `mcp` first, or p
 Things to know before editing `docs/`:
 
 - **The site publishes on every push to `main`** that touches it, and daily at 06:00 UTC to pick up new data docs (`.github/workflows/docs.yml`, to GitHub Pages), with no app deploy.
-- **`nav` in `zensical.toml` is explicit.** A new page doesn't appear in the navigation until it's added there.
+- **`nav` in `zensical.toml` is explicit.** A new page doesn't appear in the navigation until it's added there. Its top-level entries are the header tabs: Docs, Data, Research and Updates. The Updates tab is styled apart as news in `docs/stylesheets/geoquery.css`.
 - **The dataset and boundary pages are generated**, under `data_documentation/datasets/` and `boundaries/`, and aren't committed. The nightly `build-data-docs` job writes them from the database into `REQUESTS_DIR/docs/data-docs.tar.gz`, and the docs workflow downloads that bundle (`.github/scripts/fetch_data_docs.py`). Change the generator (`datasets/docs/`), not the pages; preview with `manage.py build_data_docs --out <dir>`.
 - **Updates (the news page) are blog posts** in `docs/updates/posts/`, built by Zensical's blog plugin and linked from the app header. Each post's front matter has a `date` (add a time to order posts on the same day), a `slug`, `categories` and a `description`; the text above `<!-- more -->` is its excerpt. Posts are public announcements, so agree them with the team before merging.
 - **`docs/faq.md` is built into the frontend image**, so editing it rebuilds the frontend ([Container images](deploying/kubernetes/container.md)).

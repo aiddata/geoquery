@@ -851,13 +851,12 @@ Reversible removal, such as taking an item out of the request, is a ghost icon b
 
 - SupportBanner's "Contact our partnerships team" link
 - The StatusBanner and SupportBanner dismiss buttons
-- CartPanel's remove button
 - The step bar's "Map and visualize data" link
 - The viz pages' `.viz-btn-primary`, `.viz-select` and `.viz-input`
 
 ### Forms
 
-- Every field has a visible Label. A placeholder is not a label; CartPanel's "Selection Name" field has only a placeholder.
+- Every field has a visible Label. A placeholder is not a label.
 - Group related checkboxes in a `fieldset` with a `legend`.
 - Show an error as `aria-invalid` on the field plus a message below it in `text-destructive`, linked with `aria-describedby`. The message says how to fix the problem.
 - If a submit button is disabled, nearby text says why.

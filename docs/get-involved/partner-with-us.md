@@ -1,3 +1,7 @@
+---
+description: "Partner with AidData to support GeoQuery, add data, or work with us on geospatial analysis."
+---
+
 # Partner with Us
 
 AidData's GeoQuery is a platform built to make geospatial data more accessible for researchers, policymakers, and development practitioners worldwide.

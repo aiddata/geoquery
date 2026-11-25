@@ -1,3 +1,7 @@
+---
+description: "Ways to contribute to GeoQuery: report bugs, suggest datasets, improve the documentation, or contribute code."
+---
+
 # Contributing
 
 We welcome contributions to GeoQuery — whether that's reporting bugs, suggesting new datasets, improving documentation, or submitting code changes.
@@ -22,7 +26,7 @@ For larger changes, open an issue first to discuss the approach before investing
 
 ## Contributing data or boundaries
 
-If you have a dataset or boundary collection you'd like to see added to GeoQuery, please email us at [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu) with a description of the data, its source, and any relevant licensing information.
+If you have a dataset or boundary set you'd like to see added to GeoQuery, please email us at [geo@aiddata.wm.edu](mailto:geo@aiddata.wm.edu) with a description of the data, its source, and any relevant licensing information.
 
 ## Contact
 
