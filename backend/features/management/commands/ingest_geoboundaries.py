@@ -81,8 +81,8 @@ class Command(BaseIngestCommand):
         parser.add_argument(
             "--commit",
             type=str,
-            default="57dcd43",
-            help="GitHub commit 7 char short hash for downloaded files (e.g., 57dcd43)",
+            default="gb80",
+            help="geoBoundaries release ID, the subdirectory of --data-dir holding the downloaded files (e.g., gb80)",
         )
         parser.add_argument(
             "--iso3",

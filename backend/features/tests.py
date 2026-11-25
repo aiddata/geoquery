@@ -773,9 +773,9 @@ class BoundaryPresetConfigTests(SimpleTestCase):
         rules = [p for p in self.presets() if p["members"] is None and p.get("source_name") == "geoBoundaries"]
         self.assertTrue(rules)
         for p in rules:
-            self.assertIn("geoboundaries_v6", p["tags"])
+            self.assertIn("geoboundaries_v8", p["tags"])
 
     def test_list_preset_carries_its_members(self):
         na = next(p for p in self.presets() if p["name"] == "North America ADM1")
-        self.assertIn("gB_57dcd43_USA_ADM1", na["members"])
+        self.assertIn("gB_gb80_USA_ADM1", na["members"])
         self.assertIn("NA ADM1", na["aliases"])
