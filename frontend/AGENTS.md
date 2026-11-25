@@ -26,13 +26,13 @@ bun run check    # TypeScript checking
 src/
 ├── lib/
 │   ├── components/
-│   │   ├── layout/      # Header, Sidebar, panels
+│   │   ├── layout/      # Header, RequestPanel, banners
 │   │   ├── map/         # MapFrame, GeographySearch, ZoomControls
 │   │   └── ui/          # shadcn-svelte components
 │   ├── stores/          # Svelte stores (ui.ts, etc.)
 │   └── utils.ts         # Utility functions (cn helper)
 ├── routes/
-│   ├── +layout.svelte   # Root layout with Header/Sidebar
+│   ├── +layout.svelte   # Root layout with Header and banners
 │   ├── +page.svelte     # Map page (step 1)
 │   ├── requests/        # Past requests lookup
 │   ├── search/          # Dataset selection (step 2) [TODO]
@@ -107,15 +107,6 @@ const workflowPaths = ['/', '/search', '/checkout'];
 let showSteps = $derived(
   workflowPaths.some((path) => page.url.pathname === path || page.url.pathname.startsWith(path + '/'))
 );
-```
-
-### Sidebar State
-
-Sidebar state is managed via stores in `src/lib/stores/ui.ts`:
-
-```ts
-import { openSidebar, closeSidebar } from '#lib/stores/ui.js';
-openSidebar('cart');  // or 'help'
 ```
 
 ### MapLibre Integration

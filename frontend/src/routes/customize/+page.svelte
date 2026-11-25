@@ -679,8 +679,9 @@
 					</p>
 					{#if !selectedDatasetSummary}
 						<p class="max-w-md text-xs text-muted-foreground">
-							A dataset joins your request as soon as its options are complete. Feature datasets
-							can have more than one selection, each with its own options.
+							A dataset joins your request as soon as its options are complete. Datasets of events
+							or locations, such as conflict events, can be added more than once, each selection
+							with its own options.
 						</p>
 					{/if}
 				</div>
