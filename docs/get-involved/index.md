@@ -1,3 +1,7 @@
+---
+description: "Ways to get involved with GeoQuery: contribute code, data or documentation, or partner with AidData."
+---
+
 # Get Involved
 
 GeoQuery is built and maintained by [AidData](https://www.aiddata.org/geoquery) at William & Mary. There are several ways to get involved.

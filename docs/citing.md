@@ -1,3 +1,7 @@
+---
+description: "How to cite GeoQuery, and each dataset and boundary set you use from it, in publications."
+---
+
 # Citing GeoQuery
 
 ## Citing the GeoQuery tool

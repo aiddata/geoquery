@@ -588,3 +588,30 @@ html .md-footer-meta.md-typeset a:not(:focus, :hover),
   font-size: .7rem;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------------------------------------------------------------------------
+   Header tabs: Updates is the news blog, not documentation, so its tab sits
+   apart at the right with a "News" tag.
+   ------------------------------------------------------------------------ */
+
+.md-tabs__list {
+  display: flex;
+}
+
+.md-tabs__item:last-child {
+  margin-left: auto;
+}
+
+.md-tabs__item:last-child .md-tabs__link::before {
+  content: "News";
+  margin-right: .4rem;
+  padding: .1rem .35rem;
+  border-radius: var(--radius);
+  background: var(--warning-bg);
+  color: var(--eyebrow);
+  font-size: .55rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  vertical-align: .05rem;
+}
