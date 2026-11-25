@@ -53,64 +53,73 @@ Copyright &copy; 2026 AidData
 # can be defined using TOML syntax.
 #
 # Read more: https://zensical.org/docs/setup/navigation/
+# Top-level entries are the header tabs (navigation.tabs): the docs, the
+# data documentation, research that uses GeoQuery, and the Updates blog,
+# which is news rather than documentation.
 nav = [
-  { "Home" = "index.md" },
-  { "Using GeoQuery" = [
-    { "Overview" = "using-geoquery/index.md" },
-    { "Getting Started" = "using-geoquery/getting-started.md" },
-    { "Multiple Boundary Sets" = "using-geoquery/multiple-boundaries.md" },
-    { "Using Your Results" = "using-geoquery/results.md" },
-    { "Accounts and History" = "using-geoquery/accounts.md" },
-    { "System Status" = "using-geoquery/system-status.md" },
-    { "Research and Use Cases" = "using-geoquery/research-and-use-cases.md" },
-    { "Tutorials" = "using-geoquery/tutorials/index.md" },
+  { "Docs" = [
+    { "Home" = "index.md" },
+    { "Using GeoQuery" = [
+      { "Overview" = "using-geoquery/index.md" },
+      { "Getting Started" = "using-geoquery/getting-started.md" },
+      { "Multiple Boundary Sets" = "using-geoquery/multiple-boundaries.md" },
+      { "Using Your Results" = "using-geoquery/results.md" },
+      { "Accounts and History" = "using-geoquery/accounts.md" },
+      { "System Status" = "using-geoquery/system-status.md" },
+      { "API Access" = "using-geoquery/api.md" },
+      { "Tutorials" = [
+        { "Overview" = "using-geoquery/tutorials/index.md" },
+        { "Nighttime Lights for Ghana" = "using-geoquery/tutorials/ghana-nighttime-lights.md" },
+      ]},
+    ]},
+    { "FAQ" = "faq.md" },
+    { "Citing GeoQuery" = "citing.md" },
+    { "Get Involved" = [
+      { "Overview" = "get-involved/index.md" },
+      { "Contributing" = [
+        { "Overview" = "get-involved/contributing/index.md" },
+        { "Developer Docs" = [
+          { "Overview" = "get-involved/contributing/dev/index.md" },
+          { "Development" = "get-involved/contributing/dev/development.md" },
+          { "Database" = "get-involved/contributing/dev/database.md" },
+          { "Request Lifecycle" = "get-involved/contributing/dev/request-lifecycle.md" },
+          { "Extraction Workflow" = "get-involved/contributing/dev/extraction-workflow.md" },
+          { "GitHub Deploy Setup" = "get-involved/contributing/dev/gh_deploy_setup.md" },
+          { "Deploying" = [
+            { "Kubernetes" = [
+              { "Overview" = "get-involved/contributing/dev/deploying/kubernetes/index.md" },
+              { "Container" = "get-involved/contributing/dev/deploying/kubernetes/container.md" },
+              { "Helm Chart" = "get-involved/contributing/dev/deploying/kubernetes/helm-chart.md" },
+              { "Flux" = "get-involved/contributing/dev/deploying/kubernetes/flux.md" },
+              { "Development" = "get-involved/contributing/dev/deploying/kubernetes/development.md" },
+              { "Ingest Data" = "get-involved/contributing/dev/deploying/kubernetes/ingest-data.md" },
+            ]},
+          ]},
+          { "Services" = [
+            { "Grafana" = [
+              { "Overview" = "get-involved/contributing/dev/services/grafana/index.md" },
+              { "Installation" = "get-involved/contributing/dev/services/grafana/installation.md" },
+            ]},
+          ]},
+        ]},
+      ]},
+      { "Partner with Us" = "get-involved/partner-with-us.md" },
+    ]},
+    { "About" = [
+      { "Privacy Policy" = "privacy.md" },
+      { "Terms of Use" = "terms.md" },
+      { "Accessibility" = "accessibility.md" },
+    ]},
   ]},
-  { "FAQ" = "faq.md" },
-  { "Citing GeoQuery" = "citing.md" },
-  { "Data Documentation" = [
+  { "Data" = [
     { "Overview" = "data_documentation/index.md" },
     { "Datasets" = "data_documentation/datasets/index.md" },
     { "Boundaries" = "data_documentation/boundaries/index.md" },
     { "Boundary Presets" = "data_documentation/boundary-presets.md" },
     { "Map Disclaimer" = "data_documentation/map-disclaimer.md" },
   ]},
+  { "Research" = "using-geoquery/research-and-use-cases.md" },
   { "Updates" = "updates/index.md" },
-  { "Get Involved" = [
-    { "Overview" = "get-involved/index.md" },
-    { "Contributing" = [
-      { "Overview" = "get-involved/contributing/index.md" },
-      { "Developer Docs" = [
-        { "Overview" = "get-involved/contributing/dev/index.md" },
-        { "Development" = "get-involved/contributing/dev/development.md" },
-        { "Database" = "get-involved/contributing/dev/database.md" },
-        { "Request Lifecycle" = "get-involved/contributing/dev/request-lifecycle.md" },
-        { "Extraction Workflow" = "get-involved/contributing/dev/extraction-workflow.md" },
-        { "GitHub Deploy Setup" = "get-involved/contributing/dev/gh_deploy_setup.md" },
-        { "Deploying" = [
-          { "Kubernetes" = [
-            { "Overview" = "get-involved/contributing/dev/deploying/kubernetes/index.md" },
-            { "Container" = "get-involved/contributing/dev/deploying/kubernetes/container.md" },
-            { "Helm Chart" = "get-involved/contributing/dev/deploying/kubernetes/helm-chart.md" },
-            { "Flux" = "get-involved/contributing/dev/deploying/kubernetes/flux.md" },
-            { "Development" = "get-involved/contributing/dev/deploying/kubernetes/development.md" },
-            { "Ingest Data" = "get-involved/contributing/dev/deploying/kubernetes/ingest-data.md" },
-          ]},
-        ]},
-        { "Services" = [
-          { "Grafana" = [
-            { "Overview" = "get-involved/contributing/dev/services/grafana/index.md" },
-            { "Installation" = "get-involved/contributing/dev/services/grafana/installation.md" },
-          ]},
-        ]},
-      ]},
-    ]},
-    { "Partner with Us" = "get-involved/partner-with-us.md" },
-  ]},
-  { "About" = [
-    { "Privacy Policy" = "privacy.md" },
-    { "Terms of Use" = "terms.md" },
-    { "Accessibility" = "accessibility.md" },
-  ]},
 ]
 
 # With the "extra_css" option you can add your own CSS styling to customize
@@ -280,7 +289,7 @@ features = [
     # When tabs are enabled, top-level sections are rendered in a menu layer
     # below the header for viewports above 1220px, but remain as-is on mobile.
     # https://zensical.org/docs/setup/navigation/#navigation-tabs
-    #"navigation.tabs",
+    "navigation.tabs",
 
     # When sticky tabs are enabled, navigation tabs will lock below the header
     # and always remain visible when scrolling down.

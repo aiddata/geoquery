@@ -48,7 +48,7 @@ GeoQuery is a free service run by AidData, a research lab at William & Mary. Thi
 - To process your requests and email you when results are ready.
 - To show you your request history.
 - To answer you when you contact us.
-- To understand how GeoQuery is used and improve it. We publish aggregate figures, such as numbers of requests and the most requested datasets, on the [statistics page](https://geoquery.aiddata.wm.edu/stats). These never identify you.
+- To understand how GeoQuery is used and improve it. We publish aggregate figures, such as numbers of requests and the most requested datasets, on the [System Status page](https://geoquery.aiddata.wm.edu/stats). These never identify you.
 - To report on GeoQuery's reach to AidData's funders and partners, for example the number of organizations using it, based on the domains of users' email addresses. These reports are aggregate and don't name individuals.
 
 We don't sell your information, and we don't use it for advertising.

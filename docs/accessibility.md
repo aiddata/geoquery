@@ -4,7 +4,7 @@ description: "GeoQuery's commitment to accessibility, its conformance with WCAG 
 
 # Accessibility
 
-*Last updated: November 13, 2026*
+*Last updated: November 20, 2026*
 
 We want GeoQuery to be usable by everyone, including people who use screen readers, keyboards, magnification or other assistive technologies.
 
@@ -20,15 +20,14 @@ What works well:
 
 - The site can be navigated with a keyboard, with a visible focus outline.
 - Text contrast meets AA in both the light and dark themes, and a high-contrast mode is supported.
-- Charts on the statistics page come with a data table.
+- Charts on the System Status page come with a data table.
 - This documentation site has no known automated-test failures.
 
 ## Known limitations
 
 - **Selecting individual features on the map** requires a mouse. You can still select whole boundary sets with a keyboard, using the search box.
 - **Boundary search suggestions** aren't announced to screen readers. You can reach them with the Tab key.
-- **Option checkboxes on the Customize page** aren't announced with their names by screen readers.
-- **Some details appear only on mouse hover**, such as the source and license of boundary sets in the Browse All list.
+- **Some details appear only on mouse hover**, such as the source and license of boundary sets in the Bulk select list.
 - **Status changes**, such as a dataset being added to your request, aren't always announced to screen readers.
 - **Narrow windows and high zoom.** GeoQuery is designed for screens at least 1,024 pixels wide. On narrower screens, including phones, and at high browser zoom, the layout squeezes to fit.
 
