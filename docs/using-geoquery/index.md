@@ -14,5 +14,6 @@ GeoQuery makes it easy to extract geospatial data for any area of interest witho
 - [Accounts and History](accounts.md) — signing in, finding your past requests, and what each request status means
 - [System Status](system-status.md) — how busy GeoQuery is right now, and its processing history
 - [API Access](api.md) — GeoQuery's datasets, boundaries and usage figures from your own code
-- [Research and Use Cases](research-and-use-cases.md) — published research that uses or builds on GeoQuery, by topic
 - [Tutorials](tutorials/index.md) — step-by-step worked examples
+
+For published research that uses GeoQuery, see [Research and Use Cases](research-and-use-cases.md).

@@ -27,10 +27,16 @@ Select boundaries, choose from a curated library of datasets, and download resul
 - [Using your results](using-geoquery/results.md): what's in your download and how to read it
 - [API access](using-geoquery/api.md): GeoQuery's datasets, boundaries and usage figures from your own code
 - [Data Documentation](data_documentation/index.md): every dataset and boundary set GeoQuery offers
-- [Updates](updates/index.md): news about new data, features and fixes
 - [FAQ](faq.md): common questions about data formats, turnaround times, and more
 - [Citing GeoQuery](citing.md): how to cite GeoQuery and the datasets you use
+- [Research and Use Cases](using-geoquery/research-and-use-cases.md): published research that uses GeoQuery, by topic
 - [GitHub](https://github.com/aiddata/geoquery): GeoQuery's source code
+
+---
+
+## News
+
+New datasets, features and fixes are announced on [Updates](updates/index.md), GeoQuery's news blog, which also has an [RSS feed](feed_rss_created.xml).
 
 ---
 

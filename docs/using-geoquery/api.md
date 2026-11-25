@@ -68,6 +68,10 @@ console.log(`${stats.requests.completed + stats.requests.earlier_versions} reque
 
 The [interactive docs](https://geoquery.aiddata.wm.edu/api/public/v1/docs/) describe every field. These figures are aggregate counts and never identify anyone.
 
+## AI assistants
+
+We're building a way for AI assistants to work with GeoQuery directly: finding boundaries and datasets, reading values that are already processed, and preparing requests, all from a chat. It uses the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP), an open standard that assistants such as Claude support. It isn't available to the public yet. This section will cover how to connect an assistant once it is, and we'll announce it on [Updates](../updates/index.md).
+
 ## Examples
 
 The [tutorials](tutorials/index.md) include notebooks that walk through each API with Python.
