@@ -615,3 +615,6 @@ html .md-footer-meta.md-typeset a:not(:focus, :hover),
   text-transform: uppercase;
   vertical-align: .05rem;
 }
+
+/* No logo mark: the site name alone identifies the docs. */
+.md-logo{display:none !important}
