@@ -6,7 +6,7 @@
     import { Button } from "#lib/components/ui/button/index.js";
     import { Input } from "#lib/components/ui/input/index.js";
     import { Separator } from "#lib/components/ui/separator/index.js";
-    import { auth } from "#lib/stores/auth.js";
+    import { auth, refreshAuth } from "#lib/stores/auth.js";
     import {
         addEmail,
         listEmails,
@@ -48,8 +48,11 @@
         }
     }
 
+    // Only sign-in status matters here: refreshing the session after a new
+    // primary address mustn't reload the page's lists a second time.
+    const authStatus = $derived($auth.status);
     $effect(() => {
-        if ($auth.status !== "authenticated") return;
+        if (authStatus !== "authenticated") return;
         // Already signed in and only passing through: don't make them look at
         // an account page they didn't ask for.
         if (nextDestination !== DEFAULT_NEXT) {
@@ -71,6 +74,18 @@
             error = e.message || "Something went wrong. Please try again.";
         } finally {
             busy = false;
+        }
+    }
+
+    // The session's user email is the primary address, and Review submits
+    // under it, so the session is refreshed for the new one to take effect
+    // without a reload.
+    async function makePrimary(email: string) {
+        await setPrimaryEmail(email);
+        try {
+            await refreshAuth();
+        } catch {
+            auth.update((a) => (a.status === "authenticated" ? { ...a, user: { ...a.user, email } } : a));
         }
     }
 
@@ -163,7 +178,7 @@
                                         variant="ghost"
                                         size="sm"
                                         disabled={busy}
-                                        onclick={() => run(() => setPrimaryEmail(item.email), `${item.email} is now your primary address.`)}
+                                        onclick={() => run(() => makePrimary(item.email), `${item.email} is now your primary address.`)}
                                     >
                                         Make primary
                                     </Button>
