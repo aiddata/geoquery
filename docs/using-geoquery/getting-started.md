@@ -4,7 +4,7 @@ description: "How to make a GeoQuery request: select boundaries, choose datasets
 
 # Getting Started
 
-GeoQuery takes you through three steps, shown in the panel on the left of the [GeoQuery application](https://geoquery.aiddata.wm.edu): **1. Select Boundaries**, **2. Customize Datasets** and **3. Review & Submit**. Your choices are kept as you move between them, and through a refresh of the page.
+GeoQuery takes you through three steps, shown in the panel on the left of the [GeoQuery application](https://geoquery.aiddata.wm.edu): **Select Boundaries**, **Customize Datasets** and **Review & Submit**. The step you're on is open, with a filled number; a finished step shows a check. Your choices are kept as you move between them, and through a refresh of the page.
 
 ## Submitting a request
 
@@ -13,13 +13,13 @@ GeoQuery takes you through three steps, shown in the panel on the left of the [G
     - **Pick many boundary sets at once** with **Bulk select**, under the search box. It groups every boundary set by level, from ADM0 (countries) down, so you can tick a whole level at once.
     - **Use a preset** by typing a region or group into the search, such as "Africa ADM1" or "LMIC". See [Boundary presets](../data_documentation/boundary-presets.md).
 
-    Click **Find Data**, or **2. Customize Datasets** in the panel, to move on.
+    Click **Find Data**, or **Customize Datasets** in the panel, to move on.
 
 2. **Choose datasets.** Browse the datasets available for your boundaries; the search box also matches categories, such as "climate" or "economic". For each dataset, choose a **Measure** (such as mean or maximum) and what to **Split results by**, such as time periods. A dataset joins your request as soon as these are chosen, and the line under **Select Dataset Options** says so: "Dataset added", or which options are still missing. A required option with nothing chosen is outlined in red. There's nothing to click to add it, and **Reset** takes it out again. See [Dataset coverage](#dataset-coverage) if a dataset you expected isn't listed.
 
     Datasets of events or locations, such as conflict events, can be in your request more than once, each **selection** with its own options and its own columns. Each selection has a card above the options, with a check mark when it's in your request. **New selection** keeps the current one and starts another. These datasets can also narrow which records count, under **Custom filters**.
 
-3. **Review.** Click **Continue to Review**, or **3. Review & Submit** in the panel. The Review page shows your boundaries, each dataset and its options, and how many rows your results will have. Use **Modify Boundary Sets**, **Add Another Dataset**, or **Edit options** on any dataset to make changes.
+3. **Review.** Click **Continue to Review**, or **Review & Submit** in the panel. The Review page shows your boundaries, each dataset and its options, and how many rows your results will have. Use **Modify Boundary Sets**, **Add Another Dataset**, or **Edit options** on any dataset to make changes.
 
 4. **Submit.** In the panel, give your request a name and enter your email address (if you're signed in, your account's email is used), then click **Submit Request**.
 

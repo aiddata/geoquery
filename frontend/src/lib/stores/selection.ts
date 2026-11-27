@@ -165,7 +165,7 @@ export const selectionSummary = derived(selection, ($sel) => {
 });
 
 /**
- * Where "2. Customize Datasets" leads: the Customize page for the boundaries
+ * Where "Customize Datasets" leads: the Customize page for the boundaries
  * last confirmed with Find Data (or a saved custom boundary), or null when
  * nothing has been confirmed yet.
  */

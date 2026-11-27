@@ -34,7 +34,7 @@ Keep new routes off `/requests/<id>/…`: the production proxy sends every path 
 
 Account, Past Requests, a request, a legacy request and System Status have a **Back** button (`BackButton`), which returns to the page they were opened from, or to a fallback (the map, or Past Requests for one request) when they were opened directly. `lib/backNav.ts` records where from in the root layout's `afterNavigate`; arriving through a Back button records nothing, so a chain of these pages unwinds in order.
 
-`RequestPanel` (`lib/components/layout/`) is the left-hand panel shared by the three steps, with the step headings, the request summary and the **Copy share link** footer. On the first two steps the summary (features and boundary sets, columns and dataset selections) sits under **3. Review & Submit**; on Review it's under each step's own header.
+`RequestPanel` (`lib/components/layout/`) is the left-hand panel shared by the three steps, with the step headings, the request summary and the **Copy share link** footer. On the first two steps the summary (features and boundary sets, columns and dataset selections) sits under **Review & Submit**; on Review it's under each step's own header. The open step is raised on the card colour and the others sit on `--band` with smaller headings; each step's badge shows its state: open, done (it has boundaries, or a dataset in the request), reachable, or not yet reachable.
 
 ### Narrow screens
 

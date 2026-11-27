@@ -4,7 +4,7 @@
 	import { knownCoverage, rememberCoverage } from '#lib/stores/coverageCounts.js';
 	import CoverageStatus from '#lib/components/map/CoverageStatus.svelte';
 	import { goto } from '$app/navigation';
-	import { ArrowRight, Pencil } from '@lucide/svelte';
+	import { ArrowRight, Check, Pencil } from '@lucide/svelte';
 	import { selection, selectionFcIds, selectionSummary, customizeHref } from '#lib/stores/selection.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
 	import { cart, cartCount } from '#lib/stores/cart.js';
@@ -130,6 +130,8 @@
 
 	type Section = {
 		id: Step;
+		/** Its place in the sequence, shown in its badge */
+		number: number;
 		title: string;
 		href: string | null;
 		/** Second line of the collapsed header */
@@ -155,27 +157,49 @@
 	const sections = $derived<Section[]>([
 		{
 			id: 'map',
-			title: '1. Select Boundaries',
+			number: 1,
+			title: 'Select Boundaries',
 			href: '/',
 			summary: summaryUnderReview ? [] : boundarySummary,
 			blocked: ''
 		},
 		{
 			id: 'search',
-			title: '2. Customize Datasets',
+			number: 2,
+			title: 'Customize Datasets',
 			href: $customizeHref,
 			summary: summaryUnderReview ? [] : datasetSummary,
 			blocked: 'Select boundaries first'
 		},
 		{
 			id: 'review',
-			title: '3. Review & Submit',
+			number: 3,
+			title: 'Review & Submit',
 			href: $cartCount > 0 ? '/review' : null,
 			summary: [],
 			lines: summaryUnderReview ? [boundarySummary, datasetSummary] : undefined,
 			blocked: 'Add a dataset first'
 		}
 	]);
+
+	// Each step's state, shown by its badge (GEO-147): the open one; done, once
+	// it has something in it (boundaries chosen, a dataset in the request);
+	// reachable but not done; or not reachable yet. Review is never "done": it
+	// ends in submitting, which leaves these pages.
+	type StepState = 'active' | 'done' | 'reachable' | 'blocked';
+	const hasBoundaries = $derived(
+		($customBoundary.saved && $customBoundary.active) || ($selection?.resolvedFeatureIds.length ?? 0) > 0
+	);
+	const done = $derived<Record<Step, boolean>>({ map: hasBoundaries, search: $cartCount > 0, review: false });
+	const stateOf = (s: Section): StepState =>
+		s.id === active ? 'active' : !s.href ? 'blocked' : done[s.id] ? 'done' : 'reachable';
+	// Read before the title, as the badge is hidden from screen readers
+	const STATE_TEXT: Record<StepState, string> = {
+		active: '',
+		done: ', done',
+		reachable: '',
+		blocked: ', not available yet'
+	};
 </script>
 
 {#snippet partsText(parts: Part[])}{#each parts as part, i (i)}{#if typeof part === 'string'}{part}{:else}<strong>{part.count.toLocaleString()}</strong>{/if}{/each}{/snippet}
@@ -188,6 +212,24 @@
 	{/each}
 {/snippet}
 
+<!-- The step's number in a circle: filled for the open step, a check once
+     done, outlined while reachable, dashed and faded until it can be reached -->
+{#snippet badge(s: Section, state: StepState)}
+	<span
+		aria-hidden="true"
+		class="flex shrink-0 items-center justify-center rounded-full text-xs font-bold {state === 'active'
+			? 'size-6 bg-primary text-primary-foreground'
+			: state === 'done'
+				? 'size-5.5 border-[1.5px] border-primary bg-card text-primary'
+				: state === 'reachable'
+					? 'size-5.5 border-[1.5px] border-input text-muted-foreground'
+					: 'size-5.5 border-[1.5px] border-dashed border-input/70 text-muted-foreground/70'}"
+	>
+		{#if state === 'done'}<Check class="size-3.5" stroke-width={3} />{:else}{s.number}{/if}
+	</span>
+{/snippet}
+{#snippet stepLabel(s: Section, state: StepState)}<span class="sr-only">Step {s.number}{STATE_TEXT[state]}: </span>{s.title}{/snippet}
+
 {#snippet storedCoverage()}
 	<CoverageStatus loading={coverageLoading} count={coverageCount} error={coverageError} inline />
 {/snippet}
@@ -195,18 +237,24 @@
 <!-- Full width on narrow screens, where it takes turns with the main area (layout.css) -->
 <nav
 	aria-label="Request steps"
-	class="request-panel relative flex h-full w-full shrink-0 flex-col overflow-hidden bg-card md:w-[28rem] md:max-w-[45vw] md:border-r"
+	class="request-panel relative flex h-full w-full shrink-0 flex-col overflow-hidden bg-band md:w-[28rem] md:max-w-[45vw] md:border-r"
 >
+	<!-- The open step is raised (the card colour); the others sit behind it on
+	     the band, with smaller headings, so where you are reads at a glance -->
 	{#each sections as s (s.id)}
+		{@const state = stateOf(s)}
 		{#if s.id === active}
 			<section
 				aria-labelledby="panel-{s.id}"
-				class="flex min-h-0 flex-1 flex-col border-b last:border-b-0"
+				class="flex min-h-0 flex-1 flex-col border-b bg-card last:border-b-0"
 				style:view-transition-name="panel-{s.id}"
 			>
 				<div class="flex items-center justify-between gap-2 px-4 pt-4 {bare ? 'pb-1' : 'pb-2'}">
 					<!-- The page's one top-level heading on each request step -->
-					<h1 id="panel-{s.id}" class="text-h4 text-foreground" aria-current="step">{s.title}</h1>
+					<span class="flex min-w-0 items-center gap-2.5">
+						{@render badge(s, state)}
+						<h1 id="panel-{s.id}" class="text-h4 text-foreground" aria-current="step">{@render stepLabel(s, state)}</h1>
+					</span>
 					{@render actions?.()}
 				</div>
 				<div
@@ -222,10 +270,12 @@
 				type="button"
 				onclick={() => goto(s.href!)}
 				style:view-transition-name="panel-{s.id}"
-				class="group flex w-full items-center justify-between gap-3 border-b px-4 py-2 text-left transition-colors last:border-b-0 hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+				class="group flex w-full items-center justify-between gap-3 border-b px-4 py-2 text-left transition-colors last:border-b-0 hover:bg-background focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
 			>
-				<span class="min-w-0">
-					<span class="block font-heading text-h4 font-bold text-foreground">{s.title}</span>
+				<span class="flex min-w-0 items-start gap-2.5">
+					{@render badge(s, state)}
+					<span class="min-w-0">
+					<span class="block font-heading text-field font-semibold leading-[1.375rem] text-foreground">{@render stepLabel(s, state)}</span>
 					{#if s.summary.length > 0 || stepNotes[s.id]}
 						{@const note = stepNotes[s.id]}
 						<span
@@ -235,6 +285,7 @@
 						>
 					{/if}
 					{@render summaryLines(s)}
+					</span>
 				</span>
 				{#if s.id === 'review'}
 					<!-- Moving on is the step page's own button (Continue to Review);
@@ -251,9 +302,12 @@
 				title={s.blocked}
 				style:view-transition-name="panel-{s.id}"
 			>
-				<span class="min-w-0">
-					<span class="block font-heading text-h4 font-bold text-muted-foreground/60">{s.title}</span>
-					{@render summaryLines(s)}
+				<span class="flex min-w-0 items-start gap-2.5">
+					{@render badge(s, state)}
+					<span class="min-w-0">
+						<span class="block font-heading text-field font-semibold leading-[1.375rem] text-muted-foreground">{@render stepLabel(s, state)}</span>
+						{@render summaryLines(s)}
+					</span>
 				</span>
 			</div>
 		{/if}
