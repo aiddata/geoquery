@@ -732,6 +732,9 @@
 					/>
 				{/if}
 
+				<!-- Pinned while the options scroll (GEO-149), so whether the dataset
+				     is in the request, and Reset, stay in view -->
+				<div class="sticky top-0 z-10 border-b bg-background pb-3">
 				<h3 class="px-4 pt-4 text-base font-semibold">Select Dataset Options</h3>
 				<!-- Where the options stand, in one line, with Reset at its end (GEO-164) -->
 				<OutputSummary
@@ -749,6 +752,7 @@
 						<DatasetActions isFeature={isFeature(selectedDatasetDetail)} onReset={handleReset} {canReset} />
 					{/snippet}
 				</OutputSummary>
+				</div>
 				{#if selectedDatasetDetail.processing_class === 'filter_and_agg' && selectedDatasetDetail.filters}
 					{@const detail = selectedDatasetDetail}
 					{@const filterCount = Object.values(detail.filters!).filter((f) => f.aggregate !== false).length}

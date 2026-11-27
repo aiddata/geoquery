@@ -62,12 +62,6 @@
 	import SupportBanner from '#lib/components/layout/SupportBanner.svelte';
 	import { TooltipProvider } from '#lib/components/ui/tooltip/index.js';
 	let { children } = $props();
-
-	// Only show steps on main workflow pages
-	const workflowPaths = ['/', '/customize', '/review'];
-	let showSteps = $derived(
-		workflowPaths.some((path) => page.url.pathname === path || page.url.pathname.startsWith(path + '/'))
-	);
 </script>
 
 <svelte:head>
@@ -85,7 +79,7 @@
 			Skip to main content
 		</a>
 		<StatusBanner />
-		<Header {showSteps} />
+		<Header />
 
 		<main id="main-content" tabindex="-1" class="flex-1 focus:outline-none">
 			{@render children()}

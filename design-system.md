@@ -481,7 +481,7 @@ Redefining `--text-xs` as 13px brings every existing `text-xs` up to the floor w
 | Element | Face | Weight | Size |
 |---|---|---|---|
 | Button | `font-ui` | 700 | `text-sm` |
-| Header navigation (Docs, Help, Past requests) and step bar | `font-body` | 700 | `text-sm` (nav link) |
+| Header navigation (Map and Visualize Data, About, Documentation, Updates) | `font-body` | 700 | `text-sm` (nav link) |
 | Badge: status and category pills | `font-ui` | 700 | `text-xs`, padded per rule 9 |
 | Card title | `font-heading` | 700 | `text-h4` |
 | Dialog and Sheet titles | `font-heading` | 700 | `text-h3` |
@@ -851,7 +851,6 @@ Reversible removal, such as taking an item out of the request, is a ghost icon b
 
 - SupportBanner's "Contact our partnerships team" link
 - The StatusBanner and SupportBanner dismiss buttons
-- The step bar's "Map and visualize data" link
 - The viz pages' `.viz-btn-primary`, `.viz-select` and `.viz-input`
 
 ### Forms
@@ -874,7 +873,7 @@ Reversible removal, such as taking an item out of the request, is a ghost icon b
 
 ### Layout
 
-- **Shell:** status banner (when enabled), then the sticky header (80px), then the step bar (48px, workflow pages only), then content.
+- **Shell:** status banner (when enabled), then the sticky header (80px, with a 3px `gold` rule along its bottom that divides it from whatever the page starts with), then content. There's no step bar: the request panel shows where you are on the workflow pages, and "Map and Visualize Data" is in the header navigation.
 - **Map workspace** (`/`, `/viz/*`): the map fills the remaining viewport and acts as the page surface; don't alternate page and band here.
   - Task panels float 16px from the left edge, 384px wide (`w-96`). They stack with 8px gaps and scroll inside themselves.
   - Map controls sit top right.

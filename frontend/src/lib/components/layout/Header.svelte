@@ -2,19 +2,12 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import UserMenu from '#lib/components/layout/UserMenu.svelte';
-	import { currentStep, type Step } from '#lib/stores/ui.js';
 	import { features } from '#lib/stores/features.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
-	import { ChevronRight, ChevronUp, Map, Menu as MenuIcon } from '@lucide/svelte';
+	import { ChevronUp, Map, Menu as MenuIcon } from '@lucide/svelte';
 	import aiddataLogo from '#lib/assets/aiddata_logo.svg';
 	import aiddataLogoWhite from '#lib/assets/aiddata_logo_white.png';
 	import geoqueryText from '#lib/assets/geoquery_text.svg';
-
-	interface Props {
-		showSteps?: boolean;
-	}
-
-	let { showSteps = true }: Props = $props();
 
 	// Shown as text links on wide screens and in the menu on narrower ones.
 	type NavLink = { label: string; href?: string; external?: boolean; onclick?: () => void };
@@ -26,16 +19,13 @@
 		// Past Requests is in the Account menu, signed in or not.
 	];
 
-	// Where you are in the request: plain breadcrumbs, not links. The
-	// request panel on each step page is the navigation.
-	const steps: { id: Step; label: string }[] = [
-		{ id: 'map', label: 'Select Boundaries' },
-		{ id: 'search', label: 'Customize Datasets' },
-		{ id: 'review', label: 'Review & Submit' }
-	];
+	// The map and visualize views (beta), first in the navigation for those
+	// who have them. The request steps need no bar of their own: the request
+	// panel on each step page shows where you are (GEO-149).
+	const showViz = $derived($features.has('visualize'));
 
 	// Published as --header-height, so the step pages can fill the rest of the
-	// screen whatever the header's height (the steps band hides below lg)
+	// screen whatever the header's height
 	let headerHeight = $state(0);
 	$effect(() => {
 		if (headerHeight) document.documentElement.style.setProperty('--header-height', `${headerHeight}px`);
@@ -50,10 +40,12 @@
 {/snippet}
 
 <!-- Heights are multiples of --lh, one line of body text (1.6em at the header's
-     17px), so the header keeps its proportions if the base text size changes. -->
+     17px), so the header keeps its proportions if the base text size changes.
+     The gold rule divides it from every page below, whatever that page's top
+     is: the raised open step, the band of a collapsed one, or dark mode. -->
 <header
 	bind:offsetHeight={headerHeight}
-	class="sticky top-0 z-50 w-full bg-card shadow-card [--lh:calc(var(--text-base--line-height)*1em)]"
+	class="sticky top-0 z-50 w-full border-b-[3px] border-gold bg-card shadow-card [--lh:calc(var(--text-base--line-height)*1em)]"
 >
 	<!-- Main Header -->
 	<!-- A size container, so the GeoQuery wordmark can drop out only when the
@@ -84,6 +76,14 @@
 		<div class="flex items-center gap-2">
 			<!-- Wide screens (xl+): text links divided by thin rules -->
 			<nav aria-label="Main" class="hidden items-center gap-1 xl:flex">
+				{#if showViz}
+					<Button variant="ghost" href="/viz/explore">
+						<Map />
+						Map and Visualize Data
+						<Badge variant="new">new</Badge>
+					</Button>
+					<span class="h-5 w-px bg-border" aria-hidden="true"></span>
+				{/if}
 				{#each navLinks as link, i}
 					{#if i > 0}
 						<span class="h-5 w-px bg-border" aria-hidden="true"></span>
@@ -109,7 +109,19 @@
 						</Button>
 					{/snippet}
 				</DropdownMenu.Trigger>
-				<DropdownMenu.Content align="end" class="w-48">
+				<DropdownMenu.Content align="end" class="w-64">
+					{#if showViz}
+						<DropdownMenu.Item>
+							{#snippet child({ props })}
+								<a {...props} href="/viz/explore">
+									<Map />
+									Map and Visualize Data
+									<Badge variant="new">new</Badge>
+								</a>
+							{/snippet}
+						</DropdownMenu.Item>
+						<DropdownMenu.Separator />
+					{/if}
 					{#each navLinks as link}
 						{#if link.href}
 							<DropdownMenu.Item>
@@ -127,37 +139,4 @@
 			</DropdownMenu.Root>
 		</div>
 	</div>
-
-	<!-- Step Indicator (only on workflow pages). Not below lg, where the panel's
-	     own step headers are enough and the height is better spent on content. -->
-	{#if showSteps}
-		<div class="flex min-h-[calc(1.75*var(--lh))] items-center justify-between bg-band px-4 max-lg:hidden">
-			<div aria-label="Request progress" class="flex items-center gap-1">
-				{#each steps as step, i (step.id)}
-					{#if i > 0}
-						<ChevronRight class="size-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-					{/if}
-					<span
-						class="px-1 text-xs {$currentStep === step.id ? 'font-bold text-foreground' : 'text-muted-foreground'}"
-						aria-current={$currentStep === step.id ? 'step' : undefined}
-					>
-						{step.label}
-					</span>
-				{/each}
-			</div>
-
-			{#if $features.has('visualize')}
-				<Button
-					variant="ghost"
-					size="sm"
-					href="/viz/explore"
-					class="hidden font-body text-muted-foreground lg:inline-flex"
-				>
-					<Map />
-					Map and Visualize Data
-					<Badge variant="new">new</Badge>
-				</Button>
-			{/if}
-		</div>
-	{/if}
 </header>
