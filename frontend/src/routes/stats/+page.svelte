@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Seo from '#lib/components/layout/Seo.svelte';
+	import BackButton from '#lib/components/layout/BackButton.svelte';
 	import { onMount } from 'svelte';
 	import { Card, CardContent, CardHeader, CardTitle } from '#lib/components/ui/card/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -222,6 +223,10 @@
 {/snippet}
 
 <div class="mx-auto max-w-5xl px-4 py-8">
+	<div class="mb-6">
+		<BackButton />
+	</div>
+
 	<!-- Service status -->
 	<section
 		aria-label="GeoQuery status"

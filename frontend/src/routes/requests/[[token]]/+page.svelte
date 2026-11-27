@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Seo from '#lib/components/layout/Seo.svelte';
+	import BackButton from '#lib/components/layout/BackButton.svelte';
     import { page } from "$app/state";
     import { goto } from "$app/navigation";
     import { Button } from "#lib/components/ui/button/index.js";
@@ -7,7 +8,7 @@
     import * as Alert from "#lib/components/ui/alert/index.js";
     import * as Collapsible from "#lib/components/ui/collapsible/index.js";
     import StatusBadge, { requestStatusMeaning } from "#lib/components/StatusBadge.svelte";
-    import { ArrowLeft, Search, Mail, BarChart2, LogIn, Archive, ChevronDown } from "@lucide/svelte";
+    import { Search, Mail, BarChart2, LogIn, Archive, ChevronDown } from "@lucide/svelte";
     import {
         requestHistoryLink,
         fetchRequestsByToken,
@@ -99,10 +100,7 @@
 
 <div class="container mx-auto max-w-2xl px-4 py-8">
     <div class="mb-6 flex items-center justify-between gap-4">
-        <Button variant="ghost" onclick={() => goto("/")}>
-            <ArrowLeft />
-            Back
-        </Button>
+        <BackButton />
         <Button variant="ghost" size="sm" href="/stats" class="font-body text-muted-foreground">
             <BarChart2 />
             System status

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import Seo from '#lib/components/layout/Seo.svelte';
+	import BackButton from '#lib/components/layout/BackButton.svelte';
 	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
 	import { Button } from '#lib/components/ui/button/index.js';
-	import { ArrowLeft, Archive, Download } from '@lucide/svelte';
+	import { Archive, Download } from '@lucide/svelte';
 	import { fetchLegacyRequestDetail, type LegacyRequestDetail } from '#lib/api.js';
 
 	const id = $derived(page.params.id ?? '');
@@ -59,10 +59,7 @@
 
 <div class="container mx-auto max-w-2xl px-4 py-8">
 	<div class="mb-6">
-		<Button variant="ghost" onclick={() => goto('/requests')}>
-			<ArrowLeft class="mr-1 h-4 w-4" />
-			Back to Requests
-		</Button>
+		<BackButton fallback="/requests" />
 	</div>
 
 	<div class="rounded-lg border bg-card p-6 shadow-sm">

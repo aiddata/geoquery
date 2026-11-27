@@ -13,6 +13,7 @@
 	import '@fontsource/noto-sans/700.css';
 	import './layout.css';
 	import favicon from '#lib/assets/favicon.svg';
+	import { recordReturn } from '#lib/backNav.js';
 
 	onMount(initAuth);
 	// A signed-in user's theme is saved to their account
@@ -23,7 +24,10 @@
 	if (browser) restoreTabState();
 	onMount(persistTabState);
 
-	afterNavigate(({ to }) => {
+	afterNavigate((navigation) => {
+		// Where the Back buttons on Account, Past Requests and Status go
+		recordReturn(navigation);
+		const { to } = navigation;
 		if (to) {
 			gtagEvent('page_view', {
 				page_path: to.url.pathname + to.url.search,

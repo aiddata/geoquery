@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Seo from '#lib/components/layout/Seo.svelte';
-    import { goto } from "$app/navigation";
+	import BackButton from '#lib/components/layout/BackButton.svelte';
     import { Badge } from "#lib/components/ui/badge/index.js";
     import * as Alert from "#lib/components/ui/alert/index.js";
     import { Button } from "#lib/components/ui/button/index.js";
@@ -103,10 +103,7 @@
 
 <div class="container mx-auto max-w-2xl px-4 py-8">
     <div class="mb-6">
-        <Button variant="ghost" onclick={() => goto("/")}>
-            <ArrowLeft />
-            Back to Map
-        </Button>
+        <BackButton />
     </div>
 
     {#if $auth.status === "loading"}

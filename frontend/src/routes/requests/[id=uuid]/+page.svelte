@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Seo from '#lib/components/layout/Seo.svelte';
+	import BackButton from '#lib/components/layout/BackButton.svelte';
 	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
 	import { createShareLink, fetchDatasetDetail, fetchRequestDetail, fetchRequestRecipe, type DatasetDetail, type RequestDetail } from '#lib/api.js';
 	import ShareLinkButton from '#lib/components/ShareLinkButton.svelte';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
@@ -13,7 +13,7 @@
 	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
 	import StatusBadge, { requestStatusMeaning } from '#lib/components/StatusBadge.svelte';
-	import { ArrowLeft, Download, RefreshCw, ChevronDown, ChevronRight, CircleAlert, CopyPlus, ExternalLink, Link, Map } from '@lucide/svelte';
+	import { Download, RefreshCw, ChevronDown, ChevronRight, CircleAlert, CopyPlus, ExternalLink, Link, Map } from '@lucide/svelte';
 	import { features } from '#lib/stores/features.js';
 
 	const TERMINAL_STATUSES = new Set([1, -2]);
@@ -141,10 +141,7 @@
 
 <div class="container mx-auto max-w-2xl px-4 py-8">
 	<div class="mb-6">
-		<Button variant="ghost" onclick={() => goto('/requests')}>
-			<ArrowLeft />
-			Back
-		</Button>
+		<BackButton fallback="/requests" />
 	</div>
 
 	{#if loading && !request}

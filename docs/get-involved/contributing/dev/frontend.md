@@ -32,6 +32,8 @@ description: "How GeoQuery's SvelteKit frontend is organised: routes, the stores
 
 Keep new routes off `/requests/<id>/…`: the production proxy sends every path two or more segments under `/requests/` to the backend, which serves request downloads from there, so a page there works from an in-app link but 404s on a full page load, including one opened in a new tab ([Helm chart](deploying/kubernetes/helm-chart.md)).
 
+Account, Past Requests, a request, a legacy request and System Status have a **Back** button (`BackButton`), which returns to the page they were opened from, or to a fallback (the map, or Past Requests for one request) when they were opened directly. `lib/backNav.ts` records where from in the root layout's `afterNavigate`; arriving through a Back button records nothing, so a chain of these pages unwinds in order.
+
 `RequestPanel` (`lib/components/layout/`) is the left-hand panel shared by the three steps, with the step headings, the request summary and the **Copy share link** footer. On the first two steps the summary (features and boundary sets, columns and dataset selections) sits under **3. Review & Submit**; on Review it's under each step's own header.
 
 ### Narrow screens
