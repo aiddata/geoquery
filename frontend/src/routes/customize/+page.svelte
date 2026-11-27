@@ -655,21 +655,22 @@
 		     Request on Review stays full width, as the last step.) -->
 		<div class="flex flex-col gap-2.5 border-t px-4 py-2.5">
 		{#if unfinishedElsewhere.length > 0}
-			<!-- Options started on other datasets but not finished (GEO-168):
-			     easy to miss in a long or filtered list, and not in the request -->
-			<div class="flex items-start gap-2 rounded-md border border-warning-text/30 bg-warning-bg px-3 py-2 text-sm" role="status">
-				<CircleAlert class="mt-0.5 size-4 shrink-0 text-warning-text" aria-hidden="true" />
-				<p class="min-w-0">
-					<strong>{unfinishedElsewhere.length === 1 ? 'Options not finished:' : `${unfinishedElsewhere.length} datasets not finished:`}</strong>
-					{#each unfinishedElsewhere as d, i (d.name)}{#if d.summary}<button
-								type="button"
-								class="cursor-pointer font-medium text-link underline underline-offset-2 hover:text-link-hover"
-								onclick={() => handleDatasetSelect(d.summary!)}>{d.title}</button
-							>{:else}{d.title}{/if}{i < unfinishedElsewhere.length - 1 ? ', ' : ''}{/each}.
-					{unfinishedElsewhere.length === 1 ? "It isn't" : "They aren't"} in your request until
-					{unfinishedElsewhere.length === 1 ? 'its' : 'their'} options are complete.
-				</p>
-			</div>
+			{@const n = unfinishedElsewhere.length}
+			<!-- Options started on other datasets but not finished (GEO-168): one
+			     line, which opens the first of them; the list marks each one -->
+			<button
+				type="button"
+				class="flex cursor-pointer items-center gap-2 self-start text-left text-sm font-medium text-warning-text hover:underline"
+				title={unfinishedElsewhere.map((d) => d.title).join(', ')}
+				onclick={() => {
+					const first = unfinishedElsewhere.find((d) => d.summary);
+					if (first) handleDatasetSelect(first.summary!);
+				}}
+			>
+				<CircleAlert class="size-4 shrink-0" aria-hidden="true" />
+				Options for {n} dataset{n === 1 ? '' : 's'} not finished
+				<span class="sr-only">: {unfinishedElsewhere.map((d) => d.title).join(', ')}. Open {n === 1 ? 'it' : 'the first'}.</span>
+			</button>
 		{/if}
 		<div class="flex items-center justify-between gap-2">
 			{#if $cartCount > 0 || Object.keys($datasetChoices).length > 0}
