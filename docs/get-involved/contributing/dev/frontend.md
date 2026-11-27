@@ -63,6 +63,8 @@ There's no "Add to Request": options save to the cart as they change (`routes/cu
 
 A new selection, like a fresh raster, has nothing required chosen (the measure isn't preselected even when there's only one), so opening a dataset never adds it. The required cards with nothing chosen are outlined once anything in the dataset has been chosen (`MissingNote`, `MISSING_CARD`), and `OutputSummary` is the one-line status under "Select Dataset Options", with Reset at its end. A feature dataset's filters (`aggregate` true or unset) are behind **Custom filters**, open by default only when the selection narrows one.
 
+A dataset with options started but not finished, so not in the request, is flagged in the list (`unsavedNames`): a raster with options waiting in `datasetChoices`, or a feature selection outside the cart with something chosen (`started`: a measure, a split value or a narrowed filter). The panel's footer also lists those other than the open dataset, each a link to open it (GEO-168).
+
 Review's **Edit options** saves a feature entry to `datasetChoices` with its `editingKey` before opening Customize, so that entry is the one being edited. Raster period labels are formatted for display by `lib/utils/periods.ts` ("199501" as "1995 January"); the stored labels are left as they are, since recipes and the request documentation use them.
 
 ### Tab state

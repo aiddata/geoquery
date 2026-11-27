@@ -27,6 +27,12 @@ export interface DatasetChoices {
 	editingKey?: string;
 	/** An incomplete selection's name, kept from when it was in the cart */
 	customName?: string;
+	/**
+	 * Something has been chosen in the feature selection being edited: a
+	 * measure, a split value, or a filter narrowed. Unfinished and started,
+	 * it's flagged in the dataset list and the panel's notice (GEO-168).
+	 */
+	started?: boolean;
 }
 
 function createDatasetChoicesStore() {

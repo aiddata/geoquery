@@ -29,7 +29,7 @@
 	import { type FilterSelection } from '#lib/stores/cart.js';
 	import { customBoundary } from '#lib/stores/customBoundary.js';
 	import { bbox as turfBbox } from '@turf/bbox';
-	import { ChevronRight, TriangleAlert } from '@lucide/svelte';
+	import { ChevronRight, CircleAlert, TriangleAlert } from '@lucide/svelte';
 	import DatasetMetadata from '#lib/components/datasets/DatasetMetadata.svelte';
 	import DatasetSelector from '#lib/components/datasets/DatasetSelector.svelte';
 	import RasterOptions from '#lib/components/datasets/RasterOptions.svelte';
@@ -330,18 +330,36 @@
 		return rasterComplete(detail, rasterOptions) ? 'saved' : 'incomplete';
 	});
 
-	// Marks in the dataset list: in the request (check), or feature choices
-	// that differ from everything in the request (exclamation).
+	// Marks in the dataset list: in the request (its column count), or options
+	// started but not finished, so not in the request (exclamation), which the
+	// panel's notice also lists (GEO-168).
 	const inRequestNames = $derived(new Set($cart.map((i) => i.datasetName)));
 	const unsavedNames = $derived.by(() => {
-		// A feature selection started but not complete (not in the request)
 		const names = new Set<string>();
 		for (const [name, choices] of Object.entries($datasetChoices)) {
+			// A raster's options are only kept here while incomplete
+			if (choices.rasterOptions) {
+				names.add(name);
+				continue;
+			}
+			if (!choices.kwargs) continue;
 			const inCart = !!choices.editingKey && $cart.some((i) => i.datasetName === name && kwargsKey(i.kwargs) === choices.editingKey);
-			if (choices.kwargs && !inCart && kwargsStarted(choices.kwargs)) names.add(name);
+			// Choices saved before `started` existed: a measure or a split value
+			const started = choices.started ?? (!!choices.selectedOutcome || kwargsStarted(choices.kwargs));
+			if (!inCart && started) names.add(name);
 		}
 		return names;
 	});
+	// The notice under the list: the unfinished datasets other than the open
+	// one, whose own status line already says what's missing
+	const unfinishedElsewhere = $derived(
+		[...unsavedNames]
+			.filter((name) => name !== selectedDatasetSummary?.name)
+			.map((name) => {
+				const summary = datasets.find((d) => d.name === name) ?? null;
+				return { name, title: summary?.title ?? name, summary };
+			})
+	);
 
 	// Opening a feature dataset: the selection being edited (from Review's
 	// "Edit options", or before leaving the page), else its first selection in
@@ -504,7 +522,9 @@
 			cart.removeItem(editIdx);
 			editingKey = undefined;
 		}
-		datasetChoices.save(detail.name, { filterSelections: selections, selectedOutcome, kwargs, editingKey, customName });
+		const started =
+			!!selectedOutcome || kwargsStarted(kwargs) || narrowedFilters(detail.filters, selections).length > 0;
+		datasetChoices.save(detail.name, { filterSelections: selections, selectedOutcome, kwargs, editingKey, customName, started });
 	}
 
 	function buildFeatureItem(detail: DatasetDetail, selections: Record<string, FilterSelection>, name?: string): CartItem {
@@ -633,7 +653,25 @@
 		     something to clear, and on to the next step at the right, always
 		     here but disabled until the request has a dataset in it. (Submit
 		     Request on Review stays full width, as the last step.) -->
-		<div class="flex items-center justify-between gap-2 border-t px-4 py-2.5">
+		<div class="flex flex-col gap-2.5 border-t px-4 py-2.5">
+		{#if unfinishedElsewhere.length > 0}
+			<!-- Options started on other datasets but not finished (GEO-168):
+			     easy to miss in a long or filtered list, and not in the request -->
+			<div class="flex items-start gap-2 rounded-md border border-warning-text/30 bg-warning-bg px-3 py-2 text-sm" role="status">
+				<CircleAlert class="mt-0.5 size-4 shrink-0 text-warning-text" aria-hidden="true" />
+				<p class="min-w-0">
+					<strong>{unfinishedElsewhere.length === 1 ? 'Options not finished:' : `${unfinishedElsewhere.length} datasets not finished:`}</strong>
+					{#each unfinishedElsewhere as d, i (d.name)}{#if d.summary}<button
+								type="button"
+								class="cursor-pointer font-medium text-link underline underline-offset-2 hover:text-link-hover"
+								onclick={() => handleDatasetSelect(d.summary!)}>{d.title}</button
+							>{:else}{d.title}{/if}{i < unfinishedElsewhere.length - 1 ? ', ' : ''}{/each}.
+					{unfinishedElsewhere.length === 1 ? "It isn't" : "They aren't"} in your request until
+					{unfinishedElsewhere.length === 1 ? 'its' : 'their'} options are complete.
+				</p>
+			</div>
+		{/if}
+		<div class="flex items-center justify-between gap-2">
 			{#if $cartCount > 0 || Object.keys($datasetChoices).length > 0}
 				<Button size="sm" variant="outline" onclick={clearAllDatasets} class="text-muted-foreground hover:text-destructive">
 					Clear All
@@ -645,6 +683,7 @@
 				Continue to Review
 				<ChevronRight />
 			</Button>
+		</div>
 		</div>
 	</RequestPanel>
 
