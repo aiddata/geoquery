@@ -1,3 +1,7 @@
+---
+description: "How extraction work flows through GeoQuery: the tables, how input changes are recorded and reconciled, and what one extract worker slot does from claim to commit."
+---
+
 # Extraction Workflow
 
 How extraction work flows through GeoQuery: which tables hold it, how input

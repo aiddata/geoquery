@@ -1,3 +1,7 @@
+---
+description: "A GeoQuery request's statuses, what moves it from one to the next, timings to expect, and how to check on and recover a request."
+---
+
 # Request Lifecycle
 
 A `Request` is one user's extraction job. Its `status` drives the whole

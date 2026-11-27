@@ -1,145 +1,63 @@
-# Deployment
+---
+description: "Day-to-day commands against GeoQuery's production cluster: looking at pods and logs, running management commands, reaching the database, pausing extraction, and checking what's deployed."
+---
 
-This guide will walk you through installing the GeoQuery backend on a Kubernetes cluster.
+# Cluster operations
 
-## Dependencies
-- podman 4+
-- [kubectl](https://kubernetes.io/docs/tasks/tools/)
-- [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
-- [helm](https://helm.sh/docs/intro/install/)
+Commands for working with the production deployment. They assume `kubectl` is pointed at the cluster, and most are read-only. Anything that writes to production (a management command that changes data, a scale, a patch) should be agreed with the team first.
 
-## Spinning up a Development Cluster
+Workloads run in the `geoquery-prod` namespace; the `HelmRelease` that manages them is in `aiddata` ([Production overview](index.md)).
 
-If you'd like to run the GeoQuery backend on a local development cluster rather than a pre-existing cluster, follow these steps to set up a cluster with kind and podman.
-Docker should work in place of podman if you prefer, refer to the [kind documentation](https://kind.sigs.k8s.io/) for guidance in setting that up.
+## Looking around
 
-You need to [increase inotify resource limits](https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files) on your host machine to avoid CrashLoopBackOff errors when spinning up prometheus or cnpg in kind/podman.
-```
-sudo sysctl fs.inotify.max_user_watches=524288
-sudo sysctl fs.inotify.max_user_instances=512
+```bash
+kubectl -n geoquery-prod get pods
+kubectl -n geoquery-prod logs deploy/geoquery-backend --since=30m
+kubectl -n geoquery-prod logs deploy/processing-worker --since=10m --prefix
+kubectl -n geoquery-prod rollout status deploy/geoquery-backend
 ```
 
-If there was already a kind cluster running, delete it
-```
-kind delete cluster
-```
+A terminal UI such as k9s or sofka makes this quicker, and some include Flux actions (reconcile, suspend, resume) for `HelmRelease` and `HelmRepository` objects.
 
-`cd` to the `k8s` directory of this repository
-```
-cd k8s
-```
+## Running management commands
 
-Create the kind cluster
-```
-KIND_EXPERIMENTAL_PROVIDER=podman kind create cluster --config ./dev/kind-config.yaml
-# only need to setup persistent volumes once when setting up cluster
-kubectl apply -f ./helm_chart/static/pv.yaml
+Use the `geoquery-import` pod: it has the backend image, the data and requests volumes, and database access, and serves no traffic.
+
+```bash
+kubectl -n geoquery-prod exec -it deploy/geoquery-import -- bash
+cd /app/backend
+uv run manage.py extract_work_status
 ```
 
-### Known Issues
-- When using kind/podman, the inotify resource limits as described above
-- If the kind cluster has been running for a long time, some containers will start crashing.
-  Try deleting and re-installing the cluster if this continues to occur.
+[Management commands](../../management-commands.md) lists what's available. Prefer commands that report (`extract_work_status`, `manage_user_requests --dry-run`) before ones that change anything.
 
-## Installing 
+## The database
 
-Install Prometheus onto the cluster
-```
-kubectl create namespace prometheus
-kubectl config set-context --current --namespace=prometheus
+The database is a CloudNativePG cluster, `geoquery-db`. With the [cnpg kubectl plugin](https://cloudnative-pg.io/documentation/current/kubectl-plugin/):
 
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
-
-# TODO: what namespace is best to install this in? geoquery, or maybe prometheus?
-helm upgrade --install prometheus prometheus-community/kube-prometheus-stack --values prometheus-values.yaml
+```bash
+kubectl cnpg status geoquery-db -n geoquery-prod     # instances, replication, backups
+kubectl cnpg psql geoquery-db -n geoquery-prod -- -d geoquery
 ```
 
-Install the cnpg operator
-```
-# install cnpg plugin for kubectl
-# https://cloudnative-pg.io/documentation/1.20/kubectl-plugin
-curl -sSfL https://github.com/cloudnative-pg/cloudnative-pg/raw/main/hack/install-cnpg-plugin.sh |  sudo sh -s -- -b /usr/local/bin
+Without the plugin, `kubectl exec` into the primary pod and run `psql -d geoquery`. Connect to a replica for heavy reads. Read [Database](../../database.md) before querying `extract_tasks` or `extract_data`: always filter on `dataset_id`.
 
-# create cnpg-system namespace
-kubectl create namespace cnpg-system
-kubectl config set-context --current --namespace=cnpg-system
+## Extraction
 
-# install helm from local
-# based on helm chart from https://github.com/cloudnative-pg/charts/tree/main
-git clone git@github.com:cloudnative-pg/charts.git
-# reset to specific commit
-# TODO: control this automatically as a git submodule
-cd charts
-git reset --hard 42ab86f7be5d65df87ae03cce255e8ff6a1905a7
-cd ../
+- **Health:** `uv run manage.py extract_work_status` in the import pod, and the Grafana dashboard.
+- **Pausing:** set `tasks.processing.paused` in the environment overlay to stop the processing workers, or set `EXTRACT_TASK_LEASES_ENABLED=0` to stop only background extraction while requests carry on.
+- **Capacity:** KEDA scales `processing-worker` on outstanding demand, within the bounds in the chart's `tasks.processing` values. Change the bounds in the overlay, not by scaling the Deployment.
 
-# install cnpg operator into cnpg-system namespace
-helm upgrade --install cnpg --namespace cnpg-system charts/charts/cloudnative-pg  --set-json='monitoring.podMonitorEnabled=true'
+## What's deployed
 
-# alternative: install helm from repo
-# helm repo add cnpg https://cloudnative-pg.github.io/charts
-# helm upgrade --install cnpg --namespace cnpg-system cnpg/cloudnative-pg
+```bash
+# chart version Flux last applied, and its status
+kubectl get helmrelease geoquery-prod -n aiddata \
+  -o jsonpath='{.status.lastAttemptedRevision}{"\n"}'
+
+# image tags (commit SHAs) actually running
+kubectl -n geoquery-prod get deploy geoquery-backend geoquery-frontend \
+  -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.template.spec.containers[0].image}{"\n"}{end}'
 ```
 
-Prepare to install the GeoQuery helm chart
-```
-
-kubectl create namespace geoquery
-kubectl config set-context --current --namespace=geoquery
-
-helm repo add grafana https://grafana.github.io/helm-charts
-helm repo update
-
-helm dependency build ./helm_chart
-```
-
-See the next page, Helm Chart, for instructions for configuring and installing the helm chart itself.
-
-## Convenience Functions
-
-### Accessing Grafana
-
-Dump the grafana admin password (default username is "admin")
-```
-kubectl get secret gq-grafana -o jsonpath='{.data.admin-password}' | base64 --decode
-```
-
-Forward grafana to http://localhost:3000
-```
-# remove the & at the end if you want to keep this process in the foreground
-kubectl port-forward service/gq-grafana 3000:80 &
-```
-
-# PostgreSQL
-
-```
-kubectl exec -ti postgis-cluster-1 -- psql geoquery
-update extract_tasks set status=0;truncate extract_data;
-```
-
-```
-kubectl exec --stdin --tty extract-dask-cluster-default-worker-25fb20cd2d  -- /bin/bash
-```
-
-Important to use this if running live tests with local code on python pod
-```
-# note that the workbench pod is only available if dev mode is on
-kubectl exec --stdin --tty workbench -- /bin/bash
-pip install -e /tmp/geoquery
-```
-
-```
-kubectl get pods --all-namespaces -o jsonpath='{range .items[?(@.spec.serviceAccountName == "default")]}{.metadata.namespace} {.metadata.name}{"\n"}{end}' 2>/dev/null
-```
-
-```
-helm dependency update ./helm_chart/
-helm upgrade gq ./helm_chart/ -f ./helm_chart/my_values.yaml
-```
-
-Delete everything in Kubernetes (defaults to current namespace)
-```
-kubectl delete all --all
-```
-
+From outside the cluster, the frontend's build id is at `https://geoquery.aiddata.wm.edu/_app/version.json`; it changes when a new frontend image is live. [Deploying with Flux](flux.md) covers releases that stall.

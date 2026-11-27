@@ -1,3 +1,7 @@
+---
+description: "Releasing GeoQuery with a [DEPLOY-X.Y.Z] marker, what the pipeline does across three repositories, verifying a release, and recovering one that stalls."
+---
+
 # Deploying with Flux
 
 Production runs on Kubernetes, reconciled by [FluxCD](https://fluxcd.io). You do

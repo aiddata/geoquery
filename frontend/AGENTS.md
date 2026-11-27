@@ -1,23 +1,28 @@
 # AI Agent Instructions for GeoQuery Frontend
 
+See also `../AGENTS.md` (project-wide rules, including permissions) and the developer docs page `docs/get-involved/contributing/dev/frontend.md`, which this summarizes.
+
 ## Project Overview
 
-This is a SvelteKit frontend for AidData's GeoQuery application, migrated from an AngularJS 1.x codebase. It allows users to select geographic boundaries, customize datasets, and submit data extraction requests.
+The SvelteKit frontend for AidData's GeoQuery: users select boundaries, choose datasets and their options, and submit extraction requests.
 
 ## Tech Stack
 
-- **Framework**: SvelteKit 2 with Svelte 5 (runes mode)
-- **Styling**: Tailwind CSS v4 with shadcn-svelte components
-- **Maps**: MapLibre GL JS
-- **Package Manager**: Bun
+- **Framework**: SvelteKit 3 with Svelte 5 (runes mode), `adapter-node`
+- **Styling**: Tailwind CSS v4 with shadcn-svelte components (bits-ui)
+- **Maps**: MapLibre GL with a Protomaps basemap
+- **Charts**: Observable Plot
+- **Package manager**: Bun
 - **Language**: TypeScript
 
 ## Key Commands
 
 ```bash
-bun run dev      # Start dev server
-bun run build    # Production build
-bun run check    # TypeScript checking
+bun run dev      # dev server (in Compose: the frontend service)
+bun run build    # production build
+bun run check    # svelte-check: types and Svelte diagnostics
+bun test         # unit tests (*.test.ts)
+bun run build:mcp-map   # the MCP server's map app, into backend/mcp_server/apps/static/
 ```
 
 ## Project Structure
@@ -25,23 +30,39 @@ bun run check    # TypeScript checking
 ```
 src/
 ├── lib/
+│   ├── api.ts           # every backend call, with response types
+│   ├── recipe.ts        # the request recipe format and loader
+│   ├── loadRecipe.ts    # templates and share links
 │   ├── components/
-│   │   ├── layout/      # Header, RequestPanel, banners
-│   │   ├── map/         # MapFrame, GeographySearch, ZoomControls
+│   │   ├── layout/      # Header, RequestPanel, UserMenu, RecipeNotice, ...
+│   │   ├── datasets/    # Customize page options
+│   │   ├── map/         # map, boundary search, Bulk select
+│   │   ├── charts/, stats/, viz/
 │   │   └── ui/          # shadcn-svelte components
-│   ├── stores/          # Svelte stores (ui.ts, etc.)
-│   └── utils.ts         # Utility functions (cn helper)
+│   ├── stores/          # selection, cart, datasetChoices, requestForm, tabState, features, ui, ...
+│   ├── map/             # basemap, choropleth
+│   └── utils/
 ├── routes/
-│   ├── +layout.svelte   # Root layout with Header and banners
-│   ├── +page.svelte     # Map page (step 1)
-│   ├── requests/        # Past requests lookup
-│   ├── search/          # Dataset selection (step 2) [TODO]
-│   └── checkout/        # Review & submit (step 3) [TODO]
+│   ├── +layout.svelte   # restores tab state before pages read the stores
+│   ├── +page.svelte     # step 1: Select Boundaries (the map)
+│   ├── customize/       # step 2: Customize Datasets
+│   ├── review/          # step 3: Review & Submit
+│   ├── requests/        # a request's page; Past Requests / My Requests
+│   ├── s/[id]/          # opens a share link
+│   ├── legacy/, stats/, account/, viz/ (beta), health/, maintenance/
+mcp-map/                 # single-file map app served by the MCP server
 ```
+
+## Conventions
+
+- Import with the `#lib/...` alias (package.json `imports`), not `$lib`. `bun test` can't resolve it, so a module under unit test imports its dependencies by relative path.
+- SvelteKit 3's environment modules are `$app/env` (`browser`) and `$app/env/public`.
+- Pages render on the server too: anything using `window`, `sessionStorage` or MapLibre goes in `onMount` or behind `browser`.
+- Beta features are gated on `$features` (`stores/features.ts`); the backend's `accounts/features.py` decides who has them.
 
 ## Tailwind CSS v4 Configuration
 
-**Important**: Tailwind v4 uses CSS-first configuration. Classes are detected via `@source` directives in `src/routes/layout.css`:
+Tailwind v4 is configured in CSS. Classes are detected via `@source` directives in `src/routes/layout.css`:
 
 ```css
 @import "tailwindcss";
@@ -51,31 +72,13 @@ src/
 
 If new directories contain Tailwind classes, add them as `@source` directives or classes won't compile.
 
-## Svelte 5 Patterns
+## Styling Notes
 
-This project uses Svelte 5 runes:
-
-```svelte
-<script lang="ts">
-  // Props
-  let { propName = defaultValue }: Props = $props();
-  
-  // State
-  let count = $state(0);
-  
-  // Derived
-  let doubled = $derived(count * 2);
-  
-  // Effects
-  $effect(() => {
-    console.log(count);
-  });
-</script>
-```
+- Colour tokens are CSS variables in `layout.css` (`--primary` and friends), with a dark theme under `[data-theme="dark"]` and the system preference. Use the shadcn token classes: `bg-primary`, `text-muted-foreground`, etc.
+- Fonts: Barlow for body text and Noto Sans for UI controls (both from `@fontsource`), and Avenir Next for headings where the system has it (`--font-body`, `--font-ui`, `--font-heading` in `layout.css`).
+- `design-system.md` at the repository root is the reference for colour, type, charts and UI copy.
 
 ## shadcn-svelte Components
-
-Add new components with:
 
 ```bash
 bunx shadcn-svelte@next add <component-name> -y
@@ -85,56 +88,13 @@ Components are installed to `src/lib/components/ui/`. Import as:
 
 ```svelte
 import { Button } from '#lib/components/ui/button/index.js';
-import * as Sheet from '#lib/components/ui/sheet/index.js';
+import * as Dialog from '#lib/components/ui/dialog/index.js';
 ```
 
-## Styling Notes
+## The Request Being Built
 
-- **Brand Colors**: Defined as CSS variables in `layout.css`
-  - Primary: `--wm-green` (William & Mary green)
-  - Additional: `--aiddata-navy`, `--aiddata-steel`, `--aiddata-lime`
-- **Font**: Lato (loaded from Google Fonts in layout)
-- Use shadcn color tokens: `bg-primary`, `text-muted-foreground`, etc.
+The selection, cart, in-progress dataset choices and form live in stores, saved to `sessionStorage` by `stores/tabState.ts` and restored in `+layout.svelte`, so a refresh keeps them. Recipes (`lib/recipe.ts`) are the portable form of a request, used by tab state, Duplicate request and share links. Dataset options save to the cart as they change; there is no "Add to Request" (see the developer docs' Frontend page, "Saving dataset options").
 
-## Component Patterns
+## API Integration
 
-### Header with Conditional Steps
-
-The Header component accepts `showSteps` prop. The layout determines this based on route:
-
-```svelte
-const workflowPaths = ['/', '/search', '/checkout'];
-let showSteps = $derived(
-  workflowPaths.some((path) => page.url.pathname === path || page.url.pathname.startsWith(path + '/'))
-);
-```
-
-### MapLibre Integration
-
-MapLibre is loaded client-side only (SSR-incompatible). The MapFrame component handles this in `onMount`:
-
-```svelte
-onMount(() => {
-  map = new maplibregl.Map({ container, style, ... });
-  return () => map?.remove();
-});
-```
-
-## Workflow Pages
-
-The app has a 3-step wizard flow:
-
-1. **Map** (`/`) - Select geographic boundary
-2. **Search** (`/search/[boundary]/[subboundary]`) - Select and filter datasets
-3. **Checkout** (`/checkout`) - Review selections and submit
-
-## API Integration (TODO)
-
-Backend API endpoints to implement:
-
-- `POST /api/boundaries` - Get available boundaries
-- `POST /api/geometry/[id]` - Get GeoJSON for boundary
-- `POST /api/datasets/[boundaryId]` - Get datasets for boundary
-- `POST /api/filters` - Get filter options
-- `POST /api/requests` - Lookup user requests by email
-- `POST /api/submit` - Submit new request
+All endpoints are Django REST Framework views under `/api/` (proxied by Vite in development). Use the functions in `lib/api.ts`; `apiFetch` adds the CSRF header for writes. See `docs/get-involved/contributing/dev/apis.md`.
